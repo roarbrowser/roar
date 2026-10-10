@@ -76,6 +76,7 @@ class State {
   Settings settings;
   std::vector<Space> spaces;
   int active_space = 0;
+  int next_space_id = 1;  // Never reused, so a new space never inherits an old profile.
   std::map<std::string, PageText> pages;
 
   void SavePages();

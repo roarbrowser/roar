@@ -126,6 +126,8 @@ void State::Load() {
     }
   }
   active_space = static_cast<int>(Num(d, "activeSpace"));
+  next_space_id = static_cast<int>(Num(d, "nextSpaceId", 1));
+  for (const auto& sp : spaces) next_space_id = std::max(next_space_id, sp.id + 1);
   if (!FindSpace(active_space)) active_space = spaces.front().id;
   // Tabs from a space that no longer exists fall back to the first space.
   for (auto& t : tabs)
@@ -187,6 +189,7 @@ void State::Save() {
   }
   d->SetList("spaces", sl);
   d->SetInt("activeSpace", active_space);
+  d->SetInt("nextSpaceId", next_space_id);
   WriteJson(Dir(), "state.json", d);
 }
 

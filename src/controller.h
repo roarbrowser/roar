@@ -173,7 +173,11 @@ class Controller {
     bool save;
   };
   std::map<std::string, PendingExtract> extracts_;
-  std::map<std::string, int> indexes_;  // Page-text nonce to tab id.
+  struct PendingIndex {
+    int tab_id;
+    std::string url;  // The page the nonce was issued to.
+  };
+  std::map<std::string, PendingIndex> indexes_;
   std::map<int, CefRefPtr<CefRequestContext>> contexts_;
 };
 

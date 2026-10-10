@@ -819,9 +819,7 @@ void Controller::CycleSpace(int step) {
 
 int Controller::AddSpace(const std::string& name) {
   State& state = State::Get();
-  int id = 0;
-  for (const auto& s : state.spaces) id = std::max(id, s.id);
-  ++id;
+  int id = state.next_space_id++;
   state.spaces.push_back({id, name.empty() ? "Space " + std::to_string(state.spaces.size() + 1)
                                            : name});
   SaveSoon();
@@ -885,7 +883,7 @@ void Controller::IndexPage(Tab* tab) {
   if (!State::Get().settings.index_pages || !StartsWith(tab->url, "http")) return;
   if (indexes_.size() > 200) indexes_.clear();  // Pages that never answered.
   std::string nonce = platform::RandomToken();
-  indexes_[nonce] = tab->id;
+  indexes_[nonce] = {tab->id, tab->url};
   // Waits a moment so client-rendered pages have their text.
   ExecuteScript(tab->id, "(function(n){setTimeout(function(){try{"
                          "var t=(document.body&&document.body.innerText)||'';"
@@ -1193,10 +1191,15 @@ bool Controller::HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> 
     if (cmd == "index.result") {
       auto it = indexes_.find(msg->GetString("nonce").ToString());
       Tab* tab = FindTabByBrowser(browser);
-      if (it == indexes_.end() || !tab || tab->id != it->second) return false;
+      if (it == indexes_.end() || !tab || tab->id != it->second.tab_id) return false;
+      PendingIndex pending = it->second;
       indexes_.erase(it);
-      if (State::Get().settings.index_pages) {
-        State::Get().SetPageText(tab->url, msg->GetString("title"), msg->GetString("text"));
+      // Store under the URL Roar issued the nonce for, and only if the tab
+      // is still there, so a page can't file text under another address.
+      bool same_page = frame->IsMain() && tab->url == pending.url &&
+                       frame->GetURL().ToString() == pending.url;
+      if (same_page && State::Get().settings.index_pages) {
+        State::Get().SetPageText(pending.url, msg->GetString("title"), msg->GetString("text"));
         SavePagesSoon();
       }
       callback->Success("");
