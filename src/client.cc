@@ -1,0 +1,108 @@
+#include "client.h"
+
+#include "include/wrapper/cef_helpers.h"
+
+#include "controller.h"
+#include "shared.h"
+
+namespace roar {
+
+namespace {
+
+class QueryHandler : public CefMessageRouterBrowserSide::Handler {
+ public:
+  bool OnQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> frame, int64_t query_id,
+               const CefString& request, bool persistent,
+               CefRefPtr<Callback> callback) override {
+    return Controller::Get()->HandleQuery(browser, frame, request, callback);
+  }
+};
+
+}  // namespace
+
+Client::Client() {
+  router_ = CefMessageRouterBrowserSide::Create(RouterConfig());
+  handler_ = std::make_unique<QueryHandler>();
+  router_->AddHandler(handler_.get(), false);
+}
+
+bool Client::OnProcessMessageReceived(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> frame,
+                                      CefProcessId source_process,
+                                      CefRefPtr<CefProcessMessage> message) {
+  return router_->OnProcessMessageReceived(browser, frame, source_process, message);
+}
+
+void Client::OnTitleChange(CefRefPtr<CefBrowser> browser, const CefString& title) {
+  Controller::Get()->OnTitle(browser, title);
+}
+
+void Client::OnAddressChange(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> frame,
+                             const CefString& url) {
+  if (frame->IsMain()) Controller::Get()->OnAddress(browser, url);
+}
+
+void Client::OnFaviconURLChange(CefRefPtr<CefBrowser> browser,
+                                const std::vector<CefString>& icon_urls) {
+  Controller::Get()->OnFavicon(browser, icon_urls.empty() ? "" : icon_urls[0].ToString());
+}
+
+void Client::OnDraggableRegionsChanged(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> frame,
+                                       const std::vector<CefDraggableRegion>& regions) {
+  Controller::Get()->OnDraggableRegions(browser, regions);
+}
+
+bool Client::OnPreKeyEvent(CefRefPtr<CefBrowser> browser, const CefKeyEvent& event,
+                           CefEventHandle os_event, bool* is_keyboard_shortcut) {
+  return Controller::Get()->OnKey(browser, event);
+}
+
+bool Client::OnBeforePopup(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> frame,
+                           int popup_id, const CefString& target_url,
+                           const CefString& target_frame_name,
+                           WindowOpenDisposition target_disposition, bool user_gesture,
+                           const CefPopupFeatures& popupFeatures, CefWindowInfo& windowInfo,
+                           CefRefPtr<CefClient>& client, CefBrowserSettings& settings,
+                           CefRefPtr<CefDictionaryValue>& extra_info,
+                           bool* no_javascript_access) {
+  switch (target_disposition) {
+    case CEF_WOD_NEW_FOREGROUND_TAB:
+    case CEF_WOD_NEW_BACKGROUND_TAB:
+    case CEF_WOD_NEW_WINDOW:
+    case CEF_WOD_SINGLETON_TAB:
+      Controller::Get()->NewTab(target_url, target_disposition != CEF_WOD_NEW_BACKGROUND_TAB);
+      return true;
+    default:
+      // Scripted popups (sign-in flows, document picture-in-picture) keep
+      // their opener and get a default window.
+      return false;
+  }
+}
+
+void Client::OnAfterCreated(CefRefPtr<CefBrowser> browser) {
+  CEF_REQUIRE_UI_THREAD();
+  Controller::Get()->OnBrowserCreated(browser);
+}
+
+void Client::OnBeforeClose(CefRefPtr<CefBrowser> browser) {
+  CEF_REQUIRE_UI_THREAD();
+  router_->OnBeforeClose(browser);
+  Controller::Get()->OnBrowserClosed(browser);
+}
+
+void Client::OnLoadingStateChange(CefRefPtr<CefBrowser> browser, bool isLoading, bool canGoBack,
+                                  bool canGoForward) {
+  Controller::Get()->OnLoading(browser, isLoading, canGoBack, canGoForward);
+}
+
+bool Client::OnBeforeBrowse(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> frame,
+                            CefRefPtr<CefRequest> request, bool user_gesture, bool is_redirect) {
+  router_->OnBeforeBrowse(browser, frame);
+  return false;
+}
+
+void Client::OnRenderProcessTerminated(CefRefPtr<CefBrowser> browser, TerminationStatus status,
+                                       int error_code, const CefString& error_string) {
+  router_->OnRenderProcessTerminated(browser);
+}
+
+}  // namespace roar

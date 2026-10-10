@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Hint</title>
+<link rel="stylesheet" href="roar.css">
+<style>
+/* The native window is the pill: rounded and shadowed by Roar. */
+html, body { background: var(--panel); overflow: hidden; }
+body { display: grid; place-items: center; padding: 0 18px; }
+.pill { max-width: 100%; color: var(--ink); font: 500 13.5px var(--round); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pill.in { animation: pop .16s ease-out; }
+@keyframes pop { from { transform: translateY(6px); opacity: 0; } }
+</style>
+</head>
+<body>
+<div class="pill" id="pill" role="status" aria-live="polite"></div>
+<script>
+const pill = document.getElementById('pill');
+window.roar = {
+  show(text) {
+    pill.textContent = text;
+    pill.classList.remove('in');
+    void pill.offsetWidth;
+    pill.classList.add('in');
+  },
+};
+</script>
+</body>
+</html>

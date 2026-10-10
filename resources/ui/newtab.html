@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>New Tab</title>
+<link rel="stylesheet" href="roar.css">
+<style>
+body { background: var(--panel); display: grid; place-items: center; }
+main { text-align: center; display: grid; gap: 10px; color: var(--ink-3); }
+.wordmark { font-size: 44px; color: var(--ink-3); line-height: 1; }
+button { color: var(--ink-2); border-radius: 8px; padding: 6px 12px; }
+button:hover { background: var(--ground); color: var(--ink); }
+</style>
+</head>
+<body>
+<main>
+  <span class="lion" style="width:72px;height:72px;margin:0 auto;opacity:.9" aria-hidden="true"></span>
+  <div class="wordmark">Roar</div>
+  <button id="go">Search or enter an address <kbd>⌘T</kbd></button>
+</main>
+<script src="bridge.js"></script>
+<script>
+document.getElementById('go').onclick = () => ask({ cmd: 'commandbar', newTab: false });
+</script>
+</body>
+</html>

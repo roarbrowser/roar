@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Welcome to Roar</title>
+<link rel="stylesheet" href="roar.css">
+<style>
+body { background: var(--panel); overflow-y: auto; }
+main { max-width: 640px; margin: 0 auto; padding: 72px 32px 96px; display: grid; gap: 40px; }
+header { display: grid; gap: 10px; }
+.hero { width: 92px; height: 92px; margin-bottom: 6px; }
+h1 { margin: 0; font: 800 64px/0.95 var(--round); letter-spacing: -.035em; text-wrap: balance; }
+h1 .grr { color: var(--mane); }
+.lede { margin: 0; font-size: 16px; line-height: 1.55; color: var(--ink-2); max-width: 52ch; }
+ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 28px; counter-reset: step; }
+li { display: grid; grid-template-columns: 34px 1fr; gap: 4px 14px; counter-increment: step; }
+li > * { grid-column: 2; }
+li::before { content: counter(step); grid-column: 1; grid-row: 1 / span 4; width: 28px; height: 28px; border-radius: 50%; background: var(--mane-soft); color: var(--mane-ink); font: 700 14px/28px var(--round); text-align: center; }
+h2 { margin: 2px 0 0; font: 700 18px var(--round); letter-spacing: -.01em; }
+p { margin: 0; color: var(--ink-2); line-height: 1.55; font-size: 14px; max-width: 58ch; }
+.controls { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; align-items: center; }
+.choice { border: 1px solid var(--rule); border-radius: 999px; padding: 5px 13px; color: var(--ink-2); font-size: 13px; }
+.choice:hover { color: var(--ink); border-color: var(--ink-3); }
+.choice[aria-pressed="true"] { background: var(--ink); color: var(--panel); border-color: var(--ink); }
+.btn { background: var(--ground); border-radius: 8px; padding: 7px 14px; font-weight: 500; }
+.btn:hover { background: var(--hover); }
+.btn.primary { background: var(--mane); color: #2a1604; font-weight: 600; padding: 10px 20px; font-size: 14px; }
+.btn.primary:hover { filter: brightness(1.05); }
+.status { font-size: 13px; color: var(--ink-3); }
+.status.ok { color: #2f9e5b; }
+label.switch { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--ink-2); }
+input[type=text] { width: 100%; max-width: 420px; font: 12.5px var(--mono); padding: 7px 10px; border-radius: 7px; border: 1px solid var(--rule); background: var(--ground); color: var(--ink); }
+.auto { border-top: 1px solid var(--rule); padding-top: 28px; display: grid; gap: 10px; }
+.auto h2 { font-size: 15px; }
+pre { margin: 0; font: 12px/1.6 var(--mono); background: var(--ground); border-radius: 8px; padding: 12px 14px; overflow-x: auto; color: var(--ink-2); }
+.finish { display: flex; align-items: center; gap: 14px; }
+@media (max-width: 520px) { h1 { font-size: 46px; } main { padding: 48px 18px 72px; } }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <span class="lion hero" aria-hidden="true"></span>
+    <h1 id="headline">Roar<span class="grr">.</span></h1>
+    <p class="lede" id="lede">A Chromium browser with a loud voice and a tidy den. Three things are worth knowing before you start.</p>
+  </header>
+
+  <ol>
+    <li>
+      <h2>Everything starts at ⌘T</h2>
+      <p>One bar opens addresses, searches the web, jumps to an open tab, and finds pages from your history or archive. Type <kbd>&gt;</kbd> first to run a command such as “Copy page as Markdown”.</p>
+      <div class="controls"><button class="btn" id="try">Try the command bar</button></div>
+    </li>
+    <li>
+      <h2>Tabs you stop using get archived</h2>
+      <p>Each tab in the sidebar has a thin bar that shrinks while you ignore it. When it runs out, Roar moves the tab to Archived, where one click brings it back. Pinned tabs stay put.</p>
+      <div class="controls" id="archive-choices" role="group" aria-label="Archive tabs after">
+        <button class="choice" data-hours="6">6 hours</button>
+        <button class="choice" data-hours="12">12 hours</button>
+        <button class="choice" data-hours="24">1 day</button>
+        <button class="choice" data-hours="168">1 week</button>
+        <button class="choice" data-hours="0">Never</button>
+      </div>
+    </li>
+    <li>
+      <h2>Your pull requests live in the sidebar</h2>
+      <p>Roar asks the GitHub CLI for your open pull requests every ten minutes, so nothing new to sign in to.</p>
+      <div class="controls">
+        <label class="switch"><input type="checkbox" id="gh-on"> Show pull requests</label>
+        <span class="status" id="gh-status">Checking GitHub CLI…</span>
+      </div>
+      <div class="controls"><input type="text" id="gh-query" aria-label="GitHub search query" spellcheck="false"></div>
+    </li>
+  </ol>
+
+  <div class="finish">
+    <button class="btn primary" id="finish">Start browsing</button>
+    <span class="status">You can change these later in Settings (⌘,).</span>
+  </div>
+
+  <section class="auto">
+    <h2>Automation</h2>
+    <p>Roar exposes the Chrome DevTools Protocol on <code id="port">127.0.0.1:9222</code> and has an AppleScript dictionary.</p>
+    <pre>tell application "Roar"
+  open url "https://example.com"
+  execute javascript "document.title"
+  get URL of every tab
+end tell</pre>
+  </section>
+</main>
+<script src="bridge.js"></script>
+<script>
+const $ = (id) => document.getElementById(id);
+const set = (settings) => ask({ cmd: 'settings.set', settings }).then(apply);
+
+function apply(s) {
+  for (const b of document.querySelectorAll('[data-hours]'))
+    b.setAttribute('aria-pressed', String(+b.dataset.hours === s.settings.archiveAfterHours));
+  $('gh-on').checked = s.github.enabled;
+  if (document.activeElement !== $('gh-query')) $('gh-query').value = s.github.query;
+  $('gh-query').disabled = !s.github.enabled;
+  $('port').textContent = '127.0.0.1:' + s.settings.cdpPort;
+  if (s.settings.onboarded) {
+    document.title = 'Settings';
+    $('headline').innerHTML = 'Settings<span class="grr">.</span>';
+    $('lede').textContent = 'How Roar tidies tabs and what it shows in the sidebar.';
+    $('finish').textContent = 'Done';
+  }
+}
+
+document.querySelectorAll('[data-hours]').forEach((b) => b.onclick = () => set({ archiveAfterHours: +b.dataset.hours }));
+$('gh-on').onchange = () => set({ githubFolder: $('gh-on').checked });
+$('gh-query').onchange = () => set({ githubQuery: $('gh-query').value.trim() || 'is:open is:pr author:@me' });
+$('try').onclick = () => ask({ cmd: 'commandbar', newTab: true });
+$('finish').onclick = () => set({ onboarded: true }).then(() => ask({ cmd: 'tab.closeSelf' }));
+
+ask({ cmd: 'state' }).then(apply);
+ask({ cmd: 'github.status' }).then((status) => {
+  const el = $('gh-status');
+  el.textContent = { ok: 'Connected through gh', missing: 'Install the GitHub CLI (gh) first', 'signed-out': 'Run “gh auth login” in Terminal first' }[status] || status;
+  el.classList.toggle('ok', status === 'ok');
+});
+</script>
+</body>
+</html>
