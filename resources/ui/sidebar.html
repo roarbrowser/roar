@@ -24,11 +24,14 @@ body { background: var(--ground); display: flex; flex-direction: column; overflo
 .spaces .add { flex: none; width: 24px; padding: 0; font-size: 15px; color: var(--ink-3); }
 .scroll { flex: 1; overflow-y: auto; padding: 0 6px 12px; display: flex; flex-direction: column; gap: 14px; }
 
-.pinned { display: grid; grid-template-columns: repeat(auto-fill, minmax(52px, 1fr)); gap: 6px; padding: 0 4px; }
+.pinned { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 4px; }
 .pinned:empty { display: none; }
-.pin { height: 40px; border-radius: 9px; background: var(--hover); display: grid; place-items: center; }
+.pin { width: 38px; height: 38px; border-radius: 10px; background: var(--hover); display: grid; place-items: center; position: relative; }
 .pin:hover { background: var(--rule); }
-.pin.active { background: var(--selected); box-shadow: 0 0 0 1.5px var(--mane); }
+.pin.active { background: var(--selected); box-shadow: 0 1px 2px rgba(0,0,0,.12); }
+.pin.active::after { content: ""; position: absolute; bottom: 3px; left: 50%; width: 12px; height: 2px; margin-left: -6px; border-radius: 1px; background: var(--mane); }
+.pin .fav.letter { background: none; font-size: 13px; color: var(--ink-2); }
+.pin .lion { width: 20px; height: 20px; }
 
 .group-head { display: flex; align-items: center; gap: 6px; padding: 0 8px 4px; color: var(--ink-3); font-size: 12px; font-weight: 600; }
 .group-head .count { font-weight: 400; font-variant-numeric: tabular-nums; }
@@ -133,7 +136,7 @@ function tabRow(t, limit) {
   const cool = limit > 0 && left < 0.25 && !t.active;
   const remaining = limit > 0 ? `Archives in ${ago(Math.max(60, limit - t.idleSeconds))}` : '';
   return `<div class="row${t.active ? ' active' : ''}${cool ? ' cool' : ''}" data-id="${t.id}" title="${esc(t.title)}\n${esc(t.url)}${remaining && !t.active ? '\n' + remaining : ''}">
-    ${t.loading ? '<span class="spin"></span>' : iconHtml(t.favicon, t.url)}
+    ${t.loading ? '<span class="spin"></span>' : t.url.startsWith('roar:') ? '<span class="lion" style="width:16px;height:16px"></span>' : iconHtml(t.favicon, t.url)}
     <span class="label">${esc(t.title || hostOf(t.url))}</span>
     ${t.floating ? '<span class="badge">floating</span>' : ''}${t.split ? '<span class="badge">split</span>' : ''}
     <button class="x" data-close="${t.id}" aria-label="Close tab">${x}</button>
@@ -151,7 +154,7 @@ window.roar = {
       `<button data-space="${sp.id}" aria-pressed="${sp.id === s.activeSpace}" title="${esc(sp.name)} (⌃${i + 1})">${esc(sp.name)}</button>`).join('')
       + '<button class="add" id="space-add" title="New space" aria-label="New space">+</button>';
     $('pinned').innerHTML = pinned.map((t) =>
-      `<button class="pin${t.active ? ' active' : ''}" data-id="${t.id}" title="${esc(t.title)}">${iconHtml(t.favicon, t.url)}</button>`).join('');
+      `<button class="pin${t.active ? ' active' : ''}" data-id="${t.id}" title="${esc(t.title)}" aria-label="${esc(t.title)}">${t.url.startsWith('roar:') ? '<span class="lion"></span>' : iconHtml(t.favicon, t.url)}</button>`).join('');
     $('tabs').innerHTML = open.map((t) => tabRow(t, limit)).join('');
     $('tab-count').textContent = open.length || '';
     $('back').disabled = !s.nav.canBack;
