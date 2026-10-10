@@ -141,6 +141,9 @@ class TabWindowDelegate : public CefWindowDelegate {
   bool CanClose(CefRefPtr<CefWindow> window) override {
     return Controller::Get()->CanCloseTabWindow(window);
   }
+  void OnWindowActivationChanged(CefRefPtr<CefWindow> window, bool active) override {
+    if (active) Controller::Get()->OnTabWindowActivated(window);
+  }
   CefRect GetInitialBounds(CefRefPtr<CefWindow> window) override { return bounds_; }
   bool IsFrameless(CefRefPtr<CefWindow> window) override { return true; }
   bool WithStandardWindowButtons(CefRefPtr<CefWindow> window) override { return false; }
@@ -266,7 +269,7 @@ void Controller::Start() {
   platform::SetIgnoresMouse(hint_window_->GetWindowHandle(), true);
 
   for (const auto& saved : state.tabs)
-    NewTab(saved.url, false, saved.pinned, saved.last_active);
+    NewTab(saved.url, false, saved.pinned, saved.last_active, saved.space);
   if (!state.settings.onboarded) {
     ActivateTab(NewTab(kWelcomeUrl, false));
   } else if (tabs_.empty()) {
@@ -294,10 +297,12 @@ void Controller::Quit() {
 // ---------------------------------------------------------------------------
 // Tabs
 
-int Controller::NewTab(const std::string& url, bool activate, bool pinned, double last_active) {
+int Controller::NewTab(const std::string& url, bool activate, bool pinned, double last_active,
+                       int space) {
   CEF_REQUIRE_UI_THREAD();
   Tab tab;
   tab.id = next_id_++;
+  tab.space = space < 0 || !State::Get().FindSpace(space) ? State::Get().active_space : space;
   tab.url = url.empty() ? kNewTabUrl : url;
   tab.title = tab.url;
   tab.pinned = pinned;
@@ -305,11 +310,10 @@ int Controller::NewTab(const std::string& url, bool activate, bool pinned, doubl
   if (auto it = State::Get().history.find(tab.url); it != State::Get().history.end())
     tab.title = it->second.title.empty() ? tab.url : it->second.title;
   // The browser is created with the tab's window, on first activation.
-  tab.view = CefBrowserView::CreateBrowserView(client_, tab.url, CefBrowserSettings(), nullptr,
-                                               nullptr, new TabViewDelegate());
+  tab.view = CreateTabView(tab.url, tab.space);
   // New tabs open beside the active one, after any pinned tabs.
   auto pos = tabs_.end();
-  if (auto* active = ActiveTab(); active && !pinned) {
+  if (auto* active = ActiveTab(); active && !pinned && active->space == tab.space) {
     pos = std::find_if(tabs_.begin(), tabs_.end(),
                        [&](const Tab& t) { return t.id == active->id; }) + 1;
   }
@@ -328,13 +332,63 @@ CefRect Controller::ContentRect() {
                  std::max(0, r.height - top - kGutter));
 }
 
+std::vector<int> Controller::VisibleIds() {
+  if (split_a_ && split_b_ && (active_id_ == split_a_ || active_id_ == split_b_))
+    return {split_a_, split_b_};
+  if (active_id_) return {active_id_};
+  return {};
+}
+
+bool Controller::IsVisible(int id) {
+  auto v = VisibleIds();
+  return std::find(v.begin(), v.end(), id) != v.end();
+}
+
+// The content rect, halved with a gutter between the panes in split view.
+CefRect Controller::RectFor(int id) {
+  CefRect r = ContentRect();
+  auto v = VisibleIds();
+  if (v.size() < 2) return r;
+  int half = (r.width - kGutter) / 2;
+  if (id == v[0]) return CefRect(r.x, r.y, half, r.height);
+  return CefRect(r.x + half + kGutter, r.y, r.width - half - kGutter, r.height);
+}
+
+// Shows the visible tabs' windows over the shell and hides every other one.
+void Controller::SyncWindows() {
+  if (!shell_) return;
+  for (auto& t : tabs_) {
+    if (t.floating) continue;
+    if (IsVisible(t.id)) ShowTabWindow(&t);
+    else HideTabWindow(&t);
+  }
+}
+
+CefRefPtr<CefRequestContext> Controller::ContextFor(int space) {
+  if (space == 0) return nullptr;  // The default profile.
+  auto& ctx = contexts_[space];
+  if (!ctx) {
+    CefRequestContextSettings settings;
+    CefString(&settings.cache_path) = State::Get().Dir() + "/Spaces/" + std::to_string(space);
+    settings.persist_session_cookies = true;
+    ctx = CefRequestContext::CreateContext(settings, nullptr);
+  }
+  return ctx;
+}
+
+CefRefPtr<CefBrowserView> Controller::CreateTabView(const std::string& url, int space) {
+  return CefBrowserView::CreateBrowserView(client_, url, CefBrowserSettings(), nullptr,
+                                           ContextFor(space), new TabViewDelegate());
+}
+
 void Controller::ShowTabWindow(Tab* tab) {
   if (!tab->window) {
     // OnTabWindowCreated attaches it once CEF has built the window.
-    tab->window = CefWindow::CreateTopLevelWindow(new TabWindowDelegate(tab->view, ContentRect()));
+    tab->window =
+        CefWindow::CreateTopLevelWindow(new TabWindowDelegate(tab->view, RectFor(tab->id)));
     return;
   }
-  tab->window->SetBounds(ContentRect());
+  tab->window->SetBounds(RectFor(tab->id));
   platform::AttachChild(shell_->GetWindowHandle(), tab->window->GetWindowHandle());
 }
 
@@ -346,11 +400,23 @@ void Controller::HideTabWindow(Tab* tab) {
 void Controller::OnTabWindowCreated(CefRefPtr<CefWindow> window) {
   platform::StyleWindow(window->GetWindowHandle(), 10, false);
   Tab* tab = FindTabByWindow(window);
-  if (!tab || tab->id != shown_id_) return;
-  window->SetBounds(ContentRect());
+  if (!tab || tab->floating || !IsVisible(tab->id)) return;
+  window->SetBounds(RectFor(tab->id));
   window->Show();
   platform::AttachChild(shell_->GetWindowHandle(), window->GetWindowHandle());
-  FocusTab(tab);
+  if (tab->id == active_id_) FocusTab(tab);
+}
+
+// Clicking into the other split pane makes that tab the active one.
+void Controller::OnTabWindowActivated(CefRefPtr<CefWindow> window) {
+  Tab* tab = FindTabByWindow(window);
+  if (!tab || tab->floating || tab->id == active_id_ || !IsVisible(tab->id)) return;
+  if (Tab* old = ActiveTab()) old->last_active = NowSeconds();
+  active_id_ = tab->id;
+  tab->last_active = NowSeconds();
+  shell_->SetTitle(tab->title.empty() ? "Roar" : tab->title);
+  PushSidebar();
+  SaveSoon();
 }
 
 void Controller::FocusTab(Tab* tab) {
@@ -365,13 +431,14 @@ void Controller::ActivateTab(int id) {
   if (!tab || !shell_) return;
   if (tab->floating) return DockTab(id);
   if (Tab* old = ActiveTab()) old->last_active = NowSeconds();
-  if (shown_id_ != id) {
-    HideTabWindow(FindTab(shown_id_));
-    shown_id_ = id;
-    ShowTabWindow(tab);
-  }
+  // In split view, a tab picked from the same space replaces the focused pane.
+  bool in_split = split_a_ && (active_id_ == split_a_ || active_id_ == split_b_);
+  if (in_split && id != split_a_ && id != split_b_ && ActiveTab()->space == tab->space)
+    (active_id_ == split_a_ ? split_a_ : split_b_) = id;
   active_id_ = id;
+  State::Get().active_space = tab->space;
   tab->last_active = NowSeconds();
+  SyncWindows();
   FocusTab(tab);
   shell_->SetTitle(tab->title.empty() ? "Roar" : tab->title);
   PushSidebar();
@@ -381,7 +448,8 @@ void Controller::ActivateTab(int id) {
 void Controller::Relayout() {
   if (!shell_) return;
   CefRect area = ContentRect();
-  if (Tab* t = FindTab(shown_id_); t && t->window && !t->floating) t->window->SetBounds(area);
+  for (int id : VisibleIds())
+    if (Tab* t = FindTab(id); t && t->window && !t->floating) t->window->SetBounds(RectFor(id));
   if (command_window_ && command_visible_) {
     int w = std::min(kCommandBarWidth, std::max(area.width - 48, 320));
     int h = command_height_ > 0 ? command_height_ : kCommandBarHeight;
@@ -400,7 +468,7 @@ void Controller::CloseTab(int id) {
   Tab tab = *it;
   size_t index = it - tabs_.begin();
   tabs_.erase(it);
-  if (shown_id_ == id) shown_id_ = 0;
+  if (id == split_a_ || id == split_b_) split_a_ = split_b_ = 0;
   // Removed from tabs_ first, so CanCloseTabWindow lets the window go.
   if (tab.window) {
     platform::DetachChild(shell_->GetWindowHandle(), tab.window->GetWindowHandle());
@@ -408,16 +476,21 @@ void Controller::CloseTab(int id) {
   }
   if (active_id_ == id) {
     active_id_ = 0;
-    std::vector<Tab*> candidates;
-    for (auto& t : tabs_)
-      if (!t.floating) candidates.push_back(&t);
-    if (candidates.empty()) {
-      ActivateTab(NewTab(kNewTabUrl, false));
-      ShowCommandBar(false);
+    // Prefer the next tab in the same space, then the previous one.
+    auto usable = [&](const Tab& t) { return t.space == tab.space && !t.floating; };
+    Tab* next = nullptr;
+    for (size_t i = index; i < tabs_.size() && !next; ++i)
+      if (usable(tabs_[i])) next = &tabs_[i];
+    for (size_t i = std::min(index, tabs_.size()); i-- > 0 && !next;)
+      if (usable(tabs_[i])) next = &tabs_[i];
+    if (next) {
+      ActivateTab(next->id);
     } else {
-      size_t i = std::min(index, tabs_.size() - 1);
-      ActivateTab(tabs_[i].floating ? candidates.back()->id : tabs_[i].id);
+      ActivateTab(NewTab(kNewTabUrl, false, false, 0, tab.space));
+      ShowCommandBar(false);
     }
+  } else {
+    SyncWindows();
   }
   PushSidebar();
   SaveSoon();
@@ -445,8 +518,7 @@ void Controller::Navigate(int id, const std::string& url) {
     browser->GetMainFrame()->LoadURL(url);
   } else if (!tab->window) {
     // Not created yet: start it at the new address instead.
-    tab->view = CefBrowserView::CreateBrowserView(client_, url, CefBrowserSettings(), nullptr,
-                                                  nullptr, new TabViewDelegate());
+    tab->view = CreateTabView(url, tab->space);
   }
   PushSidebar();
 }
@@ -560,7 +632,8 @@ void Controller::ArchiveTab(int id) {
 void Controller::CleanTabs() {
   std::vector<int> ids;
   for (const auto& t : tabs_)
-    if (!t.pinned && t.id != active_id_ && !t.floating) ids.push_back(t.id);
+    if (!t.pinned && !IsVisible(t.id) && !t.floating && t.space == State::Get().active_space)
+      ids.push_back(t.id);
   for (int id : ids) ArchiveTab(id);
   ShowHint(ids.empty() ? "Nothing to clean up"
                        : "Archived " + std::to_string(ids.size()) +
@@ -573,7 +646,7 @@ void Controller::AutoArchiveTick() {
     double cutoff = NowSeconds() - hours * 3600;
     std::vector<int> ids;
     for (const auto& t : tabs_)
-      if (!t.pinned && t.id != active_id_ && !t.floating && t.last_active < cutoff)
+      if (!t.pinned && !IsVisible(t.id) && !t.floating && t.last_active < cutoff)
         ids.push_back(t.id);
     for (int id : ids) ArchiveTab(id);
   }
@@ -631,12 +704,14 @@ void Controller::PictureInPicture() {
 void Controller::FloatActiveTab() {
   Tab* tab = ActiveTab();
   if (!tab || !tab->window) return;
-  bool others = std::any_of(tabs_.begin(), tabs_.end(),
-                            [&](const Tab& t) { return t.id != tab->id && !t.floating; });
+  bool others = std::any_of(tabs_.begin(), tabs_.end(), [&](const Tab& t) {
+    return t.id != tab->id && !t.floating && t.space == tab->space;
+  });
+  int space = tab->space;
   int id = tab->id;
   platform::DetachChild(shell_->GetWindowHandle(), tab->window->GetWindowHandle());
   tab->floating = true;
-  shown_id_ = 0;
+  if (id == split_a_ || id == split_b_) split_a_ = split_b_ = 0;
   CefRect work = CefDisplay::GetDisplayMatchingBounds(shell_->GetBounds(), false)->GetWorkArea();
   tab->window->SetBounds(CefRect(work.x + work.width - 504, work.y + work.height - 344, 480, 320));
   platform::SetFloating(tab->window->GetWindowHandle(), true, tab->title);
@@ -644,12 +719,12 @@ void Controller::FloatActiveTab() {
   // Show something else in the shell.
   if (others) {
     for (const auto& t : tabs_)
-      if (t.id != id && !t.floating) {
+      if (t.id != id && !t.floating && t.space == space) {
         ActivateTab(t.id);
         break;
       }
   } else {
-    ActivateTab(NewTab(kNewTabUrl, false));
+    ActivateTab(NewTab(kNewTabUrl, false, false, 0, space));
   }
   ShowHint("Floating. Close the mini window to bring it back.");
 }
@@ -719,6 +794,117 @@ void Controller::GitHubTick() {
   CefPostDelayedTask(TID_UI, base::BindOnce([] { Controller::Get()->GitHubTick(); }), 10 * 60 * 1000);
 }
 
+void Controller::SwitchSpace(int id) {
+  State& state = State::Get();
+  Space* space = state.FindSpace(id);
+  if (!space) return;
+  std::string name = space->name;
+  HideCommandBar();
+  Tab* best = nullptr;
+  for (auto& t : tabs_)
+    if (t.space == id && !t.floating && (!best || t.last_active > best->last_active)) best = &t;
+  state.active_space = id;
+  if (best) ActivateTab(best->id);
+  else ActivateTab(NewTab(kNewTabUrl, false, false, 0, id));
+  ShowHint(name);
+}
+
+void Controller::CycleSpace(int step) {
+  const auto& spaces = State::Get().spaces;
+  int n = static_cast<int>(spaces.size());
+  for (int i = 0; i < n; ++i)
+    if (spaces[i].id == State::Get().active_space)
+      return SwitchSpace(spaces[((i + step) % n + n) % n].id);
+}
+
+int Controller::AddSpace(const std::string& name) {
+  State& state = State::Get();
+  int id = 0;
+  for (const auto& s : state.spaces) id = std::max(id, s.id);
+  ++id;
+  state.spaces.push_back({id, name.empty() ? "Space " + std::to_string(state.spaces.size() + 1)
+                                           : name});
+  SaveSoon();
+  SwitchSpace(id);
+  return id;
+}
+
+void Controller::RenameSpace(int id, const std::string& name) {
+  if (Space* s = State::Get().FindSpace(id); s && !name.empty()) {
+    s->name = name.substr(0, 40);
+    PushSidebar();
+    SaveSoon();
+  }
+}
+
+// Archives the space's tabs and forgets the space. Its profile stays on disk.
+void Controller::RemoveSpace(int id) {
+  State& state = State::Get();
+  if (id == 0 || !state.FindSpace(id)) return;  // Space 0 is the default profile.
+  if (state.active_space == id) SwitchSpace(0);
+  std::vector<int> ids;
+  for (const auto& t : tabs_)
+    if (t.space == id) ids.push_back(t.id);
+  for (int tab_id : ids) {
+    if (Tab* t = FindTab(tab_id); t && t->floating) t->floating = false;
+    ArchiveTab(tab_id);
+  }
+  state.spaces.erase(std::remove_if(state.spaces.begin(), state.spaces.end(),
+                                    [&](const Space& s) { return s.id == id; }),
+                     state.spaces.end());
+  PushSidebar();
+  SaveSoon();
+}
+
+void Controller::ToggleSplit() {
+  Tab* tab = ActiveTab();
+  if (!tab) return;
+  int id = tab->id;
+  if (split_a_ && (id == split_a_ || id == split_b_)) {
+    split_a_ = split_b_ = 0;
+    SyncWindows();
+    FocusTab(ActiveTab());
+    PushSidebar();
+    return;
+  }
+  // Pair with the most recently used other tab in this space.
+  Tab* other = nullptr;
+  for (auto& t : tabs_)
+    if (t.id != id && t.space == tab->space && !t.floating &&
+        (!other || t.last_active > other->last_active))
+      other = &t;
+  int other_id = other ? other->id : NewTab(kNewTabUrl, false, false, 0, tab->space);
+  split_a_ = id;
+  split_b_ = other_id;
+  SyncWindows();
+  FocusTab(ActiveTab());
+  PushSidebar();
+}
+
+void Controller::IndexPage(Tab* tab) {
+  if (!State::Get().settings.index_pages || !StartsWith(tab->url, "http")) return;
+  if (indexes_.size() > 200) indexes_.clear();  // Pages that never answered.
+  std::string nonce = platform::RandomToken();
+  indexes_[nonce] = tab->id;
+  // Waits a moment so client-rendered pages have their text.
+  ExecuteScript(tab->id, "(function(n){setTimeout(function(){try{"
+                         "var t=(document.body&&document.body.innerText)||'';"
+                         "window.roarQuery&&window.roarQuery({request:JSON.stringify("
+                         "{cmd:'index.result',nonce:n,title:document.title,"
+                         "text:t.replace(/\\s+/g,' ').slice(0,20000)})});"
+                         "}catch(e){}},1500);})(" + JsString(nonce) + ");");
+}
+
+void Controller::SavePagesSoon() {
+  if (pages_save_pending_ || closing_) return;
+  pages_save_pending_ = true;
+  CefPostDelayedTask(TID_UI, base::BindOnce([] {
+                       Controller::Get()->pages_save_pending_ = false;
+                       State::Get().SavePages();
+                     }),
+                     10 * 1000);
+}
+
 void Controller::RunCommand(const std::string& id) {
   if (id == "quit") Quit();
   else if (id == "clean") CleanTabs();
@@ -737,6 +923,15 @@ void Controller::RunCommand(const std::string& id) {
   else if (id == "closeTab") CloseTab(active_id_);
   else if (id == "reopen") { if (!State::Get().archive.empty()) RestoreArchived(0); }
   else if (id == "pin") { if (Tab* t = ActiveTab()) SetPinned(t->id, !t->pinned); }
+  else if (id == "split") ToggleSplit();
+  else if (id == "newSpace") AddSpace("");
+  else if (id == "nextSpace") CycleSpace(1);
+  else if (id == "prevSpace") CycleSpace(-1);
+  else if (id == "forgetPages") {
+    State::Get().pages.clear();
+    State::Get().SavePages();
+    ShowHint("Forgot saved page text");
+  }
   else if (id == "devtools") {
     if (Tab* t = ActiveTab(); t && t->view->GetBrowser())
       t->view->GetBrowser()->GetHost()->ShowDevTools(CefWindowInfo(), nullptr, CefBrowserSettings(),
@@ -752,8 +947,10 @@ std::string Controller::StateJson() {
   double now = NowSeconds();
   auto root = CefDictionaryValue::Create();
   auto tabs = CefListValue::Create();
+  size_t shown = 0;
   for (size_t i = 0; i < tabs_.size(); ++i) {
     const Tab& t = tabs_[i];
+    if (t.space != state.active_space) continue;
     auto d = CefDictionaryValue::Create();
     d->SetInt("id", t.id);
     d->SetString("title", t.title);
@@ -763,10 +960,23 @@ std::string Controller::StateJson() {
     d->SetBool("active", t.id == active_id_);
     d->SetBool("loading", t.loading);
     d->SetBool("floating", t.floating);
+    d->SetBool("split", split_a_ && (t.id == split_a_ || t.id == split_b_));
     d->SetDouble("idleSeconds", t.id == active_id_ ? 0 : std::max(0.0, now - t.last_active));
-    tabs->SetDictionary(i, d);
+    tabs->SetDictionary(shown++, d);
   }
   root->SetList("tabs", tabs);
+  auto spaces = CefListValue::Create();
+  for (size_t i = 0; i < state.spaces.size(); ++i) {
+    auto d = CefDictionaryValue::Create();
+    d->SetInt("id", state.spaces[i].id);
+    d->SetString("name", state.spaces[i].name);
+    d->SetInt("tabCount", static_cast<int>(std::count_if(
+        tabs_.begin(), tabs_.end(), [&](const Tab& t) { return t.space == state.spaces[i].id; })));
+    spaces->SetDictionary(i, d);
+  }
+  root->SetList("spaces", spaces);
+  root->SetInt("activeSpace", state.active_space);
+  root->SetBool("split", split_a_ && IsVisible(split_a_));
   auto archive = CefListValue::Create();
   for (size_t i = 0; i < std::min<size_t>(state.archive.size(), 60); ++i) {
     auto d = CefDictionaryValue::Create();
@@ -795,6 +1005,8 @@ std::string Controller::StateJson() {
   settings->SetDouble("archiveAfterHours", state.settings.archive_after_hours);
   settings->SetBool("onboarded", state.settings.onboarded);
   settings->SetString("searchUrl", state.settings.search_url);
+  settings->SetBool("indexPages", state.settings.index_pages);
+  settings->SetInt("pageCount", static_cast<int>(state.pages.size()));
   settings->SetInt("cdpPort", platform::CdpPort());
   root->SetDictionary("settings", settings);
   auto nav = CefDictionaryValue::Create();
@@ -817,13 +1029,20 @@ std::string Controller::Suggest(const std::string& raw) {
   std::string q = Lower(raw);
   auto list = CefListValue::Create();
   size_t n = 0;
-  auto add = [&](const char* kind, int id, const std::string& title, const std::string& url) {
+  auto add = [&](const char* kind, int id, const std::string& title, const std::string& url,
+                 const std::string& detail = "") {
     auto d = CefDictionaryValue::Create();
     d->SetString("kind", kind);
     d->SetInt("id", id);
     d->SetString("title", title);
     d->SetString("url", url);
+    if (!detail.empty()) d->SetString("detail", detail);
     list->SetDictionary(n++, d);
+  };
+  auto space_name = [&](const Tab& t) {
+    if (t.space == State::Get().active_space) return std::string();
+    Space* s = State::Get().FindSpace(t.space);
+    return s ? s->name : std::string();
   };
   auto matches = [&](const std::string& title, const std::string& url) {
     if (q.empty()) return true;
@@ -841,7 +1060,7 @@ std::string Controller::Suggest(const std::string& raw) {
   for (const auto& t : tabs_) {
     if (n >= 4) break;
     if (t.id != active_id_ && !StartsWith(t.url, "roar://") && matches(t.title, t.url))
-      add("tab", t.id, t.title, t.url);
+      add("tab", t.id, t.title, t.url, space_name(t));
   }
   if (!q.empty()) {
     std::set<std::string> seen;
@@ -868,8 +1087,63 @@ std::string Controller::Suggest(const std::string& raw) {
     for (size_t i = 0; i < archive.size() && n < 8; ++i)
       if (!seen.count(archive[i].url) && matches(archive[i].title, archive[i].url))
         add("archived", static_cast<int>(i), archive[i].title, archive[i].url);
+    if (q.size() >= 3) SuggestPageText(q, list, n);
   }
   return ToJson(Wrap(list));
+}
+
+// Full-text matches from saved page text. Every word must appear.
+void Controller::SuggestPageText(const std::string& q, CefRefPtr<CefListValue> list, size_t& n) {
+  std::vector<std::string> words;
+  for (size_t start = 0; start < q.size();) {
+    size_t end = q.find(' ', start);
+    if (end == std::string::npos) end = q.size();
+    if (end > start) words.push_back(q.substr(start, end - start));
+    start = end + 1;
+  }
+  if (words.empty()) return;
+  struct Hit {
+    double when;
+    const std::string* url;
+    size_t pos;
+  };
+  std::vector<Hit> hits;
+  for (const auto& [url, page] : State::Get().pages) {
+    std::string hay = Lower(page.text);
+    size_t first = std::string::npos;
+    bool all = true;
+    for (const auto& w : words) {
+      size_t pos = hay.find(w);
+      if (pos == std::string::npos) {
+        all = false;
+        break;
+      }
+      if (first == std::string::npos) first = pos;
+    }
+    if (all) hits.push_back({page.indexed_at, &url, first});
+  }
+  std::sort(hits.begin(), hits.end(), [](const Hit& a, const Hit& b) { return a.when > b.when; });
+  for (size_t i = 0; i < hits.size() && i < 4; ++i) {
+    const PageText& page = State::Get().pages[*hits[i].url];
+    const std::string& text = page.text;
+    // A window of text around the first word, cut on UTF-8 boundaries.
+    size_t start = hits[i].pos > 70 ? hits[i].pos - 70 : 0;
+    size_t end = std::min(text.size(), hits[i].pos + words[0].size() + 110);
+    while (start > 0 && (static_cast<unsigned char>(text[start]) & 0xC0) == 0x80) --start;
+    while (end < text.size() && (static_cast<unsigned char>(text[end]) & 0xC0) == 0x80) ++end;
+    std::string snippet = (start > 0 ? "…" : "") + text.substr(start, end - start) +
+                          (end < text.size() ? "…" : "");
+    int tab_id = 0;
+    for (const auto& t : tabs_)
+      if (t.url == *hits[i].url) tab_id = t.id;
+    auto d = CefDictionaryValue::Create();
+    d->SetString("kind", "text");
+    d->SetInt("id", tab_id);
+    d->SetString("title", page.title);
+    d->SetString("url", *hits[i].url);
+    d->SetString("detail", snippet);
+    list->SetDictionary(n++, d);
+  }
 }
 
 void Controller::ApplySettings(CefRefPtr<CefDictionaryValue> d) {
@@ -882,6 +1156,7 @@ void Controller::ApplySettings(CefRefPtr<CefDictionaryValue> d) {
   }
   if (d->HasKey("onboarded")) s.onboarded = d->GetBool("onboarded");
   if (d->HasKey("searchUrl")) s.search_url = d->GetString("searchUrl").ToString();
+  if (d->HasKey("indexPages")) s.index_pages = d->GetBool("indexPages");
   if (d->HasKey("githubFolder")) {
     s.github_folder = d->GetBool("githubFolder");
     github_changed = true;
@@ -915,6 +1190,18 @@ bool Controller::HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> 
   bool trusted = frame->IsMain() && StartsWith(frame->GetURL().ToString(), kUiOrigin) &&
                  StartsWith(browser->GetMainFrame()->GetURL().ToString(), kUiOrigin);
   if (!trusted) {
+    if (cmd == "index.result") {
+      auto it = indexes_.find(msg->GetString("nonce").ToString());
+      Tab* tab = FindTabByBrowser(browser);
+      if (it == indexes_.end() || !tab || tab->id != it->second) return false;
+      indexes_.erase(it);
+      if (State::Get().settings.index_pages) {
+        State::Get().SetPageText(tab->url, msg->GetString("title"), msg->GetString("text"));
+        SavePagesSoon();
+      }
+      callback->Success("");
+      return true;
+    }
     if (cmd != "extract.result") return false;
     auto it = extracts_.find(msg->GetString("nonce").ToString());
     Tab* tab = FindTabByBrowser(browser);
@@ -992,6 +1279,18 @@ bool Controller::HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> 
   } else if (cmd == "settings.set") {
     ApplySettings(msg->GetDictionary("settings"));
     callback->Success(StateJson());
+  } else if (cmd == "space.switch") {
+    SwitchSpace(int_arg("id"));
+    callback->Success("");
+  } else if (cmd == "space.add") {
+    AddSpace(msg->GetString("name"));
+    callback->Success(StateJson());
+  } else if (cmd == "space.rename") {
+    RenameSpace(int_arg("id"), msg->GetString("name"));
+    callback->Success(StateJson());
+  } else if (cmd == "space.remove") {
+    RemoveSpace(int_arg("id"));
+    callback->Success(StateJson());
   } else if (cmd == "github.status") {
     platform::GitHubAuthStatus([callback](std::string status) { callback->Success(status); });
   } else {
@@ -1050,7 +1349,10 @@ void Controller::OnLoading(CefRefPtr<CefBrowser> browser, bool loading, bool can
   tab->loading = loading;
   tab->can_back = can_back;
   tab->can_forward = can_forward;
-  if (!loading) State::Get().RecordVisit(tab->url, tab->title);
+  if (!loading) {
+    State::Get().RecordVisit(tab->url, tab->title);
+    IndexPage(tab);
+  }
   PushSidebar();
 }
 
@@ -1070,7 +1372,13 @@ bool Controller::OnKey(CefRefPtr<CefBrowser> browser, const CefKeyEvent& event) 
     HideCommandBar();
     return true;
   }
-  if (!cmd) return false;
+  bool ctrl = event.modifiers & EVENTFLAG_CONTROL_DOWN;
+  if (ctrl && !cmd && !shift && !alt && key >= '1' && key <= '9') {
+    size_t i = static_cast<size_t>(key - '1');
+    if (i < State::Get().spaces.size()) SwitchSpace(State::Get().spaces[i].id);
+    return true;
+  }
+  if (!cmd || ctrl) return false;
   if (!shift && !alt) {
     switch (key) {
       case 'T': ShowCommandBar(true); return true;
@@ -1081,11 +1389,16 @@ bool Controller::OnKey(CefRefPtr<CefBrowser> browser, const CefKeyEvent& event) 
       case 0xDB: Back(); return true;     // [
       case 0xDD: Forward(); return true;  // ]
       case 0xBC: OpenSettings(); return true;  // ,
+      case 0xDC: ToggleSplit(); return true;   // backslash
       case 'D': if (Tab* t = ActiveTab()) SetPinned(t->id, !t->pinned); return true;
     }
     if (key >= '1' && key <= '9') {
-      size_t i = key == '9' ? tabs_.size() - 1 : static_cast<size_t>(key - '1');
-      if (i < tabs_.size()) ActivateTab(tabs_[i].id);
+      // Counts tabs in the active space only.
+      std::vector<int> ids;
+      for (const auto& t : tabs_)
+        if (t.space == State::Get().active_space) ids.push_back(t.id);
+      size_t i = key == '9' ? ids.size() - 1 : static_cast<size_t>(key - '1');
+      if (i < ids.size()) ActivateTab(ids[i]);
       return true;
     }
   }
@@ -1096,6 +1409,8 @@ bool Controller::OnKey(CefRefPtr<CefBrowser> browser, const CefKeyEvent& event) 
       case 'P': PictureInPicture(); return true;
       case 'F': FloatActiveTab(); return true;
       case 'T': RunCommand("reopen"); return true;
+      case 0xDB: CycleSpace(-1); return true;  // {
+      case 0xDD: CycleSpace(1); return true;   // }
     }
   }
   if (alt && !shift && key == 'I') {
@@ -1135,7 +1450,7 @@ void Controller::SaveNow() {
   state.active_index = 0;
   for (const auto& t : tabs_) {
     if (t.id == active_id_) state.active_index = static_cast<int>(state.tabs.size());
-    state.tabs.push_back({t.url, t.title, t.pinned, t.last_active});
+    state.tabs.push_back({t.url, t.title, t.pinned, t.last_active, t.space});
   }
   state.Save();
 }
@@ -1144,6 +1459,7 @@ bool Controller::CanCloseShell() {
   if (closing_) return true;
   closing_ = true;
   SaveNow();
+  State::Get().SavePages();
   for (auto& t : tabs_)
     if (t.window) t.window->Close();
   if (command_window_) command_window_->Close();

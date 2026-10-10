@@ -47,8 +47,14 @@ nonce Roar issued to that tab.
 | Video picture-in-picture (⇧⌘P), float tab in a mini window (⇧⌘F) | `Controller::PictureInPicture`, `FloatActiveTab` |
 | AppleScript (`open url`, `execute javascript`, `close tab`, …) and CDP | `resources/Roar.sdef`, `mac/scripting.mm` |
 | Onboarding and settings | `ui/welcome.html` |
+| Spaces: separate tabs and profile per space (⌃1–⌃9, ⇧⌘[ ⇧⌘]); profiles in `Spaces/<id>` | `Controller::SwitchSpace`, `ContextFor` |
+| Split view: two tabs side by side (⌘\\); picking a tab swaps the focused pane | `Controller::ToggleSplit`, `RectFor` |
+| Page-text search: visible text of visited pages saved to `pages.json` (800 pages, 16 KB each) and matched in the command bar | `Controller::IndexPage`, `SuggestPageText` |
 
 ## Known limits
+
+- `--load-extension` extensions load into the default profile only, so they don't run in other Spaces.
+- Page-text search stores page text unencrypted in the data dir (mode 0600). Turn it off in Settings or run "Forget saved page text".
 
 - No H.264/AAC: prebuilt CEF ships without proprietary codecs. WebM/VP9/AV1 play;
   many `.mp4` sources will not. Fixing it means building CEF with `proprietary_codecs`.

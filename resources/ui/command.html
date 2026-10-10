@@ -24,6 +24,10 @@ input::placeholder { color: var(--ink-3); }
 .item .title { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 13.5px; }
 .item .url { color: var(--ink-3); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex-shrink: 1000; }
 .item .kind { color: var(--ink-3); font-size: 11.5px; white-space: nowrap; }
+.item.hit { height: auto; min-height: 38px; padding: 7px 10px; align-items: flex-start; }
+.item.hit .text { flex-direction: column; gap: 2px; align-items: stretch; }
+.item.hit .snip { color: var(--ink-2); font-size: 12px; line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.item.hit mark { background: var(--mane-soft); color: var(--mane-ink); border-radius: 2px; }
 .section { color: var(--ink-3); font-size: 11.5px; font-weight: 600; padding: 8px 10px 4px; }
 .foot { display: flex; gap: 14px; padding: 8px 16px; border-top: 1px solid var(--rule); color: var(--ink-3); font-size: 11.5px; }
 </style>
@@ -45,6 +49,11 @@ const COMMANDS = [
   { id: 'saveMarkdown', title: 'Save page as Markdown', keys: '', words: 'extract download md file' },
   { id: 'pip', title: 'Picture in picture', keys: '⇧⌘P', words: 'video pip float' },
   { id: 'float', title: 'Float tab in a mini window', keys: '⇧⌘F', words: 'pip document always on top' },
+  { id: 'split', title: 'Split view', keys: '⌘\\', words: 'side by side two tabs pane' },
+  { id: 'newSpace', title: 'New space', keys: '', words: 'profile workspace container' },
+  { id: 'nextSpace', title: 'Next space', keys: '⇧⌘]', words: 'switch profile workspace' },
+  { id: 'prevSpace', title: 'Previous space', keys: '⇧⌘[', words: 'switch profile workspace' },
+  { id: 'forgetPages', title: 'Forget saved page text', keys: '', words: 'search index privacy clear' },
   { id: 'pin', title: 'Pin or unpin tab', keys: '⌘D', words: 'pin favorite' },
   { id: 'reopen', title: 'Reopen archived tab', keys: '⇧⌘T', words: 'restore undo closed' },
   { id: 'sidebar', title: 'Toggle sidebar', keys: '⌘S', words: 'hide show' },
@@ -101,7 +110,7 @@ async function update() {
 }
 
 function render() {
-  const route = { open: 'Open', search: 'Search', tab: 'Switch to tab', history: 'Open', archived: 'Restore', run: 'Run' };
+  const route = { open: 'Open', search: 'Search', tab: 'Switch to tab', history: 'Open', archived: 'Restore', run: 'Run', text: 'Open' };
   const top = items[sel];
   $('route').hidden = !top;
   if (top) $('route').textContent = route[top.type] + (top.type === 'open' || top.type === 'search' || top.type === 'history' ? (newTab ? ' in new tab' : '') : '');
@@ -111,21 +120,36 @@ function render() {
     fit();
     return;
   }
+  const words = q.value.trim().toLowerCase().split(/\s+/).filter((w) => w.length > 1);
+  let textHeader = false;
   $('list').innerHTML = items.map((it, i) => {
     let icon, title, sub = '';
+    if (it.type === 'text') {
+      const head = textHeader ? '' : '<div class="section">Found in page text</div>';
+      textHeader = true;
+      const where = it.id ? '<span class="kind">Open tab</span>' : '';
+      return `${head}<button class="item hit${i === sel ? ' sel' : ''}" data-i="${i}" role="option"><span class="icon">${iconHtml('', it.url)}</span><span class="text"><span class="title">${esc(it.title || hostOf(it.url))} <span class="url">${esc(hostOf(it.url))}</span></span><span class="snip">${highlight(it.detail, words)}</span></span>${where}</button>`;
+    }
     if (it.type === 'search') { icon = ICON.search; title = esc(it.title); sub = '<span class="kind">Search the web</span>'; }
     else if (it.type === 'open') { icon = ICON.open; title = esc(it.title); sub = '<span class="kind">Open address</span>'; }
     else if (it.type === 'run') { icon = ICON.run; title = esc(it.title); sub = it.keys ? `<kbd>${it.keys}</kbd>` : '<span class="kind">Command</span>'; }
     else {
       icon = iconHtml('', it.url);
       title = esc(it.title || hostOf(it.url));
-      const kind = { tab: 'Open tab', history: 'History', archived: 'Archived' }[it.type];
+      const kind = it.detail ? 'Tab in ' + it.detail : { tab: 'Open tab', history: 'History', archived: 'Archived' }[it.type];
       sub = `<span class="kind">${kind}</span>`;
       return `<button class="item${i === sel ? ' sel' : ''}" data-i="${i}" role="option"><span class="icon">${icon}</span><span class="text"><span class="title">${title}</span><span class="url">${esc(hostOf(it.url))}</span></span>${sub}</button>`;
     }
     return `<button class="item${i === sel ? ' sel' : ''}" data-i="${i}" role="option"><span class="icon">${icon}</span><span class="text"><span class="title">${title}</span></span>${sub}</button>`;
   }).join('');
   fit();
+}
+
+// Escapes the snippet and marks the query words, matching on the raw text.
+function highlight(text, words) {
+  if (!words.length) return esc(text);
+  const re = new RegExp('(' + words.map((w) => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|') + ')', 'gi');
+  return String(text).split(re).map((part, i) => (i % 2 ? `<mark>${esc(part)}</mark>` : esc(part))).join('');
 }
 
 // Ask Roar to size the window to the panel.
@@ -138,7 +162,8 @@ function fit() {
 function choose(it) {
   if (!it) return;
   if (it.type === 'run') ask({ cmd: 'run', id: it.id });
-  else if (it.type === 'tab') ask({ cmd: 'tab.activate', id: it.id });
+  else if (it.type === 'tab' || (it.type === 'text' && it.id)) ask({ cmd: 'tab.activate', id: it.id });
+  else if (it.type === 'text') ask({ cmd: 'open', text: it.url, newTab });
   else if (it.type === 'archived') ask({ cmd: 'archive.restore', index: it.id });
   else ask({ cmd: 'open', text: it.type === 'history' ? it.url : q.value, newTab });
 }

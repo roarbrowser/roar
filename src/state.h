@@ -15,6 +15,7 @@ struct SavedTab {
   std::string title;
   bool pinned = false;
   double last_active = 0;  // Unix seconds.
+  int space = 0;
 };
 
 struct ArchivedTab {
@@ -35,12 +36,27 @@ struct LiveItem {
   std::string detail;  // Repository and number, e.g. "owner/repo #42".
 };
 
+// A Space is a named set of tabs with its own cookies and storage. Space 0
+// uses the default profile; the others get a profile under Spaces/<id>.
+struct Space {
+  int id = 0;
+  std::string name;
+};
+
+// Visible text of a page, kept for full-text search in the command bar.
+struct PageText {
+  std::string title;
+  std::string text;
+  double indexed_at = 0;
+};
+
 struct Settings {
   double archive_after_hours = 12;  // 0 disables auto-archive.
   bool onboarded = false;
   std::string search_url = "https://www.google.com/search?q=";
   std::string github_query = "is:open is:pr author:@me";
   bool github_folder = true;
+  bool index_pages = true;
 };
 
 class State {
@@ -58,6 +74,13 @@ class State {
   std::vector<LiveItem> github_items;
   std::string github_status;  // Empty when the last refresh succeeded.
   Settings settings;
+  std::vector<Space> spaces;
+  int active_space = 0;
+  std::map<std::string, PageText> pages;
+
+  void SavePages();
+  void SetPageText(const std::string& url, const std::string& title, const std::string& text);
+  Space* FindSpace(int id);
 
   void RecordVisit(const std::string& url, const std::string& title);
   void AddArchived(const std::string& url, const std::string& title);

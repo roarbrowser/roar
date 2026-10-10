@@ -15,6 +15,7 @@
 #include <vector>
 
 #include "include/cef_browser.h"
+#include "include/cef_request_context.h"
 #include "include/views/cef_box_layout.h"
 #include "include/views/cef_browser_view.h"
 #include "include/views/cef_panel.h"
@@ -38,6 +39,7 @@ struct Tab {
   bool can_back = false;
   bool can_forward = false;
   double last_active = 0;
+  int space = 0;
 };
 
 class Controller {
@@ -51,7 +53,9 @@ class Controller {
   void Quit();
 
   // Tabs. Ids are stable for the life of the process.
-  int NewTab(const std::string& url, bool activate, bool pinned = false, double last_active = 0);
+  // space < 0 means the active space.
+  int NewTab(const std::string& url, bool activate, bool pinned = false, double last_active = 0,
+             int space = -1);
   void ActivateTab(int id);
   void CloseTab(int id);
   void Navigate(int id, const std::string& url);
@@ -78,6 +82,16 @@ class Controller {
   void ShowHint(const std::string& text);
   void RunCommand(const std::string& id);
 
+  // Spaces: named sets of tabs, each with its own profile.
+  void SwitchSpace(int id);
+  void CycleSpace(int step);
+  int AddSpace(const std::string& name);
+  void RenameSpace(int id, const std::string& name);
+  void RemoveSpace(int id);
+
+  // Split view: two tabs side by side in the shell.
+  void ToggleSplit();
+
   // Client and window callbacks.
   void OnBrowserCreated(CefRefPtr<CefBrowser> browser);
   void OnBrowserClosed(CefRefPtr<CefBrowser> browser);
@@ -95,6 +109,7 @@ class Controller {
   void OnShellDestroyed();
   bool CanCloseTabWindow(CefRefPtr<CefWindow> window);
   void OnTabWindowCreated(CefRefPtr<CefWindow> window);
+  void OnTabWindowActivated(CefRefPtr<CefWindow> window);
   void Relayout();
 
  private:
@@ -106,11 +121,20 @@ class Controller {
   Tab* ActiveTab() { return FindTab(active_id_); }
   bool IsUiBrowser(CefRefPtr<CefBrowser> browser) const;
   CefRect ContentRect();
+  std::vector<int> VisibleIds();
+  bool IsVisible(int id);
+  CefRect RectFor(int id);
+  void SyncWindows();
+  CefRefPtr<CefRequestContext> ContextFor(int space);
+  CefRefPtr<CefBrowserView> CreateTabView(const std::string& url, int space);
+  void IndexPage(Tab* tab);
+  void SavePagesSoon();
   void ShowTabWindow(Tab* tab);
   void HideTabWindow(Tab* tab);
   void FocusTab(Tab* tab);
   std::string StateJson();
   std::string Suggest(const std::string& query);
+  void SuggestPageText(const std::string& q, CefRefPtr<CefListValue> list, size_t& n);
   void ApplySettings(CefRefPtr<CefDictionaryValue> settings);
   void PushSidebar();
   void SaveSoon();
@@ -132,12 +156,14 @@ class Controller {
   std::vector<Tab> tabs_;
   int next_id_ = 1;
   int active_id_ = 0;
-  int shown_id_ = 0;  // Tab whose window is attached over the shell.
+  int split_a_ = 0;  // Split view pair, left and right; 0 when not split.
+  int split_b_ = 0;
   int command_height_ = 0;
   bool command_new_tab_ = true;
   bool command_visible_ = false;
   bool sidebar_visible_ = true;
   bool save_pending_ = false;
+  bool pages_save_pending_ = false;
   bool closing_ = false;
   int hint_generation_ = 0;
   int live_browsers_ = 0;
@@ -147,6 +173,8 @@ class Controller {
     bool save;
   };
   std::map<std::string, PendingExtract> extracts_;
+  std::map<std::string, int> indexes_;  // Page-text nonce to tab id.
+  std::map<int, CefRefPtr<CefRequestContext>> contexts_;
 };
 
 }  // namespace roar

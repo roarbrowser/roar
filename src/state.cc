@@ -15,6 +15,30 @@ namespace {
 
 constexpr size_t kMaxArchive = 300;
 constexpr size_t kMaxHistory = 5000;
+constexpr size_t kMaxPages = 800;
+constexpr size_t kMaxPageChars = 16000;
+
+std::string ReadFile(const std::string& path) {
+  std::ifstream in(path);
+  if (!in) return "";
+  std::stringstream buf;
+  buf << in.rdbuf();
+  return buf.str();
+}
+
+void WriteJson(const std::string& dir, const std::string& name, CefRefPtr<CefDictionaryValue> d) {
+  auto root = CefValue::Create();
+  root->SetDictionary(d);
+  mkdir(dir.c_str(), 0700);
+  const std::string path = dir + "/" + name;
+  const std::string tmp = path + ".tmp";
+  {
+    std::ofstream out(tmp, std::ios::trunc);
+    out << CefWriteJSON(root, JSON_WRITER_DEFAULT).ToString();
+  }
+  chmod(tmp.c_str(), 0600);
+  std::rename(tmp.c_str(), path.c_str());
+}
 
 std::string Str(CefRefPtr<CefDictionaryValue> d, const char* key, const std::string& def = "") {
   return d && d->GetType(key) == VTYPE_STRING ? d->GetString(key).ToString() : def;
@@ -48,18 +72,26 @@ std::string State::Dir() const {
 }
 
 void State::Load() {
-  std::ifstream in(Dir() + "/state.json");
-  if (!in) return;
-  std::stringstream buf;
-  buf << in.rdbuf();
-  CefRefPtr<CefValue> root = CefParseJSON(buf.str(), JSON_PARSER_RFC);
+  spaces = {{0, "Personal"}};
+  if (auto root = CefParseJSON(ReadFile(Dir() + "/pages.json"), JSON_PARSER_RFC);
+      root && root->GetType() == VTYPE_DICTIONARY) {
+    auto p = root->GetDictionary();
+    CefDictionaryValue::KeyList keys;
+    p->GetKeys(keys);
+    for (const auto& k : keys) {
+      auto e = p->GetDictionary(k);
+      pages[k.ToString()] = {Str(e, "title"), Str(e, "text"), Num(e, "indexedAt")};
+    }
+  }
+  CefRefPtr<CefValue> root = CefParseJSON(ReadFile(Dir() + "/state.json"), JSON_PARSER_RFC);
   if (!root || root->GetType() != VTYPE_DICTIONARY) return;
   CefRefPtr<CefDictionaryValue> d = root->GetDictionary();
 
   if (auto list = d->GetList("tabs")) {
     for (size_t i = 0; i < list->GetSize(); ++i) {
       auto t = list->GetDictionary(i);
-      tabs.push_back({Str(t, "url"), Str(t, "title"), Bool(t, "pinned"), Num(t, "lastActive")});
+      tabs.push_back({Str(t, "url"), Str(t, "title"), Bool(t, "pinned"), Num(t, "lastActive"),
+                      static_cast<int>(Num(t, "space"))});
     }
   }
   active_index = static_cast<int>(Num(d, "activeIndex"));
@@ -84,7 +116,26 @@ void State::Load() {
     settings.search_url = Str(s, "searchUrl", settings.search_url);
     settings.github_query = Str(s, "githubQuery", settings.github_query);
     settings.github_folder = Bool(s, "githubFolder", true);
+    settings.index_pages = Bool(s, "indexPages", true);
   }
+  if (auto list = d->GetList("spaces"); list && list->GetSize() > 0) {
+    spaces.clear();
+    for (size_t i = 0; i < list->GetSize(); ++i) {
+      auto sp = list->GetDictionary(i);
+      spaces.push_back({static_cast<int>(Num(sp, "id")), Str(sp, "name", "Space")});
+    }
+  }
+  active_space = static_cast<int>(Num(d, "activeSpace"));
+  if (!FindSpace(active_space)) active_space = spaces.front().id;
+  // Tabs from a space that no longer exists fall back to the first space.
+  for (auto& t : tabs)
+    if (!FindSpace(t.space)) t.space = spaces.front().id;
+}
+
+Space* State::FindSpace(int id) {
+  for (auto& s : spaces)
+    if (s.id == id) return &s;
+  return nullptr;
 }
 
 void State::Save() {
@@ -96,6 +147,7 @@ void State::Save() {
     t->SetString("title", tabs[i].title);
     t->SetBool("pinned", tabs[i].pinned);
     t->SetDouble("lastActive", tabs[i].last_active);
+    t->SetInt("space", tabs[i].space);
     tl->SetDictionary(i, t);
   }
   d->SetList("tabs", tl);
@@ -124,18 +176,47 @@ void State::Save() {
   s->SetString("searchUrl", settings.search_url);
   s->SetString("githubQuery", settings.github_query);
   s->SetBool("githubFolder", settings.github_folder);
+  s->SetBool("indexPages", settings.index_pages);
   d->SetDictionary("settings", s);
-
-  auto root = CefValue::Create();
-  root->SetDictionary(d);
-  mkdir(Dir().c_str(), 0700);
-  const std::string path = Dir() + "/state.json";
-  const std::string tmp = path + ".tmp";
-  {
-    std::ofstream out(tmp, std::ios::trunc);
-    out << CefWriteJSON(root, JSON_WRITER_DEFAULT).ToString();
+  auto sl = CefListValue::Create();
+  for (size_t i = 0; i < spaces.size(); ++i) {
+    auto sp = CefDictionaryValue::Create();
+    sp->SetInt("id", spaces[i].id);
+    sp->SetString("name", spaces[i].name);
+    sl->SetDictionary(i, sp);
   }
-  std::rename(tmp.c_str(), path.c_str());
+  d->SetList("spaces", sl);
+  d->SetInt("activeSpace", active_space);
+  WriteJson(Dir(), "state.json", d);
+}
+
+void State::SavePages() {
+  auto d = CefDictionaryValue::Create();
+  for (const auto& [url, p] : pages) {
+    auto v = CefDictionaryValue::Create();
+    v->SetString("title", p.title);
+    v->SetString("text", p.text);
+    v->SetDouble("indexedAt", p.indexed_at);
+    d->SetDictionary(url, v);
+  }
+  WriteJson(Dir(), "pages.json", d);
+}
+
+void State::SetPageText(const std::string& url, const std::string& title,
+                        const std::string& text) {
+  if (url.rfind("http", 0) != 0 || text.empty()) return;
+  std::string clipped = text.substr(0, kMaxPageChars);
+  // Don't cut a UTF-8 sequence in half.
+  while (!clipped.empty() && (static_cast<unsigned char>(clipped.back()) & 0xC0) == 0x80)
+    clipped.pop_back();
+  if (!clipped.empty() && (static_cast<unsigned char>(clipped.back()) & 0x80)) clipped.pop_back();
+  pages[url] = {title, clipped, NowSeconds()};
+  if (pages.size() > kMaxPages) {
+    auto oldest = std::min_element(pages.begin(), pages.end(), [](auto& a, auto& b) {
+      return a.second.indexed_at < b.second.indexed_at;
+    });
+    pages.erase(oldest);
+  }
 }
 
 void State::RecordVisit(const std::string& url, const std::string& title) {

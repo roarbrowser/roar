@@ -29,7 +29,13 @@ p { margin: 0; color: var(--ink-2); line-height: 1.55; font-size: 14px; max-widt
 .status { font-size: 13px; color: var(--ink-3); }
 .status.ok { color: #2f9e5b; }
 label.switch { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--ink-2); }
+input[type=text]:disabled { opacity: .5; }
 input[type=text] { width: 100%; max-width: 420px; font: 12.5px var(--mono); padding: 7px 10px; border-radius: 7px; border: 1px solid var(--rule); background: var(--ground); color: var(--ink); }
+.space-list { display: grid; gap: 6px; margin-top: 8px; max-width: 420px; }
+.space-row { display: flex; gap: 8px; align-items: center; }
+.space-row input { flex: 1; font-family: var(--ui); font-size: 13px; }
+.space-row .meta { color: var(--ink-3); font-size: 12px; min-width: 52px; text-align: right; font-variant-numeric: tabular-nums; }
+.space-row .btn { padding: 5px 10px; font-size: 12px; }
 .auto { border-top: 1px solid var(--rule); padding-top: 28px; display: grid; gap: 10px; }
 .auto h2 { font-size: 15px; }
 pre { margin: 0; font: 12px/1.6 var(--mono); background: var(--ground); border-radius: 8px; padding: 12px 14px; overflow-x: auto; color: var(--ink-2); }
@@ -42,7 +48,7 @@ pre { margin: 0; font: 12px/1.6 var(--mono); background: var(--ground); border-r
   <header>
     <span class="lion hero" aria-hidden="true"></span>
     <h1 id="headline">Roar<span class="grr">.</span></h1>
-    <p class="lede" id="lede">A Chromium browser with a loud voice and a tidy den. Three things are worth knowing before you start.</p>
+    <p class="lede" id="lede">A Chromium browser with a loud voice and a tidy den. Four things are worth knowing before you start.</p>
   </header>
 
   <ol>
@@ -50,6 +56,10 @@ pre { margin: 0; font: 12px/1.6 var(--mono); background: var(--ground); border-r
       <h2>Everything starts at ⌘T</h2>
       <p>One bar opens addresses, searches the web, jumps to an open tab, and finds pages from your history or archive. Type <kbd>&gt;</kbd> first to run a command such as “Copy page as Markdown”.</p>
       <div class="controls"><button class="btn" id="try">Try the command bar</button></div>
+      <div class="controls">
+        <label class="switch"><input type="checkbox" id="index-on"> Remember the text of pages you visit, so the bar can find them by what they said</label>
+      </div>
+      <div class="controls"><span class="status" id="index-status"></span><button class="btn" id="forget" hidden>Forget saved text</button></div>
     </li>
     <li>
       <h2>Tabs you stop using get archived</h2>
@@ -70,6 +80,12 @@ pre { margin: 0; font: 12px/1.6 var(--mono); background: var(--ground); border-r
         <span class="status" id="gh-status">Checking GitHub CLI…</span>
       </div>
       <div class="controls"><input type="text" id="gh-query" aria-label="GitHub search query" spellcheck="false"></div>
+    </li>
+    <li>
+      <h2>Spaces keep work and home apart</h2>
+      <p>Each space has its own tabs, cookies and logins. Switch with <kbd>⌃1</kbd>–<kbd>⌃9</kbd> or the strip at the top of the sidebar. Press <kbd>⌘\</kbd> to put two tabs side by side.</p>
+      <div class="space-list" id="spaces"></div>
+      <div class="controls"><button class="btn" id="space-add">Add a space</button></div>
     </li>
   </ol>
 
@@ -94,12 +110,35 @@ const $ = (id) => document.getElementById(id);
 const set = (settings) => ask({ cmd: 'settings.set', settings }).then(apply);
 
 function apply(s) {
-  for (const b of document.querySelectorAll('[data-hours]'))
+  for (const b of function renderSpaces(s) {
+  if ($('spaces').contains(document.activeElement)) return;  // Don't fight the typist.
+  $('spaces').innerHTML = s.spaces.map((sp) => `<div class="space-row">
+    <input type="text" data-rename="${sp.id}" value="${esc(sp.name)}" aria-label="Space name" maxlength="40">
+    <span class="meta">${sp.tabCount} ${sp.tabCount === 1 ? 'tab' : 'tabs'}</span>
+    ${sp.id === 0 ? '' : `<button class="btn" data-remove="${sp.id}" title="Archive its tabs and remove the space">Remove</button>`}
+  </div>`).join('');
+}
+$('spaces').addEventListener('change', (e) => {
+  const id = e.target.dataset.rename;
+  if (id !== undefined && e.target.value.trim()) ask({ cmd: 'space.rename', id: +id, name: e.target.value.trim() }).then(apply);
+});
+$('spaces').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-remove]');
+  if (b) ask({ cmd: 'space.remove', id: +b.dataset.remove }).then(apply);
+});
+$('space-add').onclick = () => ask({ cmd: 'space.add', name: '' });
+$('index-on').onchange = () => set({ indexPages: $('index-on').checked });
+$('forget').onclick = () => ask({ cmd: 'run', id: 'forgetPages' }).then(() => ask({ cmd: 'state' })).then(apply);
+document.querySelectorAll('[data-hours]'))
     b.setAttribute('aria-pressed', String(+b.dataset.hours === s.settings.archiveAfterHours));
   $('gh-on').checked = s.github.enabled;
   if (document.activeElement !== $('gh-query')) $('gh-query').value = s.github.query;
   $('gh-query').disabled = !s.github.enabled;
   $('port').textContent = '127.0.0.1:' + s.settings.cdpPort;
+  $('index-on').checked = s.settings.indexPages;
+  $('index-status').textContent = s.settings.pageCount ? `${s.settings.pageCount} pages saved on this Mac.` : 'Nothing saved yet.';
+  $('forget').hidden = !s.settings.pageCount;
+  renderSpaces(s);
   if (s.settings.onboarded) {
     document.title = 'Settings';
     $('headline').innerHTML = 'Settings<span class="grr">.</span>';

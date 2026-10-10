@@ -81,6 +81,13 @@ int main(int argc, char* argv[]) {
     [NSFileManager.defaultManager
         removeItemAtPath:[NSString stringWithUTF8String:(data_dir + "/Default/Sessions").c_str()]
                    error:nil];
+    // Each Space's profile lives in <root>/Spaces/<id>.
+    NSString* spaces = [NSString stringWithUTF8String:(data_dir + "/Spaces").c_str()];
+    for (NSString* name in [NSFileManager.defaultManager contentsOfDirectoryAtPath:spaces error:nil])
+      [NSFileManager.defaultManager
+          removeItemAtPath:[[spaces stringByAppendingPathComponent:name]
+                               stringByAppendingPathComponent:@"Sessions"]
+                     error:nil];
     CefString(&settings.root_cache_path) = data_dir;
     settings.persist_session_cookies = true;
 
