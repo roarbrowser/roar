@@ -38,7 +38,11 @@ class UiSchemeFactory : public CefSchemeHandlerFactory {
     if (path.find("..") != std::string::npos) return nullptr;
     auto stream = CefStreamReader::CreateForFile(platform::ResourcePath("ui/" + path));
     if (!stream) return nullptr;
-    return new CefStreamResourceHandler(MimeFor(path), stream);
+    // Refuse to be framed, so a web page cannot embed (and clickjack) Roar UI.
+    CefResponse::HeaderMap headers;
+    headers.insert({"Content-Security-Policy", "frame-ancestors 'none'"});
+    headers.insert({"X-Frame-Options", "DENY"});
+    return new CefStreamResourceHandler(200, "OK", MimeFor(path), headers, stream);
   }
 
  private:

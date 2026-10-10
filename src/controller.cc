@@ -910,7 +910,11 @@ bool Controller::HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> 
 
   // Web pages can only report extraction results, and only for a nonce Roar
   // handed to that same tab.
-  if (!StartsWith(frame->GetURL().ToString(), kUiOrigin)) {
+  // Privileged commands come only from a top-level Roar page: the frame must
+  // be the main frame and the browser's main frame must itself be roar://ui/.
+  bool trusted = frame->IsMain() && StartsWith(frame->GetURL().ToString(), kUiOrigin) &&
+                 StartsWith(browser->GetMainFrame()->GetURL().ToString(), kUiOrigin);
+  if (!trusted) {
     if (cmd != "extract.result") return false;
     auto it = extracts_.find(msg->GetString("nonce").ToString());
     Tab* tab = FindTabByBrowser(browser);
