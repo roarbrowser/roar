@@ -2,3 +2,4 @@ third_party/
 build/
 .DS_Store
 CLAUDE.local.md
+.mcp.json
