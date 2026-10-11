@@ -32,7 +32,11 @@ namespace roar {
 
 namespace {
 
-constexpr int kSidebarWidth = 268;
+constexpr int kSidebarMin = 200;
+constexpr int kSidebarMax = 480;
+int SidebarWidth() {
+  return std::clamp(State::Get().settings.sidebar_width, kSidebarMin, kSidebarMax);
+}
 constexpr int kCommandBarWidth = 680;
 constexpr int kCommandBarHeight = 440;
 constexpr int kHintWidth = 420;
@@ -110,14 +114,13 @@ class ExtensionPopupViewDelegate : public CefBrowserViewDelegate {
 
 // Fixed-width holder for the sidebar. The height is 1 because CEF treats a
 // size with a zero dimension as "no preference"; the box layout stretches it.
-class FixedWidthDelegate : public CefPanelDelegate {
+// Sized from settings, so a drag of the sidebar edge only needs a relayout.
+class SidebarPanelDelegate : public CefPanelDelegate {
  public:
-  explicit FixedWidthDelegate(int width) : width_(width) {}
-  CefSize GetPreferredSize(CefRefPtr<CefView> view) override { return CefSize(width_, 1); }
+  CefSize GetPreferredSize(CefRefPtr<CefView> view) override { return CefSize(SidebarWidth(), 1); }
 
  private:
-  int width_;
-  IMPLEMENT_REFCOUNTING(FixedWidthDelegate);
+  IMPLEMENT_REFCOUNTING(SidebarPanelDelegate);
 };
 
 class ShellDelegate : public CefWindowDelegate {
@@ -295,10 +298,9 @@ CefRefPtr<CefDictionaryValue> ReadJsonFile(const std::string& path) {
 // Gmail's unread-inbox Atom feed, read with the space's own Gmail cookies.
 constexpr char kGmailFeed[] = "https://mail.google.com/mail/feed/atom";
 
-void ParseGmailFeed(const std::string& xml) {
-  State& s = State::Get();
-  s.gmail_items.clear();
-  s.gmail_unread = 0;
+void ParseGmailFeed(const std::string& xml, GmailFeed& feed) {
+  feed.items.clear();
+  feed.unread = 0;
   auto stream = CefStreamReader::CreateForData(const_cast<char*>(xml.data()), xml.size());
   auto reader = CefXmlReader::Create(stream, XML_ENCODING_NONE, kGmailFeed);
   if (!reader) return;
@@ -310,7 +312,7 @@ void ParseGmailFeed(const std::string& xml) {
       if (name == "author") in_author = false;
       if (name == "entry" && in_entry) {
         if (item.title.empty()) item.title = "(no subject)";
-        s.gmail_items.push_back(item);
+        feed.items.push_back(item);
         in_entry = false;
       }
       continue;
@@ -321,8 +323,14 @@ void ParseGmailFeed(const std::string& xml) {
       item = LiveItem{};
       in_entry = true;
     } else if (name == "fullcount") {
-      s.gmail_unread = std::atoi(reader->GetInnerXml().ToString().c_str());
+      feed.unread = std::atoi(reader->GetInnerXml().ToString().c_str());
     } else if (!in_entry) {
+      // "Gmail - Inbox for name@example.com"
+      if (name == "title") {
+        std::string t = reader->GetInnerXml().ToString();
+        size_t at = t.rfind(" for ");
+        feed.account = at == std::string::npos ? "" : t.substr(at + 5);
+      }
       continue;
     } else if (name == "author") {
       in_author = true;
@@ -340,21 +348,20 @@ class GmailFetch : public CefURLRequestClient {
  public:
   explicit GmailFetch(int space) : space_(space) {}
   void OnRequestComplete(CefRefPtr<CefURLRequest> request) override {
-    State& s = State::Get();
+    if (!State::Get().FindSpace(space_)) return;  // Removed while loading.
+    GmailFeed& feed = State::Get().gmail[space_];
     int code = request->GetResponse() ? request->GetResponse()->GetStatus() : 0;
     if (request->GetRequestStatus() == UR_SUCCESS && code == 200) {
-      s.gmail_status.clear();
-      s.gmail_signed_out = false;
-      if (s.gmail_space < 0) s.gmail_space = space_;  // Belongs to the space it first loaded in.
-      ParseGmailFeed(body_);
+      feed.status.clear();
+      feed.signed_out = false;
+      ParseGmailFeed(body_, feed);
     } else if (code == 401 || code == 403) {
-      s.gmail_status = "Sign in to Gmail in this space to see mail here.";
-      s.gmail_signed_out = true;
-      s.gmail_items.clear();
-      s.gmail_unread = 0;
+      feed = GmailFeed{};
+      feed.status = "Sign in to Gmail in this space to see mail here.";
+      feed.signed_out = true;
     } else {
-      s.gmail_status = code ? "Gmail returned " + std::to_string(code) + "."
-                            : "Couldn't reach Gmail.";
+      feed.status = code ? "Gmail returned " + std::to_string(code) + "."
+                         : "Couldn't reach Gmail.";
     }
     Controller::Get()->PushSidebar();
   }
@@ -375,10 +382,23 @@ class GmailFetch : public CefURLRequestClient {
 };
 
 // Tells the controller when a space's profile has finished loading.
+// Roar leaves passwords and form fill to a password manager extension; turn
+// Chromium's own off. Prebuilt CEF ships them, so they can only be disabled per profile.
+void DisablePasswordManager(CefRefPtr<CefRequestContext> ctx) {
+  for (const char* pref : {"credentials_enable_service", "credentials_enable_autosignin",
+                           "autofill.profile_enabled", "autofill.credit_card_enabled"}) {
+    auto v = CefValue::Create();
+    v->SetBool(false);
+    CefString error;
+    if (ctx->CanSetPreference(pref)) ctx->SetPreference(pref, v, error);
+  }
+}
+
 class SpaceContextHandler : public CefRequestContextHandler {
  public:
   explicit SpaceContextHandler(int space) : space_(space) {}
-  void OnRequestContextInitialized(CefRefPtr<CefRequestContext>) override {
+  void OnRequestContextInitialized(CefRefPtr<CefRequestContext> ctx) override {
+    DisablePasswordManager(ctx);
     CefPostTask(TID_UI, base::BindOnce([](int s) { Controller::Get()->OnSpaceReady(s); }, space_));
   }
 
@@ -400,13 +420,14 @@ void Controller::Start() {
   State& state = State::Get();
   state.Load();
   platform::InstallMenu();
+  DisablePasswordManager(CefRequestContext::GetGlobalContext());
 
   shell_ = CefWindow::CreateTopLevelWindow(new ShellDelegate());
   shell_->SetTitle("Roar");
   CefBoxLayoutSettings box;
   box.horizontal = true;
   layout_ = shell_->SetToBoxLayout(box);
-  sidebar_panel_ = CefPanel::CreatePanel(new FixedWidthDelegate(kSidebarWidth));
+  sidebar_panel_ = CefPanel::CreatePanel(new SidebarPanelDelegate());
   sidebar_panel_->SetToFillLayout();
   sidebar_ = CreateUiView(client_, "sidebar.html");
   sidebar_panel_->AddChildView(sidebar_);
@@ -417,6 +438,7 @@ void Controller::Start() {
   shell_->AddChildView(backdrop);
   layout_->SetFlexForView(backdrop, 1);
   shell_->Show();
+  ApplySidebarWidth();
 
   command_bar_ = CreateUiView(client_, "command.html");
   command_window_ = CefWindow::CreateTopLevelWindow(new PopupDelegate(command_bar_));
@@ -436,6 +458,8 @@ void Controller::Start() {
     if (!saved.pinned && !in_group) continue;
     int id = NewTab(saved.url, false, saved.pinned && !in_group, saved.last_active, saved.space);
     if (in_group) FindTab(id)->group = saved.group;
+    FindTab(id)->icon = saved.icon;
+    FindTab(id)->favicon = saved.favicon;
   }
   if (!state.settings.onboarded) {
     ActivateTab(NewTab(kWelcomeUrl, false));
@@ -471,7 +495,8 @@ int Controller::NewTab(const std::string& url, bool activate, bool pinned, doubl
   tab.title = tab.url;
   tab.pinned = pinned;
   tab.last_active = last_active > 0 ? last_active : NowSeconds();
-  if (auto it = State::Get().history.find(tab.url); it != State::Get().history.end())
+  if (auto it = State::Get().history.find(SpaceKey(tab.space, tab.url));
+      it != State::Get().history.end())
     tab.title = it->second.title.empty() ? tab.url : it->second.title;
   // The browser is created with the tab's window, on first activation.
   tab.view = CreateTabView(tab.url, tab.space);
@@ -490,7 +515,7 @@ int Controller::NewTab(const std::string& url, bool activate, bool pinned, doubl
 
 CefRect Controller::ContentRect() {
   CefRect r = shell_ ? shell_->GetBounds() : CefRect();
-  int left = sidebar_visible_ ? kSidebarWidth : kGutter;
+  int left = sidebar_visible_ ? SidebarWidth() : kGutter;
   int top = sidebar_visible_ ? kGutter : 40;  // Clear the traffic lights.
   return CefRect(r.x + left, r.y + top, std::max(0, r.width - left - kGutter),
                  std::max(0, r.height - top - kGutter));
@@ -741,7 +766,7 @@ bool Controller::IsKept(const Tab& tab) {
 void Controller::CloseActiveUnlessKept() {
   Tab* tab = ActiveTab();
   if (!tab) return;
-  if (IsKept(*tab)) return ShowHint("Pinned tabs stay open. Unpin to close.");
+  if (IsKept(*tab)) return Reload();  // Pinned tabs stay open; Cmd-W refreshes them.
   CloseTab(tab->id);
 }
 
@@ -860,7 +885,7 @@ void Controller::ShowHint(const std::string& text) {
 void Controller::ArchiveTab(int id) {
   Tab* tab = FindTab(id);
   if (!tab) return;
-  State::Get().AddArchived(tab->url, tab->title);
+  State::Get().AddArchived(tab->space, tab->url, tab->title);
   CloseTab(id);
 }
 
@@ -890,12 +915,21 @@ void Controller::AutoArchiveTick() {
                      60 * 1000);
 }
 
+// Clears the active space's archive; other spaces keep theirs.
+void Controller::ClearArchive() {
+  auto& archive = State::Get().archive;
+  int space = State::Get().active_space;
+  archive.erase(std::remove_if(archive.begin(), archive.end(),
+                               [&](const ArchivedTab& a) { return a.space == space; }),
+                archive.end());
+}
+
 void Controller::RestoreArchived(size_t index) {
   auto& archive = State::Get().archive;
   if (index >= archive.size()) return;
   ArchivedTab item = archive[index];
   archive.erase(archive.begin() + index);
-  NewTab(item.url, true);
+  NewTab(item.url, true, false, 0, item.space);
 }
 
 void Controller::ExtractActive(bool save) {
@@ -998,6 +1032,32 @@ void Controller::OpenSettings() {
   NewTab(kWelcomeUrl, true);
 }
 
+// The box layout caches the panel's preferred size, so invalidate the whole
+// shell; the sidebar page then needs a nudge to pick up its new width.
+void Controller::ApplySidebarWidth() {
+  sidebar_panel_->InvalidateLayout();
+  shell_->InvalidateLayout();
+  shell_->Layout();
+  // The box layout can still keep the cached width (as after a mouse drag), so
+  // size the panel directly.
+  if (sidebar_visible_) {
+    CefRect r = sidebar_panel_->GetBounds();
+    if (r.width != SidebarWidth()) sidebar_panel_->SetBounds(CefRect(r.x, r.y, SidebarWidth(), r.height));
+  }
+  if (auto b = sidebar_->GetBrowser()) b->GetHost()->WasResized();
+  Relayout();
+}
+
+void Controller::PollSidebarDragEnd() {
+  if (platform::IsLeftMouseDown()) {
+    CefPostDelayedTask(TID_UI, base::BindOnce([] { Controller::Get()->PollSidebarDragEnd(); }), 50);
+    return;
+  }
+  sidebar_drag_poll_ = false;
+  ApplySidebarWidth();
+  SaveSoon();
+}
+
 void Controller::ToggleSidebar() {
   sidebar_visible_ = !sidebar_visible_;
   sidebar_panel_->SetVisible(sidebar_visible_);
@@ -1035,15 +1095,15 @@ void Controller::RefreshGitHub() {
   });
 }
 
-void Controller::RefreshGmail() {
+void Controller::RefreshGmail() { RefreshGmail(State::Get().active_space); }
+
+void Controller::RefreshGmail(int space) {
   State& state = State::Get();
   if (!state.settings.gmail_folder) return;
   auto request = CefRequest::Create();
   request->SetURL(kGmailFeed);
   request->SetFirstPartyForCookies("https://mail.google.com/");
   request->SetFlags(UR_FLAG_ALLOW_STORED_CREDENTIALS | UR_FLAG_DISABLE_CACHE);
-  // Once mail has loaded in a space, it is that space's alone.
-  int space = state.gmail_space >= 0 ? state.gmail_space : state.active_space;
   auto context = ContextFor(space);
   CefURLRequest::Create(request, new GmailFetch(space),
                         context ? context : CefRequestContext::GetGlobalContext());
@@ -1052,7 +1112,10 @@ void Controller::RefreshGmail() {
 // Polls the sidebar's live folders: pull requests and unread mail.
 void Controller::GitHubTick() {
   RefreshGitHub();
-  RefreshGmail();
+  // Every space whose mail has been fetched stays current, not just the active one.
+  std::set<int> spaces = {State::Get().active_space};
+  for (const auto& [space, feed] : State::Get().gmail) spaces.insert(space);
+  for (int space : spaces) RefreshGmail(space);
   CefPostDelayedTask(TID_UI, base::BindOnce([] { Controller::Get()->GitHubTick(); }), 10 * 60 * 1000);
 }
 
@@ -1069,7 +1132,7 @@ void Controller::SwitchSpace(int id) {
   if (best) ActivateTab(best->id);
   else ActivateTab(NewTab(kNewTabUrl, false, false, 0, id));
   ShowHint(name);
-  RefreshGmail();  // Unclaimed mail tries this space's Gmail login.
+  RefreshGmail();  // This space's own Gmail login.
 }
 
 void Controller::CycleSpace(int step) {
@@ -1370,9 +1433,16 @@ void Controller::RunCommand(const std::string& id) {
   else if (id == "newTab") ShowCommandBar(true);
   else if (id == "closeTab") CloseActiveUnlessKept();
   else if (StartsWith(id, "restore:")) RestoreArchived(std::atoi(id.c_str() + 8));
-  else if (id == "reopen") { if (!State::Get().archive.empty()) RestoreArchived(0); }
+  else if (id == "reopen") {
+    const auto& archive = State::Get().archive;
+    for (size_t i = 0; i < archive.size(); ++i)
+      if (archive[i].space == State::Get().active_space) {
+        RestoreArchived(i);
+        break;
+      }
+  }
   else if (id == "clearArchive") {
-    State::Get().archive.clear();
+    ClearArchive();
     PushSidebar();
     SaveSoon();
   }
@@ -1410,6 +1480,7 @@ std::string Controller::StateJson() {
     d->SetString("title", t.title);
     d->SetString("url", t.url);
     d->SetString("favicon", t.favicon);
+    d->SetString("icon", t.icon);
     d->SetBool("pinned", t.pinned);
     d->SetBool("active", t.id == active_id_);
     d->SetBool("loading", t.loading);
@@ -1449,15 +1520,19 @@ std::string Controller::StateJson() {
   root->SetInt("activeSpace", state.active_space);
   root->SetBool("split", split_a_ && IsVisible(split_a_));
   auto archive = CefListValue::Create();
-  for (size_t i = 0; i < std::min<size_t>(state.archive.size(), 60); ++i) {
+  size_t archived = 0, archive_count = 0;
+  for (size_t i = 0; i < state.archive.size(); ++i) {
+    if (state.archive[i].space != state.active_space) continue;
+    ++archive_count;
+    if (archived >= 60) continue;
     auto d = CefDictionaryValue::Create();
     d->SetString("title", state.archive[i].title);
     d->SetString("url", state.archive[i].url);
     d->SetDouble("archivedAt", state.archive[i].archived_at);
-    archive->SetDictionary(i, d);
+    archive->SetDictionary(archived++, d);
   }
   root->SetList("archive", archive);
-  root->SetInt("archiveCount", static_cast<int>(state.archive.size()));
+  root->SetInt("archiveCount", static_cast<int>(archive_count));
   auto gh = CefDictionaryValue::Create();
   gh->SetBool("enabled", state.settings.github_folder &&
                              (state.github_space < 0 || state.github_space == state.active_space));
@@ -1474,17 +1549,20 @@ std::string Controller::StateJson() {
   gh->SetList("items", items);
   root->SetDictionary("github", gh);
   auto gm = CefDictionaryValue::Create();
-  gm->SetBool("enabled", state.settings.gmail_folder &&
-                             (state.gmail_space < 0 || state.gmail_space == state.active_space));
-  gm->SetString("status", state.gmail_status);
-  gm->SetInt("unread", state.gmail_unread);
-  gm->SetBool("signedOut", state.gmail_signed_out);
+  static const GmailFeed kNoMail;
+  auto feed_it = state.gmail.find(state.active_space);
+  const GmailFeed& feed = feed_it != state.gmail.end() ? feed_it->second : kNoMail;
+  gm->SetBool("enabled", state.settings.gmail_folder);
+  gm->SetString("status", feed.status);
+  gm->SetInt("unread", feed.unread);
+  gm->SetBool("signedOut", feed.signed_out);
+  gm->SetString("account", feed.account);
   auto mail = CefListValue::Create();
-  for (size_t i = 0; i < state.gmail_items.size(); ++i) {
+  for (size_t i = 0; i < feed.items.size(); ++i) {
     auto d = CefDictionaryValue::Create();
-    d->SetString("title", state.gmail_items[i].title);
-    d->SetString("url", state.gmail_items[i].url);
-    d->SetString("detail", state.gmail_items[i].detail);
+    d->SetString("title", feed.items[i].title);
+    d->SetString("url", feed.items[i].url);
+    d->SetString("detail", feed.items[i].detail);
     mail->SetDictionary(i, d);
   }
   gm->SetList("items", mail);
@@ -1494,6 +1572,8 @@ std::string Controller::StateJson() {
   settings->SetBool("onboarded", state.settings.onboarded);
   settings->SetString("searchUrl", state.settings.search_url);
   settings->SetBool("indexPages", state.settings.index_pages);
+  settings->SetInt("pinnedColumns", state.settings.pinned_columns);
+  settings->SetBool("pinnedCentered", state.settings.pinned_centered);
   settings->SetInt("pageCount", static_cast<int>(state.pages.size()));
   settings->SetInt("cdpPort", platform::CdpPort());
   auto pins = CefListValue::Create();
@@ -1530,11 +1610,6 @@ std::string Controller::Suggest(const std::string& raw) {
     if (!detail.empty()) d->SetString("detail", detail);
     list->SetDictionary(n++, d);
   };
-  auto space_name = [&](const Tab& t) {
-    if (t.space == State::Get().active_space) return std::string();
-    Space* s = State::Get().FindSpace(t.space);
-    return s ? s->name : std::string();
-  };
   auto matches = [&](const std::string& title, const std::string& url) {
     if (q.empty()) return true;
     std::string hay = Lower(title + " " + url);
@@ -1548,16 +1623,21 @@ std::string Controller::Suggest(const std::string& raw) {
     }
     return true;
   };
+  // Only this space's tabs: nothing from one space surfaces in another.
   for (const auto& t : tabs_) {
     if (n >= 4) break;
-    if (t.id != active_id_ && !StartsWith(t.url, "roar://") && matches(t.title, t.url))
-      add("tab", t.id, t.title, t.url, space_name(t));
+    if (t.space == State::Get().active_space && t.id != active_id_ &&
+        !StartsWith(t.url, "roar://") && matches(t.title, t.url))
+      add("tab", t.id, t.title, t.url);
   }
   if (!q.empty()) {
     std::set<std::string> seen;
     std::vector<std::pair<double, std::pair<std::string, std::string>>> scored;
     double now = NowSeconds();
-    for (const auto& [url, e] : State::Get().history) {
+    int space = State::Get().active_space;
+    for (const auto& [key, e] : State::Get().history) {
+      if (e.space != space) continue;
+      const std::string url = e.space == 0 ? key : key.substr(key.find('\t') + 1);
       if (!matches(e.title, url)) continue;
       double days = (now - e.last_visit) / 86400;
       double score = std::log2(1 + e.visits) / (1 + days / 7);
@@ -1567,8 +1647,9 @@ std::string Controller::Suggest(const std::string& raw) {
     }
     std::sort(scored.begin(), scored.end(), [](auto& a, auto& b) { return a.first > b.first; });
     for (size_t i = 0; i < scored.size() && n < 8; ++i) {
-      bool open = std::any_of(tabs_.begin(), tabs_.end(),
-                              [&](const Tab& t) { return t.url == scored[i].second.second; });
+      bool open = std::any_of(tabs_.begin(), tabs_.end(), [&](const Tab& t) {
+        return t.space == space && t.url == scored[i].second.second;
+      });
       if (!open) {
         add("history", 0, scored[i].second.first, scored[i].second.second);
         seen.insert(scored[i].second.second);
@@ -1576,7 +1657,8 @@ std::string Controller::Suggest(const std::string& raw) {
     }
     const auto& archive = State::Get().archive;
     for (size_t i = 0; i < archive.size() && n < 8; ++i)
-      if (!seen.count(archive[i].url) && matches(archive[i].title, archive[i].url))
+      if (archive[i].space == space && !seen.count(archive[i].url) &&
+          matches(archive[i].title, archive[i].url))
         add("archived", static_cast<int>(i), archive[i].title, archive[i].url);
     if (q.size() >= 3) SuggestPageText(q, list, n);
   }
@@ -1599,7 +1681,9 @@ void Controller::SuggestPageText(const std::string& q, CefRefPtr<CefListValue> l
     size_t pos;
   };
   std::vector<Hit> hits;
-  for (const auto& [url, page] : State::Get().pages) {
+  int space = State::Get().active_space;
+  for (const auto& [key, page] : State::Get().pages) {
+    if (page.space != space) continue;
     std::string hay = Lower(page.text);
     size_t first = std::string::npos;
     bool all = true;
@@ -1611,7 +1695,7 @@ void Controller::SuggestPageText(const std::string& q, CefRefPtr<CefListValue> l
       }
       if (first == std::string::npos) first = pos;
     }
-    if (all) hits.push_back({page.indexed_at, &url, first});
+    if (all) hits.push_back({page.indexed_at, &key, first});
   }
   std::sort(hits.begin(), hits.end(), [](const Hit& a, const Hit& b) { return a.when > b.when; });
   for (size_t i = 0; i < hits.size() && i < 4; ++i) {
@@ -1626,12 +1710,12 @@ void Controller::SuggestPageText(const std::string& q, CefRefPtr<CefListValue> l
                           (end < text.size() ? "…" : "");
     int tab_id = 0;
     for (const auto& t : tabs_)
-      if (t.url == *hits[i].url) tab_id = t.id;
+      if (t.url == page.url && t.space == space) tab_id = t.id;
     auto d = CefDictionaryValue::Create();
     d->SetString("kind", "text");
     d->SetInt("id", tab_id);
     d->SetString("title", page.title);
-    d->SetString("url", *hits[i].url);
+    d->SetString("url", page.url);
     d->SetString("detail", snippet);
     list->SetDictionary(n++, d);
   }
@@ -1648,6 +1732,8 @@ void Controller::ApplySettings(CefRefPtr<CefDictionaryValue> d) {
   if (d->HasKey("onboarded")) s.onboarded = d->GetBool("onboarded");
   if (d->HasKey("searchUrl")) s.search_url = d->GetString("searchUrl").ToString();
   if (d->HasKey("indexPages")) s.index_pages = d->GetBool("indexPages");
+  if (d->HasKey("pinnedColumns")) s.pinned_columns = std::clamp(d->GetInt("pinnedColumns"), 0, 8);
+  if (d->HasKey("pinnedCentered")) s.pinned_centered = d->GetBool("pinnedCentered");
   if (d->HasKey("githubFolder")) {
     s.github_folder = d->GetBool("githubFolder");
     if (!s.github_folder) State::Get().github_space = -1;  // Re-enabling binds to that space.
@@ -1660,7 +1746,7 @@ void Controller::ApplySettings(CefRefPtr<CefDictionaryValue> d) {
   if (github_changed) RefreshGitHub();
   if (d->HasKey("gmailFolder")) {
     s.gmail_folder = d->GetBool("gmailFolder");
-    if (!s.gmail_folder) State::Get().gmail_space = -1;
+    if (!s.gmail_folder) State::Get().gmail.clear();
     RefreshGmail();
   }
   PushSidebar();
@@ -1698,7 +1784,7 @@ bool Controller::HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> 
       bool same_page = frame->IsMain() && tab->url == pending.url &&
                        frame->GetURL().ToString() == pending.url;
       if (same_page && State::Get().settings.index_pages) {
-        State::Get().SetPageText(pending.url, msg->GetString("title"), msg->GetString("text"));
+        State::Get().SetPageText(tab->space, pending.url, msg->GetString("title"), msg->GetString("text"));
         SavePagesSoon();
       }
       callback->Success("");
@@ -1736,6 +1822,8 @@ bool Controller::HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> 
     HideCommandBar();
     if (url.empty()) return callback->Success(""), true;
     Tab* tab = ActiveTab();
+    // A blank new tab page is reused rather than left behind.
+    if (tab && tab->url == kNewTabUrl) new_tab = false;
     if (new_tab || !tab) NewTab(url, true);
     else Navigate(tab->id, url);
     callback->Success("");
@@ -1813,6 +1901,18 @@ bool Controller::HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> 
   } else if (cmd == "tab.group") {
     SetGroup(int_arg("id"), int_arg("group"));
     callback->Success("");
+  } else if (cmd == "tab.icon") {
+    std::string icon = msg->GetString("icon");
+    // An emoji, an http(s) image or an uploaded image as a data: URL (kept small by the sidebar).
+    bool ok = icon.empty() || icon.size() <= 32 ||
+              ((StartsWith(icon, "https://") || StartsWith(icon, "http://") ||
+                StartsWith(icon, "data:image/")) && icon.size() <= 200 * 1024);
+    if (Tab* t = FindTab(int_arg("id")); t && ok) {
+      t->icon = icon;
+      PushSidebar();
+      SaveSoon();
+    }
+    callback->Success("");
   } else if (cmd == "tab.pin") {
     SetPinned(int_arg("id"), msg->GetBool("pinned"));
     callback->Success("");
@@ -1824,7 +1924,7 @@ bool Controller::HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> 
     RestoreArchived(static_cast<size_t>(int_arg("index")));
     callback->Success("");
   } else if (cmd == "archive.clear") {
-    State::Get().archive.clear();
+    ClearArchive();
     PushSidebar();
     SaveSoon();
     callback->Success("");
@@ -1842,6 +1942,24 @@ bool Controller::HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> 
     HideCommandBar();
     RunCommand(msg->GetString("id"));
     callback->Success("");
+  } else if (cmd == "sidebar.width") {
+    State::Get().settings.sidebar_width = std::clamp(int_arg("width"), kSidebarMin, kSidebarMax);
+    ApplySidebarWidth();
+    SaveSoon();
+    callback->Success("");
+  } else if (cmd == "sidebar.resize") {
+    // The page starts the drag; native tracking follows it over the tab windows.
+    // Native tracking follows the drag over the tab windows, which the page
+    // cannot see; lay out once more after the release, found by polling.
+    platform::TrackHorizontalDrag(shell_->GetWindowHandle(), [this](int x) {
+      State::Get().settings.sidebar_width = std::clamp(x, kSidebarMin, kSidebarMax);
+      ApplySidebarWidth();
+      if (!sidebar_drag_poll_) {
+        sidebar_drag_poll_ = true;
+        PollSidebarDragEnd();
+      }
+    });
+    callback->Success("");
   } else if (cmd == "settings.set") {
     ApplySettings(msg->GetDictionary("settings"));
     callback->Success(StateJson());
@@ -1851,6 +1969,20 @@ bool Controller::HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> 
   } else if (cmd == "space.add") {
     AddSpace(msg->GetString("name"));
     callback->Success(StateJson());
+  } else if (cmd == "space.move") {
+    // Reorders the footer dots, and with them ⌃1–⌃9.
+    auto& spaces = State::Get().spaces;
+    int id = int_arg("id");
+    auto it = std::find_if(spaces.begin(), spaces.end(), [&](const Space& s) { return s.id == id; });
+    if (it != spaces.end()) {
+      Space moved = *it;
+      spaces.erase(it);
+      size_t index = std::min(static_cast<size_t>(std::max(0, int_arg("index"))), spaces.size());
+      spaces.insert(spaces.begin() + index, moved);
+      PushSidebar();
+      SaveSoon();
+    }
+    callback->Success("");
   } else if (cmd == "space.rename") {
     RenameSpace(int_arg("id"), msg->GetString("name"));
     callback->Success(StateJson());
@@ -1906,7 +2038,8 @@ void Controller::OnTitle(CefRefPtr<CefBrowser> browser, const std::string& title
   Tab* tab = FindTabByBrowser(browser);
   if (!tab) return;
   tab->title = title;
-  if (auto it = State::Get().history.find(tab->url); it != State::Get().history.end())
+  if (auto it = State::Get().history.find(SpaceKey(tab->space, tab->url));
+      it != State::Get().history.end())
     it->second.title = title;
   if (tab->id == active_id_ && shell_) shell_->SetTitle(title);
   if (tab->floating && tab->window) platform::SetFloating(tab->window->GetWindowHandle(), true, title);
@@ -1939,11 +2072,47 @@ void Controller::OnAddress(CefRefPtr<CefBrowser> browser, const std::string& url
   SaveSoon();
 }
 
+namespace {
+// Swaps a tab's favicon URL for the image itself, fetched by the tab's own browser.
+// Sites like claude.ai send Cross-Origin-Resource-Policy: same-origin, so the
+// sidebar page cannot load their favicon URL directly.
+class FaviconInliner : public CefDownloadImageCallback {
+ public:
+  FaviconInliner(int tab_id, std::string url) : tab_id_(tab_id), url_(std::move(url)) {}
+  void OnDownloadImageFinished(const CefString& image_url, int http_status_code,
+                               CefRefPtr<CefImage> image) override {
+    if (!image || image->IsEmpty()) return;
+    int w = 0, h = 0;
+    auto png = image->GetAsPNG(2.0f, true, w, h);
+    if (!png || !png->GetSize()) return;
+    std::vector<uint8_t> bytes(png->GetSize());
+    png->GetData(bytes.data(), bytes.size(), 0);
+    Controller::Get()->SetFaviconData(
+        tab_id_, url_, "data:image/png;base64," + CefBase64Encode(bytes.data(), bytes.size()).ToString());
+  }
+
+ private:
+  int tab_id_;
+  std::string url_;
+  IMPLEMENT_REFCOUNTING(FaviconInliner);
+};
+}  // namespace
+
 void Controller::OnFavicon(CefRefPtr<CefBrowser> browser, const std::string& url) {
   if (Tab* tab = FindTabByBrowser(browser)) {
     tab->favicon = url;
     PushSidebar();
+    if (StartsWith(url, "http"))
+      browser->GetHost()->DownloadImage(url, true, 32, false, new FaviconInliner(tab->id, url));
   }
+}
+
+void Controller::SetFaviconData(int tab_id, const std::string& url, const std::string& data) {
+  Tab* tab = FindTab(tab_id);
+  if (!tab || tab->favicon != url) return;  // The page moved on to another icon.
+  tab->favicon = data;
+  PushSidebar();
+  SaveSoon();
 }
 
 void Controller::OnLoading(CefRefPtr<CefBrowser> browser, bool loading, bool can_back,
@@ -1959,7 +2128,7 @@ void Controller::OnLoading(CefRefPtr<CefBrowser> browser, bool loading, bool can
   tab->can_back = can_back;
   tab->can_forward = can_forward;
   if (!loading) {
-    State::Get().RecordVisit(tab->url, tab->title);
+    State::Get().RecordVisit(tab->space, tab->url, tab->title);
     IndexPage(tab);
   }
   PushSidebar();
@@ -2077,7 +2246,9 @@ void Controller::SaveNow() {
   state.active_index = 0;
   for (const auto& t : tabs_) {
     if (t.id == active_id_) state.active_index = static_cast<int>(state.tabs.size());
-    state.tabs.push_back({t.url, t.title, t.pinned, t.last_active, t.space, t.group});
+    // Large data: favicons would bloat state.json; the page supplies them again on load.
+    state.tabs.push_back({t.url, t.title, t.pinned, t.last_active, t.space, t.group, t.icon,
+                          t.favicon.size() <= 16 * 1024 ? t.favicon : ""});
   }
   state.Save();
 }

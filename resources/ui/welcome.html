@@ -62,6 +62,16 @@ pre { margin: 0; font: 12px/1.6 var(--mono); background: var(--ground); border-r
       <div class="controls"><span class="status" id="index-status"></span><button class="btn" id="forget" hidden>Forget saved text</button></div>
     </li>
     <li>
+      <h2>Pinned tabs sit in a grid</h2>
+      <p>Pick how many tiles fit on a row, and whether a short last row sits in the middle.</p>
+      <div class="controls">
+        <label>Tiles per row <select id="pin-cols">
+          <option value="0">Fit to width</option><option>2</option><option>3</option><option>4</option><option>5</option><option>6</option><option>7</option><option>8</option>
+        </select></label>
+        <label class="switch"><input type="checkbox" id="pin-center"> Center the last row</label>
+      </div>
+    </li>
+    <li>
       <h2>Tabs you stop using get archived</h2>
       <p>Each tab in the sidebar has a thin bar that shrinks while you ignore it. When it runs out, Roar moves the tab to Archived, where one click brings it back. Pinned tabs stay put.</p>
       <div class="controls" id="archive-choices" role="group" aria-label="Archive tabs after">
@@ -128,6 +138,8 @@ function apply(s) {
   $('gm-status').classList.toggle('ok', s.gmail.enabled && !s.gmail.status);
   $('port').textContent = '127.0.0.1:' + s.settings.cdpPort;
   $('index-on').checked = s.settings.indexPages;
+  $('pin-cols').value = String(s.settings.pinnedColumns || 0);
+  $('pin-center').checked = s.settings.pinnedCentered;
   $('index-status').textContent = s.settings.pageCount ? `${s.settings.pageCount} pages saved on this Mac.` : 'Nothing saved yet.';
   $('forget').hidden = !s.settings.pageCount;
   renderSpaces(s);
@@ -164,6 +176,8 @@ $('spaces').addEventListener('click', (e) => {
 });
 $('space-add').onclick = () => ask({ cmd: 'space.add', name: '' });
 $('index-on').onchange = () => set({ indexPages: $('index-on').checked });
+$('pin-cols').onchange = () => set({ pinnedColumns: +$('pin-cols').value });
+$('pin-center').onchange = () => set({ pinnedCentered: $('pin-center').checked });
 $('forget').onclick = () => ask({ cmd: 'run', id: 'forgetPages' }).then(() => ask({ cmd: 'state' })).then(apply);
 
 ask({ cmd: 'state' }).then(apply);

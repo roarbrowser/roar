@@ -26,6 +26,10 @@ void AttachChild(void* parent, void* child);  // Shows |child| above |parent|.
 void DetachChild(void* parent, void* child);  // Hides |child|.
 void StyleWindow(void* window, double corner_radius, bool shadow);
 void SetIgnoresMouse(void* window, bool ignores);
+bool IsLeftMouseDown();
+// Follows the left mouse button across all of Roar's windows until it is
+// released, calling on_move with the cursor's x in the window's coordinates.
+void TrackHorizontalDrag(void* window, std::function<void(int x)> on_move);
 // Turns a tab window into a titled, always-on-top mini window, or back.
 void SetFloating(void* window, bool floating, const std::string& title);
 void CopyText(const std::string& text);

@@ -60,6 +60,15 @@ bool Client::OnPreKeyEvent(CefRefPtr<CefBrowser> browser, const CefKeyEvent& eve
   return Controller::Get()->OnKey(browser, event);
 }
 
+namespace {
+bool IsDuckDuckGoResults(const std::string& url) {
+  for (const char* prefix : {"https://duckduckgo.com/?", "https://www.duckduckgo.com/?",
+                             "https://html.duckduckgo.com/", "https://lite.duckduckgo.com/"})
+    if (url.rfind(prefix, 0) == 0) return true;
+  return false;
+}
+}  // namespace
+
 bool Client::OnBeforePopup(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> frame,
                            int popup_id, const CefString& target_url,
                            const CefString& target_frame_name,
@@ -68,6 +77,13 @@ bool Client::OnBeforePopup(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> fr
                            CefRefPtr<CefClient>& client, CefBrowserSettings& settings,
                            CefRefPtr<CefDictionaryValue>& extra_info,
                            bool* no_javascript_access) {
+  // A DuckDuckGo result opens in place, even with DuckDuckGo's "open in new tab"
+  // setting on; ⌘-click still asks for a background tab.
+  if (target_disposition == CEF_WOD_NEW_FOREGROUND_TAB && frame && frame->IsMain() &&
+      IsDuckDuckGoResults(frame->GetURL())) {
+    frame->LoadURL(target_url);
+    return true;
+  }
   switch (target_disposition) {
     case CEF_WOD_NEW_FOREGROUND_TAB:
     case CEF_WOD_NEW_BACKGROUND_TAB:

@@ -17,6 +17,8 @@ struct SavedTab {
   double last_active = 0;  // Unix seconds.
   int space = 0;
   int group = 0;
+  std::string icon;  // A pinned tab's custom icon: an emoji or an image URL.
+  std::string favicon;  // Last seen, so an unloaded tab still shows it after launch.
 };
 
 // A named, colored set of tabs in one space. A pinned group's tabs come back
@@ -31,16 +33,20 @@ struct TabGroup {
   bool collapsed = false;
 };
 
+// History, the archive and page text are kept per space, so one space's
+// browsing never surfaces in another's suggestions.
 struct ArchivedTab {
   std::string url;
   std::string title;
   double archived_at = 0;
+  int space = 0;
 };
 
 struct HistoryEntry {
   std::string title;
   int visits = 0;
   double last_visit = 0;
+  int space = 0;
 };
 
 struct LiveItem {
@@ -63,6 +69,20 @@ struct PageText {
   std::string title;
   std::string text;
   double indexed_at = 0;
+  int space = 0;
+  std::string url;
+};
+
+// Key for history and pages: the URL itself in space 0 (the format before
+// spaces had their own), "<space>\t<url>" elsewhere.
+std::string SpaceKey(int space, const std::string& url);
+
+struct GmailFeed {
+  std::vector<LiveItem> items;
+  std::string status;  // Empty when the last refresh succeeded.
+  int unread = 0;
+  bool signed_out = false;  // Last refresh got 401/403.
+  std::string account;  // The address the feed is for.
 };
 
 struct Settings {
@@ -73,6 +93,9 @@ struct Settings {
   bool github_folder = true;
   bool gmail_folder = true;
   bool index_pages = true;
+  int sidebar_width = 268;
+  int pinned_columns = 0;  // Pinned tiles per row; 0 fits as many as the width allows.
+  bool pinned_centered = false;  // Centers a short last row.
 };
 
 class State {
@@ -92,13 +115,10 @@ class State {
   std::map<std::string, HistoryEntry> history;
   std::vector<LiveItem> github_items;
   std::string github_status;  // Empty when the last refresh succeeded.
-  std::vector<LiveItem> gmail_items;
-  std::string gmail_status;  // Empty when the last refresh succeeded.
-  int gmail_unread = 0;
-  bool gmail_signed_out = false;  // Last refresh got 401/403.
-  // The space each live folder belongs to: the first one it loaded in, or -1.
+  // Each space reads Gmail with its own profile's login.
+  std::map<int, GmailFeed> gmail;
+  // The space the GitHub folder belongs to: the first one it loaded in, or -1.
   int github_space = -1;
-  int gmail_space = -1;
   Settings settings;
   std::vector<Space> spaces;
   int active_space = 0;
@@ -109,12 +129,12 @@ class State {
   std::map<std::string, PageText> pages;
 
   void SavePages();
-  void SetPageText(const std::string& url, const std::string& title, const std::string& text);
+  void SetPageText(int space, const std::string& url, const std::string& title, const std::string& text);
   Space* FindSpace(int id);
   std::vector<std::string>& ActivePins() { return FindSpace(active_space)->pinned_extensions; }
 
-  void RecordVisit(const std::string& url, const std::string& title);
-  void AddArchived(const std::string& url, const std::string& title);
+  void RecordVisit(int space, const std::string& url, const std::string& title);
+  void AddArchived(int space, const std::string& url, const std::string& title);
 
  private:
   State() = default;

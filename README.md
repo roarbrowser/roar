@@ -1,13 +1,14 @@
----
-title: Roar
-created: 2026-10-10T00:20:00-05:00
-tags: [roar, browser, cef, macos]
----
 
-# Roar
+<p align="center">
+  <img src="resources/lion.svg" alt="Roar logo" width="160">
+</p>
 
-A macOS browser on CEF 154 (Chromium 154.0.8037.98). Feature picks came from
-`~/Scrypting/reverseEng/roar/FEATURE-REVIEW.md`: #1, #4, #7, #10, #12, #13, #15, #18.
+<h1 align="center">Roar</h1>
+
+<p align="center">
+  A fast, keyboard-first macOS browser with a vertical sidebar, spaces, and split view.<br>
+  Built on CEF 154 (Chromium 154.0.8037.98). Free and open source under the MIT License.
+</p>
 
 ## Build and run
 
@@ -16,10 +17,10 @@ A macOS browser on CEF 154 (Chromium 154.0.8037.98). Feature picks came from
 open build/src/Release/Roar.app
 ```
 
-Needs Xcode, `cmake` and `ninja`. Environment overrides:
+Needs macOS, Xcode, `cmake` and `ninja`. Environment overrides:
 
-- `ROAR_CDP_PORT` (default `9222`): DevTools Protocol port. Use another port while the
-  hermit's Chrome holds 9222.
+- `ROAR_CDP_PORT` (default `9222`): DevTools Protocol port. Set another port if something
+  else already holds 9222.
 - `ROAR_DATA_DIR` (default `~/Library/Application Support/Roar`): profile and `state.json`.
 - `--load-extension=<dir>`: load an unpacked Chrome extension.
 
@@ -61,3 +62,14 @@ nonce Roar issued to that tab.
 - Markdown extraction covers HTML pages; PDFs and Google Docs canvases are not handled.
 - The bundle is ad-hoc signed; the first AppleScript call triggers a macOS Automation
   prompt.
+
+## Contributing
+
+Issues and pull requests are welcome. Build with `./scripts/build.sh` before sending a
+change, since UI-only edits reach the app bundle only through that script.
+
+## License
+
+Roar is released under the [MIT License](LICENSE). The build fetches third-party code
+that keeps its own license: [CEF](https://bitbucket.org/chromiumembedded/cef) (BSD) and
+[uBlock Origin Lite](https://github.com/uBlockOrigin/uBOL-home) (GPLv3).

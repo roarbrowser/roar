@@ -418,6 +418,9 @@ void StyleWindow(void* window, double corner_radius, bool shadow) {
   w.backgroundColor = NSColor.clearColor;
   w.hasShadow = shadow;
   w.collectionBehavior |= NSWindowCollectionBehaviorFullScreenAuxiliary;
+  // A resizable edge would sit over the sidebar's resize handle and drag the
+  // tab window out from under the layout instead.
+  w.styleMask &= ~NSWindowStyleMaskResizable;
   NSView* content = w.contentView;
   content.wantsLayer = YES;
   content.layer.cornerRadius = corner_radius;
@@ -427,6 +430,27 @@ void StyleWindow(void* window, double corner_radius, bool shadow) {
 
 void SetIgnoresMouse(void* window, bool ignores) {
   if (NSWindow* w = Win(window)) w.ignoresMouseEvents = ignores;
+}
+
+bool IsLeftMouseDown() { return NSEvent.pressedMouseButtons & 1; }
+
+void TrackHorizontalDrag(void* window, std::function<void(int x)> on_move) {
+  NSWindow* w = Win(window);
+  // A click that is already over would leave the monitor waiting for the next one.
+  if (!w || !(NSEvent.pressedMouseButtons & 1)) return;
+  // A local monitor sees the drag even over the tab windows, which a page's
+  // pointer capture cannot reach.
+  __block id monitor = nil;
+  monitor = [NSEvent addLocalMonitorForEventsMatchingMask:NSEventMaskLeftMouseDragged | NSEventMaskLeftMouseUp
+                                                  handler:^NSEvent*(NSEvent* event) {
+    NSPoint p = [w convertPointFromScreen:NSEvent.mouseLocation];
+    on_move(static_cast<int>(p.x));
+    if ((event.type == NSEventTypeLeftMouseUp || !(NSEvent.pressedMouseButtons & 1)) && monitor) {
+      [NSEvent removeMonitor:monitor];
+      monitor = nil;
+    }
+    return event;
+  }];
 }
 
 void SetFloating(void* window, bool floating, const std::string& title) {
@@ -446,7 +470,8 @@ void SetFloating(void* window, bool floating, const std::string& title) {
     w.collectionBehavior |= NSWindowCollectionBehaviorCanJoinAllSpaces;
     w.contentView.layer.cornerRadius = 0;
   } else {
-    w.styleMask = (w.styleMask & ~(NSWindowStyleMaskTitled | NSWindowStyleMaskClosable)) |
+    w.styleMask = (w.styleMask & ~(NSWindowStyleMaskTitled | NSWindowStyleMaskClosable |
+                                   NSWindowStyleMaskResizable)) |
                   NSWindowStyleMaskFullSizeContentView;
     w.titlebarAppearsTransparent = YES;
     w.titleVisibility = NSWindowTitleHidden;

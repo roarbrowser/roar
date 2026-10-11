@@ -23,8 +23,12 @@ body { background: var(--ground); display: flex; flex-direction: column; overflo
 .spaces button::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--ink-3); opacity: .5; }
 .spaces button:hover::before { opacity: 1; }
 .spaces button::before { background: var(--dot, var(--ink-3)); }
+.spaces button.dragging { opacity: .3; }
+.spaces button.drop-before { box-shadow: -2px 0 0 var(--mane); }
+.spaces button.drop-after { box-shadow: 2px 0 0 var(--mane); }
 .spaces button[aria-pressed="true"]::before { background: var(--dot, var(--mane)); opacity: 1; width: 8px; height: 8px; }
 body { box-shadow: inset 3px 0 0 var(--space-color, transparent); }
+.resize { position: fixed; top: 0; right: 0; bottom: 0; width: 5px; cursor: col-resize; z-index: 10; }
 .space-menu { position: fixed; left: 8px; right: 8px; bottom: 44px; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px; box-sizing: border-box; padding: 6px; border-radius: 10px; background: var(--ground); box-shadow: 0 0 0 1px var(--rule), 0 8px 24px rgba(0,0,0,.35); z-index: 10; }
 .space-menu[hidden] { display: none; }
 .space-menu input { width: 100%; min-width: 0; box-sizing: border-box; border: 0; outline: 0; padding: 4px 8px; border-radius: 6px; background: var(--panel); color: var(--ink); font: 500 12.5px var(--ui); }
@@ -37,17 +41,21 @@ body { box-shadow: inset 3px 0 0 var(--space-color, transparent); }
 .foot .space-name { color: var(--ink-2); font-size: 11.5px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 90px; }
 .scroll { flex: 1; overflow-y: auto; padding: 0 6px 12px; display: flex; flex-direction: column; gap: 14px; }
 
-.pinned { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 4px; }
+.pinned { --cols: 5; display: flex; flex-wrap: wrap; gap: 6px; padding: 0 4px; }
+.pinned > .pin { flex: 0 0 calc((100% - (var(--cols) - 1) * 6px) / var(--cols)); }
+.pinned.centered { justify-content: center; }
 .pinned:empty { display: none; }
 /* While a tab is dragged, an empty pinned strip shows as a drop zone. */
 body.drag-active .pinned:empty { display: flex; height: 38px; margin: 0 4px; padding: 0; border: 1px dashed var(--rule); border-radius: 10px; align-items: center; justify-content: center; }
 body.drag-active .pinned:empty::before { content: 'Drop to pin'; color: var(--ink-3); font-size: 12px; }
-.pin { width: 38px; height: 38px; border-radius: 10px; background: var(--hover); display: grid; place-items: center; position: relative; }
+.pin { min-width: 0; height: 38px; border-radius: 10px; background: var(--hover); display: grid; place-items: center; position: relative; }
 .pin:hover { background: var(--rule); }
 .pin.active { background: var(--selected); box-shadow: 0 1px 2px rgba(0,0,0,.12); }
 .pin.active::after { content: ""; position: absolute; bottom: 3px; left: 50%; width: 12px; height: 2px; margin-left: -6px; border-radius: 1px; background: var(--mane); }
 .pin .fav.letter { background: none; font-size: 13px; color: var(--ink-2); }
 .pin .lion { width: 20px; height: 20px; }
+.pin .custom { font-size: 18px; line-height: 1; }
+.pin img.custom { width: 22px; height: 22px; border-radius: 5px; object-fit: cover; }
 
 .group-head { display: flex; align-items: center; gap: 6px; padding: 0 8px 4px; color: var(--ink-3); font-size: 12px; font-weight: 600; }
 .group-head .count { font-weight: 400; font-variant-numeric: tabular-nums; }
@@ -127,8 +135,18 @@ body.drag-active .pinned:empty::before { content: 'Drop to pin'; color: var(--in
 #settings:hover .knob, #settings:focus-visible .knob { fill: var(--mane); stroke: var(--mane); }
 #settings:focus-visible { outline: 2px solid var(--mane); outline-offset: 1px; }
 @media (prefers-reduced-motion: reduce) { #settings .knob { transition: none; } }
-.ext-pins { display: flex; flex-wrap: wrap; gap: 4px; padding: 6px 10px; }
-.ext-pins:empty { display: none; }
+.bar { flex: none; display: flex; align-items: center; gap: 4px; padding: 6px 10px; }
+.bar .spacer { flex: 1; }
+.bar:not(:has(.ext-pins:not(:empty), .feed:not([hidden]))) { display: none; }
+.ext-pins { display: flex; flex-wrap: wrap; gap: 4px; }
+.feed { position: relative; width: 28px; height: 28px; border-radius: 7px; display: grid; place-items: center; }
+.feed:hover, .feed[aria-expanded="true"] { background: var(--hover); }
+.feed[hidden] { display: none; }
+.feed svg { width: 16px; height: 16px; color: var(--ink-2); }
+.feed .badge { position: absolute; top: 0; right: -2px; min-width: 14px; height: 14px; padding: 0 3px; border-radius: 7px; background: var(--mane, #d9822b); color: #fff; font: 600 9.5px/14px var(--ui); text-align: center; }
+.feed .badge:empty { display: none; }
+.feed-pop { display: none; position: fixed; z-index: 15; left: 8px; right: 8px; bottom: 96px; max-height: 60vh; overflow: auto; padding: 4px; border-radius: 10px; background: var(--ground); box-shadow: 0 0 0 1px var(--rule), 0 8px 24px rgba(0,0,0,.35); }
+.feed-pop.open { display: block; }
 .ext-pins button { width: 28px; height: 28px; border-radius: 7px; display: grid; place-items: center; }
 .ext-pins button:hover { background: var(--hover); }
 .ext-pins img { width: 18px; height: 18px; }
@@ -146,6 +164,7 @@ body.drag-active .pinned:empty::before { content: 'Drop to pin'; color: var(--in
   <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="7" cy="7" r="4.5"/><path d="m10.5 10.5 3 3"/></svg>
   <span class="host" id="host">Search or enter address</span>
 </button>
+<div class="resize" id="resize" title="Drag to resize"></div>
 <div class="scroll">
   <div class="pinned" id="pinned"></div>
   <div id="pinned-groups"></div>
@@ -154,16 +173,21 @@ body.drag-active .pinned:empty::before { content: 'Drop to pin'; color: var(--in
     <div id="groups"></div>
     <div class="rows" id="tabs"></div>
   </section>
-  <section id="gh-group">
-    <div class="group-head"><button class="toggle" data-collapse="gh-group"><svg class="chev" viewBox="0 0 10 10" fill="currentColor"><path d="M1 3h8L5 8z"/></svg>GitHub PRs</button><span class="count" id="gh-count"></span><span class="spacer"></span><button id="gh-refresh" title="Refresh pull requests">Refresh</button></div>
-    <div class="rows" id="gh"></div>
-  </section>
-  <section id="gm-group">
-    <div class="group-head"><button class="toggle" data-collapse="gm-group"><svg class="chev" viewBox="0 0 10 10" fill="currentColor"><path d="M1 3h8L5 8z"/></svg>Unread mail</button><span class="count" id="gm-count"></span><span class="spacer"></span><button id="gm-refresh" title="Refresh mail">Refresh</button></div>
-    <div class="rows" id="gm"></div>
-  </section>
 </div>
-<div class="ext-pins" id="ext-pins"></div>
+<section class="feed-pop" id="gh-group">
+  <div class="group-head"><span>GitHub PRs</span><span class="spacer"></span><button id="gh-refresh" title="Refresh pull requests">Refresh</button></div>
+  <div class="rows" id="gh"></div>
+</section>
+<section class="feed-pop" id="gm-group">
+  <div class="group-head"><span>Unread mail</span><span class="spacer"></span><button id="gm-refresh" title="Refresh mail">Refresh</button></div>
+  <div class="rows" id="gm"></div>
+</section>
+<div class="bar" id="bar">
+  <div class="ext-pins" id="ext-pins"></div>
+  <span class="spacer"></span>
+  <button class="feed" id="gh-btn" data-feed="gh-group" title="GitHub PRs" hidden><svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg><span class="badge" id="gh-count"></span></button>
+  <button class="feed" id="gm-btn" data-feed="gm-group" title="Unread mail" hidden><svg viewBox="0 0 24 18"><path fill="#4285f4" d="M1.6 18h3.8V8.7L0 4.6v11.8C0 17.3.7 18 1.6 18z"/><path fill="#34a853" d="M18.6 18h3.8c.9 0 1.6-.7 1.6-1.6V4.6l-5.4 4.1z"/><path fill="#fbbc04" d="M18.6 1.6v7.1L24 4.6V2.4c0-2-2.3-3.1-3.9-1.9z"/><path fill="#ea4335" d="M5.4 8.7V1.6L12 6.5l6.6-4.9v7.1L12 13.6z"/><path fill="#c5221f" d="M0 2.4v2.2l5.4 4.1V1.6L3.9.5C2.3-.7 0 .4 0 2.4z"/></svg><span class="badge" id="gm-count"></span></button>
+</div>
 <div class="ctx" id="ctx" hidden></div>
 <div class="foot">
   <span class="lion" style="width:22px;height:22px" aria-hidden="true"></span><span class="wordmark">Roar</span>
@@ -230,10 +254,11 @@ window.roar = {
     $('space-name').style.color = cur?.color || '';
     $('space-name').textContent = multi ? (s.spaces.find((sp) => sp.id === s.activeSpace)?.name || '') : '';
     $('spaces').innerHTML = multi ? s.spaces.map((sp, i) =>
-      `<button data-space="${sp.id}" aria-pressed="${sp.id === s.activeSpace}" style="${sp.color ? '--dot:' + sp.color : ''}" title="${esc(sp.name)} (⌃${i + 1})" aria-label="${esc(sp.name)}"></button>`).join('') : '';
+      `<button data-space="${sp.id}" draggable="true" aria-pressed="${sp.id === s.activeSpace}" style="${sp.color ? '--dot:' + sp.color : ''}" title="${esc(sp.name)} (⌃${i + 1})" aria-label="${esc(sp.name)}"></button>`).join('') : '';
     $('cdp').hidden = multi;
+    layoutPins(s.settings);
     $('pinned').innerHTML = pinned.map((t) =>
-      `<button class="pin${t.active ? ' active' : ''}" data-id="${t.id}" draggable="true" title="${esc(t.title)}" aria-label="${esc(t.title)}">${t.url.startsWith('roar:') ? '<span class="lion"></span>' : iconHtml(t.favicon, t.url)}</button>`).join('');
+      `<button class="pin${t.active ? ' active' : ''}" data-id="${t.id}" draggable="true" title="${esc(t.title)}" aria-label="${esc(t.title)}">${pinIcon(t)}</button>`).join('');
     $('tabs').innerHTML = open.map((t) => tabRow(t, limit)).join('');
     $('tab-count').textContent = open.length || '';
     $('back').disabled = !s.nav.canBack;
@@ -243,7 +268,7 @@ window.roar = {
     $('cdp').textContent = 'CDP :' + s.settings.cdpPort;
 
     const gh = s.github;
-    $('gh-group').hidden = !gh.enabled;
+    $('gh-btn').hidden = !gh.enabled;
     $('gh-count').textContent = gh.items.length || '';
     $('gh').innerHTML = gh.status
       ? (folderTab('github') ? tabRow(folderTab('github'), 0) : '') + `<div class="note">${esc(gh.status).replace(/`([^`]+)`/g, '<code>$1</code>')}</div>`
@@ -253,8 +278,10 @@ window.roar = {
 
     const gm = s.gmail;
     // Only shown with unread mail (or while its tab is open).
-    $('gm-group').hidden = !gm.enabled || gm.signedOut || !(gm.unread > 0 || s.tabs.some((t) => t.folder === 'mail'));
-    $('gm-count').textContent = gm.unread ? `(${gm.unread})` : '';
+    $('gm-btn').hidden = !gm.enabled || gm.signedOut || !(gm.unread > 0 || s.tabs.some((t) => t.folder === 'mail'));
+    $('gm-count').textContent = gm.unread || '';
+    for (const b of document.querySelectorAll('.feed[hidden]')) $(b.dataset.feed).classList.remove('open');
+    syncFeeds();
     $('gm').innerHTML = gm.status
       ? (folderTab('mail') ? tabRow(folderTab('mail'), 0) : '') + `<div class="note">${esc(gm.status)}</div>`
       : gm.items.length
@@ -341,15 +368,58 @@ function showCtx(html, e, bind) {
   };
 }
 const dot = (c) => `<span class="gdot" style="${c ? '--gc:' + c : ''}"></span>`;
+// A pinned tab's custom icon is an emoji or an image; otherwise its favicon.
+function pinIcon(t) {
+  if (/^(https?:|data:image\/)/.test(t.icon || '')) return `<img class="custom" src="${esc(t.icon)}" alt="">`;
+  if (t.icon) return `<span class="custom">${esc(t.icon)}</span>`;
+  return t.url.startsWith('roar:') ? '<span class="lion"></span>' : iconHtml(t.favicon, t.url);
+}
+// Shrinks a picked image to a 64px square data: URL so state.json stays small.
+function imageIcon(file, done) {
+  const img = new Image();
+  img.onload = () => {
+    const c = document.createElement('canvas');
+    c.width = c.height = 64;
+    const s = Math.min(img.width, img.height);
+    c.getContext('2d').drawImage(img, (img.width - s) / 2, (img.height - s) / 2, s, s, 0, 0, 64, 64);
+    URL.revokeObjectURL(img.src);
+    done(c.toDataURL('image/png'));
+  };
+  img.src = URL.createObjectURL(file);
+}
+function iconMenu(t, e) {
+  showCtx(`<input id="ctx-name" maxlength="2048" placeholder="Emoji or image URL" spellcheck="false">
+    <button data-act="file">Choose image…</button>
+    ${t.icon ? '<button data-act="reset">Use site icon</button>' : ''}`, e, (act) => {
+    if (act === 'reset') ask({ cmd: 'tab.icon', id: t.id, icon: '' });
+    else if (act === 'file') {
+      const f = document.createElement('input');
+      f.type = 'file';
+      f.accept = 'image/*';
+      f.onchange = () => f.files[0] && imageIcon(f.files[0], (icon) => ask({ cmd: 'tab.icon', id: t.id, icon }));
+      f.click();
+    }
+    hideCtx();
+  });
+  const input = $('ctx-name');
+  input.value = /^data:/.test(t.icon || '') ? '' : t.icon || '';
+  input.focus();
+  input.select();
+  input.onkeydown = (ev) => {
+    if (ev.key === 'Enter') { ask({ cmd: 'tab.icon', id: t.id, icon: input.value.trim() }); hideCtx(); }
+    else if (ev.key === 'Escape') hideCtx();
+  };
+}
 function tabMenu(t, e) {
   const groups = state.groups || [];
-  showCtx(`${t.pinned ? '<button data-act="unpin">Unpin tab</button>' : '<button data-act="pin">Pin tab</button>'}
+  showCtx(`${t.pinned ? '<button data-act="unpin">Unpin tab</button><button data-act="icon">Set icon…</button>' : '<button data-act="pin">Pin tab</button>'}
     <hr><div class="head">Add to group</div>
     <button data-act="new">New group…</button>
     ${groups.filter((g) => g.id !== t.group).map((g) => `<button data-act="move" data-g="${g.id}">${dot(g.color)}${esc(g.name)}</button>`).join('')}
     ${t.group ? '<button data-act="ungroup">Remove from group</button>' : ''}
     <hr><button data-act="close">Close tab</button>`, e, (act, d) => {
     if (act === 'pin' || act === 'unpin') ask({ cmd: 'tab.pin', id: t.id, pinned: act === 'pin' });
+    else if (act === 'icon') return iconMenu(t, e);
     else if (act === 'move') ask({ cmd: 'tab.group', id: t.id, group: +d.g });
     else if (act === 'ungroup') ask({ cmd: 'tab.group', id: t.id, group: 0 });
     else if (act === 'close') ask({ cmd: 'tab.close', id: t.id });
@@ -394,7 +464,8 @@ document.addEventListener('dragstart', (e) => {
   if (!row) return;
   dragId = +row.dataset.id;
   row.classList.add('dragging');
-  document.body.classList.add('drag-active');
+  // Deferred: changing layout during dragstart moves the source row and Chromium cancels the drag.
+  setTimeout(() => dragId && document.body.classList.add('drag-active'));
   e.dataTransfer.effectAllowed = 'move';
   e.dataTransfer.setData('text/plain', String(dragId));
 });
@@ -421,6 +492,44 @@ document.addEventListener('drop', (e) => {
   else if (t.pinned) ask({ cmd: 'tab.pin', id: dragId, pinned: false });
   else if (t.group) ask({ cmd: 'tab.group', id: dragId, group: 0 });
 });
+// Drag a space's dot along the footer to reorder spaces.
+let spaceDrag = null;  // A space id; space 0 is valid.
+const spaceSpot = (e) => {
+  const dot = e.target.closest?.('#spaces [data-space]');
+  if (!dot || +dot.dataset.space === spaceDrag) return null;
+  const r = dot.getBoundingClientRect();
+  return { dot, after: e.clientX > r.left + r.width / 2 };
+};
+const clearSpaceMarks = () => document.querySelectorAll('#spaces .drop-before, #spaces .drop-after')
+  .forEach((el) => el.classList.remove('drop-before', 'drop-after'));
+$('spaces').addEventListener('dragstart', (e) => {
+  const dot = e.target.closest('[data-space]');
+  if (!dot) return;
+  spaceDrag = +dot.dataset.space;
+  dot.classList.add('dragging');
+  e.dataTransfer.effectAllowed = 'move';
+  e.dataTransfer.setData('text/plain', 'space:' + spaceDrag);
+});
+$('spaces').addEventListener('dragover', (e) => {
+  const spot = spaceDrag !== null && spaceSpot(e);
+  clearSpaceMarks();
+  if (!spot) return;
+  e.preventDefault();
+  spot.dot.classList.add(spot.after ? 'drop-after' : 'drop-before');
+});
+$('spaces').addEventListener('drop', (e) => {
+  const spot = spaceDrag !== null && spaceSpot(e);
+  if (!spot) return;
+  e.preventDefault();
+  const order = state.spaces.map((sp) => sp.id).filter((id) => id !== spaceDrag);
+  const index = order.indexOf(+spot.dot.dataset.space) + (spot.after ? 1 : 0);
+  ask({ cmd: 'space.move', id: spaceDrag, index });
+});
+$('spaces').addEventListener('dragend', () => {
+  spaceDrag = null;
+  clearSpaceMarks();
+  document.querySelectorAll('#spaces .dragging').forEach((el) => el.classList.remove('dragging'));
+});
 $('address').onclick = () => ask({ cmd: 'commandbar', newTab: false });
 $('back').onclick = () => ask({ cmd: 'run', id: 'back' });
 $('forward').onclick = () => ask({ cmd: 'run', id: 'forward' });
@@ -431,6 +540,17 @@ $('hide-sidebar').onclick = () => ask({ cmd: 'run', id: 'sidebar' });
 // Pinned extensions: click opens the extension's popup page in a bubble beside
 // the button (an options-only extension opens in a tab); right-click unpins. Pin from the Extensions menu in the menu bar.
 let pinKey = null;
+// Tiles per row comes from settings, or as many 38px tiles as fit.
+let pinSettings = {};
+function layoutPins(settings) {
+  if (settings) pinSettings = settings;
+  const el = $('pinned');
+  const fit = Math.max(1, Math.floor((el.clientWidth - 8 + 6) / (38 + 6)));
+  el.style.setProperty('--cols', pinSettings.pinnedColumns || fit);
+  el.classList.toggle('centered', !!pinSettings.pinnedCentered);
+}
+addEventListener('resize', () => layoutPins());
+
 function loadPins() {
   const key = state.activeSpace + ':' + state.settings.pinnedExtensions.join(',');
   if (key === pinKey) return;
@@ -456,8 +576,30 @@ $('ext-pins').oncontextmenu = (e) => {
   if (b) { e.preventDefault(); e.stopPropagation(); ask({ cmd: 'run', id: 'extensionPin:' + b.dataset.extPin }); }
 };
 $('settings').onclick = () => ask({ cmd: 'run', id: 'settings' });
-// GitHub PRs and Unread mail always start collapsed.
-for (const id of ['gh-group', 'gm-group']) $(id).classList.add('collapsed');
+// GitHub PRs and Unread mail open as popovers from their footer icons.
+function syncFeeds() {
+  const bar = $('bar').getBoundingClientRect();
+  for (const b of document.querySelectorAll('.feed')) {
+    const pop = $(b.dataset.feed);
+    b.setAttribute('aria-expanded', pop.classList.contains('open'));
+    pop.style.bottom = (innerHeight - bar.top + 4) + 'px';
+  }
+}
+$('bar').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-feed]');
+  if (!b) return;
+  e.stopPropagation();
+  const pop = $(b.dataset.feed), open = !pop.classList.contains('open');
+  for (const p of document.querySelectorAll('.feed-pop')) p.classList.remove('open');
+  pop.classList.toggle('open', open);
+  syncFeeds();
+});
+document.addEventListener('click', (e) => {
+  if (e.target.closest('.feed-pop') && !e.target.closest('[data-url]')) return;
+  for (const p of document.querySelectorAll('.feed-pop')) p.classList.remove('open');
+  syncFeeds();
+});
+addEventListener('keydown', (e) => { if (e.key === 'Escape') { for (const p of document.querySelectorAll('.feed-pop')) p.classList.remove('open'); syncFeeds(); } });
 const COLORS = ['', '#e5484d', '#f76b15', '#ffc53d', '#46a758', '#12a594', '#0090ff', '#8e4ec6', '#d6409f'];
 function renderSwatches() {
   const sp = state?.spaces.find((x) => x.id === menuSpace);
@@ -471,6 +613,12 @@ $('swatches').addEventListener('click', (e) => {
   ask({ cmd: 'space.color', id: menuSpace, color: b.dataset.color }).then(() => ask({ cmd: 'state' })).then((s) => { roar.render(s); renderSwatches(); });
 });
 ask({ cmd: 'state' }).then((s) => roar.render(s)).catch(() => {});
+
+// Drag the right edge to resize the sidebar; Roar saves the width.
+$('resize').addEventListener('mousedown', (e) => {
+  e.preventDefault();
+  ask({ cmd: 'sidebar.resize' });
+});
 </script>
 </body>
 </html>

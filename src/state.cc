@@ -75,6 +75,19 @@ std::string State::ProfileDir(int space) const {
   return Dir() + (space == 0 ? "/Default" : "/Space-" + std::to_string(space));
 }
 
+std::string SpaceKey(int space, const std::string& url) {
+  return space == 0 ? url : std::to_string(space) + "\t" + url;
+}
+
+namespace {
+// Splits a SpaceKey back into its space and URL.
+std::pair<int, std::string> SplitKey(const std::string& key) {
+  size_t tab = key.find('\t');
+  if (tab == std::string::npos) return {0, key};
+  return {std::atoi(key.c_str()), key.substr(tab + 1)};
+}
+}  // namespace
+
 void State::Load() {
   spaces = {{0, "Personal"}};
   if (auto root = CefParseJSON(ReadFile(Dir() + "/pages.json"), JSON_PARSER_RFC);
@@ -84,7 +97,8 @@ void State::Load() {
     p->GetKeys(keys);
     for (const auto& k : keys) {
       auto e = p->GetDictionary(k);
-      pages[k.ToString()] = {Str(e, "title"), Str(e, "text"), Num(e, "indexedAt")};
+      auto [space, url] = SplitKey(k.ToString());
+      pages[k.ToString()] = {Str(e, "title"), Str(e, "text"), Num(e, "indexedAt"), space, url};
     }
   }
   CefRefPtr<CefValue> root = CefParseJSON(ReadFile(Dir() + "/state.json"), JSON_PARSER_RFC);
@@ -95,14 +109,15 @@ void State::Load() {
     for (size_t i = 0; i < list->GetSize(); ++i) {
       auto t = list->GetDictionary(i);
       tabs.push_back({Str(t, "url"), Str(t, "title"), Bool(t, "pinned"), Num(t, "lastActive"),
-                      static_cast<int>(Num(t, "space")), static_cast<int>(Num(t, "group"))});
+                      static_cast<int>(Num(t, "space")), static_cast<int>(Num(t, "group")), Str(t, "icon"), Str(t, "favicon")});
     }
   }
   active_index = static_cast<int>(Num(d, "activeIndex"));
   if (auto list = d->GetList("archive")) {
     for (size_t i = 0; i < list->GetSize(); ++i) {
       auto t = list->GetDictionary(i);
-      archive.push_back({Str(t, "url"), Str(t, "title"), Num(t, "archivedAt")});
+      archive.push_back({Str(t, "url"), Str(t, "title"), Num(t, "archivedAt"),
+                         static_cast<int>(Num(t, "space"))});
     }
   }
   if (auto h = d->GetDictionary("history")) {
@@ -111,7 +126,7 @@ void State::Load() {
     for (const auto& k : keys) {
       auto e = h->GetDictionary(k);
       history[k.ToString()] = {Str(e, "title"), static_cast<int>(Num(e, "visits")),
-                               Num(e, "lastVisit")};
+                               Num(e, "lastVisit"), SplitKey(k.ToString()).first};
     }
   }
   if (auto s = d->GetDictionary("settings")) {
@@ -125,6 +140,9 @@ void State::Load() {
     settings.github_folder = Bool(s, "githubFolder", true);
     settings.gmail_folder = Bool(s, "gmailFolder", true);
     settings.index_pages = Bool(s, "indexPages", true);
+    settings.sidebar_width = static_cast<int>(Num(s, "sidebarWidth", settings.sidebar_width));
+    settings.pinned_columns = static_cast<int>(Num(s, "pinnedColumns", 0));
+    settings.pinned_centered = Bool(s, "pinnedCentered", false);
   }
   if (auto list = d->GetList("spaces"); list && list->GetSize() > 0) {
     spaces.clear();
@@ -137,9 +155,7 @@ void State::Load() {
   }
   active_space = static_cast<int>(Num(d, "activeSpace"));
   github_space = static_cast<int>(Num(d, "githubSpace", -1));
-  gmail_space = static_cast<int>(Num(d, "gmailSpace", -1));
   if (!FindSpace(github_space)) github_space = -1;
-  if (!FindSpace(gmail_space)) gmail_space = -1;
   next_space_id = static_cast<int>(Num(d, "nextSpaceId", 1));
   if (auto list = d->GetList("groups")) {
     for (size_t i = 0; i < list->GetSize(); ++i) {
@@ -185,6 +201,8 @@ void State::Save() {
     t->SetDouble("lastActive", tabs[i].last_active);
     t->SetInt("space", tabs[i].space);
     t->SetInt("group", tabs[i].group);
+    if (!tabs[i].icon.empty()) t->SetString("icon", tabs[i].icon);
+    if (!tabs[i].favicon.empty()) t->SetString("favicon", tabs[i].favicon);
     tl->SetDictionary(i, t);
   }
   d->SetList("tabs", tl);
@@ -195,16 +213,17 @@ void State::Save() {
     t->SetString("url", archive[i].url);
     t->SetString("title", archive[i].title);
     t->SetDouble("archivedAt", archive[i].archived_at);
+    t->SetInt("space", archive[i].space);
     al->SetDictionary(i, t);
   }
   d->SetList("archive", al);
   auto h = CefDictionaryValue::Create();
-  for (const auto& [url, e] : history) {
+  for (const auto& [key, e] : history) {
     auto v = CefDictionaryValue::Create();
     v->SetString("title", e.title);
     v->SetInt("visits", e.visits);
     v->SetDouble("lastVisit", e.last_visit);
-    h->SetDictionary(url, v);
+    h->SetDictionary(key, v);
   }
   d->SetDictionary("history", h);
   auto s = CefDictionaryValue::Create();
@@ -215,6 +234,9 @@ void State::Save() {
   s->SetBool("githubFolder", settings.github_folder);
   s->SetBool("gmailFolder", settings.gmail_folder);
   s->SetBool("indexPages", settings.index_pages);
+  s->SetInt("sidebarWidth", settings.sidebar_width);
+  s->SetInt("pinnedColumns", settings.pinned_columns);
+  s->SetBool("pinnedCentered", settings.pinned_centered);
   d->SetDictionary("settings", s);
   auto sl = CefListValue::Create();
   for (size_t i = 0; i < spaces.size(); ++i) {
@@ -230,7 +252,6 @@ void State::Save() {
   d->SetList("spaces", sl);
   d->SetInt("activeSpace", active_space);
   d->SetInt("githubSpace", github_space);
-  d->SetInt("gmailSpace", gmail_space);
   d->SetInt("nextSpaceId", next_space_id);
   auto gl = CefListValue::Create();
   for (size_t i = 0; i < groups.size(); ++i) {
@@ -250,17 +271,17 @@ void State::Save() {
 
 void State::SavePages() {
   auto d = CefDictionaryValue::Create();
-  for (const auto& [url, p] : pages) {
+  for (const auto& [key, p] : pages) {
     auto v = CefDictionaryValue::Create();
     v->SetString("title", p.title);
     v->SetString("text", p.text);
     v->SetDouble("indexedAt", p.indexed_at);
-    d->SetDictionary(url, v);
+    d->SetDictionary(key, v);
   }
   WriteJson(Dir(), "pages.json", d);
 }
 
-void State::SetPageText(const std::string& url, const std::string& title,
+void State::SetPageText(int space, const std::string& url, const std::string& title,
                         const std::string& text) {
   if (url.rfind("http", 0) != 0 || text.empty()) return;
   std::string clipped = text.substr(0, kMaxPageChars);
@@ -268,7 +289,7 @@ void State::SetPageText(const std::string& url, const std::string& title,
   while (!clipped.empty() && (static_cast<unsigned char>(clipped.back()) & 0xC0) == 0x80)
     clipped.pop_back();
   if (!clipped.empty() && (static_cast<unsigned char>(clipped.back()) & 0x80)) clipped.pop_back();
-  pages[url] = {title, clipped, NowSeconds()};
+  pages[SpaceKey(space, url)] = {title, clipped, NowSeconds(), space, url};
   if (pages.size() > kMaxPages) {
     auto oldest = std::min_element(pages.begin(), pages.end(), [](auto& a, auto& b) {
       return a.second.indexed_at < b.second.indexed_at;
@@ -277,9 +298,10 @@ void State::SetPageText(const std::string& url, const std::string& title,
   }
 }
 
-void State::RecordVisit(const std::string& url, const std::string& title) {
+void State::RecordVisit(int space, const std::string& url, const std::string& title) {
   if (url.rfind("http", 0) != 0) return;
-  auto& e = history[url];
+  auto& e = history[SpaceKey(space, url)];
+  e.space = space;
   e.visits += 1;
   e.last_visit = NowSeconds();
   if (!title.empty()) e.title = title;
@@ -291,12 +313,12 @@ void State::RecordVisit(const std::string& url, const std::string& title) {
   }
 }
 
-void State::AddArchived(const std::string& url, const std::string& title) {
+void State::AddArchived(int space, const std::string& url, const std::string& title) {
   if (url.empty() || url.rfind("roar:", 0) == 0) return;
   archive.erase(std::remove_if(archive.begin(), archive.end(),
-                               [&](const ArchivedTab& a) { return a.url == url; }),
+                               [&](const ArchivedTab& a) { return a.url == url && a.space == space; }),
                 archive.end());
-  archive.insert(archive.begin(), {url, title, NowSeconds()});
+  archive.insert(archive.begin(), {url, title, NowSeconds(), space});
   if (archive.size() > kMaxArchive) archive.resize(kMaxArchive);
 }
 

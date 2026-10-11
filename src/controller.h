@@ -35,6 +35,7 @@ struct Tab {
   std::string url;
   std::string title;
   std::string favicon;
+  std::string icon;  // Custom icon for a pinned tab: an emoji or an image URL.
   bool pinned = false;
   bool loading = false;
   bool can_back = false;
@@ -78,10 +79,12 @@ class Controller {
   void ShowCommandBar(bool new_tab);
   void HideCommandBar();
   void CleanTabs();
+  void ClearArchive();
   void RestoreArchived(size_t index);
   void ExtractActive(bool save);
   void PictureInPicture();
   void FloatActiveTab();
+  void SetFaviconData(int tab_id, const std::string& url, const std::string& data);
   void DockTab(int id);
   void Back();
   void Forward();
@@ -90,6 +93,7 @@ class Controller {
   void ToggleSidebar();
   void RefreshGitHub();
   void RefreshGmail();
+  void RefreshGmail(int space);
   void ImportBrowser(const std::string& browser);
   std::string LibraryJson();
   void SaveToLibrary(bool read_later);
@@ -134,6 +138,8 @@ class Controller {
   void OnTabWindowCreated(CefRefPtr<CefWindow> window);
   void OnTabWindowActivated(CefRefPtr<CefWindow> window);
   void Relayout();
+  void ApplySidebarWidth();
+  void PollSidebarDragEnd();
 
  private:
   Controller() = default;
@@ -187,6 +193,7 @@ class Controller {
   int command_height_ = 0;
   bool command_new_tab_ = true;
   bool command_visible_ = false;
+  bool sidebar_drag_poll_ = false;
   bool sidebar_visible_ = true;
   bool save_pending_ = false;
   bool pages_save_pending_ = false;
