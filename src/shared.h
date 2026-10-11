@@ -11,6 +11,7 @@ inline constexpr char kScheme[] = "roar";
 inline constexpr char kUiOrigin[] = "roar://ui/";
 
 CefMessageRouterConfig RouterConfig();
+bool IsWebStore(const std::string& url);
 void RegisterSchemes(CefRawPtr<CefSchemeRegistrar> registrar);
 
 // CefApp used by helper processes: scheme registration plus the renderer side

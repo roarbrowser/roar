@@ -71,6 +71,10 @@ std::string State::Dir() const {
   return std::string(std::getenv("HOME")) + "/Library/Application Support/Roar";
 }
 
+std::string State::ProfileDir(int space) const {
+  return Dir() + (space == 0 ? "/Default" : "/Space-" + std::to_string(space));
+}
+
 void State::Load() {
   spaces = {{0, "Personal"}};
   if (auto root = CefParseJSON(ReadFile(Dir() + "/pages.json"), JSON_PARSER_RFC);
@@ -91,7 +95,7 @@ void State::Load() {
     for (size_t i = 0; i < list->GetSize(); ++i) {
       auto t = list->GetDictionary(i);
       tabs.push_back({Str(t, "url"), Str(t, "title"), Bool(t, "pinned"), Num(t, "lastActive"),
-                      static_cast<int>(Num(t, "space"))});
+                      static_cast<int>(Num(t, "space")), static_cast<int>(Num(t, "group"))});
     }
   }
   active_index = static_cast<int>(Num(d, "activeIndex"));
@@ -115,23 +119,53 @@ void State::Load() {
     settings.onboarded = Bool(s, "onboarded");
     settings.search_url = Str(s, "searchUrl", settings.search_url);
     settings.github_query = Str(s, "githubQuery", settings.github_query);
+    // The old default listed PRs in archived repos too.
+    if (settings.github_query == "is:open is:pr author:@me")
+      settings.github_query = "is:open is:pr author:@me archived:false";
     settings.github_folder = Bool(s, "githubFolder", true);
+    settings.gmail_folder = Bool(s, "gmailFolder", true);
     settings.index_pages = Bool(s, "indexPages", true);
   }
   if (auto list = d->GetList("spaces"); list && list->GetSize() > 0) {
     spaces.clear();
     for (size_t i = 0; i < list->GetSize(); ++i) {
       auto sp = list->GetDictionary(i);
-      spaces.push_back({static_cast<int>(Num(sp, "id")), Str(sp, "name", "Space")});
+      spaces.push_back({static_cast<int>(Num(sp, "id")), Str(sp, "name", "Space"), Str(sp, "color", ""), {}});
+      if (auto pins = sp->GetList("pinnedExtensions"))
+        for (size_t j = 0; j < pins->GetSize(); ++j) spaces.back().pinned_extensions.push_back(pins->GetString(j));
     }
   }
   active_space = static_cast<int>(Num(d, "activeSpace"));
+  github_space = static_cast<int>(Num(d, "githubSpace", -1));
+  gmail_space = static_cast<int>(Num(d, "gmailSpace", -1));
+  if (!FindSpace(github_space)) github_space = -1;
+  if (!FindSpace(gmail_space)) gmail_space = -1;
   next_space_id = static_cast<int>(Num(d, "nextSpaceId", 1));
+  if (auto list = d->GetList("groups")) {
+    for (size_t i = 0; i < list->GetSize(); ++i) {
+      auto g = list->GetDictionary(i);
+      groups.push_back({static_cast<int>(Num(g, "id")), Str(g, "name", "Group"), Str(g, "color"),
+                        static_cast<int>(Num(g, "space")), Bool(g, "pinned"), Bool(g, "collapsed")});
+    }
+  }
+  next_group_id = static_cast<int>(Num(d, "nextGroupId", 1));
+  for (const auto& g : groups) next_group_id = std::max(next_group_id, g.id + 1);
   for (const auto& sp : spaces) next_space_id = std::max(next_space_id, sp.id + 1);
   if (!FindSpace(active_space)) active_space = spaces.front().id;
   // Tabs from a space that no longer exists fall back to the first space.
   for (auto& t : tabs)
     if (!FindSpace(t.space)) t.space = spaces.front().id;
+  groups.erase(std::remove_if(groups.begin(), groups.end(),
+                              [&](const TabGroup& g) { return !FindSpace(g.space); }),
+               groups.end());
+  for (auto& t : tabs)
+    if (!FindGroup(t.group)) t.group = 0;
+}
+
+TabGroup* State::FindGroup(int id) {
+  for (auto& g : groups)
+    if (g.id == id) return &g;
+  return nullptr;
 }
 
 Space* State::FindSpace(int id) {
@@ -150,6 +184,7 @@ void State::Save() {
     t->SetBool("pinned", tabs[i].pinned);
     t->SetDouble("lastActive", tabs[i].last_active);
     t->SetInt("space", tabs[i].space);
+    t->SetInt("group", tabs[i].group);
     tl->SetDictionary(i, t);
   }
   d->SetList("tabs", tl);
@@ -178,6 +213,7 @@ void State::Save() {
   s->SetString("searchUrl", settings.search_url);
   s->SetString("githubQuery", settings.github_query);
   s->SetBool("githubFolder", settings.github_folder);
+  s->SetBool("gmailFolder", settings.gmail_folder);
   s->SetBool("indexPages", settings.index_pages);
   d->SetDictionary("settings", s);
   auto sl = CefListValue::Create();
@@ -185,11 +221,30 @@ void State::Save() {
     auto sp = CefDictionaryValue::Create();
     sp->SetInt("id", spaces[i].id);
     sp->SetString("name", spaces[i].name);
+    sp->SetString("color", spaces[i].color);
+    auto pins = CefListValue::Create();
+    for (size_t j = 0; j < spaces[i].pinned_extensions.size(); ++j) pins->SetString(j, spaces[i].pinned_extensions[j]);
+    sp->SetList("pinnedExtensions", pins);
     sl->SetDictionary(i, sp);
   }
   d->SetList("spaces", sl);
   d->SetInt("activeSpace", active_space);
+  d->SetInt("githubSpace", github_space);
+  d->SetInt("gmailSpace", gmail_space);
   d->SetInt("nextSpaceId", next_space_id);
+  auto gl = CefListValue::Create();
+  for (size_t i = 0; i < groups.size(); ++i) {
+    auto g = CefDictionaryValue::Create();
+    g->SetInt("id", groups[i].id);
+    g->SetString("name", groups[i].name);
+    g->SetString("color", groups[i].color);
+    g->SetInt("space", groups[i].space);
+    g->SetBool("pinned", groups[i].pinned);
+    g->SetBool("collapsed", groups[i].collapsed);
+    gl->SetDictionary(i, g);
+  }
+  d->SetList("groups", gl);
+  d->SetInt("nextGroupId", next_group_id);
   WriteJson(Dir(), "state.json", d);
 }
 

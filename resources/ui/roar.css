@@ -1,19 +1,19 @@
 /* Layout: a narrow sidebar column of stacked groups; overlays float as single panels. */
-/* Lion palette: sand and tawny by day, savanna night in dark mode; mane amber accents. */
+/* Lion palette: warm cream and cocoa by day, cocoa night in dark mode; petal-mane orange accents. */
 :root {
-  --ground: #f2ece1;
-  --panel: #fffcf6;
-  --ink: #2a2118;
-  --ink-2: #6b5c4a;
-  --ink-3: #998a74;
-  --rule: #e2d8c6;
-  --hover: #e9e0d0;
-  --selected: #fffcf6;
-  --mane: #d98a1c;
-  --mane-ink: #9a560b;
-  --mane-soft: #f7e5c4;
+  --ground: #fff1e2;
+  --panel: #fff9f0;
+  --ink: #4a2e18;
+  --ink-2: #7a5a40;
+  --ink-3: #a5876c;
+  --rule: #f0dcc4;
+  --hover: #ffe6cc;
+  --selected: #fff9f0;
+  --mane: #ff7a00;
+  --mane-ink: #b04f00;
+  --mane-soft: #ffe2b8;
   --danger: #b4372f;
-  --shadow: 0 1px 2px rgba(58, 36, 10, .08), 0 12px 36px rgba(58, 36, 10, .18);
+  --shadow: 0 1px 2px rgba(74, 46, 24, .08), 0 12px 36px rgba(74, 46, 24, .16);
   --ui: -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif;
   --round: ui-rounded, "SF Pro Rounded", -apple-system, "Helvetica Neue", sans-serif;
   --mono: ui-monospace, "SF Mono", Menlo, monospace;
@@ -21,17 +21,17 @@
 }
 @media (prefers-color-scheme: dark) {
   :root {
-    --ground: #1d1812;
-    --panel: #27211a;
-    --ink: #f2e9dc;
-    --ink-2: #bcae98;
-    --ink-3: #8a7c68;
-    --rule: #3a3127;
-    --hover: #2e271f;
-    --selected: #352d23;
-    --mane: #f2a93b;
-    --mane-ink: #f7be62;
-    --mane-soft: #3e2e17;
+    --ground: #1e140c;
+    --panel: #2a1d12;
+    --ink: #fbeedd;
+    --ink-2: #d2b89c;
+    --ink-3: #9c8068;
+    --rule: #3d2b1c;
+    --hover: #332417;
+    --selected: #3a2918;
+    --mane: #ff9a2e;
+    --mane-ink: #ffc72c;
+    --mane-soft: #4a2c10;
     --danger: #ef7a70;
     --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 16px 40px rgba(0, 0, 0, .45);
     color-scheme: dark;

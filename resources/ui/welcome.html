@@ -82,6 +82,14 @@ pre { margin: 0; font: 12px/1.6 var(--mono); background: var(--ground); border-r
       <div class="controls"><input type="text" id="gh-query" aria-label="GitHub search query" spellcheck="false"></div>
     </li>
     <li>
+      <h2>Unread mail lives there too</h2>
+      <p>Roar reads Gmail’s unread inbox with the login you already have in each space, so nothing new to sign in to.</p>
+      <div class="controls">
+        <label class="switch"><input type="checkbox" id="gm-on"> Show unread mail</label>
+        <span class="status" id="gm-status"></span>
+      </div>
+    </li>
+    <li>
       <h2>Spaces keep work and home apart</h2>
       <p>Each space has its own tabs, cookies and logins. Switch with <kbd>⌃1</kbd>–<kbd>⌃9</kbd> or the strip at the top of the sidebar. Press <kbd>⌘\</kbd> to put two tabs side by side.</p>
       <div class="space-list" id="spaces"></div>
@@ -110,7 +118,35 @@ const $ = (id) => document.getElementById(id);
 const set = (settings) => ask({ cmd: 'settings.set', settings }).then(apply);
 
 function apply(s) {
-  for (const b of function renderSpaces(s) {
+  for (const b of document.querySelectorAll('[data-hours]'))
+    b.setAttribute('aria-pressed', String(+b.dataset.hours === s.settings.archiveAfterHours));
+  $('gh-on').checked = s.github.enabled;
+  if (document.activeElement !== $('gh-query')) $('gh-query').value = s.github.query;
+  $('gh-query').disabled = !s.github.enabled;
+  $('gm-on').checked = s.gmail.enabled;
+  $('gm-status').textContent = s.gmail.status || (s.gmail.enabled ? 'Connected through your Gmail login' : '');
+  $('gm-status').classList.toggle('ok', s.gmail.enabled && !s.gmail.status);
+  $('port').textContent = '127.0.0.1:' + s.settings.cdpPort;
+  $('index-on').checked = s.settings.indexPages;
+  $('index-status').textContent = s.settings.pageCount ? `${s.settings.pageCount} pages saved on this Mac.` : 'Nothing saved yet.';
+  $('forget').hidden = !s.settings.pageCount;
+  renderSpaces(s);
+  if (s.settings.onboarded) {
+    document.title = 'Settings';
+    $('headline').innerHTML = 'Settings<span class="grr">.</span>';
+    $('lede').textContent = 'How Roar tidies tabs and what it shows in the sidebar.';
+    $('finish').textContent = 'Done';
+  }
+}
+
+document.querySelectorAll('[data-hours]').forEach((b) => b.onclick = () => set({ archiveAfterHours: +b.dataset.hours }));
+$('gh-on').onchange = () => set({ githubFolder: $('gh-on').checked });
+$('gm-on').onchange = () => set({ gmailFolder: $('gm-on').checked });
+$('gh-query').onchange = () => set({ githubQuery: $('gh-query').value.trim() || 'is:open is:pr author:@me archived:false' });
+$('try').onclick = () => ask({ cmd: 'commandbar', newTab: true });
+$('finish').onclick = () => set({ onboarded: true }).then(() => ask({ cmd: 'tab.closeSelf' }));
+
+function renderSpaces(s) {
   if ($('spaces').contains(document.activeElement)) return;  // Don't fight the typist.
   $('spaces').innerHTML = s.spaces.map((sp) => `<div class="space-row">
     <input type="text" data-rename="${sp.id}" value="${esc(sp.name)}" aria-label="Space name" maxlength="40">
@@ -129,29 +165,6 @@ $('spaces').addEventListener('click', (e) => {
 $('space-add').onclick = () => ask({ cmd: 'space.add', name: '' });
 $('index-on').onchange = () => set({ indexPages: $('index-on').checked });
 $('forget').onclick = () => ask({ cmd: 'run', id: 'forgetPages' }).then(() => ask({ cmd: 'state' })).then(apply);
-document.querySelectorAll('[data-hours]'))
-    b.setAttribute('aria-pressed', String(+b.dataset.hours === s.settings.archiveAfterHours));
-  $('gh-on').checked = s.github.enabled;
-  if (document.activeElement !== $('gh-query')) $('gh-query').value = s.github.query;
-  $('gh-query').disabled = !s.github.enabled;
-  $('port').textContent = '127.0.0.1:' + s.settings.cdpPort;
-  $('index-on').checked = s.settings.indexPages;
-  $('index-status').textContent = s.settings.pageCount ? `${s.settings.pageCount} pages saved on this Mac.` : 'Nothing saved yet.';
-  $('forget').hidden = !s.settings.pageCount;
-  renderSpaces(s);
-  if (s.settings.onboarded) {
-    document.title = 'Settings';
-    $('headline').innerHTML = 'Settings<span class="grr">.</span>';
-    $('lede').textContent = 'How Roar tidies tabs and what it shows in the sidebar.';
-    $('finish').textContent = 'Done';
-  }
-}
-
-document.querySelectorAll('[data-hours]').forEach((b) => b.onclick = () => set({ archiveAfterHours: +b.dataset.hours }));
-$('gh-on').onchange = () => set({ githubFolder: $('gh-on').checked });
-$('gh-query').onchange = () => set({ githubQuery: $('gh-query').value.trim() || 'is:open is:pr author:@me' });
-$('try').onclick = () => ask({ cmd: 'commandbar', newTab: true });
-$('finish').onclick = () => set({ onboarded: true }).then(() => ask({ cmd: 'tab.closeSelf' }));
 
 ask({ cmd: 'state' }).then(apply);
 ask({ cmd: 'github.status' }).then((status) => {

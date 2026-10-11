@@ -11,6 +11,7 @@
 #pragma once
 
 #include <map>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -40,6 +41,9 @@ struct Tab {
   bool can_forward = false;
   double last_active = 0;
   int space = 0;
+  std::string folder;  // "mail" or "github": the space's one tab for that sidebar group's links.
+  std::string folder_item;  // The folder link it opened; the sidebar shows the tab in its place.
+  int group = 0;
 };
 
 class Controller {
@@ -47,6 +51,7 @@ class Controller {
   using Callback = CefMessageRouterBrowserSide::Callback;
 
   static Controller* Get();
+  CefRefPtr<CefClient> client();
 
   void Start();
   void Focus();
@@ -60,6 +65,11 @@ class Controller {
   void CloseTab(int id);
   void Navigate(int id, const std::string& url);
   void SetPinned(int id, bool pinned);
+  void SetGroup(int id, int group);
+  // Pinned tabs and tabs in pinned groups: restored on launch, kept by ⌘W.
+  bool IsKept(const Tab& tab);
+  void DropGroupIfEmpty(int group);
+  void CloseActiveUnlessKept();
   bool ExecuteScript(int id, const std::string& code);
   const std::vector<Tab>& tabs() const { return tabs_; }
   int active_id() const { return active_id_; }
@@ -79,6 +89,19 @@ class Controller {
   void OpenSettings();
   void ToggleSidebar();
   void RefreshGitHub();
+  void RefreshGmail();
+  void ImportBrowser(const std::string& browser);
+  std::string LibraryJson();
+  void SaveToLibrary(bool read_later);
+  void OpenUiPage(const std::string& url);
+  void OnSpaceReady(int space);
+  std::string ExtensionsJson();
+  void ShowExtensionPopup(const std::string& url, int x, int y);
+  void CloseExtensionPopup();
+  void OnExtensionPopupDestroyed(CefRefPtr<CefWindow> window);
+  bool IsExtensionPopup(CefRefPtr<CefBrowser> browser);
+  bool OnExtensionPopupResize(CefRefPtr<CefBrowser> browser, const CefSize& size);
+  void PushSidebar();
   void ShowHint(const std::string& text);
   void RunCommand(const std::string& id);
 
@@ -136,7 +159,6 @@ class Controller {
   std::string Suggest(const std::string& query);
   void SuggestPageText(const std::string& q, CefRefPtr<CefListValue> list, size_t& n);
   void ApplySettings(CefRefPtr<CefDictionaryValue> settings);
-  void PushSidebar();
   void SaveSoon();
   void SaveNow();
   void ArchiveTab(int id);
@@ -152,10 +174,14 @@ class Controller {
   CefRefPtr<CefWindow> command_window_;
   CefRefPtr<CefBrowserView> command_bar_;
   CefRefPtr<CefWindow> hint_window_;
+  CefRefPtr<CefWindow> ext_popup_;
+  CefPoint ext_popup_anchor_;
   CefRefPtr<CefBrowserView> hint_;
   std::vector<Tab> tabs_;
   int next_id_ = 1;
   int active_id_ = 0;
+  std::set<int> stray_seen_;  // Browsers outside Roar whose first address was seen.
+  int gmail_refresh_gen_ = 0;  // Debounces refreshes while the mail tab navigates.
   int split_a_ = 0;  // Split view pair, left and right; 0 when not split.
   int split_b_ = 0;
   int command_height_ = 0;
@@ -179,6 +205,7 @@ class Controller {
   };
   std::map<std::string, PendingIndex> indexes_;
   std::map<int, CefRefPtr<CefRequestContext>> contexts_;
+  std::set<int> ready_spaces_;  // Spaces whose profile has finished loading.
 };
 
 }  // namespace roar

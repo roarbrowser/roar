@@ -39,6 +39,7 @@ class Client : public CefClient,
                                  const std::vector<CefDraggableRegion>& regions) override;
 
   // CefKeyboardHandler
+  bool OnAutoResize(CefRefPtr<CefBrowser> browser, const CefSize& new_size) override;
   bool OnPreKeyEvent(CefRefPtr<CefBrowser> browser, const CefKeyEvent& event,
                      CefEventHandle os_event, bool* is_keyboard_shortcut) override;
 

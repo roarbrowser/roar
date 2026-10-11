@@ -1,35 +1,30 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
-  <!-- Roar app icon: a lion head mid-roar on a sunset tile. -->
+  <!-- Roar app icon: a proud lion mid-roar with a petal mane, on a cream tile. -->
   <defs>
-    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#F6B53E"/>
-      <stop offset="1" stop-color="#D9681A"/>
+    <linearGradient id="tile" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FFF6EA"/>
+      <stop offset="1" stop-color="#FFE2B8"/>
     </linearGradient>
-    <radialGradient id="mane" cx="0.5" cy="0.5" r="0.5">
-      <stop offset="0.55" stop-color="#9C4612"/>
-      <stop offset="1" stop-color="#6E2C08"/>
-    </radialGradient>
   </defs>
-  <rect x="100" y="100" width="824" height="824" rx="190" fill="url(#sky)"/>
-  <!-- Mane: a 16-point star with rounded joins. -->
-  <polygon fill="url(#mane)" stroke="#6E2C08" stroke-width="18" stroke-linejoin="round"
-    points="512,214 573,296 662,251 680,347 781,348 754,443 845,486 776,557 832,641 734,665 739,766 647,736 598,824 527,756 457,822 414,730 316,756 323,656 225,627 286,548 222,470 315,433 290,336 391,340 413,242 498,296"/>
-  <!-- Ears -->
-  <circle cx="392" cy="392" r="58" fill="#F4C77A"/>
-  <circle cx="632" cy="392" r="58" fill="#F4C77A"/>
-  <circle cx="392" cy="392" r="30" fill="#D98B45"/>
-  <circle cx="632" cy="392" r="30" fill="#D98B45"/>
-  <!-- Face -->
-  <path fill="#F7D38E" d="M512 372c104 0 178 66 178 172 0 70-30 122-74 160-30 26-66 40-104 40s-74-14-104-40c-44-38-74-90-74-160 0-106 74-172 178-172z"/>
-  <!-- Fierce brows and eyes -->
-  <path d="M410 470l78 30M614 470l-78 30" stroke="#3A1A06" stroke-width="22" stroke-linecap="round"/>
-  <ellipse cx="452" cy="518" rx="20" ry="14" fill="#3A1A06"/>
-  <ellipse cx="572" cy="518" rx="20" ry="14" fill="#3A1A06"/>
-  <!-- Muzzle -->
-  <ellipse cx="512" cy="600" rx="96" ry="58" fill="#FBE3B4"/>
-  <path d="M478 556h68c10 0 14 10 8 18l-30 30c-7 7-17 7-24 0l-30-30c-6-8-2-18 8-18z" fill="#5A260A"/>
-  <!-- Open roaring mouth with fangs and tongue -->
-  <path d="M432 632c20-10 52-14 80-14s60 4 80 14c-4 70-38 108-80 108s-76-38-80-108z" fill="#3A0F05"/>
-  <path d="M446 636l18 44 14-50zM578 636l-18 44-14-50z" fill="#FFFFFF"/>
-  <ellipse cx="512" cy="708" rx="40" ry="22" fill="#E2565B"/>
+  <rect x="100" y="100" width="824" height="824" rx="190" fill="url(#tile)"/>
+  <g transform="translate(152 140) scale(7.2)">
+    <!-- Mane: ten alternating petals -->
+    <circle cx="50.00" cy="23.00" r="15" fill="#FF7A00"/><circle cx="68.22" cy="28.92" r="15" fill="#FF9A2E"/><circle cx="79.48" cy="44.42" r="15" fill="#FF7A00"/><circle cx="79.48" cy="63.58" r="15" fill="#FF9A2E"/><circle cx="68.22" cy="79.08" r="15" fill="#FF7A00"/><circle cx="50.00" cy="85.00" r="15" fill="#FF9A2E"/><circle cx="31.78" cy="79.08" r="15" fill="#FF7A00"/><circle cx="20.52" cy="63.58" r="15" fill="#FF9A2E"/><circle cx="20.52" cy="44.42" r="15" fill="#FF7A00"/><circle cx="31.78" cy="28.92" r="15" fill="#FF9A2E"/>
+    <!-- Ears -->
+    <circle cx="32" cy="31" r="9" fill="#FFC72C" stroke="#4A2E18" stroke-width="3"/>
+    <circle cx="68" cy="31" r="9" fill="#FFC72C" stroke="#4A2E18" stroke-width="3"/>
+    <circle cx="32" cy="31" r="4" fill="#FF9A2E"/>
+    <circle cx="68" cy="31" r="4" fill="#FF9A2E"/>
+    <!-- Face -->
+    <circle cx="50" cy="54" r="26" fill="#FFC72C" stroke="#4A2E18" stroke-width="3"/>
+    <!-- Brows and eyes -->
+    <path d="M33 41 L45 45 M67 41 L55 45" stroke="#4A2E18" stroke-width="3.5" stroke-linecap="round"/>
+    <ellipse cx="40" cy="50" rx="3.2" ry="3.8" fill="#4A2E18"/>
+    <ellipse cx="60" cy="50" rx="3.2" ry="3.8" fill="#4A2E18"/>
+    <!-- Muzzle, nose, roaring mouth with fangs -->
+    <ellipse cx="50" cy="65" rx="14" ry="11" fill="#FFF3E0" stroke="#4A2E18" stroke-width="2.5"/>
+    <path d="M44.5 55.5 h11 l-5.5 6 z" fill="#4A2E18" stroke="#4A2E18" stroke-width="1.5" stroke-linejoin="round"/>
+    <path d="M41 64.5 Q50 80 59 64.5 Z" fill="#7A2A12" stroke="#4A2E18" stroke-width="2.5" stroke-linejoin="round"/>
+    <path d="M43.5 65 l2.5 4.5 l2-4.5 z M52 65 l2 4.5 l2.5-4.5 z" fill="#FFFFFF"/>
+  </g>
 </svg>

@@ -4,12 +4,16 @@ set -euo pipefail
 ROOT="${ROAR_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}"
 BUILD="${ROAR_BUILD_DIR:-$ROOT/build}"
 "$ROOT/scripts/fetch-cef.sh"
+"$ROOT/scripts/fetch-ubol.sh"
 cmake -S "$ROOT" -B "$BUILD" -G Ninja -DCMAKE_BUILD_TYPE=Release
 cmake --build "$BUILD" --target roar
 # The post-build copy only runs when the binary relinks; refresh resources every time.
 RES="$BUILD/src/Release/Roar.app/Contents/Resources"
 rm -rf "$RES/ui"
 cp -R "$ROOT/resources/ui" "$RES/ui"
+rm -rf "$RES/extensions"
+mkdir -p "$RES/extensions"
+cp -R "$ROOT/third_party/ubol" "$RES/extensions/ubol"
 cp "$ROOT/resources/Roar.sdef" "$ROOT/resources/roar.icns" "$RES/"
 codesign --force --deep --sign - "$BUILD/src/Release/Roar.app"
 echo "$BUILD/src/Release/Roar.app"

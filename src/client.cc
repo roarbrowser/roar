@@ -51,6 +51,10 @@ void Client::OnDraggableRegionsChanged(CefRefPtr<CefBrowser> browser, CefRefPtr<
   Controller::Get()->OnDraggableRegions(browser, regions);
 }
 
+bool Client::OnAutoResize(CefRefPtr<CefBrowser> browser, const CefSize& new_size) {
+  return Controller::Get()->OnExtensionPopupResize(browser, new_size);
+}
+
 bool Client::OnPreKeyEvent(CefRefPtr<CefBrowser> browser, const CefKeyEvent& event,
                            CefEventHandle os_event, bool* is_keyboard_shortcut) {
   return Controller::Get()->OnKey(browser, event);

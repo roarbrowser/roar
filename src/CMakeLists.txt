@@ -8,6 +8,7 @@ set(ROAR_SRCS
   browser_app.cc browser_app.h
   client.cc client.h
   controller.cc controller.h
+  library.cc library.h
   state.cc state.h
   mac/main.mm mac/platform.h mac/platform.mm mac/scripting.mm
   )
@@ -21,7 +22,7 @@ set(ROAR_RES "${CMAKE_SOURCE_DIR}/resources")
 add_executable(${CEF_TARGET} MACOSX_BUNDLE ${ROAR_SRCS})
 SET_EXECUTABLE_TARGET_PROPERTIES(${CEF_TARGET})
 add_dependencies(${CEF_TARGET} libcef_dll_wrapper)
-target_link_libraries(${CEF_TARGET} libcef_dll_wrapper ${CEF_STANDARD_LIBS} "-framework Carbon" "-framework Security" "-framework QuartzCore")
+target_link_libraries(${CEF_TARGET} libcef_dll_wrapper ${CEF_STANDARD_LIBS} "-framework Carbon" "-framework Security" "-framework QuartzCore" sqlite3)
 set_target_properties(${CEF_TARGET} PROPERTIES
   MACOSX_BUNDLE_INFO_PLIST "${ROAR_RES}/Info.plist.in"
   OUTPUT_NAME "Roar")

@@ -1,6 +1,9 @@
 #import <Cocoa/Cocoa.h>
 #import <QuartzCore/QuartzCore.h>
+#include <CommonCrypto/CommonDigest.h>
 #include <Security/Security.h>
+
+#include <algorithm>
 
 #include "mac/platform.h"
 
@@ -9,8 +12,9 @@
 #include "include/wrapper/cef_closure_task.h"
 
 #include "controller.h"
+#include "state.h"
 
-@interface RoarMenuTarget : NSObject
+@interface RoarMenuTarget : NSObject <NSMenuDelegate>
 @property(nonatomic, strong) NSArray<NSString*>* commands;
 - (void)run:(NSMenuItem*)sender;
 @end
@@ -19,6 +23,128 @@
 - (void)run:(NSMenuItem*)sender {
   NSString* command = self.commands[sender.tag];
   roar::Controller::Get()->RunCommand(command.UTF8String);
+}
+- (void)runCommand:(NSMenuItem*)sender {
+  roar::Controller::Get()->RunCommand([sender.representedObject UTF8String]);
+}
+- (void)toggleSidebar:(id)sender {
+  roar::Controller::Get()->RunCommand("sidebar");
+}
+- (void)addLibraryNodes:(NSArray*)nodes to:(NSMenu*)menu {
+  for (NSDictionary* n in nodes) {
+    if (![n isKindOfClass:[NSDictionary class]]) continue;
+    NSString* title = [n[@"title"] length] ? n[@"title"] : (n[@"url"] ?: @"Untitled");
+    if (title.length > 60) title = [[title substringToIndex:59] stringByAppendingString:@"…"];
+    if ([n[@"children"] isKindOfClass:[NSArray class]]) {
+      NSMenuItem* holder = [menu addItemWithTitle:title action:nil keyEquivalent:@""];
+      NSMenu* sub = [[NSMenu alloc] initWithTitle:title];
+      [self addLibraryNodes:n[@"children"] to:sub];
+      holder.submenu = sub;
+      holder.image = [NSImage imageWithSystemSymbolName:@"folder" accessibilityDescription:nil];
+    } else if ([n[@"url"] isKindOfClass:[NSString class]]) {
+      NSMenuItem* item = [menu addItemWithTitle:title action:@selector(runCommand:) keyEquivalent:@""];
+      item.target = self;
+      item.representedObject = [@"open:" stringByAppendingString:n[@"url"]];
+      item.toolTip = n[@"url"];
+    }
+  }
+}
+// Rebuilds the Bookmarks menu from the active space's library each time it opens.
+- (void)fillBookmarksMenu:(NSMenu*)menu {
+  auto add = [&](NSString* title, NSString* command) {
+    NSMenuItem* item = [menu addItemWithTitle:title action:@selector(runCommand:) keyEquivalent:@""];
+    item.target = self;
+    item.representedObject = command;
+  };
+  add(@"Bookmark This Page", @"bookmarkAdd");
+  add(@"Add to Read Later", @"readLaterAdd");
+  add(@"Organize Bookmarks…", @"bookmarks");
+  std::string json = roar::Controller::Get()->LibraryJson();
+  NSDictionary* lib = [NSJSONSerialization JSONObjectWithData:[NSData dataWithBytes:json.data() length:json.size()]
+                                                      options:0 error:nil];
+  if (![lib isKindOfClass:[NSDictionary class]]) return;
+  NSArray* later = lib[@"readLater"];
+  if ([later isKindOfClass:[NSArray class]] && later.count) {
+    [menu addItem:[NSMenuItem separatorItem]];
+    NSMenuItem* holder = [menu addItemWithTitle:[NSString stringWithFormat:@"Read Later (%lu)", (unsigned long)later.count]
+                                         action:nil keyEquivalent:@""];
+    NSMenu* sub = [[NSMenu alloc] initWithTitle:@"Read Later"];
+    [self addLibraryNodes:later to:sub];
+    holder.submenu = sub;
+  }
+  NSArray* bookmarks = lib[@"bookmarks"];
+  if ([bookmarks isKindOfClass:[NSArray class]] && bookmarks.count) {
+    [menu addItem:[NSMenuItem separatorItem]];
+    [self addLibraryNodes:bookmarks to:menu];
+  }
+}
+// Rebuilds the History menu: recently closed tabs and recently visited pages.
+- (void)fillHistoryMenu:(NSMenu*)menu {
+  auto add = [&](NSMenu* m, NSString* title, NSString* command, NSString* tip) {
+    if (title.length > 60) title = [[title substringToIndex:59] stringByAppendingString:@"…"];
+    NSMenuItem* item = [m addItemWithTitle:title action:@selector(runCommand:) keyEquivalent:@""];
+    item.target = self;
+    item.representedObject = command;
+    item.toolTip = tip;
+  };
+  auto ns = [](const std::string& s) { return [NSString stringWithUTF8String:s.c_str()] ?: @""; };
+  add(menu, @"Back\t⌘[", @"back", nil);
+  add(menu, @"Forward\t⌘]", @"forward", nil);
+  add(menu, @"Reopen Closed Tab\t⇧⌘T", @"reopen", nil);
+  roar::State& state = roar::State::Get();
+  if (!state.archive.empty()) {
+    [menu addItem:[NSMenuItem separatorItem]];
+    [menu addItemWithTitle:@"Recently Closed" action:nil keyEquivalent:@""].enabled = NO;
+    for (size_t i = 0; i < std::min<size_t>(state.archive.size(), 10); ++i) {
+      const auto& a = state.archive[i];
+      add(menu, ns(a.title.empty() ? a.url : a.title), [NSString stringWithFormat:@"restore:%zu", i], ns(a.url));
+    }
+  }
+  std::vector<std::pair<std::string, const roar::HistoryEntry*>> recent;
+  for (const auto& [url, e] : state.history) recent.push_back({url, &e});
+  std::sort(recent.begin(), recent.end(),
+            [](auto& a, auto& b) { return a.second->last_visit > b.second->last_visit; });
+  if (!recent.empty()) {
+    [menu addItem:[NSMenuItem separatorItem]];
+    [menu addItemWithTitle:@"Recently Visited" action:nil keyEquivalent:@""].enabled = NO;
+    for (size_t i = 0; i < std::min<size_t>(recent.size(), 15); ++i) {
+      const auto& [url, e] = recent[i];
+      add(menu, ns(e->title.empty() ? url : e->title), [@"open:" stringByAppendingString:ns(url)], ns(url));
+    }
+  }
+}
+// Rebuilds the Extensions menu from the active space's profile each time it opens.
+- (void)menuNeedsUpdate:(NSMenu*)menu {
+  [menu removeAllItems];
+  if ([menu.title isEqual:@"Bookmarks"]) return [self fillBookmarksMenu:menu];
+  if ([menu.title isEqual:@"History"]) return [self fillHistoryMenu:menu];
+  NSMenu* target = menu;
+  auto add = [&](NSString* title, NSString* command) {
+    NSMenuItem* item = [target addItemWithTitle:title action:@selector(runCommand:) keyEquivalent:@""];
+    item.target = self;
+    item.representedObject = command;
+  };
+  add(@"Manage Extensions…", @"extensions");
+  add(@"Chrome Web Store…", @"extensionStore");
+  std::string json = roar::Controller::Get()->ExtensionsJson();
+  NSData* data = [NSData dataWithBytes:json.data() length:json.size()];
+  NSArray* list = [NSJSONSerialization JSONObjectWithData:data options:0 error:nil];
+  if (![list isKindOfClass:[NSArray class]] || !list.count) return;
+  list = [list sortedArrayUsingComparator:^NSComparisonResult(NSDictionary* a, NSDictionary* b) {
+    return [a[@"name"] localizedCaseInsensitiveCompare:b[@"name"]];
+  }];
+  [menu addItem:[NSMenuItem separatorItem]];
+  for (NSDictionary* x in list) {
+    NSMenuItem* holder = [menu addItemWithTitle:x[@"name"] action:nil keyEquivalent:@""];
+    if ([x[@"pinned"] boolValue]) holder.state = NSControlStateValueOn;
+    NSMenu* sub = [[NSMenu alloc] initWithTitle:x[@"name"]];
+    target = sub;
+    add([x[@"pinned"] boolValue] ? @"Unpin from Sidebar" : @"Pin to Sidebar",
+        [@"extensionPin:" stringByAppendingString:x[@"id"]]);
+    add(@"Details", [@"extension:" stringByAppendingString:x[@"id"]]);
+    target = menu;
+    holder.submenu = sub;
+  }
 }
 - (void)quit:(id)sender {
   roar::Controller::Get()->Quit();
@@ -95,6 +221,60 @@ std::string RandomToken() {
   return hex;
 }
 
+namespace {
+
+NSArray* SafariNodes(NSArray* children) {
+  NSMutableArray* out = [NSMutableArray array];
+  for (NSDictionary* n in children) {
+    if (![n isKindOfClass:[NSDictionary class]]) continue;
+    NSString* type = n[@"WebBookmarkType"];
+    if ([type isEqual:@"WebBookmarkTypeLeaf"] && [n[@"URLString"] isKindOfClass:[NSString class]]) {
+      NSString* title = n[@"URIDictionary"][@"title"] ?: n[@"URLString"];
+      [out addObject:@{@"title" : title, @"url" : n[@"URLString"]}];
+    } else if ([type isEqual:@"WebBookmarkTypeList"]) {
+      NSArray* kids = SafariNodes(n[@"Children"]);
+      if (kids.count) [out addObject:@{@"title" : n[@"Title"] ?: @"Folder", @"children" : kids}];
+    }
+  }
+  return out;
+}
+
+}  // namespace
+
+std::string SafariBookmarksJson() {
+  NSString* path = [NSHomeDirectory() stringByAppendingPathComponent:@"Library/Safari/Bookmarks.plist"];
+  NSDictionary* root = [NSDictionary dictionaryWithContentsOfURL:[NSURL fileURLWithPath:path] error:nil];
+  if (!root) return "";
+  NSMutableArray* bookmarks = [NSMutableArray array];
+  NSArray* reading = @[];
+  NSMutableArray* loose = [NSMutableArray array];  // Top-level leaves, kept in order after the bar.
+  for (NSDictionary* top in root[@"Children"]) {
+    if (![top isKindOfClass:[NSDictionary class]]) continue;
+    if ([top[@"WebBookmarkType"] isEqual:@"WebBookmarkTypeLeaf"]) { [loose addObject:top]; continue; }
+    NSString* title = top[@"Title"];
+    NSArray* kids = SafariNodes(top[@"Children"]);
+    if ([title isEqual:@"BookmarksBar"]) [bookmarks addObjectsFromArray:kids];
+    else if ([title isEqual:@"BookmarksMenu"]) { if (kids.count) [bookmarks addObject:@{@"title" : @"Bookmarks Menu", @"children" : kids}]; }
+    else if ([title isEqual:@"com.apple.ReadingList"]) reading = kids;
+    else if (kids.count && title) [bookmarks addObject:@{@"title" : title, @"children" : kids}];
+  }
+  [bookmarks addObjectsFromArray:SafariNodes(loose)];
+  NSData* json = [NSJSONSerialization dataWithJSONObject:@{@"bookmarks" : bookmarks, @"readingList" : reading}
+                                                 options:0 error:nil];
+  return json ? std::string(static_cast<const char*>(json.bytes), json.length) : "";
+}
+
+std::string UnpackedExtensionId(const std::string& path) {
+  uint8_t digest[CC_SHA256_DIGEST_LENGTH];
+  CC_SHA256(path.data(), static_cast<CC_LONG>(path.size()), digest);
+  std::string id;
+  for (int i = 0; i < 16; ++i) {
+    id += static_cast<char>('a' + (digest[i] >> 4));
+    id += static_cast<char>('a' + (digest[i] & 15));
+  }
+  return id;
+}
+
 int CdpPort() {
   const char* env = getenv("ROAR_CDP_PORT");
   int port = env ? atoi(env) : 0;
@@ -138,6 +318,13 @@ void InstallMenu() {
   [file addItem:[NSMenuItem separatorItem]];
   addCommand(file, @"Copy Page as Markdown", @"copyMarkdown", @"⇧⌘C");
   addCommand(file, @"Save Page as Markdown", @"saveMarkdown", @"");
+  [file addItem:[NSMenuItem separatorItem]];
+  NSMenuItem* importHolder = [file addItemWithTitle:@"Import From" action:nil keyEquivalent:@""];
+  NSMenu* importMenu = [[NSMenu alloc] initWithTitle:@"Import From"];
+  for (NSArray* b in @[ @[ @"Chrome", @"chrome" ], @[ @"Edge", @"edge" ], @[ @"Firefox", @"firefox" ],
+                        @[ @"Safari", @"safari" ], @[ @"Dia", @"dia" ] ])
+    addCommand(importMenu, b[0], [@"import:" stringByAppendingString:b[1]], @"");
+  importHolder.submenu = importMenu;
 
   NSMenu* edit = addMenu(@"Edit");
   [edit addItemWithTitle:@"Undo" action:@selector(undo:) keyEquivalent:@"z"];
@@ -158,12 +345,21 @@ void InstallMenu() {
   addCommand(view, @"Float Tab", @"float", @"⇧⌘F");
   [view addItem:[NSMenuItem separatorItem]];
   addCommand(view, @"Developer Tools", @"devtools", @"⌥⌘I");
-  addCommand(view, @"Extensions", @"extensions", @"");
 
   NSMenu* tabs = addMenu(@"Tabs");
   addCommand(tabs, @"Clean Up Tabs", @"clean", @"⇧⌘K");
   addCommand(tabs, @"Pin or Unpin Tab", @"pin", @"⌘D");
   addCommand(tabs, @"Refresh Pull Requests", @"github", @"");
+  addCommand(tabs, @"Refresh Mail", @"gmail", @"");
+
+  NSMenu* history = addMenu(@"History");
+  history.delegate = g_menu_target;
+
+  NSMenu* bookmarks = addMenu(@"Bookmarks");
+  bookmarks.delegate = g_menu_target;
+
+  NSMenu* extensions = addMenu(@"Extensions");
+  extensions.delegate = g_menu_target;
 
   NSMenu* window = addMenu(@"Window");
   [window addItemWithTitle:@"Minimize" action:@selector(performMiniaturize:) keyEquivalent:@"m"];
@@ -172,6 +368,29 @@ void InstallMenu() {
 
   g_menu_target.commands = commands;
   NSApp.mainMenu = bar;
+}
+
+void SetSidebarButton(void* window, bool visible) {
+  NSWindow* w = Win(window);
+  if (!w) return;
+  static NSButton* button = nil;
+  if (!button) {
+    NSImage* icon = [NSImage imageWithSystemSymbolName:@"sidebar.left" accessibilityDescription:@"Show sidebar"];
+    button = [NSButton buttonWithImage:icon target:g_menu_target action:@selector(toggleSidebar:)];
+    button.bordered = NO;
+    button.toolTip = @"Show sidebar (⌘S)";
+    button.contentTintColor = NSColor.secondaryLabelColor;
+  }
+  NSView* frameView = w.contentView.superview;
+  NSButton* zoom = [w standardWindowButton:NSWindowZoomButton];
+  if (button.superview != frameView) {
+    [button removeFromSuperview];
+    [frameView addSubview:button positioned:NSWindowAbove relativeTo:nil];
+  }
+  NSRect z = zoom ? [frameView convertRect:zoom.bounds fromView:zoom] : NSMakeRect(52, NSHeight(frameView.bounds) - 22, 14, 14);
+  button.frame = NSMakeRect(NSMaxX(z) + 12, NSMidY(z) - 11, 22, 22);
+  button.autoresizingMask = NSViewMaxXMargin | NSViewMinYMargin;
+  button.hidden = !visible;
 }
 
 void AttachChild(void* parent, void* child) {
@@ -214,14 +433,24 @@ void SetFloating(void* window, bool floating, const std::string& title) {
   NSWindow* w = Win(window);
   if (!w) return;
   if (floating) {
-    w.styleMask |= NSWindowStyleMaskTitled | NSWindowStyleMaskClosable | NSWindowStyleMaskResizable;
+    // Chrome's frameless windows draw content under a hidden title bar; undo that
+    // so the mini window has a real bar to drag and a close button to dock it.
+    w.styleMask = (w.styleMask | NSWindowStyleMaskTitled | NSWindowStyleMaskClosable |
+                   NSWindowStyleMaskResizable) & ~NSWindowStyleMaskFullSizeContentView;
+    w.titlebarAppearsTransparent = NO;
+    w.titleVisibility = NSWindowTitleVisible;
+    [w standardWindowButton:NSWindowCloseButton].hidden = NO;
     w.title = NS(title);
     w.level = NSFloatingWindowLevel;
     w.hasShadow = YES;
     w.collectionBehavior |= NSWindowCollectionBehaviorCanJoinAllSpaces;
     w.contentView.layer.cornerRadius = 0;
   } else {
-    w.styleMask &= ~(NSWindowStyleMaskTitled | NSWindowStyleMaskClosable);
+    w.styleMask = (w.styleMask & ~(NSWindowStyleMaskTitled | NSWindowStyleMaskClosable)) |
+                  NSWindowStyleMaskFullSizeContentView;
+    w.titlebarAppearsTransparent = YES;
+    w.titleVisibility = NSWindowTitleHidden;
+    [w standardWindowButton:NSWindowCloseButton].hidden = YES;
     w.level = NSNormalWindowLevel;
     w.hasShadow = NO;
     w.collectionBehavior &= ~NSWindowCollectionBehaviorCanJoinAllSpaces;

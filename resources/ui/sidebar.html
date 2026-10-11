@@ -22,12 +22,26 @@ body { background: var(--ground); display: flex; flex-direction: column; overflo
 .spaces button { width: 16px; height: 16px; border-radius: 50%; display: grid; place-items: center; }
 .spaces button::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--ink-3); opacity: .5; }
 .spaces button:hover::before { opacity: 1; }
-.spaces button[aria-pressed="true"]::before { background: var(--mane); opacity: 1; }
+.spaces button::before { background: var(--dot, var(--ink-3)); }
+.spaces button[aria-pressed="true"]::before { background: var(--dot, var(--mane)); opacity: 1; width: 8px; height: 8px; }
+body { box-shadow: inset 3px 0 0 var(--space-color, transparent); }
+.space-menu { position: fixed; left: 8px; right: 8px; bottom: 44px; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px; box-sizing: border-box; padding: 6px; border-radius: 10px; background: var(--ground); box-shadow: 0 0 0 1px var(--rule), 0 8px 24px rgba(0,0,0,.35); z-index: 10; }
+.space-menu[hidden] { display: none; }
+.space-menu input { width: 100%; min-width: 0; box-sizing: border-box; border: 0; outline: 0; padding: 4px 8px; border-radius: 6px; background: var(--panel); color: var(--ink); font: 500 12.5px var(--ui); }
+.space-menu .swatches { grid-column: 1 / -1; display: flex; gap: 6px; padding: 2px 2px 0; }
+.foot .space-menu .swatches button { width: 18px; height: 18px; padding: 0; border-radius: 50%; box-shadow: inset 0 0 0 1px rgba(255,255,255,.12); }
+.foot .space-menu .swatches button[aria-pressed="true"] { box-shadow: 0 0 0 2px var(--ink); }
+.foot .space-menu #space-remove { width: auto; height: auto; }
+.space-menu button { white-space: nowrap; padding: 4px 8px; border-radius: 6px; color: var(--ink-2); font-size: 12px; }
+.space-menu button:hover { color: var(--ink); background: var(--panel); }
 .foot .space-name { color: var(--ink-2); font-size: 11.5px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 90px; }
 .scroll { flex: 1; overflow-y: auto; padding: 0 6px 12px; display: flex; flex-direction: column; gap: 14px; }
 
 .pinned { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 4px; }
 .pinned:empty { display: none; }
+/* While a tab is dragged, an empty pinned strip shows as a drop zone. */
+body.drag-active .pinned:empty { display: flex; height: 38px; margin: 0 4px; padding: 0; border: 1px dashed var(--rule); border-radius: 10px; align-items: center; justify-content: center; }
+body.drag-active .pinned:empty::before { content: 'Drop to pin'; color: var(--ink-3); font-size: 12px; }
 .pin { width: 38px; height: 38px; border-radius: 10px; background: var(--hover); display: grid; place-items: center; position: relative; }
 .pin:hover { background: var(--rule); }
 .pin.active { background: var(--selected); box-shadow: 0 1px 2px rgba(0,0,0,.12); }
@@ -52,8 +66,8 @@ body { background: var(--ground); display: flex; flex-direction: column; overflo
 .row.active { background: var(--selected); box-shadow: 0 1px 2px rgba(0,0,0,.06); }
 .row .label { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .row .sub { color: var(--ink-3); font-size: 11px; white-space: nowrap; font-variant-numeric: tabular-nums; }
-.row .x { width: 20px; height: 20px; border-radius: 5px; display: none; place-items: center; color: var(--ink-3); flex: none; }
-.row:hover .x { display: grid; }
+.row .x { width: 20px; height: 20px; border-radius: 5px; display: grid; opacity: .55; place-items: center; color: var(--ink-3); flex: none; }
+.row:hover .x { opacity: 1; }
 .row .x:hover { background: var(--rule); color: var(--ink); }
 .row.cool .label { color: var(--ink-3); }
 .row .badge { font-size: 10px; color: var(--mane-ink); background: var(--mane-soft); border-radius: 4px; padding: 0 5px; }
@@ -70,14 +84,35 @@ body { background: var(--ground); display: flex; flex-direction: column; overflo
 .spin { width: 16px; height: 16px; flex: none; border-radius: 50%; border: 2px solid var(--rule); border-top-color: var(--mane); animation: spin .8s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 
-.new { color: var(--ink-2); }
-.new .plus { width: 16px; text-align: center; font-size: 16px; line-height: 1; }
+/* Tab groups: a colored, collapsible folder of tabs. */
+.tgroup .group-head { cursor: default; }
+.tgroup .gdot { width: 8px; height: 8px; border-radius: 50%; background: var(--gc, var(--ink-3)); flex: none; }
+.tgroup .gname { color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tgroup .gpin { width: 10px; height: 10px; color: var(--ink-3); flex: none; }
+.tgroup .rows { margin-left: 6px; padding-left: 6px; box-shadow: inset 2px 0 0 var(--gc, var(--rule)); }
+.tgroup.collapsed .rows { display: none; }
+.tgroup .empty { color: var(--ink-3); font-size: 12px; padding: 4px 8px; }
+.drop-target { background: var(--hover); border-radius: 8px; }
+.row.dragging { opacity: .4; }
+.ctx { position: fixed; z-index: 20; min-width: 180px; max-width: 240px; padding: 4px; border-radius: 9px; background: var(--ground); box-shadow: 0 0 0 1px var(--rule), 0 8px 24px rgba(0,0,0,.35); display: flex; flex-direction: column; }
+.ctx[hidden] { display: none; }
+.ctx button { text-align: left; padding: 5px 8px; border-radius: 6px; color: var(--ink); font-size: 12.5px; display: flex; align-items: center; gap: 7px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ctx button:hover { background: var(--hover); }
+.ctx hr { border: 0; border-top: 1px solid var(--rule); margin: 4px 2px; }
+.ctx .head { color: var(--ink-3); font-size: 11px; padding: 4px 8px 2px; }
+.ctx .gdot { width: 8px; height: 8px; border-radius: 50%; background: var(--gc, var(--ink-3)); flex: none; }
+.ctx input { margin: 2px; border: 0; outline: 0; padding: 5px 8px; border-radius: 6px; background: var(--panel); color: var(--ink); font: 500 12.5px var(--ui); }
+.ctx .swatches { display: flex; gap: 6px; padding: 4px 6px; }
+.ctx .swatches button { width: 16px; height: 16px; padding: 0; border-radius: 50%; flex: none; box-shadow: inset 0 0 0 1px rgba(255,255,255,.12); }
+.ctx .swatches button[aria-pressed="true"] { box-shadow: 0 0 0 2px var(--ink); }
+
 .note { color: var(--ink-3); font-size: 12px; padding: 2px 8px 4px; }
 .note code { font: 11px var(--mono); }
 .pr .label { display: flex; flex-direction: column; line-height: 1.2; }
 .pr .label small { color: var(--ink-3); font-size: 11px; overflow: hidden; text-overflow: ellipsis; }
 .pr { height: 40px; }
 .pr .dot { width: 8px; height: 8px; border-radius: 50%; background: #2f9e5b; flex: none; margin: 0 4px; }
+.mail .dot { background: #d9822b; }
 
 .foot { flex: none; display: flex; align-items: center; gap: 7px; padding: 8px 14px 12px; color: var(--ink-3); font-size: 11px; border-top: 1px solid var(--rule); }
 .foot .wordmark { font-size: 15px; color: var(--ink-2); }
@@ -86,10 +121,23 @@ body { background: var(--ground); display: flex; flex-direction: column; overflo
 .foot button { width: 24px; height: 24px; border-radius: 6px; display: grid; place-items: center; color: var(--ink-3); }
 .foot button:hover { background: var(--hover); color: var(--ink); }
 .foot svg { width: 14px; height: 14px; }
+#settings { background: none; }
+#settings .knob { fill: var(--ground); transition: fill .15s, stroke .15s; }
+#settings:hover { background: none; color: var(--ink-2); }
+#settings:hover .knob, #settings:focus-visible .knob { fill: var(--mane); stroke: var(--mane); }
+#settings:focus-visible { outline: 2px solid var(--mane); outline-offset: 1px; }
+@media (prefers-reduced-motion: reduce) { #settings .knob { transition: none; } }
+.ext-pins { display: flex; flex-wrap: wrap; gap: 4px; padding: 6px 10px; }
+.ext-pins:empty { display: none; }
+.ext-pins button { width: 28px; height: 28px; border-radius: 7px; display: grid; place-items: center; }
+.ext-pins button:hover { background: var(--hover); }
+.ext-pins img { width: 18px; height: 18px; }
+.ext-pins .letter { font-size: 12px; font-weight: 600; color: var(--ink-2); }
 </style>
 </head>
 <body>
 <div class="top">
+  <button id="hide-sidebar" title="Hide sidebar (⌘S)" aria-label="Hide sidebar" style="margin-right:auto"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="2" y="3" width="12" height="10" rx="2"/><path d="M6 3v10"/></svg></button>
   <button id="back" title="Back (⌘[)" aria-label="Back"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10 3 5 8l5 5"/></svg></button>
   <button id="forward" title="Forward (⌘])" aria-label="Forward"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m6 3 5 5-5 5"/></svg></button>
   <button id="reload" title="Reload (⌘R)" aria-label="Reload"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M13 8a5 5 0 1 1-1.5-3.6M13 2.5v3h-3"/></svg></button>
@@ -100,27 +148,31 @@ body { background: var(--ground); display: flex; flex-direction: column; overflo
 </button>
 <div class="scroll">
   <div class="pinned" id="pinned"></div>
+  <div id="pinned-groups"></div>
   <section id="tabs-group">
-    <div class="group-head"><span>Tabs</span><span class="count" id="tab-count"></span><span class="spacer"></span><button id="clean" title="Archive every unpinned tab except this one (⇧⌘K)">Clean up</button></div>
+    <div class="group-head"><span>Tabs</span><span class="count" id="tab-count"></span></div>
+    <div id="groups"></div>
     <div class="rows" id="tabs"></div>
-    <button class="row new" id="new-tab"><span class="plus">+</span><span class="label">New tab</span><kbd>⌘T</kbd></button>
   </section>
   <section id="gh-group">
-    <div class="group-head"><button class="toggle" data-collapse="gh-group"><svg class="chev" viewBox="0 0 10 10" fill="currentColor"><path d="M1 3h8L5 8z"/></svg>Your pull requests</button><span class="count" id="gh-count"></span><span class="spacer"></span><button id="gh-refresh" title="Refresh pull requests">Refresh</button></div>
+    <div class="group-head"><button class="toggle" data-collapse="gh-group"><svg class="chev" viewBox="0 0 10 10" fill="currentColor"><path d="M1 3h8L5 8z"/></svg>GitHub PRs</button><span class="count" id="gh-count"></span><span class="spacer"></span><button id="gh-refresh" title="Refresh pull requests">Refresh</button></div>
     <div class="rows" id="gh"></div>
   </section>
-  <section id="archive-group" class="collapsed">
-    <div class="group-head"><button class="toggle" data-collapse="archive-group"><svg class="chev" viewBox="0 0 10 10" fill="currentColor"><path d="M1 3h8L5 8z"/></svg>Archived</button><span class="count" id="archive-count"></span><span class="spacer"></span><button id="archive-clear" title="Forget archived tabs">Clear</button></div>
-    <div class="rows" id="archive"></div>
+  <section id="gm-group">
+    <div class="group-head"><button class="toggle" data-collapse="gm-group"><svg class="chev" viewBox="0 0 10 10" fill="currentColor"><path d="M1 3h8L5 8z"/></svg>Unread mail</button><span class="count" id="gm-count"></span><span class="spacer"></span><button id="gm-refresh" title="Refresh mail">Refresh</button></div>
+    <div class="rows" id="gm"></div>
   </section>
 </div>
+<div class="ext-pins" id="ext-pins"></div>
+<div class="ctx" id="ctx" hidden></div>
 <div class="foot">
   <span class="lion" style="width:22px;height:22px" aria-hidden="true"></span><span class="wordmark">Roar</span>
   <span class="space-name" id="space-name"></span>
   <span class="spaces" id="spaces" role="group" aria-label="Spaces"></span>
+  <div class="space-menu" id="space-menu" hidden><input id="space-rename" maxlength="40" aria-label="Space name" spellcheck="false"><button id="space-remove" title="Archive its tabs and remove the space">Remove</button><div class="swatches" id="swatches" role="group" aria-label="Space color"></div></div>
   <span class="cdp" id="cdp" title="Chrome DevTools Protocol endpoint"></span>
   <span class="spacer"></span>
-  <button id="settings" title="Settings (⌘,)" aria-label="Settings"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="2.2"/><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M3.4 12.6l1.4-1.4M11.2 4.8l1.4-1.4"/></svg></button>
+  <button id="settings" title="Settings (⌘,)" aria-label="Settings"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M2.5 5h11M2.5 11h11"/><circle class="knob" cx="5.5" cy="5" r="1.8"/><circle class="knob" cx="10.5" cy="11" r="1.8"/></svg></button>
 </div>
 <script src="bridge.js"></script>
 <script>
@@ -138,7 +190,7 @@ function tabRow(t, limit) {
   const left = limit > 0 ? Math.max(0, 1 - t.idleSeconds / limit) : 1;
   const cool = limit > 0 && left < 0.25 && !t.active;
   const remaining = limit > 0 ? `Archives in ${ago(Math.max(60, limit - t.idleSeconds))}` : '';
-  return `<div class="row${t.active ? ' active' : ''}${cool ? ' cool' : ''}" data-id="${t.id}" title="${esc(t.title)}\n${esc(t.url)}${remaining && !t.active ? '\n' + remaining : ''}">
+  return `<div class="row${t.active ? ' active' : ''}${cool ? ' cool' : ''}" data-id="${t.id}" draggable="true" title="${esc(t.title)}\n${esc(t.url)}${remaining && !t.active ? '\n' + remaining : ''}">
     ${t.loading ? '<span class="spin"></span>' : t.url.startsWith('roar:') ? '<span class="lion" style="width:16px;height:16px"></span>' : iconHtml(t.favicon, t.url)}
     <span class="label">${esc(t.title || hostOf(t.url))}</span>
     ${t.floating ? '<span class="badge">floating</span>' : ''}${t.split ? '<span class="badge">split</span>' : ''}
@@ -152,16 +204,36 @@ window.roar = {
     state = s;
     const limit = s.settings.archiveAfterHours * 3600;
     const pinned = s.tabs.filter((t) => t.pinned);
-    const open = s.tabs.filter((t) => !t.pinned);
+    const open = s.tabs.filter((t) => !t.pinned && !t.folder && !t.group);
+    const folderTab = (f) => s.tabs.find((t) => t.folder === f && !t.pinned && !t.group);
+    // The folder's tab stands in for the link it opened; elsewhere it leads the list.
+    const folderRows = (f, items, row) => {
+      const ft = folderTab(f);
+      const at = ft ? items.findIndex((i) => i.url === ft.folderItem) : -1;
+      return (ft && at < 0 ? tabRow(ft, 0) : '') + items.map((i, n) => n === at ? tabRow(ft, 0) : row(i)).join('');
+    };
+    const groupHtml = (g) => {
+      const tabs = s.tabs.filter((t) => t.group === g.id);
+      return `<section class="tgroup${g.collapsed ? ' collapsed' : ''}" data-group="${g.id}" style="${g.color ? '--gc:' + g.color : ''}">
+        <div class="group-head" data-group-head="${g.id}"><button class="toggle" data-group-toggle="${g.id}"><svg class="chev" viewBox="0 0 10 10" fill="currentColor"><path d="M1 3h8L5 8z"/></svg></button><span class="gdot"></span><span class="gname">${esc(g.name)}</span><span class="count">${tabs.length || ''}</span>${g.pinned ? '<svg class="gpin" viewBox="0 0 16 16" fill="currentColor"><path d="M9.8 1.5 14.5 6.2l-1.4.4-3 3 .1 3-1.2 1.2-2.6-2.6L3 14.6 1.4 13l3.4-3.4-2.6-2.6L3.4 5.8l3 .1 3-3z"/></svg>' : ''}</div>
+        <div class="rows">${tabs.map((t) => tabRow(t, g.pinned ? 0 : limit)).join('') || '<div class="empty">Drag tabs here</div>'}</div>
+      </section>`;
+    };
+    const groups = s.groups || [];
+    $('pinned-groups').innerHTML = groups.filter((g) => g.pinned).map(groupHtml).join('');
+    $('groups').innerHTML = groups.filter((g) => !g.pinned).map(groupHtml).join('');
     // Spaces stay out of the way: only a name and dots in the footer, and
     // nothing at all until a second space exists.
     const multi = s.spaces.length > 1;
+    const cur = s.spaces.find((sp) => sp.id === s.activeSpace);
+    document.body.style.setProperty('--space-color', cur?.color || 'transparent');
+    $('space-name').style.color = cur?.color || '';
     $('space-name').textContent = multi ? (s.spaces.find((sp) => sp.id === s.activeSpace)?.name || '') : '';
     $('spaces').innerHTML = multi ? s.spaces.map((sp, i) =>
-      `<button data-space="${sp.id}" aria-pressed="${sp.id === s.activeSpace}" title="${esc(sp.name)} (⌃${i + 1})" aria-label="${esc(sp.name)}"></button>`).join('') : '';
+      `<button data-space="${sp.id}" aria-pressed="${sp.id === s.activeSpace}" style="${sp.color ? '--dot:' + sp.color : ''}" title="${esc(sp.name)} (⌃${i + 1})" aria-label="${esc(sp.name)}"></button>`).join('') : '';
     $('cdp').hidden = multi;
     $('pinned').innerHTML = pinned.map((t) =>
-      `<button class="pin${t.active ? ' active' : ''}" data-id="${t.id}" title="${esc(t.title)}" aria-label="${esc(t.title)}">${t.url.startsWith('roar:') ? '<span class="lion"></span>' : iconHtml(t.favicon, t.url)}</button>`).join('');
+      `<button class="pin${t.active ? ' active' : ''}" data-id="${t.id}" draggable="true" title="${esc(t.title)}" aria-label="${esc(t.title)}">${t.url.startsWith('roar:') ? '<span class="lion"></span>' : iconHtml(t.favicon, t.url)}</button>`).join('');
     $('tabs').innerHTML = open.map((t) => tabRow(t, limit)).join('');
     $('tab-count').textContent = open.length || '';
     $('back').disabled = !s.nav.canBack;
@@ -174,31 +246,41 @@ window.roar = {
     $('gh-group').hidden = !gh.enabled;
     $('gh-count').textContent = gh.items.length || '';
     $('gh').innerHTML = gh.status
-      ? `<div class="note">${esc(gh.status).replace(/`([^`]+)`/g, '<code>$1</code>')}</div>`
+      ? (folderTab('github') ? tabRow(folderTab('github'), 0) : '') + `<div class="note">${esc(gh.status).replace(/`([^`]+)`/g, '<code>$1</code>')}</div>`
       : gh.items.length
-        ? gh.items.map((p) => `<button class="row pr" data-url="${esc(p.url)}" title="${esc(p.title)}"><span class="dot"></span><span class="label">${esc(p.title)}<small>${esc(p.detail)}</small></span></button>`).join('')
-        : '<div class="note">No open pull requests.</div>';
+        ? folderRows('github', gh.items, (p) => `<button class="row pr" data-url="${esc(p.url)}" title="${esc(p.title)}"><span class="dot"></span><span class="label">${esc(p.title)}<small>${esc(p.detail)}</small></span></button>`)
+        : folderRows('github', [], () => '') + '<div class="note">No open pull requests.</div>';
 
-    $('archive-count').textContent = s.archiveCount || '';
-    $('archive-clear').hidden = !s.archiveCount;
-    const now = Date.now() / 1000;
-    $('archive').innerHTML = s.archive.length
-      ? s.archive.map((a, i) => `<button class="row" data-restore="${i}" title="Reopen ${esc(a.url)}">${iconHtml('', a.url)}<span class="label">${esc(a.title || hostOf(a.url))}</span><span class="sub">${ago(now - a.archivedAt)}</span></button>`).join('')
-      : '<div class="note">Tabs you clean up land here.</div>';
+    const gm = s.gmail;
+    // Only shown with unread mail (or while its tab is open).
+    $('gm-group').hidden = !gm.enabled || gm.signedOut || !(gm.unread > 0 || s.tabs.some((t) => t.folder === 'mail'));
+    $('gm-count').textContent = gm.unread ? `(${gm.unread})` : '';
+    $('gm').innerHTML = gm.status
+      ? (folderTab('mail') ? tabRow(folderTab('mail'), 0) : '') + `<div class="note">${esc(gm.status)}</div>`
+      : gm.items.length
+        ? folderRows('mail', gm.items, (m) => `<button class="row pr mail" data-url="${esc(m.url)}" title="${esc(m.title)}"><span class="dot"></span><span class="label">${esc(m.title)}<small>${esc(m.detail)}</small></span></button>`)
+        : folderRows('mail', [], () => '') + '<div class="note">No unread mail.</div>';
+
   },
 };
 
 document.addEventListener('click', (e) => {
   const space = e.target.closest('[data-space]');
   if (space) return ask({ cmd: 'space.switch', id: +space.dataset.space });
+  const toggle = e.target.closest('[data-group-toggle], [data-group-head]');
+  if (toggle && !e.target.closest('.ctx')) {
+    const g = state.groups.find((g) => g.id === +(toggle.dataset.groupToggle || toggle.dataset.groupHead));
+    if (g) return ask({ cmd: 'group.update', id: g.id, collapsed: !g.collapsed });
+  }
   const close = e.target.closest('[data-close]');
   if (close) { e.stopPropagation(); return ask({ cmd: 'tab.close', id: +close.dataset.close }); }
   const tab = e.target.closest('[data-id]');
   if (tab) return ask({ cmd: 'tab.activate', id: +tab.dataset.id });
-  const restore = e.target.closest('[data-restore]');
-  if (restore) return ask({ cmd: 'archive.restore', index: +restore.dataset.restore });
+  const item = e.target.closest('#gm [data-url], #gh [data-url]');
+  if (item) return ask({ cmd: 'folder.open', folder: item.closest('#gm') ? 'mail' : 'github', url: item.dataset.url });
   const pr = e.target.closest('[data-url]');
-  if (pr) return ask({ cmd: 'open', text: pr.dataset.url, newTab: true });
+  // Same tab, like a plain link; ⌘- or ⇧-click asks for a new one.
+  if (pr) return ask({ cmd: 'open', text: pr.dataset.url, newTab: e.metaKey || e.shiftKey });
   const collapse = e.target.closest('[data-collapse]');
   if (collapse) {
     const group = $(collapse.dataset.collapse);
@@ -210,28 +292,184 @@ document.addEventListener('auxclick', (e) => {
   const tab = e.target.closest('.row[data-id]');
   if (tab && e.button === 1) ask({ cmd: 'tab.close', id: +tab.dataset.id });
 });
+// Right-click a space dot: rename it (Enter) or remove it.
+let menuSpace = null;
+const hideSpaceMenu = () => { $('space-menu').hidden = true; menuSpace = null; };
+$('space-rename').onkeydown = (e) => {
+  const name = e.target.value.trim();
+  if (e.key === 'Enter' && name) ask({ cmd: 'space.rename', id: menuSpace, name }).then(() => ask({ cmd: 'state' })).then(roar.render).finally(hideSpaceMenu);
+  else if (e.key === 'Escape') hideSpaceMenu();
+};
+$('space-rename').onblur = () => setTimeout(() => { if (!$('space-menu').contains(document.activeElement)) hideSpaceMenu(); }, 150);
+$('space-remove').onmousedown = (e) => e.preventDefault();
+$('space-remove').onclick = () => ask({ cmd: 'space.remove', id: menuSpace }).then(() => ask({ cmd: 'state' })).then(roar.render).finally(hideSpaceMenu);
 document.addEventListener('contextmenu', (e) => {
+  const dot = e.target.closest('[data-space]');
+  if (dot && state) {
+    e.preventDefault();
+    menuSpace = +dot.dataset.space;
+    $('space-rename').value = state.spaces.find((sp) => sp.id === menuSpace)?.name || '';
+    $('space-remove').hidden = menuSpace === 0;
+    $('space-menu').hidden = false;
+    renderSwatches();
+    $('space-rename').select();
+    return;
+  }
+  const head = e.target.closest('[data-group-head]');
+  if (head && state) { e.preventDefault(); return groupMenu(+head.dataset.groupHead, e); }
   const tab = e.target.closest('[data-id]');
   if (!tab || !state) return;
   e.preventDefault();
   const t = state.tabs.find((t) => t.id === +tab.dataset.id);
-  if (t) ask({ cmd: 'tab.pin', id: t.id, pinned: !t.pinned });
+  if (t) tabMenu(t, e);
+});
+
+// Right-click menus for tabs and groups.
+const ctx = $('ctx');
+const hideCtx = () => { ctx.hidden = true; ctx.innerHTML = ''; };
+function showCtx(html, e, bind) {
+  ctx.innerHTML = html;
+  ctx.hidden = false;
+  const r = ctx.getBoundingClientRect();
+  ctx.style.left = Math.max(4, Math.min(e.clientX, innerWidth - r.width - 4)) + 'px';
+  ctx.style.top = Math.max(4, Math.min(e.clientY, innerHeight - r.height - 4)) + 'px';
+  ctx.onclick = (ev) => {
+    const b = ev.target.closest('[data-act]');
+    if (!b) return;
+    ev.stopPropagation();
+    bind(b.dataset.act, b.dataset);
+  };
+}
+const dot = (c) => `<span class="gdot" style="${c ? '--gc:' + c : ''}"></span>`;
+function tabMenu(t, e) {
+  const groups = state.groups || [];
+  showCtx(`${t.pinned ? '<button data-act="unpin">Unpin tab</button>' : '<button data-act="pin">Pin tab</button>'}
+    <hr><div class="head">Add to group</div>
+    <button data-act="new">New group…</button>
+    ${groups.filter((g) => g.id !== t.group).map((g) => `<button data-act="move" data-g="${g.id}">${dot(g.color)}${esc(g.name)}</button>`).join('')}
+    ${t.group ? '<button data-act="ungroup">Remove from group</button>' : ''}
+    <hr><button data-act="close">Close tab</button>`, e, (act, d) => {
+    if (act === 'pin' || act === 'unpin') ask({ cmd: 'tab.pin', id: t.id, pinned: act === 'pin' });
+    else if (act === 'move') ask({ cmd: 'tab.group', id: t.id, group: +d.g });
+    else if (act === 'ungroup') ask({ cmd: 'tab.group', id: t.id, group: 0 });
+    else if (act === 'close') ask({ cmd: 'tab.close', id: t.id });
+    else if (act === 'new') return nameMenu('', e, (name) => ask({ cmd: 'group.create', name, color: COLORS[1 + (groups.length % (COLORS.length - 1))], tab: t.id }));
+    hideCtx();
+  });
+}
+function nameMenu(value, e, done) {
+  showCtx(`<input id="ctx-name" maxlength="40" placeholder="Group name" spellcheck="false">`, e, () => {});
+  const input = $('ctx-name');
+  input.value = value;
+  input.focus();
+  input.select();
+  input.onkeydown = (ev) => {
+    if (ev.key === 'Enter' && input.value.trim()) { done(input.value.trim()); hideCtx(); }
+    else if (ev.key === 'Escape') hideCtx();
+  };
+}
+function groupMenu(id, e) {
+  const g = state.groups.find((g) => g.id === id);
+  if (!g) return;
+  showCtx(`<button data-act="rename">Rename…</button>
+    <div class="swatches">${COLORS.slice(1).map((c) => `<button data-act="color" data-c="${c}" aria-pressed="${g.color === c}" style="background:${c}" title="${c}"></button>`).join('')}</div>
+    <button data-act="pin">${g.pinned ? 'Unpin group' : 'Pin group'}</button>
+    <hr><button data-act="ungroup">Ungroup tabs</button>
+    <button data-act="close">Close group</button>`, e, (act, d) => {
+    if (act === 'rename') return nameMenu(g.name, e, (name) => ask({ cmd: 'group.update', id, name }));
+    if (act === 'color') ask({ cmd: 'group.update', id, color: d.c });
+    else if (act === 'pin') ask({ cmd: 'group.update', id, pinned: !g.pinned });
+    else if (act === 'ungroup') ask({ cmd: 'group.remove', id });
+    else if (act === 'close') ask({ cmd: 'group.remove', id, closeTabs: true });
+    hideCtx();
+  });
+}
+document.addEventListener('mousedown', (e) => { if (!ctx.hidden && !ctx.contains(e.target)) hideCtx(); }, true);
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') hideCtx(); });
+
+// Drag a tab onto a group, back into Tabs, or onto the pinned strip.
+let dragId = 0;
+document.addEventListener('dragstart', (e) => {
+  const row = e.target.closest?.('.row[data-id], .pin[data-id]');
+  if (!row) return;
+  dragId = +row.dataset.id;
+  row.classList.add('dragging');
+  document.body.classList.add('drag-active');
+  e.dataTransfer.effectAllowed = 'move';
+  e.dataTransfer.setData('text/plain', String(dragId));
+});
+document.addEventListener('dragend', () => {
+  dragId = 0;
+  document.body.classList.remove('drag-active');
+  document.querySelectorAll('.dragging, .drop-target').forEach((el) => el.classList.remove('dragging', 'drop-target'));
+});
+const dropZone = (el) => el.closest?.('.tgroup, #tabs-group, #pinned');
+document.addEventListener('dragover', (e) => {
+  const zone = dragId && dropZone(e.target);
+  document.querySelectorAll('.drop-target').forEach((el) => el !== zone && el.classList.remove('drop-target'));
+  if (!zone) return;
+  e.preventDefault();
+  zone.classList.add('drop-target');
+});
+document.addEventListener('drop', (e) => {
+  const zone = dragId && dropZone(e.target);
+  if (!zone) return;
+  e.preventDefault();
+  const t = state.tabs.find((t) => t.id === dragId);
+  if (zone.id === 'pinned') { if (!t.pinned) ask({ cmd: 'tab.pin', id: dragId, pinned: true }); }
+  else if (zone.dataset.group) ask({ cmd: 'tab.group', id: dragId, group: +zone.dataset.group });
+  else if (t.pinned) ask({ cmd: 'tab.pin', id: dragId, pinned: false });
+  else if (t.group) ask({ cmd: 'tab.group', id: dragId, group: 0 });
 });
 $('address').onclick = () => ask({ cmd: 'commandbar', newTab: false });
-$('new-tab').onclick = () => ask({ cmd: 'commandbar', newTab: true });
 $('back').onclick = () => ask({ cmd: 'run', id: 'back' });
 $('forward').onclick = () => ask({ cmd: 'run', id: 'forward' });
 $('reload').onclick = () => ask({ cmd: 'run', id: 'reload' });
-$('clean').onclick = () => ask({ cmd: 'run', id: 'clean' });
 $('gh-refresh').onclick = () => ask({ cmd: 'run', id: 'github' });
-$('archive-clear').onclick = () => ask({ cmd: 'archive.clear' });
-$('settings').onclick = () => ask({ cmd: 'run', id: 'settings' });
-for (const id of ['gh-group', 'archive-group']) {
-  try {
-    const v = localStorage.getItem('collapsed:' + id);
-    if (v !== null) $(id).classList.toggle('collapsed', v === 'true');
-  } catch {}
+$('gm-refresh').onclick = () => ask({ cmd: 'run', id: 'gmail' });
+$('hide-sidebar').onclick = () => ask({ cmd: 'run', id: 'sidebar' });
+// Pinned extensions: click opens the extension's popup page in a bubble beside
+// the button (an options-only extension opens in a tab); right-click unpins. Pin from the Extensions menu in the menu bar.
+let pinKey = null;
+function loadPins() {
+  const key = state.activeSpace + ':' + state.settings.pinnedExtensions.join(',');
+  if (key === pinKey) return;
+  pinKey = key;
+  if (!state.settings.pinnedExtensions.length) return void ($('ext-pins').innerHTML = '');
+  ask({ cmd: 'extensions.list' }).then((r) => {
+    const list = (typeof r === 'string' ? JSON.parse(r) : r).filter((x) => x.pinned);
+    $('ext-pins').innerHTML = list.map((x) => `<button data-ext-open="${esc(x.open)}" data-ext-pin="${esc(x.id)}" ${x.popup ? 'data-ext-popup="1"' : ''} title="${esc(x.name)}">${/^data:image\//.test(x.icon || '') ? `<img src="${esc(x.icon)}" alt="">` : `<span class="letter">${esc(x.name[0] || '?')}</span>`}</button>`).join('');
+  }).catch(() => { pinKey = null; });
 }
+const render0 = roar.render;
+roar.render = (s) => { render0(s); loadPins(); };
+$('ext-pins').onclick = (e) => {
+  const b = e.target.closest('[data-ext-open]');
+  if (!b) return;
+  e.stopPropagation();
+  const r = b.getBoundingClientRect();
+  if (b.dataset.extPopup) ask({ cmd: 'extensions.popup', url: b.dataset.extOpen, x: Math.round(r.right + 6), y: Math.round(r.top) });
+  else ask({ cmd: 'open', text: b.dataset.extOpen, newTab: true });
+};
+$('ext-pins').oncontextmenu = (e) => {
+  const b = e.target.closest('[data-ext-pin]');
+  if (b) { e.preventDefault(); e.stopPropagation(); ask({ cmd: 'run', id: 'extensionPin:' + b.dataset.extPin }); }
+};
+$('settings').onclick = () => ask({ cmd: 'run', id: 'settings' });
+// GitHub PRs and Unread mail always start collapsed.
+for (const id of ['gh-group', 'gm-group']) $(id).classList.add('collapsed');
+const COLORS = ['', '#e5484d', '#f76b15', '#ffc53d', '#46a758', '#12a594', '#0090ff', '#8e4ec6', '#d6409f'];
+function renderSwatches() {
+  const sp = state?.spaces.find((x) => x.id === menuSpace);
+  $('swatches').innerHTML = COLORS.map((c) => `<button data-color="${c}" aria-pressed="${(sp?.color || '') === c}" title="${c || 'Default'}" style="background:${c || 'var(--ink-3)'}"></button>`).join('');
+}
+$('swatches').addEventListener('mousedown', (e) => e.preventDefault());
+$('swatches').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-color]');
+  if (!b) return;
+  e.stopPropagation();
+  ask({ cmd: 'space.color', id: menuSpace, color: b.dataset.color }).then(() => ask({ cmd: 'state' })).then((s) => { roar.render(s); renderSwatches(); });
+});
 ask({ cmd: 'state' }).then((s) => roar.render(s)).catch(() => {});
 </script>
 </body>

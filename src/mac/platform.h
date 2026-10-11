@@ -13,6 +13,13 @@ std::string RandomToken();
 int CdpPort();
 
 void InstallMenu();
+// Safari's Bookmarks.plist as {"bookmarks": [node...], "readingList": [{title, url}]},
+// or "" when it can't be read (Roar lacks Full Disk Access).
+std::string SafariBookmarksJson();
+// Chromium's id for an unpacked extension loaded from |path|.
+std::string UnpackedExtensionId(const std::string& path);
+// Shows a "Show sidebar" button beside the traffic lights while the sidebar is hidden.
+void SetSidebarButton(void* window, bool visible);
 
 // Window plumbing. |window| arguments are CefWindow::GetWindowHandle() values.
 void AttachChild(void* parent, void* child);  // Shows |child| above |parent|.
