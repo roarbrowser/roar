@@ -15,6 +15,7 @@
 ```bash
 ./scripts/build.sh                       # fetches CEF into third_party/, builds, ad-hoc signs
 open build/src/Release/Roar.app
+./scripts/update-cef.sh                  # move to the newest stable CEF/Chromium and rebuild (--check to only report)
 ```
 
 Needs macOS, Xcode, `cmake` and `ninja`. Environment overrides:
