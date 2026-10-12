@@ -77,8 +77,15 @@ struct PageText {
 // spaces had their own), "<space>\t<url>" elsewhere.
 std::string SpaceKey(int space, const std::string& url);
 
+struct GmailAccount {
+  std::string address;
+  int index = 0;  // The /mail/u/<index>/ slot Google gave this login.
+  int unread = 0;
+};
+
 struct GmailFeed {
-  std::vector<LiveItem> items;
+  std::vector<GmailAccount> accounts;  // Every signed-in account, in Google's order.
+  std::vector<LiveItem> items;  // All accounts' unread mail.
   std::string status;  // Empty when the last refresh succeeded.
   int unread = 0;
   bool signed_out = false;  // Last refresh got 401/403.

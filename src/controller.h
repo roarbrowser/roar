@@ -90,6 +90,7 @@ class Controller {
   int NewTab(const std::string& url, bool activate, bool pinned = false, double last_active = 0,
              int space = -1, bool ghost = false);
   void ActivateTab(int id);
+  CefRefPtr<CefRequestContext> ContextFor(int space);
   void CloseTab(int id);
   void Navigate(int id, const std::string& url);
   void SetPinned(int id, bool pinned);
@@ -119,9 +120,10 @@ class Controller {
   void Reload();
   void OpenSettings();
   void ToggleSidebar();
-  void RefreshGitHub();
+  // `attempt` counts retries after a network failure (launch can beat the network).
+  void RefreshGitHub(int attempt = 0);
   void RefreshGmail();
-  void RefreshGmail(int space);
+  void RefreshGmail(int space, int attempt = 0);
   void ImportBrowser(const std::string& browser);
   std::string LibraryJson();
   void SaveToLibrary(bool read_later);
@@ -212,7 +214,6 @@ class Controller {
   bool IsVisible(int id);
   CefRect RectFor(int id);
   void SyncWindows();
-  CefRefPtr<CefRequestContext> ContextFor(int space);
   CefRefPtr<CefBrowserView> CreateTabView(const std::string& url, int space, bool ghost = false);
   void EndGhostSession();
   void IndexPage(Tab* tab);

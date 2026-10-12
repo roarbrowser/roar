@@ -466,8 +466,13 @@ CefRefPtr<CefDictionaryValue> ReadJsonFile(const std::string& path) {
   return v && v->GetType() == VTYPE_DICTIONARY ? v->GetDictionary() : nullptr;
 }
 
-// Gmail's unread-inbox Atom feed, read with the space's own Gmail cookies.
+// Gmail's unread-inbox Atom feed, read with the space's own Gmail cookies;
+// /mail/u/<n>/ picks the n-th signed-in account.
 constexpr char kGmailFeed[] = "https://mail.google.com/mail/feed/atom";
+constexpr int kGmailMaxAccounts = 6;
+std::string GmailFeedUrl(int index) {
+  return "https://mail.google.com/mail/u/" + std::to_string(index) + "/feed/atom";
+}
 
 void ParseGmailFeed(const std::string& xml, GmailFeed& feed) {
   feed.items.clear();
@@ -515,17 +520,33 @@ void ParseGmailFeed(const std::string& xml, GmailFeed& feed) {
   }
 }
 
+void StartGmailFetch(int space, int index, int attempt, GmailFeed so_far);
+
+// Fetches account `index`, then the next one, until Google runs out of logins
+// (401, or a slot that repeats an address already seen).
 class GmailFetch : public CefURLRequestClient {
  public:
-  explicit GmailFetch(int space) : space_(space) {}
+  GmailFetch(int space, int index, int attempt, GmailFeed so_far)
+      : space_(space), index_(index), attempt_(attempt), so_far_(std::move(so_far)) {}
   void OnRequestComplete(CefRefPtr<CefURLRequest> request) override {
     if (!State::Get().FindSpace(space_)) return;  // Removed while loading.
     GmailFeed& feed = State::Get().gmail[space_];
     int code = request->GetResponse() ? request->GetResponse()->GetStatus() : 0;
     if (request->GetRequestStatus() == UR_SUCCESS && code == 200) {
-      feed.status.clear();
-      feed.signed_out = false;
-      ParseGmailFeed(body_, feed);
+      GmailFeed one;
+      ParseGmailFeed(body_, one);
+      bool seen = std::any_of(so_far_.accounts.begin(), so_far_.accounts.end(),
+                              [&](const GmailAccount& a) { return a.address == one.account; });
+      if (!seen && !one.account.empty()) {
+        so_far_.accounts.push_back({one.account, index_, one.unread});
+        so_far_.items.insert(so_far_.items.end(), one.items.begin(), one.items.end());
+        so_far_.unread += one.unread;
+        if (so_far_.account.empty()) so_far_.account = one.account;
+        if (index_ + 1 < kGmailMaxAccounts) return StartGmailFetch(space_, index_ + 1, 0, std::move(so_far_));
+      }
+      feed = std::move(so_far_);
+    } else if (index_ > 0) {
+      feed = std::move(so_far_);  // Past the last account.
     } else if (code == 401 || code == 403) {
       feed = GmailFeed{};
       feed.status = "Sign in to Gmail in this space to see mail here.";
@@ -533,6 +554,11 @@ class GmailFetch : public CefURLRequestClient {
     } else {
       feed.status = code ? "Gmail returned " + std::to_string(code) + "."
                          : "Couldn't reach Gmail.";
+      // At launch the network or the space's profile may not be ready yet.
+      if (attempt_ < 3)
+        CefPostDelayedTask(TID_UI, base::BindOnce([](int space, int attempt) {
+          Controller::Get()->RefreshGmail(space, attempt);
+        }, space_, attempt_ + 1), 20 * 1000);
     }
     Controller::Get()->PushSidebar();
   }
@@ -548,9 +574,22 @@ class GmailFetch : public CefURLRequestClient {
 
  private:
   int space_;
+  int index_;
+  int attempt_;
+  GmailFeed so_far_;
   std::string body_;
   IMPLEMENT_REFCOUNTING(GmailFetch);
 };
+
+void StartGmailFetch(int space, int index, int attempt, GmailFeed so_far) {
+  auto request = CefRequest::Create();
+  request->SetURL(GmailFeedUrl(index));
+  request->SetFirstPartyForCookies("https://mail.google.com/");
+  request->SetFlags(UR_FLAG_ALLOW_STORED_CREDENTIALS | UR_FLAG_DISABLE_CACHE);
+  auto context = Controller::Get()->ContextFor(space);
+  CefURLRequest::Create(request, new GmailFetch(space, index, attempt, std::move(so_far)),
+                        context ? context : CefRequestContext::GetGlobalContext());
+}
 
 // Tells the controller when a space's profile has finished loading.
 // Roar leaves passwords and form fill to a password manager extension; turn
@@ -1382,12 +1421,16 @@ void Controller::ToggleSidebar() {
   Relayout();
 }
 
-void Controller::RefreshGitHub() {
+void Controller::RefreshGitHub(int attempt) {
   State& state = State::Get();
   if (!state.settings.github_folder) return;
   int space = state.active_space;
-  platform::SearchGitHub(state.settings.github_query, [space](std::string json, std::string error) {
+  platform::SearchGitHub(state.settings.github_query, [space, attempt](std::string json, std::string error) {
     State& s = State::Get();
+    // At launch the network may not be up yet; a missing gh won't fix itself.
+    if (!error.empty() && attempt < 3 && error.find("Install the GitHub CLI") == std::string::npos)
+      CefPostDelayedTask(TID_UI, base::BindOnce([](int attempt) { Controller::Get()->RefreshGitHub(attempt); },
+                                                attempt + 1), 20 * 1000);
     s.github_status = error;
     if (error.empty()) {
       if (s.github_space < 0) s.github_space = space;  // Belongs to the space it first loaded in.
@@ -1413,24 +1456,17 @@ void Controller::RefreshGitHub() {
 
 void Controller::RefreshGmail() { RefreshGmail(State::Get().active_space); }
 
-void Controller::RefreshGmail(int space) {
-  State& state = State::Get();
-  if (!state.settings.gmail_folder) return;
-  auto request = CefRequest::Create();
-  request->SetURL(kGmailFeed);
-  request->SetFirstPartyForCookies("https://mail.google.com/");
-  request->SetFlags(UR_FLAG_ALLOW_STORED_CREDENTIALS | UR_FLAG_DISABLE_CACHE);
-  auto context = ContextFor(space);
-  CefURLRequest::Create(request, new GmailFetch(space),
-                        context ? context : CefRequestContext::GetGlobalContext());
+void Controller::RefreshGmail(int space, int attempt) {
+  if (!State::Get().settings.gmail_folder) return;
+  StartGmailFetch(space, 0, attempt, GmailFeed{});
 }
 
 // Polls the sidebar's live folders: pull requests and unread mail.
 void Controller::GitHubTick() {
   RefreshGitHub();
-  // Every space whose mail has been fetched stays current, not just the active one.
-  std::set<int> spaces = {State::Get().active_space};
-  for (const auto& [space, feed] : State::Get().gmail) spaces.insert(space);
+  // Every space's mail stays current, not just the active one (and all are checked at launch).
+  std::set<int> spaces;
+  for (const auto& sp : State::Get().spaces) spaces.insert(sp.id);
   for (int space : spaces) RefreshGmail(space);
   CefPostDelayedTask(TID_UI, base::BindOnce([] { Controller::Get()->GitHubTick(); }), 10 * 60 * 1000);
 }
@@ -1837,11 +1873,26 @@ void Controller::RunCommand(const std::string& id) {
     ShowHint("Cleared cookies in this space");
   }
   else if (id == "gmailMenu") {
-    std::string account = State::Get().gmail[State::Get().active_space].account;
+    // One section per signed-in account, then sign-out (Google can't sign out
+    // just one of several accounts, so it covers all of them).
+    const GmailFeed& feed = State::Get().gmail[State::Get().active_space];
     std::vector<std::string> items;
-    if (!account.empty()) items = {"-" + account, ""};
-    items.push_back("Sign Out of Gmail in This Space");
-    platform::PopupMenu(items, [](int) { Controller::Get()->RunCommand("gmailSignOut"); });
+    std::vector<std::string> urls;  // Parallel to items; empty for labels and sign-out.
+    for (const auto& a : feed.accounts) {
+      items.push_back("-" + a.address);
+      urls.push_back("");
+      items.push_back("    Open Inbox" + (a.unread ? " (" + std::to_string(a.unread) + " unread)" : std::string()));
+      urls.push_back("https://mail.google.com/mail/u/" + std::to_string(a.index) + "/#inbox");
+      items.push_back("");
+      urls.push_back("");
+    }
+    items.push_back(feed.accounts.size() > 1 ? "Sign Out of All Accounts in This Space"
+                                             : "Sign Out of Gmail in This Space");
+    urls.push_back("");
+    platform::PopupMenu(items, [urls](int i) {
+      if (urls[i].empty()) Controller::Get()->RunCommand("gmailSignOut");
+      else Controller::Get()->ActivateTab(Controller::Get()->NewTab(urls[i], false));
+    });
   }
   else if (id == "gmailSignOut") {
     // Signs this space out of Google by dropping its google.com cookies; other
