@@ -8,6 +8,7 @@
 #include "include/wrapper/cef_helpers.h"
 #include "include/wrapper/cef_stream_resource_handler.h"
 
+#include "action_watch.h"
 #include "controller.h"
 #include "mac/platform.h"
 #include "shared.h"
@@ -96,8 +97,22 @@ void BrowserApp::OnBeforeCommandLineProcessing(const CefString& process_type,
   // but allow the local DevTools front-end too.
   if (!command_line->HasSwitch("remote-allow-origins"))
     command_line->AppendSwitchWithValue("remote-allow-origins", "http://127.0.0.1");
+  // --headless means Roar's hidden mode, not Chrome's: Chrome's headless mode
+  // has no native window the menu bar icon could bring forward. The hidden
+  // windows keep rendering at full speed for CDP clients.
+  if (command_line->HasSwitch("headless")) {
+    command_line->RemoveSwitch("headless");
+    command_line->AppendSwitch("disable-backgrounding-occluded-windows");
+    command_line->AppendSwitch("disable-renderer-backgrounding");
+    command_line->AppendSwitch("disable-background-timer-throttling");
+  }
+  // Remote debugging makes Chromium report navigator.webdriver = true, which
+  // bot checks such as Cloudflare's block. Roar is a real browser, so hide it.
+  command_line->AppendSwitchWithValue("disable-blink-features", "AutomationControlled");
   // Mock keychain avoids the "Chromium Safe Storage" prompt for an unsigned build.
   command_line->AppendSwitch("use-mock-keychain");
+  // Private DevTools pipe for extension action state (action_watch.h).
+  if (action_watch::Enabled()) command_line->AppendSwitch("remote-debugging-pipe");
   // Bundled uBlock Origin Lite: blocks ads and defuses anti-adblock scripts.
   // Chromium writes indexed rulesets into an unpacked extension's folder, so
   // load a copy from the data dir and keep the signed bundle untouched.

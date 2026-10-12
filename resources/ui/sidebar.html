@@ -87,6 +87,10 @@ body.drag-active .pinned:empty::before { content: 'Drop to pin'; color: var(--in
 .fav { width: 16px; height: 16px; flex: none; display: grid; place-items: center; border-radius: 4px; overflow: hidden; }
 .fav img { width: 16px; height: 16px; }
 .fav.letter { background: var(--rule); color: var(--ink-2); font-size: 10px; font-weight: 700; font-family: var(--round); }
+/* Ghost tabs: a private, in-memory profile; their own tinted section. */
+#ghost-group { margin: 0 0 8px; padding: 2px 0 4px; border-radius: 10px; background: color-mix(in srgb, #6b5ca5 12%, transparent); }
+#ghost-group .group-head { color: #6b5ca5; gap: 6px; }
+.ghost-ico { width: 13px; height: 13px; flex: none; }
 .pin .fav { width: 18px; height: 18px; }
 .pin .fav img { width: 18px; height: 18px; }
 .spin { width: 16px; height: 16px; flex: none; border-radius: 50%; border: 2px solid var(--rule); border-top-color: var(--mane); animation: spin .8s linear infinite; }
@@ -150,6 +154,8 @@ body.drag-active .pinned:empty::before { content: 'Drop to pin'; color: var(--in
 .ext-pins button { width: 28px; height: 28px; border-radius: 7px; display: grid; place-items: center; }
 .ext-pins button:hover { background: var(--hover); }
 .ext-pins img { width: 18px; height: 18px; }
+.ext-pins button { position: relative; }
+.ext-pins .badge { position: absolute; right: 0; bottom: 0; min-width: 12px; height: 12px; padding: 0 2px; border-radius: 6px; background: var(--mane); color: #fff; font-size: 8px; font-weight: 700; line-height: 12px; text-align: center; pointer-events: none; }
 .ext-pins .letter { font-size: 12px; font-weight: 600; color: var(--ink-2); }
 </style>
 </head>
@@ -168,6 +174,10 @@ body.drag-active .pinned:empty::before { content: 'Drop to pin'; color: var(--in
 <div class="scroll">
   <div class="pinned" id="pinned"></div>
   <div id="pinned-groups"></div>
+  <section id="ghost-group" hidden>
+    <div class="group-head"><svg class="ghost-ico" viewBox="0 0 16 16" fill="currentColor"><path d="M8 1.5a5 5 0 0 0-5 5v7.2l1.7-1.2 1.6 1.2L8 12.5l1.7 1.2 1.6-1.2 1.7 1.2V6.5a5 5 0 0 0-5-5zM6 5.6a1 1 0 1 1 0 2 1 1 0 0 1 0-2zm4 0a1 1 0 1 1 0 2 1 1 0 0 1 0-2z"/></svg><span>Ghost</span><span class="count" id="ghost-count"></span></div>
+    <div class="rows" id="ghost-tabs"></div>
+  </section>
   <section id="tabs-group">
     <div class="group-head"><span>Tabs</span><span class="count" id="tab-count"></span></div>
     <div id="groups"></div>
@@ -227,8 +237,13 @@ window.roar = {
   render(s) {
     state = s;
     const limit = s.settings.archiveAfterHours * 3600;
+    const ghosts = s.tabs.filter((t) => t.ghost);
+    s = { ...s, tabs: s.tabs.filter((t) => !t.ghost) };
     const pinned = s.tabs.filter((t) => t.pinned);
     const open = s.tabs.filter((t) => !t.pinned && !t.folder && !t.group);
+    $('ghost-group').hidden = !ghosts.length;
+    $('ghost-tabs').innerHTML = ghosts.map((t) => tabRow(t, 0)).join('');
+    $('ghost-count').textContent = ghosts.length || '';
     const folderTab = (f) => s.tabs.find((t) => t.folder === f && !t.pinned && !t.group);
     // The folder's tab stands in for the link it opened; elsewhere it leads the list.
     const folderRows = (f, items, row) => {
@@ -558,9 +573,23 @@ function loadPins() {
   if (!state.settings.pinnedExtensions.length) return void ($('ext-pins').innerHTML = '');
   ask({ cmd: 'extensions.list' }).then((r) => {
     const list = (typeof r === 'string' ? JSON.parse(r) : r).filter((x) => x.pinned);
-    $('ext-pins').innerHTML = list.map((x) => `<button data-ext-open="${esc(x.open)}" data-ext-pin="${esc(x.id)}" ${x.popup ? 'data-ext-popup="1"' : ''} title="${esc(x.name)}">${/^data:image\//.test(x.icon || '') ? `<img src="${esc(x.icon)}" alt="">` : `<span class="letter">${esc(x.name[0] || '?')}</span>`}</button>`).join('');
+    $('ext-pins').innerHTML = list.map((x) => `<button data-ext-open="${esc(x.open)}" data-ext-pin="${esc(x.id)}" ${x.popup ? 'data-ext-popup="1"' : ''} title="${esc(x.name)}">${/^data:image\//.test(x.icon || '') ? `<img src="${esc(x.icon)}" data-default="${esc(x.icon)}" alt="">` : `<span class="letter">${esc(x.name[0] || '?')}</span>`}</button>`).join('');
+    ask({ cmd: 'extensions.actions' }).then((a) => roar.actions(typeof a === 'string' ? JSON.parse(a) : a));
   }).catch(() => { pinKey = null; });
 }
+// Live icon and badge per extension for the active tab (action_watch.cc).
+roar.actions = (all) => {
+  for (const b of $('ext-pins').querySelectorAll('[data-ext-pin]')) {
+    const a = all[b.dataset.extPin] || {};
+    const img = b.querySelector('img');
+    if (img) img.src = /^data:image\//.test(a.icon || '') ? a.icon : img.dataset.default;
+    let badge = b.querySelector('.badge');
+    if (!a.badge) { badge?.remove(); continue; }
+    if (!badge) b.append(badge = Object.assign(document.createElement('span'), { className: 'badge' }));
+    badge.textContent = a.badge;
+    badge.style.background = a.color || '';
+  }
+};
 const render0 = roar.render;
 roar.render = (s) => { render0(s); loadPins(); };
 $('ext-pins').onclick = (e) => {

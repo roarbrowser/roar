@@ -5,6 +5,7 @@ set(CEF_HELPER_OUTPUT_NAME "Roar Helper")
 set(ROAR_SHARED_SRCS shared.cc shared.h)
 set(ROAR_SRCS
   ${ROAR_SHARED_SRCS}
+  action_watch.cc action_watch.h
   browser_app.cc browser_app.h
   client.cc client.h
   controller.cc controller.h

@@ -89,7 +89,11 @@ bool Client::OnBeforePopup(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> fr
     case CEF_WOD_NEW_BACKGROUND_TAB:
     case CEF_WOD_NEW_WINDOW:
     case CEF_WOD_SINGLETON_TAB:
-      Controller::Get()->NewTab(target_url, target_disposition != CEF_WOD_NEW_BACKGROUND_TAB);
+    {
+      // Links from a ghost tab open as ghost tabs.
+      Controller::Get()->NewTab(target_url, target_disposition != CEF_WOD_NEW_BACKGROUND_TAB, false, 0,
+                                -1, Controller::Get()->IsGhostBrowser(browser));
+    }
       return true;
     default:
       // Scripted popups (sign-in flows, document picture-in-picture) keep

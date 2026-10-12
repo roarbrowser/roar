@@ -47,6 +47,12 @@ const COMMANDS = [
   { id: 'clean', title: 'Clean up tabs', keys: '⇧⌘K', words: 'archive tidy broom close' },
   { id: 'copyMarkdown', title: 'Copy page as Markdown', keys: '⇧⌘C', words: 'extract text md clipboard' },
   { id: 'saveMarkdown', title: 'Save page as Markdown', keys: '', words: 'extract download md file' },
+  { id: 'askLlm', title: 'Ask an LLM about page', keys: '', words: 'ai chat send gpt claude gemini perplexity', children: [
+    { id: 'askLlm:chatgpt', title: 'ChatGPT', keys: '', words: 'llm ai openai gpt' },
+    { id: 'askLlm:claude', title: 'Claude', keys: '', words: 'llm ai anthropic' },
+    { id: 'askLlm:gemini', title: 'Gemini', keys: '', words: 'llm ai google bard' },
+    { id: 'askLlm:perplexity', title: 'Perplexity', keys: '', words: 'llm ai search' },
+  ] },
   { id: 'pip', title: 'Picture in picture', keys: '⇧⌘P', words: 'video pip float' },
   { id: 'float', title: 'Float tab in a mini window', keys: '⇧⌘F', words: 'pip document always on top' },
   { id: 'split', title: 'Split view', keys: '⌘\\', words: 'side by side two tabs pane' },
@@ -83,6 +89,7 @@ let items = [];
 let sel = 0;
 let newTab = true;
 let seq = 0;
+let submenu = null;  // A command whose children are listed instead of COMMANDS.
 
 function looksLikeUrl(text) {
   if (/^[a-z][a-z0-9+.-]*:/i.test(text) && !/\s/.test(text)) return true;
@@ -101,8 +108,15 @@ async function update() {
   const text = (commandMode ? raw.slice(1) : raw).trim().toLowerCase();
   const mine = ++seq;
   const next = [];
-  if (commandMode) {
-    for (const c of COMMANDS) if (score(c, text)) next.push({ type: 'run', ...c });
+  if (submenu) {
+    for (const c of submenu.children) if (score(c, raw.toLowerCase())) next.push({ type: 'run', ...c });
+  } else if (commandMode) {
+    for (const c of COMMANDS) {
+      if (score(c, text)) next.push({ type: 'run', ...c });
+      // Typed text also reaches a submenu's entries, named with their parent.
+      else if (text && c.children)
+        for (const k of c.children) if (score(k, text)) next.push({ type: 'run', ...k, title: `${c.title}: ${k.title}` });
+    }
   } else {
     if (raw) {
       const url = looksLikeUrl(raw);
@@ -125,7 +139,7 @@ function render() {
   $('route').hidden = !top;
   if (top) $('route').textContent = route[top.type] + (top.type === 'open' || top.type === 'search' || top.type === 'history' ? (newTab ? ' in new tab' : '') : '');
   if (!items.length) {
-    $('list').innerHTML = q.value.trim().startsWith('>') ? '<div class="section">No matching commands</div>'
+    $('list').innerHTML = submenu || q.value.trim().startsWith('>') ? '<div class="section">No matching commands</div>'
       : '<div class="section">Type to search the web, your tabs and history. Start with &gt; for commands.</div>';
     fit();
     return;
@@ -142,7 +156,7 @@ function render() {
     }
     if (it.type === 'search') { icon = ICON.search; title = esc(it.title); sub = '<span class="kind">Search the web</span>'; }
     else if (it.type === 'open') { icon = ICON.open; title = esc(it.title); sub = '<span class="kind">Open address</span>'; }
-    else if (it.type === 'run') { icon = ICON.run; title = esc(it.title); sub = it.keys ? `<kbd>${it.keys}</kbd>` : '<span class="kind">Command</span>'; }
+    else if (it.type === 'run') { icon = ICON.run; title = esc(it.title); sub = it.keys ? `<kbd>${it.keys}</kbd>` : `<span class="kind">${it.children ? 'Choose ›' : 'Command'}</span>`; }
     else {
       icon = iconHtml('', it.url);
       title = esc(it.title || hostOf(it.url));
@@ -169,9 +183,24 @@ function fit() {
   if (h !== lastHeight) { lastHeight = h; ask({ cmd: 'commandbar.size', height: h }).catch(() => {}); }
 }
 
+function openSubmenu(cmd) {
+  submenu = cmd;
+  q.value = '';
+  q.placeholder = cmd.title + ': choose one';
+  update();
+}
+
+function closeSubmenu() {
+  submenu = null;
+  q.value = '>';
+  q.placeholder = 'Search, enter an address, or type > for commands';
+  update();
+}
+
 function choose(it) {
   if (!it) return;
-  if (it.type === 'run') ask({ cmd: 'run', id: it.id });
+  if (it.children) openSubmenu(it);
+  else if (it.type === 'run') ask({ cmd: 'run', id: it.id });
   else if (it.type === 'tab' || (it.type === 'text' && it.id)) ask({ cmd: 'tab.activate', id: it.id });
   else if (it.type === 'text') ask({ cmd: 'open', text: it.url, newTab });
   else if (it.type === 'archived') ask({ cmd: 'archive.restore', index: it.id });
@@ -183,7 +212,8 @@ q.addEventListener('keydown', (e) => {
   if (e.key === 'ArrowDown' || (e.ctrlKey && e.key === 'n')) { sel = Math.min(items.length - 1, sel + 1); render(); e.preventDefault(); }
   else if (e.key === 'ArrowUp' || (e.ctrlKey && e.key === 'p')) { sel = Math.max(0, sel - 1); render(); e.preventDefault(); }
   else if (e.key === 'Enter') { choose(items[sel]); e.preventDefault(); }
-  else if (e.key === 'Escape') { ask({ cmd: 'commandbar.hide' }); e.preventDefault(); }
+  else if (e.key === 'Escape') { if (submenu) closeSubmenu(); else ask({ cmd: 'commandbar.hide' }); e.preventDefault(); }
+  else if (e.key === 'Backspace' && submenu && !q.value) { closeSubmenu(); e.preventDefault(); }
 });
 $('list').addEventListener('mousedown', (e) => {
   const b = e.target.closest('[data-i]');
@@ -194,6 +224,8 @@ window.addEventListener('blur', () => setTimeout(() => { if (!document.hasFocus(
 window.roar = {
   open(isNewTab, url) {
     newTab = isNewTab;
+    submenu = null;
+    q.placeholder = 'Search, enter an address, or type > for commands';
     q.value = url || '';
     q.focus();
     q.select();

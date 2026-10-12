@@ -1,5 +1,7 @@
 #include "controller.h"
 
+#include "action_watch.h"
+
 #include <algorithm>
 #include <cctype>
 #include <cmath>
@@ -32,6 +34,10 @@ namespace roar {
 
 namespace {
 
+// contexts_ key of the profile ghost tabs share.
+constexpr int kGhostContext = -1;
+// A direct child of the root cache path, as Chrome-style CEF requires.
+std::string GhostDir(int session) { return State::Get().Dir() + "/Ghost-" + std::to_string(session); }
 constexpr int kSidebarMin = 200;
 constexpr int kSidebarMax = 480;
 int SidebarWidth() {
@@ -101,14 +107,157 @@ class TabViewDelegate : public CefBrowserViewDelegate {
 
 // An extension's action popup: sizes itself to its page like Chrome's bubble.
 // Pages that size to their window (Bitwarden) report no width, hence the floor.
+// The popup lives in its own focused window, so "the active tab in the current
+// window" is the popup itself, both for the popup page and for the extension's
+// service worker (Violentmonkey: "cannot run userscripts in this page"). A shim
+// in both answers that query with the Roar tab underneath instead: matched by
+// URL, else the most recently used tab in another window (an extension without
+// the tabs permission sees no URLs). Chrome won't inject DevTools scripts into
+// extension pages, so the popup starts blank, a breakpoint pauses it on the
+// extension's first line and the shim goes in there; the worker is reached by
+// attaching to it from the popup's DevTools session once the page runs.
 class ExtensionPopupViewDelegate : public CefBrowserViewDelegate {
  public:
+  ExtensionPopupViewDelegate(const std::string& url, const std::string& tab_url)
+      : url_(url), tab_url_(tab_url) {}
   cef_runtime_style_t GetBrowserRuntimeStyle() override { return CEF_RUNTIME_STYLE_CHROME; }
   void OnBrowserCreated(CefRefPtr<CefBrowserView> view, CefRefPtr<CefBrowser> browser) override {
-    browser->GetHost()->SetAutoResizeEnabled(true, CefSize(360, 120), CefSize(800, 600));
+    auto host = browser->GetHost();
+    registration_ = host->AddDevToolsMessageObserver(new ShimInstaller(url_, tab_url_));
+    host->ExecuteDevToolsMethod(ShimInstaller::kEnable, "Debugger.enable", nullptr);
   }
 
  private:
+  // Steps: enable the debugger, patch the worker if it is awake, set the
+  // breakpoint, load the page, patch it when it pauses, then patch the worker
+  // again in case the page just woke it. Fixed ids, because a result can
+  // arrive before ExecuteDevToolsMethod returns.
+  class ShimInstaller : public CefDevToolsMessageObserver {
+   public:
+    enum { kEnable = 1 << 20, kTargets, kAttach, kWorkerEval, kBreakpoint, kEval, kDisable };
+    ShimInstaller(const std::string& url, const std::string& tab_url) : url_(url) {
+      static const char kShim[] = R"JS((() => {
+  const tabs = globalThis.chrome && chrome.tabs;
+  if (!tabs || !tabs.query || tabs.query.roar) return;
+  const want = %s, self = chrome.runtime.getURL(''), query = tabs.query.bind(tabs);
+  const underneath = async res => {
+    if (!res.length || !(res[0].url || res[0].pendingUrl || '').startsWith(self)) return res;
+    const others = (await query({})).filter(t => t.windowId !== res[0].windowId)
+                       .sort((a, b) => (b.lastAccessed || 0) - (a.lastAccessed || 0));
+    const hit = others.find(t => want && (t.url === want || t.pendingUrl === want)) || others[0];
+    return hit ? [hit] : res;
+  };
+  tabs.query = (info, cb) => {
+    let p = query(info);
+    if (info && info.active && (info.currentWindow || info.lastFocusedWindow)) p = p.then(underneath);
+    if (typeof cb !== 'function') return p;
+    p.then(cb);
+  };
+  tabs.query.roar = true;
+})())JS";
+      auto quoted = CefValue::Create();
+      quoted->SetString(tab_url);
+      shim_ = kShim;
+      shim_.replace(shim_.find("%s"), 2, ToJson(quoted));
+      // chrome-extension://<id>/, for finding this extension's worker.
+      origin_ = url.substr(0, url.find('/', strlen("chrome-extension://")) + 1);
+    }
+    void OnDevToolsEvent(CefRefPtr<CefBrowser> browser, const CefString& method,
+                         const void* params, size_t params_size) override {
+      if (method != "Debugger.paused") return;
+      auto host = browser->GetHost();
+      if (paused_) {
+        host->ExecuteDevToolsMethod(0, "Debugger.resume", nullptr);
+        return;
+      }
+      paused_ = true;
+      auto event = CefParseJSON(params, params_size, JSON_PARSER_RFC);
+      auto frames = event && event->GetDictionary() ? event->GetDictionary()->GetList("callFrames")
+                                                    : nullptr;
+      if (!frames || !frames->GetSize()) return Finish(host);
+      auto eval = CefDictionaryValue::Create();
+      eval->SetString("callFrameId", frames->GetDictionary(0)->GetString("callFrameId"));
+      eval->SetString("expression", shim_);
+      host->ExecuteDevToolsMethod(kEval, "Debugger.evaluateOnCallFrame", eval);
+    }
+    void OnDevToolsMethodResult(CefRefPtr<CefBrowser> browser, int message_id, bool success,
+                                const void* result, size_t result_size) override {
+      auto host = browser->GetHost();
+      auto value = success ? CefParseJSON(result, result_size, JSON_PARSER_RFC) : nullptr;
+      auto dict = value ? value->GetDictionary() : nullptr;
+      switch (message_id) {
+        case kEnable:
+          host->ExecuteDevToolsMethod(kTargets, "Target.getTargets", nullptr);
+          break;
+        case kTargets:
+          if (!AttachWorker(host, dict) && !loaded_) SetBreakpoint(host);
+          break;
+        case kAttach:
+          // Results on a flattened session don't come back here; messages are
+          // handled in order, so the worker is patched before the page loads.
+          if (dict) EvalInWorker(host, dict->GetString("sessionId"));
+          if (!loaded_) SetBreakpoint(host);
+          break;
+        case kBreakpoint:
+          // Load the extension page only once the breakpoint is in place.
+          loaded_ = true;
+          browser->GetMainFrame()->LoadURL(url_);
+          break;
+        case kEval:
+          Finish(host);
+          break;
+      }
+    }
+
+   private:
+    void SetBreakpoint(CefRefPtr<CefBrowserHost> host) {
+      auto params = CefDictionaryValue::Create();
+      params->SetString("urlRegex", "^chrome-extension://");
+      params->SetInt("lineNumber", 0);
+      host->ExecuteDevToolsMethod(kBreakpoint, "Debugger.setBreakpointByUrl", params);
+    }
+    bool AttachWorker(CefRefPtr<CefBrowserHost> host, CefRefPtr<CefDictionaryValue> targets) {
+      auto infos = targets ? targets->GetList("targetInfos") : nullptr;
+      for (size_t i = 0; infos && i < infos->GetSize(); ++i) {
+        auto info = infos->GetDictionary(i);
+        if (info->GetString("type").ToString() != "service_worker" ||
+            !StartsWith(info->GetString("url").ToString(), origin_))
+          continue;
+        auto attach = CefDictionaryValue::Create();
+        attach->SetString("targetId", info->GetString("targetId"));
+        attach->SetBool("flatten", true);
+        host->ExecuteDevToolsMethod(kAttach, "Target.attachToTarget", attach);
+        return true;
+      }
+      return false;
+    }
+    // Flattened sessions are addressed by a sessionId on the raw message.
+    void EvalInWorker(CefRefPtr<CefBrowserHost> host, const CefString& session) {
+      auto params = CefDictionaryValue::Create();
+      params->SetString("expression", shim_);
+      auto message = CefDictionaryValue::Create();
+      message->SetInt("id", kWorkerEval);
+      message->SetString("method", "Runtime.evaluate");
+      message->SetString("sessionId", session);
+      message->SetDictionary("params", params);
+      auto wrapped = CefValue::Create();
+      wrapped->SetDictionary(message);
+      std::string json = ToJson(wrapped);
+      host->SendDevToolsMessage(json.data(), json.size());
+    }
+    // Disabling the debugger drops the breakpoint and resumes the page.
+    // Auto-resize starts only now: sized while blank, the popup stays too big.
+    void Finish(CefRefPtr<CefBrowserHost> host) {
+      host->SetAutoResizeEnabled(true, CefSize(360, 120), CefSize(800, 600));
+      host->ExecuteDevToolsMethod(kDisable, "Debugger.disable", nullptr);
+      host->ExecuteDevToolsMethod(kTargets, "Target.getTargets", nullptr);
+    }
+    std::string url_, shim_, origin_;
+    bool paused_ = false, loaded_ = false;
+    IMPLEMENT_REFCOUNTING(ShimInstaller);
+  };
+  std::string url_, tab_url_;
+  CefRefPtr<CefRegistration> registration_;
   IMPLEMENT_REFCOUNTING(ExtensionPopupViewDelegate);
 };
 
@@ -417,9 +566,11 @@ Controller* Controller::Get() {
 void Controller::Start() {
   CEF_REQUIRE_UI_THREAD();
   client_ = new Client();
+  action_watch::Start([](const std::string& json) { Controller::Get()->PushActions(json); });
   State& state = State::Get();
   state.Load();
   platform::InstallMenu();
+  if (platform::Headless()) platform::InstallStatusItem();
   DisablePasswordManager(CefRequestContext::GetGlobalContext());
 
   shell_ = CefWindow::CreateTopLevelWindow(new ShellDelegate());
@@ -467,6 +618,7 @@ void Controller::Start() {
     ActivateTab(NewTab(kNewTabUrl, false));
   }
 
+  if (platform::Headless()) platform::HideApp();
   AutoArchiveTick();
   GitHubTick();
 }
@@ -486,23 +638,24 @@ void Controller::Quit() {
 // Tabs
 
 int Controller::NewTab(const std::string& url, bool activate, bool pinned, double last_active,
-                       int space) {
+                       int space, bool ghost) {
   CEF_REQUIRE_UI_THREAD();
   Tab tab;
   tab.id = next_id_++;
   tab.space = space < 0 || !State::Get().FindSpace(space) ? State::Get().active_space : space;
   tab.url = url.empty() ? kNewTabUrl : url;
   tab.title = tab.url;
-  tab.pinned = pinned;
+  tab.ghost = ghost;
+  tab.pinned = pinned && !ghost;
   tab.last_active = last_active > 0 ? last_active : NowSeconds();
   if (auto it = State::Get().history.find(SpaceKey(tab.space, tab.url));
       it != State::Get().history.end())
     tab.title = it->second.title.empty() ? tab.url : it->second.title;
   // The browser is created with the tab's window, on first activation.
-  tab.view = CreateTabView(tab.url, tab.space);
+  tab.view = CreateTabView(tab.url, tab.space, ghost);
   // New tabs open beside the active one, after any pinned tabs.
   auto pos = tabs_.end();
-  if (auto* active = ActiveTab(); active && !pinned && active->space == tab.space) {
+  if (auto* active = ActiveTab(); active && !tab.pinned && active->space == tab.space) {
     pos = std::find_if(tabs_.begin(), tabs_.end(),
                        [&](const Tab& t) { return t.id == active->id; }) + 1;
   }
@@ -558,8 +711,14 @@ CefRefPtr<CefRequestContext> Controller::ContextFor(int space) {
   auto& ctx = contexts_[space];
   if (!ctx) {
     CefRequestContextSettings settings;
-    CefString(&settings.cache_path) = State::Get().ProfileDir(space);
-    settings.persist_session_cookies = true;
+    if (space == kGhostContext) {
+      // A throwaway profile per ghost session. CEF's in-memory profile is one
+      // shared incognito profile that keeps its cookies until Roar quits.
+      CefString(&settings.cache_path) = GhostDir(++ghost_session_);
+    } else {
+      CefString(&settings.cache_path) = State::Get().ProfileDir(space);
+      settings.persist_session_cookies = true;
+    }
     ctx = CefRequestContext::CreateContext(settings, new SpaceContextHandler(space));
     ctx->RegisterSchemeHandlerFactory(kScheme, "ui", NewUiSchemeFactory());
   }
@@ -569,12 +728,26 @@ CefRefPtr<CefRequestContext> Controller::ContextFor(int space) {
 void Controller::OnSpaceReady(int space) {
   ready_spaces_.insert(space);
   for (auto& t : tabs_)
-    if (t.space == space && !t.view) t.view = CreateTabView(t.url, space);
+    if ((t.ghost ? kGhostContext : t.space) == space && !t.view) t.view = CreateTabView(t.url, t.space, t.ghost);
   SyncWindows();
-  if (Tab* t = ActiveTab(); t && t->space == space) FocusTab(t);
+  if (Tab* t = ActiveTab(); t && (t->ghost ? kGhostContext : t->space) == space) FocusTab(t);
 }
 
-CefRefPtr<CefBrowserView> Controller::CreateTabView(const std::string& url, int space) {
+// Ends the ghost session once its last tab closes: the next ghost tab starts
+// with no cookies, logins or cache.
+void Controller::EndGhostSession() {
+  auto it = contexts_.find(kGhostContext);
+  if (it == contexts_.end()) return;
+  contexts_.erase(it);
+  ready_spaces_.erase(kGhostContext);
+  // Chromium may still hold files open; deleting on macOS unlinks them anyway,
+  // and launch removes any Ghost-* left behind.
+  std::error_code ec;
+  std::filesystem::remove_all(GhostDir(ghost_session_), ec);
+}
+
+CefRefPtr<CefBrowserView> Controller::CreateTabView(const std::string& url, int space, bool ghost) {
+  if (ghost) space = kGhostContext;
   // A space's profile loads asynchronously and CEF returns no view until it
   // has; OnSpaceReady creates the view for tabs left pending here.
   if (space != 0 && !ready_spaces_.count(space)) {
@@ -678,6 +851,8 @@ void Controller::CloseTab(int id) {
   tabs_.erase(it);
   if (id == split_a_ || id == split_b_) split_a_ = split_b_ = 0;
   if (tab.group) DropGroupIfEmpty(tab.group);
+  if (tab.ghost && std::none_of(tabs_.begin(), tabs_.end(), [](const Tab& t) { return t.ghost; }))
+    EndGhostSession();
   // Reading a PR or message changes the list; refetch once it's closed.
   if (!tab.folder.empty()) {
     std::string folder = tab.folder;
@@ -735,14 +910,14 @@ void Controller::Navigate(int id, const std::string& url) {
     browser->GetMainFrame()->LoadURL(url);
   } else if (!tab->window) {
     // Not created yet: start it at the new address instead.
-    tab->view = CreateTabView(url, tab->space);
+    tab->view = CreateTabView(url, tab->space, tab->ghost);
   }
   PushSidebar();
 }
 
 void Controller::SetPinned(int id, bool pinned) {
   auto it = std::find_if(tabs_.begin(), tabs_.end(), [&](const Tab& t) { return t.id == id; });
-  if (it == tabs_.end()) return;
+  if (it == tabs_.end() || it->ghost) return;
   Tab tab = *it;
   tab.pinned = pinned;
   int old_group = tab.group;
@@ -772,6 +947,7 @@ void Controller::CloseActiveUnlessKept() {
 
 void Controller::SetGroup(int id, int group) {
   Tab* tab = FindTab(id);
+  if (tab && tab->ghost) return;
   State& state = State::Get();
   TabGroup* g = state.FindGroup(group);
   if (!tab || (group && (!g || g->space != tab->space))) return;
@@ -841,6 +1017,7 @@ bool Controller::IsUiBrowser(CefRefPtr<CefBrowser> browser) const {
 void Controller::ShowCommandBar(bool new_tab) {
   if (!command_window_) return;
   command_new_tab_ = new_tab;
+  command_ghost_ = false;
   command_visible_ = true;
   Relayout();
   std::string url;
@@ -885,6 +1062,7 @@ void Controller::ShowHint(const std::string& text) {
 void Controller::ArchiveTab(int id) {
   Tab* tab = FindTab(id);
   if (!tab) return;
+  if (tab->ghost) return CloseTab(id);
   State::Get().AddArchived(tab->space, tab->url, tab->title);
   CloseTab(id);
 }
@@ -932,7 +1110,21 @@ void Controller::RestoreArchived(size_t index) {
   NewTab(item.url, true, false, 0, item.space);
 }
 
-void Controller::ExtractActive(bool save) {
+// Chat apps "Ask <name> about page" opens, by command id suffix.
+struct Llm {
+  const char* id;
+  const char* name;
+  const char* url;
+};
+constexpr Llm kLlms[] = {
+    {"chatgpt", "ChatGPT", "https://chatgpt.com/"},
+    {"claude", "Claude", "https://claude.ai/new"},
+    {"gemini", "Gemini", "https://gemini.google.com/app"},
+    {"perplexity", "Perplexity", "https://www.perplexity.ai/"},
+};
+constexpr size_t kLlmMaxChars = 100000;
+
+void Controller::ExtractActive(const std::string& target) {
   Tab* tab = ActiveTab();
   if (!tab || !(tab->view ? tab->view->GetBrowser() : nullptr)) return;
   if (!StartsWith(tab->url, "http")) {
@@ -940,7 +1132,7 @@ void Controller::ExtractActive(bool save) {
     return;
   }
   std::string nonce = platform::RandomToken();
-  extracts_[nonce] = {tab->id, save};
+  extracts_[nonce] = {tab->id, target};
   std::string script = platform::ReadResource("ui/extract.js");
   ExecuteScript(tab->id, script + "\n;window.__roarExtract && window.__roarExtract(" +
                              JsString(nonce) + ");");
@@ -1402,8 +1594,9 @@ void Controller::SavePagesSoon() {
 void Controller::RunCommand(const std::string& id) {
   if (id == "quit") Quit();
   else if (id == "clean") CleanTabs();
-  else if (id == "copyMarkdown") ExtractActive(false);
-  else if (id == "saveMarkdown") ExtractActive(true);
+  else if (id == "copyMarkdown") ExtractActive("copy");
+  else if (id == "saveMarkdown") ExtractActive("save");
+  else if (StartsWith(id, "askLlm:")) ExtractActive(id.substr(7));
   else if (id == "pip") PictureInPicture();
   else if (id == "float") FloatActiveTab();
   else if (id == "back") Back();
@@ -1431,6 +1624,7 @@ void Controller::RunCommand(const std::string& id) {
   }
   else if (StartsWith(id, "extension:")) NewTab("chrome://extensions/?id=" + id.substr(10), true);
   else if (id == "newTab") ShowCommandBar(true);
+  else if (id == "newGhostTab") ShowCommandBar(true), command_ghost_ = true;
   else if (id == "closeTab") CloseActiveUnlessKept();
   else if (StartsWith(id, "restore:")) RestoreArchived(std::atoi(id.c_str() + 8));
   else if (id == "reopen") {
@@ -1474,9 +1668,10 @@ std::string Controller::StateJson() {
   size_t shown = 0;
   for (size_t i = 0; i < tabs_.size(); ++i) {
     const Tab& t = tabs_[i];
-    if (t.space != state.active_space) continue;
+    if (t.space != state.active_space && !t.ghost) continue;
     auto d = CefDictionaryValue::Create();
     d->SetInt("id", t.id);
+    d->SetBool("ghost", t.ghost);
     d->SetString("title", t.title);
     d->SetString("url", t.url);
     d->SetString("favicon", t.favicon);
@@ -1594,6 +1789,13 @@ void Controller::PushSidebar() {
   auto browser = sidebar_ ? sidebar_->GetBrowser() : nullptr;
   if (!browser) return;
   browser->GetMainFrame()->ExecuteJavaScript("window.roar && roar.render(" + StateJson() + ")", "", 0);
+  Tab* tab = ActiveTab();
+  action_watch::SetActiveUrl(tab ? tab->url : "");
+}
+
+void Controller::PushActions(const std::string& json) {
+  auto browser = sidebar_ ? sidebar_->GetBrowser() : nullptr;
+  if (browser) browser->GetMainFrame()->ExecuteJavaScript("window.roar && roar.actions && roar.actions(" + json + ")", "", 0);
 }
 
 std::string Controller::Suggest(const std::string& raw) {
@@ -1794,14 +1996,32 @@ bool Controller::HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> 
     auto it = extracts_.find(msg->GetString("nonce").ToString());
     Tab* tab = FindTabByBrowser(browser);
     if (it == extracts_.end() || !tab || tab->id != it->second.tab_id) return false;
-    bool save = it->second.save;
+    std::string target = it->second.target;
     extracts_.erase(it);
+    const Llm* llm = nullptr;
+    for (const auto& l : kLlms)
+      if (target == l.id) llm = &l;
     std::string markdown = msg->GetString("markdown");
     std::string title = msg->GetString("title");
     int words = int_arg("words");
     if (markdown.empty()) {
       ShowHint("Couldn't find readable text on this page");
-    } else if (save) {
+    } else if (llm) {
+      std::string body = markdown;
+      if (body.size() > kLlmMaxChars) {
+        body.resize(kLlmMaxChars);
+        // Don't leave a split UTF-8 sequence at the cut.
+        while (!body.empty() && (static_cast<unsigned char>(body.back()) & 0xC0) == 0x80) body.pop_back();
+        if (!body.empty() && static_cast<unsigned char>(body.back()) >= 0xC0) body.pop_back();
+        body += "\n\n[Page truncated at " + std::to_string(kLlmMaxChars) + " characters]";
+      }
+      std::string text = "Page: " + title + "\nURL: " + tab->url + "\n\n```markdown\n" + body +
+                         "\n```\n\n";
+      platform::CopyText(text);
+      int id = NewTab(llm->url, true, false, 0, tab->space);
+      llm_fills_[id] = text;
+      ShowHint(std::string("Opening ") + llm->name + ", page also copied");
+    } else if (target == "save") {
       std::string path = platform::SaveMarkdown(title, markdown);
       ShowHint(path.empty() ? "Couldn't save to Downloads" : "Saved " + path.substr(path.rfind('/') + 1));
     } else {
@@ -1819,12 +2039,16 @@ bool Controller::HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> 
   } else if (cmd == "open") {
     std::string url = ResolveInput(msg->GetString("text"));
     bool new_tab = msg->HasKey("newTab") ? msg->GetBool("newTab") : command_new_tab_;
+    // Only the command bar opened by New Ghost Tab makes one.
+    auto bar = command_bar_ ? command_bar_->GetBrowser() : nullptr;
+    bool ghost = new_tab && command_ghost_ && bar && bar->IsSame(browser);
+    command_ghost_ = false;
     HideCommandBar();
     if (url.empty()) return callback->Success(""), true;
     Tab* tab = ActiveTab();
     // A blank new tab page is reused rather than left behind.
-    if (tab && tab->url == kNewTabUrl) new_tab = false;
-    if (new_tab || !tab) NewTab(url, true);
+    if (tab && tab->url == kNewTabUrl && tab->ghost == ghost) new_tab = false;
+    if (new_tab || !tab) NewTab(url, true, false, 0, -1, ghost);
     else Navigate(tab->id, url);
     callback->Success("");
   } else if (cmd == "folder.open") {
@@ -2006,6 +2230,8 @@ bool Controller::HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> 
     if (auto r = msg->GetList("readLater")) lib->SetList("readLater", r->Copy());
     library::Save();
     callback->Success("");
+  } else if (cmd == "extensions.actions") {
+    callback->Success(action_watch::StateJson());
   } else if (cmd == "extensions.list") {
     callback->Success(ExtensionsJson());
   } else if (cmd == "extensions.popup") {
@@ -2128,8 +2354,15 @@ void Controller::OnLoading(CefRefPtr<CefBrowser> browser, bool loading, bool can
   tab->can_back = can_back;
   tab->can_forward = can_forward;
   if (!loading) {
-    State::Get().RecordVisit(tab->space, tab->url, tab->title);
-    IndexPage(tab);
+    if (auto fill = llm_fills_.find(tab->id); fill != llm_fills_.end()) {
+      ExecuteScript(tab->id, platform::ReadResource("ui/llm-fill.js") +
+                                 "\n;window.__roarFill(" + JsString(fill->second) + ");");
+      llm_fills_.erase(fill);
+    }
+    if (!tab->ghost) {
+      State::Get().RecordVisit(tab->space, tab->url, tab->title);
+      IndexPage(tab);
+    }
   }
   PushSidebar();
 }
@@ -2200,11 +2433,12 @@ bool Controller::OnKey(CefRefPtr<CefBrowser> browser, const CefKeyEvent& event) 
   }
   if (shift && !alt) {
     switch (key) {
-      case 'C': ExtractActive(false); return true;
+      case 'C': ExtractActive("copy"); return true;
       case 'K': CleanTabs(); return true;
       case 'P': PictureInPicture(); return true;
       case 'F': FloatActiveTab(); return true;
       case 'T': RunCommand("reopen"); return true;
+      case 'N': RunCommand("newGhostTab"); return true;
       case 0xDB: CycleSpace(-1); return true;  // {
       case 0xDD: CycleSpace(1); return true;   // }
     }
@@ -2245,6 +2479,7 @@ void Controller::SaveNow() {
   state.tabs.clear();
   state.active_index = 0;
   for (const auto& t : tabs_) {
+    if (t.ghost) continue;
     if (t.id == active_id_) state.active_index = static_cast<int>(state.tabs.size());
     // Large data: favicons would bloat state.json; the page supplies them again on load.
     state.tabs.push_back({t.url, t.title, t.pinned, t.last_active, t.space, t.group, t.icon,
@@ -2262,9 +2497,10 @@ void Controller::ShowExtensionPopup(const std::string& url, int x, int y) {
   ext_popup_anchor_ = at;
   int space = State::Get().active_space;
   if (space != 0 && !ready_spaces_.count(space)) return;
-  auto view = CefBrowserView::CreateBrowserView(client_, url, CefBrowserSettings(), nullptr,
-                                                ContextFor(space),
-                                                new ExtensionPopupViewDelegate());
+  Tab* tab = ActiveTab();
+  auto view = CefBrowserView::CreateBrowserView(
+      client_, "about:blank", CefBrowserSettings(), nullptr, ContextFor(space),
+      new ExtensionPopupViewDelegate(url, tab ? tab->url : ""));
   ext_popup_ = CefWindow::CreateTopLevelWindow(
       new ExtensionPopupDelegate(view, CefRect(at.x, at.y, 25, 25)));
   platform::StyleWindow(ext_popup_->GetWindowHandle(), 10, true);

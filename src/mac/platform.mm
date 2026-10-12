@@ -27,6 +27,16 @@
 - (void)runCommand:(NSMenuItem*)sender {
   roar::Controller::Get()->RunCommand([sender.representedObject UTF8String]);
 }
+- (void)showRoar:(id)sender {
+  [NSApp activateIgnoringOtherApps:YES];
+  roar::Controller::Get()->Focus();
+}
+- (void)hideRoar:(id)sender {
+  [NSApp hide:nil];
+}
+- (void)quitRoar:(id)sender {
+  roar::Controller::Get()->Quit();
+}
 - (void)toggleSidebar:(id)sender {
   roar::Controller::Get()->RunCommand("sidebar");
 }
@@ -281,6 +291,35 @@ int CdpPort() {
   return port > 0 ? port : 9222;
 }
 
+bool Headless() {
+  for (NSString* arg in NSProcessInfo.processInfo.arguments)
+    if ([arg isEqualToString:@"--headless"] || [arg hasPrefix:@"--headless="]) return true;
+  return false;
+}
+
+void InstallStatusItem() {
+  static NSStatusItem* item = nil;
+  if (item) return;
+  item = [NSStatusBar.systemStatusBar statusItemWithLength:NSSquareStatusItemLength];
+  NSImage* icon = [NSImage imageNamed:NSImageNameApplicationIcon];
+  icon = [icon copy];
+  icon.size = NSMakeSize(18, 18);
+  item.button.image = icon;
+  item.button.toolTip = @"Roar (headless)";
+  NSMenu* menu = [[NSMenu alloc] init];
+  auto add = [&](NSString* title, SEL action) {
+    NSMenuItem* entry = [menu addItemWithTitle:title action:action keyEquivalent:@""];
+    entry.target = g_menu_target;
+  };
+  add(@"Show Roar", @selector(showRoar:));
+  add(@"Hide Roar", @selector(hideRoar:));
+  [menu addItem:[NSMenuItem separatorItem]];
+  add(@"Quit Roar", @selector(quitRoar:));
+  item.menu = menu;
+}
+
+void HideApp() { [NSApp hide:nil]; }
+
 void InstallMenu() {
   g_menu_target = [[RoarMenuTarget alloc] init];
   NSMutableArray<NSString*>* commands = [NSMutableArray array];
@@ -313,6 +352,7 @@ void InstallMenu() {
 
   NSMenu* file = addMenu(@"File");
   addCommand(file, @"New Tab", @"newTab", @"⌘T");
+  addCommand(file, @"New Ghost Tab", @"newGhostTab", @"⇧⌘N");
   addCommand(file, @"Reopen Archived Tab", @"reopen", @"⇧⌘T");
   addCommand(file, @"Close Tab", @"closeTab", @"⌘W");
   [file addItem:[NSMenuItem separatorItem]];

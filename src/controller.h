@@ -45,6 +45,9 @@ struct Tab {
   std::string folder;  // "mail" or "github": the space's one tab for that sidebar group's links.
   std::string folder_item;  // The folder link it opened; the sidebar shows the tab in its place.
   int group = 0;
+  // Ghost tab: an in-memory profile shared by all ghost tabs, never saved,
+  // archived or recorded in history. Shown in every space.
+  bool ghost = false;
 };
 
 class Controller {
@@ -61,7 +64,7 @@ class Controller {
   // Tabs. Ids are stable for the life of the process.
   // space < 0 means the active space.
   int NewTab(const std::string& url, bool activate, bool pinned = false, double last_active = 0,
-             int space = -1);
+             int space = -1, bool ghost = false);
   void ActivateTab(int id);
   void CloseTab(int id);
   void Navigate(int id, const std::string& url);
@@ -81,7 +84,8 @@ class Controller {
   void CleanTabs();
   void ClearArchive();
   void RestoreArchived(size_t index);
-  void ExtractActive(bool save);
+  // |target| is "copy", "save", or an LLM id from kLlms to open the page in.
+  void ExtractActive(const std::string& target);
   void PictureInPicture();
   void FloatActiveTab();
   void SetFaviconData(int tab_id, const std::string& url, const std::string& data);
@@ -100,6 +104,7 @@ class Controller {
   void OpenUiPage(const std::string& url);
   void OnSpaceReady(int space);
   std::string ExtensionsJson();
+  void PushActions(const std::string& json);
   void ShowExtensionPopup(const std::string& url, int x, int y);
   void CloseExtensionPopup();
   void OnExtensionPopupDestroyed(CefRefPtr<CefWindow> window);
@@ -137,6 +142,10 @@ class Controller {
   bool CanCloseTabWindow(CefRefPtr<CefWindow> window);
   void OnTabWindowCreated(CefRefPtr<CefWindow> window);
   void OnTabWindowActivated(CefRefPtr<CefWindow> window);
+  bool IsGhostBrowser(CefRefPtr<CefBrowser> browser) {
+    Tab* t = FindTabByBrowser(browser);
+    return t && t->ghost;
+  }
   void Relayout();
   void ApplySidebarWidth();
   void PollSidebarDragEnd();
@@ -155,7 +164,8 @@ class Controller {
   CefRect RectFor(int id);
   void SyncWindows();
   CefRefPtr<CefRequestContext> ContextFor(int space);
-  CefRefPtr<CefBrowserView> CreateTabView(const std::string& url, int space);
+  CefRefPtr<CefBrowserView> CreateTabView(const std::string& url, int space, bool ghost = false);
+  void EndGhostSession();
   void IndexPage(Tab* tab);
   void SavePagesSoon();
   void ShowTabWindow(Tab* tab);
@@ -185,6 +195,7 @@ class Controller {
   CefRefPtr<CefBrowserView> hint_;
   std::vector<Tab> tabs_;
   int next_id_ = 1;
+  int ghost_session_ = 0;  // Names the Ghost-<n> profile of the current ghost session.
   int active_id_ = 0;
   std::set<int> stray_seen_;  // Browsers outside Roar whose first address was seen.
   int gmail_refresh_gen_ = 0;  // Debounces refreshes while the mail tab navigates.
@@ -192,6 +203,7 @@ class Controller {
   int split_b_ = 0;
   int command_height_ = 0;
   bool command_new_tab_ = true;
+  bool command_ghost_ = false;  // The command bar opens a ghost tab.
   bool command_visible_ = false;
   bool sidebar_drag_poll_ = false;
   bool sidebar_visible_ = true;
@@ -203,9 +215,10 @@ class Controller {
 
   struct PendingExtract {
     int tab_id;
-    bool save;
+    std::string target;
   };
   std::map<std::string, PendingExtract> extracts_;
+  std::map<int, std::string> llm_fills_;  // Tab id -> text to put in its chat box.
   struct PendingIndex {
     int tab_id;
     std::string url;  // The page the nonce was issued to.

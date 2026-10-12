@@ -4,6 +4,7 @@
 #include "include/cef_application_mac.h"
 #include "include/wrapper/cef_library_loader.h"
 
+#include "action_watch.h"
 #include "browser_app.h"
 #include "controller.h"
 #include "mac/platform.h"
@@ -62,11 +63,14 @@ int main(int argc, char* argv[]) {
   if (!library_loader.LoadInMain()) return 1;
 
   CefMainArgs main_args(argc, argv);
+  roar::action_watch::PrepareMain();
   @autoreleasepool {
     [RoarApplication sharedApplication];
     RoarAppDelegate* delegate = [[RoarAppDelegate alloc] init];
     NSApp.delegate = delegate;
     CHECK([NSApp isKindOfClass:[RoarApplication class]]);
+    // Headless: a menu bar icon instead of a Dock icon (platform::InstallStatusItem).
+    if (roar::platform::Headless()) [NSApp setActivationPolicy:NSApplicationActivationPolicyAccessory];
 
     CefSettings settings;
     settings.no_sandbox = false;
@@ -84,7 +88,9 @@ int main(int argc, char* argv[]) {
     // Each Space's profile lives in <root>/Space-<id>.
     NSString* root = [NSString stringWithUTF8String:data_dir.c_str()];
     for (NSString* name in [NSFileManager.defaultManager contentsOfDirectoryAtPath:root error:nil])
-      if ([name hasPrefix:@"Space-"])
+      if ([name hasPrefix:@"Ghost-"])  // Ghost tab profiles from a previous run.
+        [NSFileManager.defaultManager removeItemAtPath:[root stringByAppendingPathComponent:name] error:nil];
+      else if ([name hasPrefix:@"Space-"])
         [NSFileManager.defaultManager
             removeItemAtPath:[[root stringByAppendingPathComponent:name]
                                  stringByAppendingPathComponent:@"Sessions"]

@@ -13,6 +13,11 @@ std::string RandomToken();
 int CdpPort();
 
 void InstallMenu();
+// Launched with --headless: Roar runs hidden with a menu bar icon instead of a
+// Dock icon. Chrome's own headless mode has no window to bring forward later.
+bool Headless();
+void InstallStatusItem();
+void HideApp();
 // Safari's Bookmarks.plist as {"bookmarks": [node...], "readingList": [{title, url}]},
 // or "" when it can't be read (Roar lacks Full Disk Access).
 std::string SafariBookmarksJson();
