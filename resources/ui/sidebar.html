@@ -137,6 +137,9 @@ body.drag-active .pinned:empty::before { content: 'Drop to pin'; color: var(--in
 
 .foot { flex: none; display: flex; align-items: center; gap: 7px; padding: 8px 14px 12px; color: var(--ink-3); font-size: 11px; border-top: 1px solid var(--rule); }
 .foot .wordmark { font-size: 15px; color: var(--ink-2); }
+.foot .brand { display: grid; grid-template-columns: auto auto; align-items: center; column-gap: 7px; }
+.foot .brand .space-name { grid-column: 1 / -1; line-height: 1.2; margin-top: 2px; }
+.foot .brand .space-name:empty { display: none; }
 .foot .cdp { font-family: var(--mono); font-size: 10.5px; }
 .foot .spacer { flex: 1; }
 .foot button { width: 24px; height: 24px; border-radius: 6px; display: grid; place-items: center; color: var(--ink-3); }
@@ -224,8 +227,8 @@ body.drag-active .pinned:empty::before { content: 'Drop to pin'; color: var(--in
 </div>
 <div class="ctx" id="ctx" hidden></div>
 <div class="foot">
-  <span class="lion" style="width:22px;height:22px" aria-hidden="true"></span><span class="wordmark">Roar</span>
-  <span class="space-name" id="space-name"></span>
+  <span class="brand"><span class="lion" style="width:22px;height:22px" aria-hidden="true"></span><span class="wordmark">Roar</span>
+  <span class="space-name" id="space-name"></span></span>
   <span class="spaces" id="spaces" role="group" aria-label="Spaces"></span>
   <div class="space-menu" id="space-menu" hidden><input id="space-rename" maxlength="40" aria-label="Space name" spellcheck="false"><button id="space-remove" title="Archive its tabs and remove the space">Remove</button><div class="swatches" id="swatches" role="group" aria-label="Space color"></div></div>
   <span class="cdp" id="cdp" title="Chrome DevTools Protocol endpoint"></span>
