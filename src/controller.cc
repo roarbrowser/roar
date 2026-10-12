@@ -3173,7 +3173,7 @@ bool Controller::OnKey(CefRefPtr<CefBrowser> browser, const CefKeyEvent& event) 
       case 'L': ShowCommandBar(false); return true;
       case 'W': CloseActiveUnlessKept(); return true;
       case 'R': Reload(); return true;
-      case 'S': ToggleSidebar(); return true;
+      case 'B': ToggleSidebar(); return true;
       case 0xDB: Back(); return true;     // [
       case 0xDD: Forward(); return true;  // ]
       case 0xBC: OpenSettings(); return true;  // ,

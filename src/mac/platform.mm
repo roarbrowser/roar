@@ -402,7 +402,7 @@ void InstallMenu() {
   addCommand(edit, @"Find in Page…", @"find", @"⌘F");
 
   NSMenu* view = addMenu(@"View");
-  addCommand(view, @"Toggle Sidebar", @"sidebar", @"⌘S");
+  addCommand(view, @"Toggle Sidebar", @"sidebar", @"⌘B");
   addCommand(view, @"Reload", @"reload", @"⌘R");
   addCommand(view, @"Back", @"back", @"⌘[");
   addCommand(view, @"Forward", @"forward", @"⌘]");
@@ -451,7 +451,7 @@ void SetSidebarButton(void* window, bool visible) {
     NSImage* icon = [NSImage imageWithSystemSymbolName:@"sidebar.left" accessibilityDescription:@"Show sidebar"];
     button = [NSButton buttonWithImage:icon target:g_menu_target action:@selector(toggleSidebar:)];
     button.bordered = NO;
-    button.toolTip = @"Show sidebar (⌘S)";
+    button.toolTip = @"Show sidebar (⌘B)";
     button.contentTintColor = NSColor.secondaryLabelColor;
   }
   NSView* frameView = w.contentView.superview;
