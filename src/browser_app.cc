@@ -116,7 +116,11 @@ void BrowserApp::OnBeforeCommandLineProcessing(const CefString& process_type,
   // Bundled uBlock Origin Lite: blocks ads and defuses anti-adblock scripts.
   // Chromium writes indexed rulesets into an unpacked extension's folder, so
   // load a copy from the data dir and keep the signed bundle untouched.
-  command_line->AppendSwitchWithValue("load-extension", StageUbol());
+  // Keep any --load-extension the user passed: this switch replaces, not adds.
+  std::string extensions = StageUbol();
+  if (command_line->HasSwitch("load-extension"))
+    extensions = command_line->GetSwitchValue("load-extension").ToString() + "," + extensions;
+  command_line->AppendSwitchWithValue("load-extension", extensions);
 }
 
 void BrowserApp::OnContextInitialized() {
