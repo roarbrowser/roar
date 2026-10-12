@@ -609,21 +609,29 @@ void ChooseLookback(void* window, const std::string& what, std::function<void(do
   NSAlert* alert = [[NSAlert alloc] init];
   alert.messageText = [NSString stringWithFormat:@"Clear %@ in this space", NS(what)];
   alert.informativeText = @"How far back?";
-  for (NSString* t in @[ @"Today", @"Last 7 Days", @"Last 14 Days", @"Last 30 Days", @"All Time", @"Cancel" ])
-    [alert addButtonWithTitle:t];
+  NSTextField* amount = [NSTextField textFieldWithString:@"1"];
+  amount.frame = NSMakeRect(0, 0, 60, 24);
+  NSNumberFormatter* digits = [[NSNumberFormatter alloc] init];
+  digits.minimum = @1;
+  digits.allowsFloats = NO;
+  amount.formatter = digits;
+  NSPopUpButton* unit = [[NSPopUpButton alloc] initWithFrame:NSMakeRect(68, 0, 120, 24) pullsDown:NO];
+  [unit addItemsWithTitles:@[ @"Hours", @"Days", @"Weeks", @"Months" ]];
+  [unit selectItemAtIndex:1];
+  NSView* box = [[NSView alloc] initWithFrame:NSMakeRect(0, 0, 188, 24)];
+  [box addSubview:amount];
+  [box addSubview:unit];
+  alert.accessoryView = box;
+  for (NSString* t in @[ @"Clear", @"All Time", @"Cancel" ]) [alert addButtonWithTitle:t];
   alert.buttons.lastObject.keyEquivalent = @"\e";
+  alert.window.initialFirstResponder = amount;
   [alert beginSheetModalForWindow:Win(window) ?: NSApp.keyWindow
                 completionHandler:^(NSModalResponse response) {
-                  NSDate* now = [NSDate date];
-                  double t = now.timeIntervalSince1970;
-                  switch (response - NSAlertFirstButtonReturn) {
-                    case 0: done([[NSCalendar currentCalendar] startOfDayForDate:now].timeIntervalSince1970); break;
-                    case 1: done(t - 7 * 86400); break;
-                    case 2: done(t - 14 * 86400); break;
-                    case 3: done(t - 30 * 86400); break;
-                    case 4: done(0); break;
-                    default: break;
-                  }
+                  if (response == NSAlertSecondButtonReturn) return done(0);
+                  if (response != NSAlertFirstButtonReturn) return;
+                  long n = MAX(1L, (long)amount.integerValue);
+                  static const double kUnit[] = {3600, 86400, 7 * 86400, 30 * 86400};
+                  done([NSDate date].timeIntervalSince1970 - n * kUnit[unit.indexOfSelectedItem]);
                 }];
 }
 
