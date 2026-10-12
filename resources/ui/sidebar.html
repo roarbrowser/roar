@@ -317,6 +317,7 @@ window.roar = {
     // Only shown with unread mail (or while its tab is open).
     $('gm-btn').hidden = !gm.enabled || gm.signedOut || !(gm.unread > 0 || s.tabs.some((t) => t.folder === 'mail'));
     $('gm-count').textContent = gm.unread || '';
+    $('gm-btn').title = (gm.accounts || []).map((a) => `${a.address}: ${a.unread} unread`).join('\n') || 'Unread mail';
     for (const b of document.querySelectorAll('.feed[hidden]')) $(b.dataset.feed).classList.remove('open');
     syncFeeds();
     $('gm').innerHTML = gm.status

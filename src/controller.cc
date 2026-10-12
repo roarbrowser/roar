@@ -2417,6 +2417,14 @@ std::string Controller::StateJson() {
   gm->SetInt("unread", feed.unread);
   gm->SetBool("signedOut", feed.signed_out);
   gm->SetString("account", feed.account);
+  auto accounts = CefListValue::Create();
+  for (size_t i = 0; i < feed.accounts.size(); ++i) {
+    auto d = CefDictionaryValue::Create();
+    d->SetString("address", feed.accounts[i].address);
+    d->SetInt("unread", feed.accounts[i].unread);
+    accounts->SetDictionary(i, d);
+  }
+  gm->SetList("accounts", accounts);
   auto mail = CefListValue::Create();
   for (size_t i = 0; i < feed.items.size(); ++i) {
     auto d = CefDictionaryValue::Create();
