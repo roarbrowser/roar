@@ -101,6 +101,7 @@
   add(menu, @"Back\t⌘[", @"back", nil);
   add(menu, @"Forward\t⌘]", @"forward", nil);
   add(menu, @"Reopen Closed Tab\t⇧⌘T", @"reopen", nil);
+  add(menu, @"Show All History\t⌘Y", @"history", nil);
   roar::State& state = roar::State::Get();
   // Only the active space: each space is its own profile.
   int space = state.active_space;
@@ -369,6 +370,7 @@ void InstallMenu() {
   addCommand(file, @"New Ghost Tab", @"newGhostTab", @"⇧⌘N");
   addCommand(file, @"Reopen Archived Tab", @"reopen", @"⇧⌘T");
   addCommand(file, @"Close Tab", @"closeTab", @"⌘W");
+  addCommand(file, @"Print…", @"print", @"⌘P");
   [file addItem:[NSMenuItem separatorItem]];
   addCommand(file, @"Copy Page as Markdown", @"copyMarkdown", @"⇧⌘C");
   addCommand(file, @"Save Page as Markdown", @"saveMarkdown", @"");
@@ -388,12 +390,19 @@ void InstallMenu() {
   [edit addItemWithTitle:@"Copy" action:@selector(copy:) keyEquivalent:@"c"];
   [edit addItemWithTitle:@"Paste" action:@selector(paste:) keyEquivalent:@"v"];
   [edit addItemWithTitle:@"Select All" action:@selector(selectAll:) keyEquivalent:@"a"];
+  [edit addItem:[NSMenuItem separatorItem]];
+  addCommand(edit, @"Find in Page…", @"find", @"⌘F");
 
   NSMenu* view = addMenu(@"View");
   addCommand(view, @"Toggle Sidebar", @"sidebar", @"⌘S");
   addCommand(view, @"Reload", @"reload", @"⌘R");
   addCommand(view, @"Back", @"back", @"⌘[");
   addCommand(view, @"Forward", @"forward", @"⌘]");
+  [view addItem:[NSMenuItem separatorItem]];
+  addCommand(view, @"Zoom In", @"zoomIn", @"⌘+");
+  addCommand(view, @"Zoom Out", @"zoomOut", @"⌘−");
+  addCommand(view, @"Actual Size", @"zoomReset", @"⌘0");
+  addCommand(view, @"Reader Mode", @"reader", @"⌥⌘R");
   [view addItem:[NSMenuItem separatorItem]];
   addCommand(view, @"Picture in Picture", @"pip", @"⇧⌘P");
   addCommand(view, @"Float Tab", @"float", @"⇧⌘F");
@@ -403,6 +412,8 @@ void InstallMenu() {
   NSMenu* tabs = addMenu(@"Tabs");
   addCommand(tabs, @"Clean Up Tabs", @"clean", @"⇧⌘K");
   addCommand(tabs, @"Pin or Unpin Tab", @"pin", @"⌘D");
+  addCommand(tabs, @"Mute or Unmute Tab", @"mute", @"");
+  addCommand(tabs, @"Show Downloads", @"downloads", @"⇧⌘J");
   addCommand(tabs, @"Refresh Pull Requests", @"github", @"");
   addCommand(tabs, @"Refresh Mail", @"gmail", @"");
 
@@ -633,6 +644,30 @@ void ChooseLookback(void* window, const std::string& what, std::function<void(do
                   static const double kUnit[] = {3600, 86400, 7 * 86400, 30 * 86400};
                   done([NSDate date].timeIntervalSince1970 - n * kUnit[unit.indexOfSelectedItem]);
                 }];
+}
+
+std::string UniqueDownloadPath(const std::string& name) {
+  NSFileManager* fm = NSFileManager.defaultManager;
+  NSURL* downloads = [fm URLsForDirectory:NSDownloadsDirectory inDomains:NSUserDomainMask].firstObject;
+  NSString* file = NS(name);
+  NSString* stem = file.stringByDeletingPathExtension;
+  NSString* ext = file.pathExtension;
+  NSURL* url = [downloads URLByAppendingPathComponent:file];
+  auto taken = [&](NSURL* u) {
+    return [fm fileExistsAtPath:u.path] || [fm fileExistsAtPath:[u.path stringByAppendingString:@".crdownload"]];
+  };
+  for (int i = 1; taken(url); ++i) {
+    NSString* next = ext.length ? [NSString stringWithFormat:@"%@ (%d).%@", stem, i, ext]
+                                : [NSString stringWithFormat:@"%@ (%d)", stem, i];
+    url = [downloads URLByAppendingPathComponent:next];
+  }
+  return url.path.UTF8String;
+}
+
+void RevealInFinder(const std::string& path) {
+  NSURL* url = [NSURL fileURLWithPath:NS(path)];
+  if ([NSFileManager.defaultManager fileExistsAtPath:url.path])
+    [NSWorkspace.sharedWorkspace activateFileViewerSelectingURLs:@[ url ]];
 }
 
 std::string SaveMarkdown(const std::string& title, const std::string& markdown) {

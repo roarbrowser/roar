@@ -51,6 +51,35 @@ void Client::OnDraggableRegionsChanged(CefRefPtr<CefBrowser> browser, CefRefPtr<
   Controller::Get()->OnDraggableRegions(browser, regions);
 }
 
+void Client::OnBeforeContextMenu(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> frame,
+                                 CefRefPtr<CefContextMenuParams> params,
+                                 CefRefPtr<CefMenuModel> model) {
+  Controller::Get()->BuildContextMenu(browser, params, model);
+}
+
+bool Client::OnContextMenuCommand(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> frame,
+                                  CefRefPtr<CefContextMenuParams> params, int command_id,
+                                  EventFlags event_flags) {
+  return Controller::Get()->OnContextMenuCommand(browser, params, command_id);
+}
+
+bool Client::OnBeforeDownload(CefRefPtr<CefBrowser> browser, CefRefPtr<CefDownloadItem> item,
+                              const CefString& suggested_name,
+                              CefRefPtr<CefBeforeDownloadCallback> callback) {
+  return Controller::Get()->OnBeforeDownload(browser, item, suggested_name, callback);
+}
+
+void Client::OnDownloadUpdated(CefRefPtr<CefBrowser> browser, CefRefPtr<CefDownloadItem> item,
+                               CefRefPtr<CefDownloadItemCallback> callback) {
+  Controller::Get()->OnDownloadUpdated(item, callback);
+}
+
+void Client::OnFindResult(CefRefPtr<CefBrowser> browser, int identifier, int count,
+                          const CefRect& selectionRect, int activeMatchOrdinal,
+                          bool finalUpdate) {
+  Controller::Get()->OnFindResult(browser, identifier, count, activeMatchOrdinal);
+}
+
 bool Client::OnAutoResize(CefRefPtr<CefBrowser> browser, const CefSize& new_size) {
   return Controller::Get()->OnExtensionPopupResize(browser, new_size);
 }

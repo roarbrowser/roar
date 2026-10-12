@@ -144,6 +144,11 @@ void State::Load() {
     settings.pinned_columns = static_cast<int>(Num(s, "pinnedColumns", 0));
     settings.pinned_centered = Bool(s, "pinnedCentered", false);
   }
+  if (auto z = d->GetDictionary("zoom")) {
+    CefDictionaryValue::KeyList keys;
+    z->GetKeys(keys);
+    for (const auto& k : keys) zoom[k.ToString()] = Num(z, k.ToString().c_str());
+  }
   if (auto list = d->GetList("spaces"); list && list->GetSize() > 0) {
     spaces.clear();
     for (size_t i = 0; i < list->GetSize(); ++i) {
@@ -238,6 +243,9 @@ void State::Save() {
   s->SetInt("pinnedColumns", settings.pinned_columns);
   s->SetBool("pinnedCentered", settings.pinned_centered);
   d->SetDictionary("settings", s);
+  auto zl = CefDictionaryValue::Create();
+  for (const auto& [host, level] : zoom) zl->SetDouble(host, level);
+  d->SetDictionary("zoom", zl);
   auto sl = CefListValue::Create();
   for (size_t i = 0; i < spaces.size(); ++i) {
     auto sp = CefDictionaryValue::Create();

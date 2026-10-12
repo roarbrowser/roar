@@ -51,6 +51,20 @@ constexpr int kGutter = 8;
 constexpr char kNewTabUrl[] = "roar://ui/newtab.html";
 constexpr char kWelcomeUrl[] = "roar://ui/welcome.html";
 constexpr char kBookmarksUrl[] = "roar://ui/bookmarks.html";
+constexpr char kHistoryUrl[] = "roar://ui/history.html";
+constexpr char kDownloadsUrl[] = "roar://ui/downloads.html";
+constexpr char kReaderUrl[] = "roar://ui/reader.html";
+constexpr int kFindWidth = 400;
+constexpr int kFindHeight = 46;
+// Page zoom steps, as Chrome offers them. Chromium's level is log base 1.2 of the factor.
+constexpr double kZoomFactors[] = {0.25, 0.33, 0.5, 0.67, 0.75, 0.8, 0.9, 1.0, 1.1,
+                                   1.25, 1.5, 1.75, 2.0, 2.5, 3.0, 4.0, 5.0};
+constexpr int kZoomActual = 7;
+// Custom context menu ids (CefContextMenuHandler); user ids start at MENU_ID_USER_FIRST.
+constexpr int kMenuSplit = MENU_ID_USER_FIRST;
+constexpr int kMenuMarkdown = MENU_ID_USER_FIRST + 1;
+constexpr int kMenuSpaceRoot = MENU_ID_USER_FIRST + 2;
+constexpr int kMenuSpaceBase = MENU_ID_USER_FIRST + 10;  // + index into State::spaces.
 
 std::string Lower(std::string s) {
   std::transform(s.begin(), s.end(), s.begin(), [](unsigned char c) { return std::tolower(c); });
@@ -58,6 +72,14 @@ std::string Lower(std::string s) {
 }
 
 bool StartsWith(const std::string& s, const std::string& p) { return s.rfind(p, 0) == 0; }
+
+// Host of an http(s) address, or "" for anything else.
+std::string HttpHost(const std::string& url) {
+  if (!StartsWith(url, "http://") && !StartsWith(url, "https://")) return "";
+  CefURLParts parts;
+  if (!CefParseURL(url, parts)) return "";
+  return Lower(CefString(&parts.host).ToString());
+}
 
 std::string ToJson(CefRefPtr<CefValue> v) { return CefWriteJSON(v, JSON_WRITER_DEFAULT); }
 
@@ -556,6 +578,58 @@ class SpaceContextHandler : public CefRequestContextHandler {
   IMPLEMENT_REFCOUNTING(SpaceContextHandler);
 };
 
+// Tells the controller when a tab's media starts or stops making sound. Chrome-style
+// CEF never calls CefAudioHandler, so this follows the DevTools Media domain: any
+// player event triggers a look at the page's media elements, repeated every 2s
+// while something plays so a mute or a stream that ends is noticed.
+class MediaWatcher : public CefDevToolsMessageObserver {
+ public:
+  static void Attach(CefRefPtr<CefBrowser> browser, CefRefPtr<CefRegistration>* registration) {
+    CefRefPtr<MediaWatcher> watcher = new MediaWatcher();
+    *registration = browser->GetHost()->AddDevToolsMessageObserver(watcher);
+    browser->GetHost()->ExecuteDevToolsMethod(0, "Media.enable", nullptr);
+  }
+  void OnDevToolsEvent(CefRefPtr<CefBrowser> browser, const CefString& method, const void* params,
+                       size_t params_size) override {
+    if (method.ToString().rfind("Media.player", 0) == 0) Schedule(browser, 300);
+  }
+  void OnDevToolsMethodResult(CefRefPtr<CefBrowser> browser, int message_id, bool success,
+                              const void* result, size_t result_size) override {
+    if (message_id != check_id_) return;
+    check_id_ = 0;
+    auto value = success ? CefParseJSON(result, result_size, JSON_PARSER_RFC) : nullptr;
+    auto dict = value && value->GetType() == VTYPE_DICTIONARY ? value->GetDictionary() : nullptr;
+    auto inner = dict ? dict->GetDictionary("result") : nullptr;
+    bool audible = inner && inner->GetType("value") == VTYPE_BOOL && inner->GetBool("value");
+    Controller::Get()->OnAudible(browser, audible);
+    if (audible) Schedule(browser, 2000);
+  }
+
+ private:
+  void Schedule(CefRefPtr<CefBrowser> browser, int delay_ms) {
+    if (scheduled_) return;
+    scheduled_ = true;
+    CefPostDelayedTask(TID_UI, base::BindOnce(&MediaWatcher::Check, CefRefPtr<MediaWatcher>(this), browser),
+                       delay_ms);
+  }
+  void Check(CefRefPtr<CefBrowser> browser) {
+    scheduled_ = false;
+    static const char kProbe[] = R"JS((() => {
+      for (const m of document.querySelectorAll('audio,video'))
+        if (!m.paused && !m.ended && !m.muted && m.volume > 0 && m.readyState > 2 &&
+            (m.tagName === 'AUDIO' || m.webkitAudioDecodedByteCount > 0)) return true;
+      return false;
+    })())JS";
+    auto params = CefDictionaryValue::Create();
+    params->SetString("expression", kProbe);
+    params->SetBool("returnByValue", true);
+    check_id_ = browser->GetHost()->ExecuteDevToolsMethod(0, "Runtime.evaluate", params);
+  }
+  bool scheduled_ = false;
+  int check_id_ = 0;
+  IMPLEMENT_REFCOUNTING(MediaWatcher);
+};
+
 }  // namespace
 
 Controller* Controller::Get() {
@@ -598,6 +672,9 @@ void Controller::Start() {
   hint_window_ = CefWindow::CreateTopLevelWindow(new PopupDelegate(hint_));
   platform::StyleWindow(hint_window_->GetWindowHandle(), 22, true);
   platform::SetIgnoresMouse(hint_window_->GetWindowHandle(), true);
+  find_ = CreateUiView(client_, "find.html");
+  find_window_ = CefWindow::CreateTopLevelWindow(new PopupDelegate(find_));
+  platform::StyleWindow(find_window_->GetWindowHandle(), 12, true);
 
   // Only pinned tabs and pinned groups come back on launch; the rest start
   // fresh, and unpinned groups go with their tabs.
@@ -814,6 +891,7 @@ void Controller::ActivateTab(int id) {
   Tab* tab = FindTab(id);
   if (!tab || !shell_) return;
   if (tab->floating) return DockTab(id);
+  if (find_visible_ && find_tab_ != id) HideFind(false);
   if (Tab* old = ActiveTab()) old->last_active = NowSeconds();
   // In split view, a tab picked from the same space replaces the focused pane.
   bool in_split = split_a_ && (active_id_ == split_a_ || active_id_ == split_b_);
@@ -839,6 +917,9 @@ void Controller::Relayout() {
     int h = command_height_ > 0 ? command_height_ : kCommandBarHeight;
     command_window_->SetBounds(CefRect(area.x + (area.width - w) / 2, area.y + 72, w, h));
   }
+  if (find_window_ && find_visible_)
+    find_window_->SetBounds(CefRect(area.x + std::max(0, area.width - kFindWidth - 16), area.y + 12,
+                                    kFindWidth, kFindHeight));
   if (hint_window_) {
     int w = std::min(kHintWidth, area.width - 32);
     hint_window_->SetBounds(CefRect(area.x + (area.width - w) / 2,
@@ -852,6 +933,7 @@ void Controller::CloseTab(int id) {
   Tab tab = *it;
   size_t index = it - tabs_.begin();
   tabs_.erase(it);
+  if (find_visible_ && find_tab_ == id) HideFind(false);
   if (id == split_a_ || id == split_b_) split_a_ = split_b_ = 0;
   if (tab.group) DropGroupIfEmpty(tab.group);
   if (tab.ghost && std::none_of(tabs_.begin(), tabs_.end(), [](const Tab& t) { return t.ghost; }))
@@ -1038,7 +1120,7 @@ Tab* Controller::FindTabByWindow(CefRefPtr<CefWindow> window) {
 }
 
 bool Controller::IsUiBrowser(CefRefPtr<CefBrowser> browser) const {
-  for (const auto& view : {sidebar_, command_bar_, hint_}) {
+  for (const auto& view : {sidebar_, command_bar_, hint_, find_}) {
     auto b = view ? view->GetBrowser() : nullptr;
     if (b && b->IsSame(browser)) return true;
   }
@@ -1160,8 +1242,8 @@ constexpr Llm kLlms[] = {
 };
 constexpr size_t kLlmMaxChars = 100000;
 
-void Controller::ExtractActive(const std::string& target) {
-  Tab* tab = ActiveTab();
+void Controller::ExtractActive(const std::string& target, int tab_id) {
+  Tab* tab = tab_id ? FindTab(tab_id) : ActiveTab();
   if (!tab || !(tab->view ? tab->view->GetBrowser() : nullptr)) return;
   if (!StartsWith(tab->url, "http")) {
     ShowHint("Open a web page first");
@@ -1639,6 +1721,15 @@ void Controller::RunCommand(const std::string& id) {
   else if (id == "copyMarkdown") ExtractActive("copy");
   else if (id == "saveMarkdown") ExtractActive("save");
   else if (StartsWith(id, "askLlm:")) ExtractActive(id.substr(7));
+  else if (id == "find") ShowFind();
+  else if (id == "zoomIn") ZoomStep(1);
+  else if (id == "zoomOut") ZoomStep(-1);
+  else if (id == "zoomReset") ZoomStep(0);
+  else if (id == "print") Print();
+  else if (id == "reader") ToggleReader();
+  else if (id == "mute") ToggleMute(active_id_);
+  else if (id == "downloads") OpenUiPage(kDownloadsUrl);
+  else if (id == "history") OpenUiPage(kHistoryUrl);
   else if (id == "pip") PictureInPicture();
   else if (id == "float") FloatActiveTab();
   else if (id == "back") Back();
@@ -1758,6 +1849,363 @@ void Controller::RunCommand(const std::string& id) {
 }
 
 // ---------------------------------------------------------------------------
+// Find, zoom, print, Reader mode, audio, tab cycling
+
+void Controller::ShowFind() {
+  Tab* tab = ActiveTab();
+  if (!find_window_ || !tab || !(tab->view ? tab->view->GetBrowser() : nullptr)) return;
+  HideCommandBar();
+  if (find_visible_ && find_tab_ != tab->id) HideFind(false);
+  find_tab_ = tab->id;
+  find_visible_ = true;
+  Relayout();
+  find_window_->Show();
+  platform::AttachChild(shell_->GetWindowHandle(), find_window_->GetWindowHandle());
+  find_window_->Activate();
+  if (auto browser = find_->GetBrowser()) {
+    browser->GetMainFrame()->ExecuteJavaScript("window.roar && roar.open(" + JsString(find_text_) + ")",
+                                               "", 0);
+    find_->RequestFocus();
+    browser->GetHost()->SetFocus(true);
+  }
+}
+
+void Controller::HideFind(bool refocus) {
+  if (!find_window_ || !find_visible_) return;
+  find_visible_ = false;
+  if (Tab* t = FindTab(find_tab_); t && t->view && t->view->GetBrowser())
+    t->view->GetBrowser()->GetHost()->StopFinding(true);
+  find_count_ = find_active_ = 0;
+  if (shell_) platform::DetachChild(shell_->GetWindowHandle(), find_window_->GetWindowHandle());
+  if (refocus) FocusTab(ActiveTab());
+}
+
+// ⌘G and ⇧⌘G: step through the last search, opening the bar if it is closed.
+void Controller::FindNext(bool forward) {
+  if (find_text_.empty()) return ShowFind();
+  Tab* t = ActiveTab();
+  auto b = t && t->view ? t->view->GetBrowser() : nullptr;
+  if (!b) return;
+  if (!find_visible_) ShowFind();
+  b->GetHost()->Find(find_text_, forward, false, true);
+}
+
+void Controller::OnFindResult(CefRefPtr<CefBrowser> browser, int identifier, int count, int active) {
+  Tab* t = FindTab(find_tab_);
+  auto b = t && t->view ? t->view->GetBrowser() : nullptr;
+  if (!find_visible_ || !b || !b->IsSame(browser)) return;
+  if (count >= 0) find_count_ = count;
+  if (active > 0) find_active_ = active;
+  // A new search highlights every match but selects none; step onto the first.
+  if (find_fresh_ && find_count_ > 0 && active == 0) {
+    find_fresh_ = false;
+    b->GetHost()->Find(find_text_, true, false, true);
+  }
+  if (find_count_ == 0) find_active_ = 0;
+  if (auto fb = find_ ? find_->GetBrowser() : nullptr)
+    fb->GetMainFrame()->ExecuteJavaScript("window.roar && roar.result(" + std::to_string(find_active_) +
+                                              "," + std::to_string(find_count_) + ")",
+                                          "", 0);
+}
+
+// ⌘+, ⌘− and ⌘0: step through Chrome's zoom levels for this tab's host, keep the
+// choice in state.json and apply it again whenever that host loads.
+void Controller::ZoomStep(int direction) {
+  Tab* tab = ActiveTab();
+  auto browser = tab && tab->view ? tab->view->GetBrowser() : nullptr;
+  std::string host = tab ? HttpHost(tab->url) : "";
+  if (!browser || host.empty()) return ShowHint("Zoom works on web pages");
+  constexpr int n = sizeof(kZoomFactors) / sizeof(kZoomFactors[0]);
+  double factor = std::pow(1.2, browser->GetHost()->GetZoomLevel());
+  int nearest = 0;
+  for (int i = 1; i < n; ++i)
+    if (std::fabs(kZoomFactors[i] - factor) < std::fabs(kZoomFactors[nearest] - factor)) nearest = i;
+  int index = direction == 0 ? kZoomActual : std::clamp(nearest + direction, 0, n - 1);
+  double level = index == kZoomActual ? 0 : std::log(kZoomFactors[index]) / std::log(1.2);
+  for (auto& t : tabs_)
+    if (HttpHost(t.url) == host && t.ghost == tab->ghost && t.view && t.view->GetBrowser())
+      t.view->GetBrowser()->GetHost()->SetZoomLevel(level);
+  if (!tab->ghost) {  // A ghost tab's zoom must not leave its host name on disk.
+    if (index == kZoomActual) State::Get().zoom.erase(host);
+    else State::Get().zoom[host] = level;
+    SaveSoon();
+  }
+  ShowHint("Zoom " + std::to_string(static_cast<int>(std::lround(kZoomFactors[index] * 100))) + "%");
+}
+
+void Controller::ApplyZoom(CefRefPtr<CefBrowser> browser, const std::string& url) {
+  Tab* tab = FindTabByBrowser(browser);
+  std::string host = HttpHost(url);
+  if (!tab || tab->ghost || host.empty()) return;
+  auto it = State::Get().zoom.find(host);
+  double level = it == State::Get().zoom.end() ? 0 : it->second;
+  if (std::fabs(browser->GetHost()->GetZoomLevel() - level) > 0.001)
+    browser->GetHost()->SetZoomLevel(level);
+}
+
+void Controller::Print() {
+  Tab* tab = ActiveTab();
+  auto browser = tab && tab->view ? tab->view->GetBrowser() : nullptr;
+  if (!browser) return;
+  HideCommandBar();
+  browser->GetHost()->Print();
+}
+
+// Reader mode: extract.js pulls the article, roar://ui/reader.html renders it in
+// the same tab. Toggling again returns to the article's own address.
+void Controller::ToggleReader() {
+  Tab* tab = ActiveTab();
+  if (!tab) return;
+  if (StartsWith(tab->url, kReaderUrl)) {
+    if (!tab->reader_origin.empty()) Navigate(tab->id, tab->reader_origin);
+    return;
+  }
+  ExtractActive("reader");
+}
+
+void Controller::ToggleMute(int id) {
+  Tab* tab = FindTab(id);
+  auto browser = tab && tab->view ? tab->view->GetBrowser() : nullptr;
+  if (!browser) return;
+  bool muted = !browser->GetHost()->IsAudioMuted();
+  browser->GetHost()->SetAudioMuted(muted);
+  tab->muted = muted;
+  PushSidebar();
+  ShowHint(muted ? "Tab muted" : "Tab unmuted");
+}
+
+void Controller::OnAudible(CefRefPtr<CefBrowser> browser, bool audible) {
+  Tab* tab = FindTabByBrowser(browser);
+  if (!tab || tab->audible == audible) return;
+  tab->audible = audible;
+  PushSidebar();
+}
+
+// ⌃Tab walks the space's tabs from most to least recently used; ⌃⇧Tab goes the
+// other way. The order is frozen while presses keep coming (we only see key
+// downs, so a pause ends the run), and tabs passed on the way don't count as used.
+void Controller::CycleTabs(int step) {
+  double now = NowSeconds();
+  Tab* current = ActiveTab();
+  if (!current) return;
+  if (cycle_order_.empty() || now - cycle_at_ > 1.2) {
+    std::vector<const Tab*> list;
+    for (const auto& t : tabs_)
+      if ((t.space == State::Get().active_space || t.ghost) && !t.floating) list.push_back(&t);
+    std::stable_sort(list.begin(), list.end(),
+                     [&](const Tab* a, const Tab* b) {
+                       if (a->id == current->id || b->id == current->id) return a->id == current->id && b->id != current->id;
+                       return a->last_active > b->last_active;
+                     });
+    cycle_order_.clear();
+    cycle_saved_.clear();
+    for (const Tab* t : list) {
+      cycle_order_.push_back(t->id);
+      cycle_saved_[t->id] = t->last_active;
+    }
+    cycle_index_ = 0;
+  }
+  cycle_at_ = now;
+  std::erase_if(cycle_order_, [&](int id) { return !FindTab(id); });
+  int n = static_cast<int>(cycle_order_.size());
+  if (n < 2) return;
+  cycle_index_ = static_cast<size_t>(((static_cast<int>(cycle_index_) + step) % n + n) % n);
+  int target = cycle_order_[cycle_index_];
+  int start = cycle_order_[0];
+  ActivateTab(target);
+  for (const auto& [id, saved] : cycle_saved_)
+    if (Tab* t = FindTab(id); t && id != target) t->last_active = id == start ? now - 1 : saved;
+  if (Tab* t = FindTab(target)) ShowHint(t->title.empty() ? HttpHost(t->url) : t->title);
+}
+
+// ---------------------------------------------------------------------------
+// Downloads
+
+bool Controller::OnBeforeDownload(CefRefPtr<CefBrowser> browser, CefRefPtr<CefDownloadItem> item,
+                                  const std::string& suggested_name,
+                                  CefRefPtr<CefBeforeDownloadCallback> callback) {
+  std::string name = suggested_name;
+  for (char& c : name)
+    if (c == '/' || c == '\\' || c == ':' || static_cast<unsigned char>(c) < 0x20) c = '_';
+  if (name.empty() || name == "." || name == "..") name = "download";
+  std::string path = platform::UniqueDownloadPath(name);
+  Download d;
+  d.id = next_download_++;
+  d.item_id = static_cast<int>(item->GetId());
+  d.name = path.substr(path.rfind('/') + 1);
+  d.path = path;
+  d.url = item->GetURL();
+  d.total = item->GetTotalBytes();
+  downloads_.push_back(d);
+  callback->Continue(path, false);
+  PushSidebar();
+  ShowHint("Downloading " + d.name);
+  return true;
+}
+
+void Controller::OnDownloadUpdated(CefRefPtr<CefDownloadItem> item,
+                                   CefRefPtr<CefDownloadItemCallback> callback) {
+  if (!item->IsValid()) return;
+  std::string url = item->GetURL();
+  Download* d = nullptr;
+  for (auto& x : downloads_)
+    if (x.item_id == static_cast<int>(item->GetId()) && x.url == url && !x.done && !x.canceled && !x.failed)
+      d = &x;
+  if (!d) return;  // Finished already: the last update after completion.
+  d->received = item->GetReceivedBytes();
+  d->total = item->GetTotalBytes();
+  d->speed = item->GetCurrentSpeed();
+  bool was_done = d->done;
+  d->done = item->IsComplete();
+  d->canceled = item->IsCanceled();
+  d->failed = item->IsInterrupted() && !d->canceled;
+  d->control = item->IsInProgress() ? callback : nullptr;
+  if (d->done && !item->GetFullPath().empty()) d->path = item->GetFullPath();
+  if (d->done && !was_done) {
+    d->name = d->path.substr(d->path.rfind('/') + 1);
+    ShowHint("Downloaded " + d->name);
+  } else if (d->canceled) {
+    ShowHint("Canceled " + d->name);
+  } else if (d->failed) {
+    ShowHint("Download failed: " + d->name);
+  }
+  PushSidebar();
+}
+
+std::string Controller::DownloadsJson() {
+  auto list = CefListValue::Create();
+  for (auto it = downloads_.rbegin(); it != downloads_.rend(); ++it) {
+    auto d = CefDictionaryValue::Create();
+    d->SetInt("id", it->id);
+    d->SetString("name", it->name);
+    d->SetString("url", it->url);
+    d->SetString("path", it->done ? it->path : "");
+    d->SetDouble("received", static_cast<double>(it->received));
+    d->SetDouble("total", static_cast<double>(it->total));
+    d->SetDouble("speed", static_cast<double>(it->speed));
+    d->SetString("status", it->done ? "done" : it->canceled ? "canceled" : it->failed ? "failed" : "active");
+    list->SetDictionary(list->GetSize(), d);
+  }
+  return ToJson(Wrap(list));
+}
+
+// ---------------------------------------------------------------------------
+// History page
+
+std::string Controller::HistoryJson(const std::string& raw) {
+  State& state = State::Get();
+  std::vector<std::string> words;
+  std::string q = Lower(raw);
+  for (size_t start = 0; start < q.size();) {
+    size_t end = q.find(' ', start);
+    if (end == std::string::npos) end = q.size();
+    if (end > start) words.push_back(q.substr(start, end - start));
+    start = end + 1;
+  }
+  struct Row {
+    std::string title, url;
+    int visits;
+    double when;
+  };
+  std::vector<Row> rows;
+  for (const auto& [key, e] : state.history) {
+    if (e.space != state.active_space) continue;
+    std::string url = e.space == 0 ? key : key.substr(key.find('\t') + 1);
+    std::string hay = Lower(e.title + " " + url);
+    bool all = true;
+    for (const auto& w : words)
+      if (hay.find(w) == std::string::npos) all = false;
+    if (all) rows.push_back({e.title, url, e.visits, e.last_visit});
+  }
+  std::sort(rows.begin(), rows.end(), [](const Row& a, const Row& b) { return a.when > b.when; });
+  auto list = CefListValue::Create();
+  for (size_t i = 0; i < rows.size() && i < 500; ++i) {
+    auto d = CefDictionaryValue::Create();
+    d->SetString("title", rows[i].title);
+    d->SetString("url", rows[i].url);
+    d->SetInt("visits", rows[i].visits);
+    d->SetDouble("lastVisit", rows[i].when);
+    list->SetDictionary(i, d);
+  }
+  auto root = CefDictionaryValue::Create();
+  root->SetList("entries", list);
+  root->SetInt("total", static_cast<int>(rows.size()));
+  for (const auto& s : state.spaces)
+    if (s.id == state.active_space) root->SetString("space", s.name);
+  return ToJson(Wrap(root));
+}
+
+// ---------------------------------------------------------------------------
+// Context menu
+
+void Controller::BuildContextMenu(CefRefPtr<CefBrowser> browser, CefRefPtr<CefContextMenuParams> params,
+                                  CefRefPtr<CefMenuModel> model) {
+  Tab* tab = FindTabByBrowser(browser);
+  if (!tab) return;
+  std::string link = params->GetLinkUrl();
+  bool is_link = (params->GetTypeFlags() & CM_TYPEFLAG_LINK) && HttpHost(link) != "";
+  model->AddSeparator();
+  if (is_link) {
+    model->AddItem(kMenuSplit, "Open Link in Split View");
+    // A ghost tab's links stay in the ghost session, so it has no space to send them to.
+    if (!tab->ghost) {
+      const auto& spaces = State::Get().spaces;
+      bool other = std::any_of(spaces.begin(), spaces.end(), [&](const Space& s) { return s.id != tab->space; });
+      if (other) {
+        auto sub = model->AddSubMenu(kMenuSpaceRoot, "Open Link in Space…");
+        for (size_t i = 0; sub && i < spaces.size(); ++i)
+          if (spaces[i].id != tab->space)
+            sub->AddItem(kMenuSpaceBase + static_cast<int>(i), spaces[i].name);
+      } else {
+        model->AddItem(kMenuSpaceRoot, "Open Link in Space…");
+        model->SetEnabled(kMenuSpaceRoot, false);
+      }
+    }
+  }
+  model->AddItem(kMenuMarkdown, "Copy Page as Markdown");
+}
+
+bool Controller::OnContextMenuCommand(CefRefPtr<CefBrowser> browser, CefRefPtr<CefContextMenuParams> params,
+                                      int command_id) {
+  Tab* tab = FindTabByBrowser(browser);
+  if (!tab) return false;
+  int tab_id = tab->id;
+  bool ghost = tab->ghost;
+  std::string link = params->GetLinkUrl();
+  if (command_id == kMenuMarkdown) {
+    ExtractActive("copy", tab_id);
+    return true;
+  }
+  if (command_id == kMenuSplit && HttpHost(link) != "") {
+    OpenInSplit(link, ghost);
+    return true;
+  }
+  const auto& spaces = State::Get().spaces;
+  int index = command_id - kMenuSpaceBase;
+  if (index >= 0 && index < static_cast<int>(spaces.size()) && HttpHost(link) != "" && !ghost) {
+    NewTab(link, false, false, 0, spaces[index].id);
+    ShowHint("Opened in " + spaces[index].name);
+    return true;
+  }
+  return false;
+}
+
+// Puts |url| beside the active tab. Already split: it replaces the focused pane.
+void Controller::OpenInSplit(const std::string& url, bool ghost) {
+  Tab* cur = ActiveTab();
+  if (!cur) return;
+  if (split_a_ && (cur->id == split_a_ || cur->id == split_b_)) {
+    NewTab(url, true, false, 0, cur->space, ghost);
+    return;
+  }
+  int first = cur->id;
+  int second = NewTab(url, false, false, 0, cur->space, ghost);
+  split_a_ = first;
+  split_b_ = second;
+  ActivateTab(second);
+}
+
+// ---------------------------------------------------------------------------
 // State for the UI
 
 std::string Controller::StateJson() {
@@ -1784,6 +2232,8 @@ std::string Controller::StateJson() {
     d->SetString("folderItem", t.folder_item);
     d->SetInt("group", t.group);
     d->SetBool("kept", IsKept(t));
+    d->SetBool("audible", t.audible);
+    d->SetBool("muted", t.muted);
     d->SetBool("split", split_a_ && (t.id == split_a_ || t.id == split_b_));
     d->SetDouble("idleSeconds", t.id == active_id_ ? 0 : std::max(0.0, now - t.last_active));
     tabs->SetDictionary(shown++, d);
@@ -1882,6 +2332,13 @@ std::string Controller::StateJson() {
     nav->SetString("url", t->url);
   }
   root->SetDictionary("nav", nav);
+  auto dl = CefDictionaryValue::Create();
+  int active_downloads = 0;
+  for (const auto& d : downloads_)
+    if (!d.done && !d.canceled && !d.failed) ++active_downloads;
+  dl->SetInt("count", static_cast<int>(downloads_.size()));
+  dl->SetInt("active", active_downloads);
+  root->SetDictionary("downloads", dl);
   return ToJson(Wrap(root));
 }
 
@@ -2121,6 +2578,11 @@ bool Controller::HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> 
       int id = NewTab(llm->url, true, false, 0, tab->space, tab->ghost);
       llm_fills_[id] = text;
       ShowHint(std::string("Opening ") + llm->name + ", page also copied");
+    } else if (target == "reader") {
+      tab->reader_origin = tab->url;
+      tab->reader_markdown = markdown;
+      tab->reader_title = title;
+      Navigate(tab->id, kReaderUrl);
     } else if (target == "save") {
       std::string path = platform::SaveMarkdown(title, markdown);
       ShowHint(path.empty() ? "Couldn't save to Downloads" : "Saved " + path.substr(path.rfind('/') + 1));
@@ -2340,6 +2802,58 @@ bool Controller::HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> 
   } else if (cmd == "space.remove") {
     RemoveSpace(int_arg("id"));
     callback->Success(StateJson());
+  } else if (cmd == "find") {
+    // The find bar's own page: text, direction, and whether to step to the next match.
+    Tab* t = FindTab(find_tab_);
+    auto b = t && t->view ? t->view->GetBrowser() : nullptr;
+    find_text_ = msg->GetString("text");
+    if (b && find_text_.empty()) {
+      b->GetHost()->StopFinding(true);
+      find_count_ = find_active_ = 0;
+      OnFindResult(b, 0, 0, 0);
+    } else if (b) {
+      bool next = msg->HasKey("next") && msg->GetBool("next");
+      find_fresh_ = !next;
+      b->GetHost()->Find(find_text_, !msg->HasKey("forward") || msg->GetBool("forward"), false, next);
+    }
+    callback->Success("");
+  } else if (cmd == "find.close") {
+    HideFind();
+    callback->Success("");
+  } else if (cmd == "downloads.list") {
+    callback->Success(DownloadsJson());
+  } else if (cmd == "downloads.cancel" || cmd == "downloads.reveal") {
+    int id = int_arg("id");
+    for (auto& d : downloads_) {
+      if (d.id != id) continue;
+      if (cmd == "downloads.cancel" && d.control) d.control->Cancel();
+      if (cmd == "downloads.reveal" && d.done) platform::RevealInFinder(d.path);
+    }
+    callback->Success("");
+  } else if (cmd == "downloads.clear") {
+    std::erase_if(downloads_, [](const Download& d) { return d.done || d.canceled || d.failed; });
+    PushSidebar();
+    callback->Success("");
+  } else if (cmd == "history.list") {
+    callback->Success(HistoryJson(msg->GetString("q")));
+  } else if (cmd == "history.remove") {
+    State& state = State::Get();
+    state.history.erase(SpaceKey(state.active_space, msg->GetString("url")));
+    SaveSoon();
+    callback->Success("");
+  } else if (cmd == "reader.get") {
+    // The Reader page asks for the article its own tab extracted.
+    Tab* t = FindTabByBrowser(browser);
+    auto d = CefDictionaryValue::Create();
+    if (t) {
+      d->SetString("markdown", t->reader_markdown);
+      d->SetString("title", t->reader_title);
+      d->SetString("url", t->reader_origin);
+    }
+    callback->Success(ToJson(Wrap(d)));
+  } else if (cmd == "tab.mute") {
+    ToggleMute(int_arg("id"));
+    callback->Success("");
   } else if (cmd == "github.status") {
     platform::GitHubAuthStatus([callback](std::string status) { callback->Success(status); });
   } else {
@@ -2353,10 +2867,14 @@ bool Controller::HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> 
 
 void Controller::OnBrowserCreated(CefRefPtr<CefBrowser> browser) {
   ++live_browsers_;
-  }
+  // Web tabs only: Roar's own pages play no sound.
+  if (!IsUiBrowser(browser) && !browser->IsPopup() && !IsExtensionPopup(browser))
+    MediaWatcher::Attach(browser, &media_watchers_[browser->GetIdentifier()]);
+}
 
 void Controller::OnBrowserClosed(CefRefPtr<CefBrowser> browser) {
   --live_browsers_;
+  media_watchers_.erase(browser->GetIdentifier());
   MaybeQuit();
 }
 
@@ -2386,6 +2904,12 @@ void Controller::OnAddress(CefRefPtr<CefBrowser> browser, const std::string& url
   }
   if (!tab) return;
   tab->url = url;
+  if (!tab->reader_origin.empty() && !StartsWith(url, kReaderUrl)) {
+    tab->reader_origin.clear();
+    tab->reader_markdown.clear();
+    tab->reader_title.clear();
+  }
+  ApplyZoom(browser, url);
   // Opening a message marks it read; refetch once the mail tab settles.
   if (tab->folder == "mail") {
     int gen = ++gmail_refresh_gen_;
@@ -2454,6 +2978,7 @@ void Controller::OnLoading(CefRefPtr<CefBrowser> browser, bool loading, bool can
   tab->can_back = can_back;
   tab->can_forward = can_forward;
   if (!loading) {
+    ApplyZoom(browser, tab->url);
     if (auto fill = llm_fills_.find(tab->id); fill != llm_fills_.end()) {
       ExecuteScript(tab->id, platform::ReadResource("ui/llm-fill.js") +
                                  "\n;window.__roarFill(" + JsString(fill->second) + ");");
@@ -2483,7 +3008,16 @@ bool Controller::OnKey(CefRefPtr<CefBrowser> browser, const CefKeyEvent& event) 
     HideCommandBar();
     return true;
   }
+  if (key == 0x1B && find_visible_ && find_ && find_->GetBrowser() &&
+      find_->GetBrowser()->IsSame(browser)) {
+    HideFind();
+    return true;
+  }
   bool ctrl = event.modifiers & EVENTFLAG_CONTROL_DOWN;
+  if (ctrl && !cmd && !alt && key == 0x09) {  // ⌃Tab, ⌃⇧Tab: most recently used first
+    CycleTabs(shift ? -1 : 1);
+    return true;
+  }
   // Keys in a floating mini window act on that tab, not the shell's active one.
   if (Tab* t = FindTabByBrowser(browser); t && t->floating && cmd && !ctrl && !alt) {
     if (!shift && (key == 'W' || key == 'R' || key == 0xDB || key == 0xDD)) {
@@ -2520,6 +3054,13 @@ bool Controller::OnKey(CefRefPtr<CefBrowser> browser, const CefKeyEvent& event) 
       case 0xBC: OpenSettings(); return true;  // ,
       case 0xDC: ToggleSplit(); return true;   // backslash
       case 'D': if (Tab* t = ActiveTab()) SetPinned(t->id, !t->pinned); return true;
+      case 'F': ShowFind(); return true;
+      case 'G': FindNext(true); return true;
+      case 'P': Print(); return true;
+      case 'Y': OpenUiPage(kHistoryUrl); return true;
+      case '0': ZoomStep(0); return true;
+      case 0xBB: ZoomStep(1); return true;   // =
+      case 0xBD: ZoomStep(-1); return true;  // -
     }
     if (key >= '1' && key <= '9') {
       // Counts tabs in the active space only.
@@ -2537,11 +3078,18 @@ bool Controller::OnKey(CefRefPtr<CefBrowser> browser, const CefKeyEvent& event) 
       case 'K': CleanTabs(); return true;
       case 'P': PictureInPicture(); return true;
       case 'F': FloatActiveTab(); return true;
+      case 'G': FindNext(false); return true;
+      case 'J': OpenUiPage(kDownloadsUrl); return true;
+      case 0xBB: ZoomStep(1); return true;  // ⇧= is +
       case 'T': RunCommand("reopen"); return true;
       case 'N': RunCommand("newGhostTab"); return true;
       case 0xDB: CycleSpace(-1); return true;  // {
       case 0xDD: CycleSpace(1); return true;   // }
     }
+  }
+  if (alt && !shift && key == 'R') {
+    ToggleReader();
+    return true;
   }
   if (alt && !shift && key == 'I') {
     RunCommand("devtools");
@@ -2582,7 +3130,7 @@ void Controller::SaveNow() {
     if (t.ghost) continue;
     if (t.id == active_id_) state.active_index = static_cast<int>(state.tabs.size());
     // Large data: favicons would bloat state.json; the page supplies them again on load.
-    state.tabs.push_back({t.pinned && !t.home_url.empty() ? t.home_url : t.url, t.title, t.pinned, t.last_active, t.space, t.group, t.icon,
+    state.tabs.push_back({!t.reader_origin.empty() ? t.reader_origin : t.pinned && !t.home_url.empty() ? t.home_url : t.url, t.title, t.pinned, t.last_active, t.space, t.group, t.icon,
                           t.favicon.size() <= 16 * 1024 ? t.favicon : ""});
   }
   state.Save();
@@ -2648,6 +3196,7 @@ bool Controller::CanCloseShell() {
     if (t.window) t.window->Close();
   if (command_window_) command_window_->Close();
   if (hint_window_) hint_window_->Close();
+  if (find_window_) find_window_->Close();
   CloseExtensionPopup();
   // A browser that never reports closing (a stray popup, a CDP-created page, a
   // page stuck in beforeunload) would keep MaybeQuit waiting forever. State is
@@ -2665,6 +3214,8 @@ void Controller::OnShellDestroyed() {
   command_window_ = nullptr;
   hint_ = nullptr;
   hint_window_ = nullptr;
+  find_ = nullptr;
+  find_window_ = nullptr;
   tabs_.clear();
   MaybeQuit();
 }

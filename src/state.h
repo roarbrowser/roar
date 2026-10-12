@@ -127,6 +127,8 @@ class State {
   int next_group_id = 1;
   TabGroup* FindGroup(int id);  // Never reused, so a new space never inherits an old profile.
   std::map<std::string, PageText> pages;
+  // Zoom level (Chromium's logarithmic scale, 0 = 100%) per host; hosts at 100% are absent.
+  std::map<std::string, double> zoom;
 
   void SavePages();
   void SetPageText(int space, const std::string& url, const std::string& title, const std::string& text);

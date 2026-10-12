@@ -45,6 +45,9 @@ void CopyText(const std::string& text);
 // background (scripts/update-cef.sh then scripts/deploy.sh).
 void CheckForUpdates(void* window);
 void ChooseLookback(void* window, const std::string& what, std::function<void(double since)> done);
+// A path in ~/Downloads for |name| that doesn't exist yet ("name (1).ext" and so on).
+std::string UniqueDownloadPath(const std::string& name);
+void RevealInFinder(const std::string& path);
 // Writes Markdown to ~/Downloads and returns the path, or "" on failure.
 std::string SaveMarkdown(const std::string& title, const std::string& markdown);
 

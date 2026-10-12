@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Downloads</title>
+<link rel="stylesheet" href="roar.css">
+<style>
+body { background: var(--panel); overflow-y: auto; overflow-x: hidden; }
+main { box-sizing: border-box; width: 100%; max-width: 760px; margin: 0 auto; padding: 48px 28px 96px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 18px; }
+header { display: flex; align-items: baseline; gap: 12px; }
+h1 { margin: 0; font: 800 34px/1 var(--round); letter-spacing: -.02em; flex: 1; }
+.btn { background: var(--ground); border-radius: 8px; padding: 7px 12px; font-weight: 500; }
+.btn:hover { background: var(--hover); }
+.item { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 12px; align-items: center; padding: 12px 14px; border-radius: 10px; background: var(--ground); }
+.item + .item { margin-top: 8px; }
+.name { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.meta { color: var(--ink-3); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
+.meta.bad { color: var(--danger); }
+.tools { grid-row: 1 / span 2; grid-column: 2; display: flex; gap: 4px; }
+.tools button { color: var(--ink-2); padding: 5px 10px; border-radius: 7px; font-weight: 500; background: var(--panel); }
+.tools button:hover { background: var(--hover); color: var(--ink); }
+.track { grid-column: 1 / -1; height: 4px; border-radius: 2px; background: var(--rule); overflow: hidden; margin-top: 4px; }
+.track i { display: block; height: 100%; background: var(--mane); transition: width .3s; }
+.track.indeterminate i { width: 30% !important; animation: slide 1.1s ease-in-out infinite alternate; }
+@keyframes slide { to { margin-left: 70%; } }
+.empty { color: var(--ink-3); padding: 24px 6px; }
+</style>
+</head>
+<body>
+<main>
+  <header><h1>Downloads</h1><button class="btn" id="clear">Clear finished</button></header>
+  <div id="list" aria-live="polite"></div>
+</main>
+<script src="bridge.js"></script>
+<script>
+const $ = (id) => document.getElementById(id);
+const size = (n) => n < 1024 ? n + ' B' : n < 1048576 ? (n / 1024).toFixed(0) + ' KB' : n < 1073741824 ? (n / 1048576).toFixed(1) + ' MB' : (n / 1073741824).toFixed(2) + ' GB';
+function row(d) {
+  const known = d.total > 0;
+  const pct = known ? Math.min(100, d.received / d.total * 100) : 0;
+  let meta;
+  if (d.status === 'active') meta = (known ? size(d.received) + ' of ' + size(d.total) : size(d.received)) + (d.speed > 0 ? ' · ' + size(d.speed) + '/s' : '');
+  else if (d.status === 'done') meta = size(d.received || d.total) + ' · ' + hostOf(d.url);
+  else meta = d.status === 'canceled' ? 'Canceled' : 'Failed';
+  const tools = d.status === 'active' ? `<button data-cancel="${d.id}">Cancel</button>`
+    : d.status === 'done' ? `<button data-reveal="${d.id}">Show in Finder</button>` : '';
+  return `<div class="item"><span class="name" title="${esc(d.url)}">${esc(d.name)}</span><span class="tools">${tools}</span>
+    <span class="meta${d.status === 'failed' ? ' bad' : ''}">${esc(meta)}</span>
+    ${d.status === 'active' ? `<div class="track${known ? '' : ' indeterminate'}"><i style="width:${pct}%"></i></div>` : ''}</div>`;
+}
+async function refresh() {
+  try {
+    const list = await ask({ cmd: 'downloads.list' });
+    $('list').innerHTML = list.length ? list.map(row).join('') : '<div class="empty">No downloads yet.</div>';
+    $('clear').hidden = !list.some((d) => d.status !== 'active');
+  } catch {}
+}
+document.addEventListener('click', async (e) => {
+  const b = e.target.closest('button');
+  if (!b) return;
+  if (b.dataset.cancel) await ask({ cmd: 'downloads.cancel', id: +b.dataset.cancel });
+  else if (b.dataset.reveal) await ask({ cmd: 'downloads.reveal', id: +b.dataset.reveal });
+  else if (b.id === 'clear') await ask({ cmd: 'downloads.clear' });
+  refresh();
+});
+refresh();
+setInterval(() => { if (!document.hidden) refresh(); }, 600);
+</script>
+</body>
+</html>

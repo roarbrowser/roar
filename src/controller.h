@@ -16,6 +16,8 @@
 #include <vector>
 
 #include "include/cef_browser.h"
+#include "include/cef_context_menu_handler.h"
+#include "include/cef_download_handler.h"
 #include "include/cef_request_context.h"
 #include "include/views/cef_box_layout.h"
 #include "include/views/cef_browser_view.h"
@@ -49,6 +51,27 @@ struct Tab {
   // Ghost tab: an in-memory profile shared by all ghost tabs, never saved,
   // archived or recorded in history. Shown in every space.
   bool ghost = false;
+  bool audible = false;  // A media element is playing sound (MediaWatcher in controller.cc).
+  bool muted = false;
+  std::string reader_origin;  // The article's address while the tab shows Reader mode.
+  std::string reader_markdown;
+  std::string reader_title;
+};
+
+// One file saved from a page, listed on roar://ui/downloads.html.
+struct Download {
+  int id = 0;
+  int item_id = 0;  // CEF's id, only unique within one profile.
+  std::string name;
+  std::string path;
+  std::string url;
+  int64_t received = 0;
+  int64_t total = 0;  // -1 when the server didn't say.
+  int64_t speed = 0;
+  bool done = false;
+  bool canceled = false;
+  bool failed = false;
+  CefRefPtr<CefDownloadItemCallback> control;  // Set while in progress.
 };
 
 class Controller {
@@ -86,7 +109,7 @@ class Controller {
   void ClearArchive();
   void RestoreArchived(size_t index);
   // |target| is "copy", "save", or an LLM id from kLlms to open the page in.
-  void ExtractActive(const std::string& target);
+  void ExtractActive(const std::string& target, int tab_id = 0);
   void PictureInPicture();
   void FloatActiveTab();
   void SetFaviconData(int tab_id, const std::string& url, const std::string& data);
@@ -124,6 +147,31 @@ class Controller {
 
   // Split view: two tabs side by side in the shell.
   void ToggleSplit();
+
+  // Find in page, zoom, print, Reader mode, audio, downloads, history.
+  void ShowFind();
+  void HideFind(bool refocus = true);
+  void FindNext(bool forward);
+  void OnFindResult(CefRefPtr<CefBrowser> browser, int identifier, int count, int active);
+  void ZoomStep(int direction);  // +1, -1, or 0 for actual size.
+  void ApplyZoom(CefRefPtr<CefBrowser> browser, const std::string& url);
+  void Print();
+  void ToggleReader();
+  void ToggleMute(int id);
+  void OnAudible(CefRefPtr<CefBrowser> browser, bool audible);
+  void CycleTabs(int step);
+  bool OnBeforeDownload(CefRefPtr<CefBrowser> browser, CefRefPtr<CefDownloadItem> item,
+                        const std::string& suggested_name,
+                        CefRefPtr<CefBeforeDownloadCallback> callback);
+  void OnDownloadUpdated(CefRefPtr<CefDownloadItem> item,
+                         CefRefPtr<CefDownloadItemCallback> callback);
+  std::string DownloadsJson();
+  std::string HistoryJson(const std::string& query);
+  void BuildContextMenu(CefRefPtr<CefBrowser> browser, CefRefPtr<CefContextMenuParams> params,
+                        CefRefPtr<CefMenuModel> model);
+  bool OnContextMenuCommand(CefRefPtr<CefBrowser> browser, CefRefPtr<CefContextMenuParams> params,
+                            int command_id);
+  void OpenInSplit(const std::string& url, bool ghost);
 
   // Client and window callbacks.
   void OnBrowserCreated(CefRefPtr<CefBrowser> browser);
@@ -191,6 +239,22 @@ class Controller {
   CefRefPtr<CefWindow> command_window_;
   CefRefPtr<CefBrowserView> command_bar_;
   CefRefPtr<CefWindow> hint_window_;
+  CefRefPtr<CefWindow> find_window_;
+  CefRefPtr<CefBrowserView> find_;
+  bool find_visible_ = false;
+  int find_tab_ = 0;
+  std::string find_text_;
+  int find_count_ = 0;
+  int find_active_ = 0;
+  bool find_fresh_ = false;  // A new search that hasn't selected its first match yet.
+  std::map<int, CefRefPtr<CefRegistration>> media_watchers_;  // By browser id.
+  std::vector<Download> downloads_;
+  int next_download_ = 1;
+  // ⌃Tab cycling: the most-recently-used order is frozen while the presses keep coming.
+  std::vector<int> cycle_order_;
+  std::map<int, double> cycle_saved_;
+  size_t cycle_index_ = 0;
+  double cycle_at_ = 0;
   CefRefPtr<CefWindow> ext_popup_;
   CefPoint ext_popup_anchor_;
   CefRefPtr<CefBrowserView> hint_;

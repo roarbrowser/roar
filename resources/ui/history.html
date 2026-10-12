@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>History</title>
+<link rel="stylesheet" href="roar.css">
+<style>
+body { background: var(--panel); overflow-y: auto; overflow-x: hidden; }
+main { box-sizing: border-box; width: 100%; max-width: 760px; margin: 0 auto; padding: 48px 28px 96px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 18px; }
+h1 { margin: 0; font: 800 34px/1 var(--round); letter-spacing: -.02em; }
+h1 small { font: 500 13px var(--ui); color: var(--ink-3); letter-spacing: 0; margin-left: 10px; }
+input { font: 13px var(--ui); padding: 9px 12px; border-radius: 8px; border: 1px solid var(--rule); background: var(--ground); color: var(--ink); width: 100%; }
+.day { color: var(--ink-3); font-size: 12px; font-weight: 600; padding: 14px 6px 4px; }
+.entry { display: flex; align-items: center; gap: 10px; height: 34px; padding: 0 6px; border-radius: 7px; }
+.entry:hover { background: var(--hover); }
+.entry .when { color: var(--ink-3); font-size: 11.5px; width: 52px; flex: none; font-variant-numeric: tabular-nums; }
+.entry a { flex: 1; min-width: 0; display: flex; gap: 8px; align-items: baseline; color: var(--ink); text-decoration: none; overflow: hidden; }
+.entry .title { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.entry .host { color: var(--ink-3); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex-shrink: 1000; }
+.entry .x { width: 22px; height: 22px; border-radius: 5px; color: var(--ink-3); display: none; place-items: center; flex: none; }
+.entry:hover .x { display: grid; }
+.entry .x:hover { background: var(--rule); color: var(--ink); }
+.empty { color: var(--ink-3); padding: 24px 6px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>History<small id="space"></small></h1>
+  <input id="q" type="search" autocomplete="off" placeholder="Search history" aria-label="Search history">
+  <div id="list"></div>
+</main>
+<script src="bridge.js"></script>
+<script>
+const $ = (id) => document.getElementById(id);
+const x = '<svg viewBox="0 0 12 12" width="10" height="10" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="m3 3 6 6M9 3l-6 6"/></svg>';
+const dayLabel = (t) => {
+  const d = new Date(t * 1000), now = new Date();
+  const days = Math.round((new Date(now.getFullYear(), now.getMonth(), now.getDate()) - new Date(d.getFullYear(), d.getMonth(), d.getDate())) / 864e5);
+  if (days === 0) return 'Today';
+  if (days === 1) return 'Yesterday';
+  return d.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric', year: d.getFullYear() === now.getFullYear() ? undefined : 'numeric' });
+};
+let seq = 0;
+async function load() {
+  const mine = ++seq;
+  const res = await ask({ cmd: 'history.list', q: $('q').value });
+  if (mine !== seq) return;
+  $('space').textContent = res.space ? res.space + (res.total > res.entries.length ? ' · latest ' + res.entries.length + ' of ' + res.total : ' · ' + res.total) : '';
+  let day = '', html = '';
+  for (const e of res.entries) {
+    const label = dayLabel(e.lastVisit);
+    if (label !== day) { day = label; html += `<div class="day">${esc(label)}</div>`; }
+    const time = new Date(e.lastVisit * 1000).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+    html += `<div class="entry"><span class="when">${esc(time)}</span><a href="#" data-url="${esc(e.url)}" title="${esc(e.url)}"><span class="title">${esc(e.title || e.url)}</span><span class="host">${esc(hostOf(e.url))}</span></a><button class="x" data-remove="${esc(e.url)}" aria-label="Remove from history" title="Remove from history">${x}</button></div>`;
+  }
+  $('list').innerHTML = html || '<div class="empty">' + ($('q').value ? 'Nothing matches.' : 'No history in this space yet.') + '</div>';
+}
+$('q').addEventListener('input', load);
+document.addEventListener('click', async (e) => {
+  const rm = e.target.closest('[data-remove]');
+  if (rm) { await ask({ cmd: 'history.remove', url: rm.dataset.remove }); return load(); }
+  const a = e.target.closest('[data-url]');
+  if (a) { e.preventDefault(); ask({ cmd: 'open', text: a.dataset.url, newTab: e.metaKey || e.shiftKey }); }
+});
+load();
+</script>
+</body>
+</html>
