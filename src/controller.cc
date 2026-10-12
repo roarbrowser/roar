@@ -3086,12 +3086,17 @@ void Controller::OnAddress(CefRefPtr<CefBrowser> browser, const std::string& url
   Tab* tab = FindTabByBrowser(browser);
   // A window Chrome's UI opened outside Roar (an extension's chrome.tabs.create):
   // reopen its page as a Roar tab and close the stray window. Only its first
-  // address decides; CDP clients open about:blank and then navigate, and
-  // their pages must stay put.
+  // address decides. Pages a CDP client opened (Target.createTarget) must stay
+  // put: their first reported address is often already the real URL, so ask
+  // the DevTools pipe whether a client is attached before taking the page.
   if (!tab && !browser->IsPopup() && !IsExtensionPopup(browser) && !url.empty() && !StartsWith(url, "roar:") &&
       stray_seen_.insert(browser->GetIdentifier()).second && !StartsWith(url, "about:blank")) {
-    NewTab(url, true, false, 0, -1, IsGhostBrowser(browser));
-    browser->GetHost()->CloseBrowser(true);
+    bool ghost = IsGhostBrowser(browser);
+    action_watch::IsPageAttached(url, [browser, url, ghost](bool attached) {
+      if (attached || !browser->IsValid()) return;
+      Controller::Get()->NewTab(url, true, false, 0, -1, ghost);
+      browser->GetHost()->CloseBrowser(true);
+    });
     return;
   }
   if (!tab) return;

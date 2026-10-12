@@ -18,6 +18,9 @@ bool Enabled();
 void Start(std::function<void(const std::string&)> on_change);
 // Re-reads every worker's state when the active tab's URL changes.
 void SetActiveUrl(const std::string& url);
+// Whether a DevTools client (not Roar's pipe) is attached to a page showing
+// url. cb runs on the UI thread; false when the pipe is off.
+void IsPageAttached(const std::string& url, std::function<void(bool)> cb);
 // {"<extension id>": {"icon": "data:…" | null, "badge": "3", "color": "rgba(…)"}}
 std::string StateJson();
 

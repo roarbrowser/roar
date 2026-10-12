@@ -272,6 +272,21 @@ void SetActiveUrl(const std::string& url) {
     if (!w.second.session.empty()) Refresh(w.first);
 }
 
+void IsPageAttached(const std::string& url, std::function<void(bool)> cb) {
+  if (g_write < 0) return cb(false);
+  Send("Target.getTargets", nullptr, "", [url, cb](CefRefPtr<CefDictionaryValue> res) {
+    auto list = res ? res->GetList("targetInfos") : nullptr;
+    for (size_t i = 0; list && i < list->GetSize(); ++i) {
+      auto t = list->GetDictionary(i);
+      // Roar's pipe attaches only to service workers, so an attached page has
+      // an outside client.
+      if (t && t->GetString("type") == "page" && t->GetString("url") == url && t->GetBool("attached"))
+        return cb(true);
+    }
+    cb(false);
+  });
+}
+
 std::string StateJson() {
   auto out = CefDictionaryValue::Create();
   for (const auto& [target, value] : g_state) {
