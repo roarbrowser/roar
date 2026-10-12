@@ -3421,4 +3421,10 @@ void Controller::MaybeQuit() {
   if (closing_ && !shell_ && live_browsers_ <= 0) CefQuitMessageLoop();
 }
 
+void Controller::OpenExternal(const std::string& url) {
+  // The shell, not the tab: a sheet on the frameless tab child window never shows.
+  if (!platform::OpenInApp(shell_ ? shell_->GetWindowHandle() : nullptr, url))
+    ShowHint("No app can open this link");
+}
+
 }  // namespace roar

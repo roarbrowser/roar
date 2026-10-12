@@ -1,9 +1,12 @@
 #include "client.h"
 
+#include "include/cef_parser.h"
 #include "include/wrapper/cef_helpers.h"
 
 #include "controller.h"
 #include "shared.h"
+
+#include <set>
 
 namespace roar {
 
@@ -150,6 +153,19 @@ void Client::OnLoadingStateChange(CefRefPtr<CefBrowser> browser, bool isLoading,
 bool Client::OnBeforeBrowse(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> frame,
                             CefRefPtr<CefRequest> request, bool user_gesture, bool is_redirect) {
   router_->OnBeforeBrowse(browser, frame);
+  CefURLParts parts;
+  std::string url = request->GetURL();
+  if (CefParseURL(url, parts)) {
+    static const std::set<std::string> kBrowserSchemes = {
+        "http", "https", "file", "about", "data", "blob", "javascript", "chrome",
+        "chrome-extension", "devtools", "roar", "view-source", "ws", "wss", "ftp", "filesystem"};
+    std::string scheme = CefString(&parts.scheme).ToString();
+    if (!kBrowserSchemes.count(scheme)) {
+      // Chromium only shows ERR_UNKNOWN_URL_SCHEME; ask before handing it to a Mac app.
+      if (user_gesture || is_redirect || frame->IsMain()) Controller::Get()->OpenExternal(url);
+      return true;
+    }
+  }
   return false;
 }
 

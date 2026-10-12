@@ -139,6 +139,8 @@ class Controller {
   bool OnExtensionPopupResize(CefRefPtr<CefBrowser> browser, const CefSize& size);
   void PushSidebar();
   void ShowHint(const std::string& text);
+  // Offers to hand a non-web URL to the app that handles its scheme.
+  void OpenExternal(const std::string& url);
   void RunCommand(const std::string& id);
 
   // Spaces: named sets of tabs, each with its own profile.

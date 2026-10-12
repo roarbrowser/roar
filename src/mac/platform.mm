@@ -722,6 +722,24 @@ void RevealInFinder(const std::string& path) {
     [NSWorkspace.sharedWorkspace activateFileViewerSelectingURLs:@[ url ]];
 }
 
+bool OpenInApp(void* window, const std::string& url) {
+  NSURL* u = [NSURL URLWithString:NS(url)];
+  NSURL* app = u ? [NSWorkspace.sharedWorkspace URLForApplicationToOpenURL:u] : nil;
+  if (!app) return false;
+  NSString* name = [NSFileManager.defaultManager displayNameAtPath:app.path].stringByDeletingPathExtension;
+  NSAlert* alert = [[NSAlert alloc] init];
+  alert.messageText = [NSString stringWithFormat:@"Open \u201c%@\u201d?", name];
+  alert.informativeText = @"This page wants to open an app on your Mac.";
+  [alert addButtonWithTitle:@"Cancel"];
+  [alert addButtonWithTitle:@"Open"];
+  alert.buttons.firstObject.keyEquivalent = @"\r";
+  [alert beginSheetModalForWindow:Win(window) ?: NSApp.keyWindow
+                completionHandler:^(NSModalResponse response) {
+                  if (response == NSAlertSecondButtonReturn) [NSWorkspace.sharedWorkspace openURL:u];
+                }];
+  return true;
+}
+
 std::string SaveMarkdown(const std::string& title, const std::string& markdown) {
   NSString* name = NS(title.empty() ? "page" : title);
   NSCharacterSet* bad = [NSCharacterSet characterSetWithCharactersInString:@"/\\:*?\"<>|\n\r\t"];

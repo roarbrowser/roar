@@ -57,6 +57,9 @@ void ConfirmDownload(void* window, const std::string& name, const std::string& h
 // Adds com.apple.quarantine to a finished download unless Chromium already did.
 void QuarantineDownload(const std::string& path, const std::string& url);
 void RevealInFinder(const std::string& path);
+// Asks whether to open `url` (a non-web scheme) in the app registered for it, then
+// opens it. Returns false, without asking, when no app handles the scheme.
+bool OpenInApp(void* window, const std::string& url);
 // Writes Markdown to ~/Downloads and returns the path, or "" on failure.
 std::string SaveMarkdown(const std::string& title, const std::string& markdown);
 
