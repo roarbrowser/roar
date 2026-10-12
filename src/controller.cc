@@ -901,6 +901,8 @@ void Controller::OnSpaceReady(int space) {
 // Ends the ghost session once its last tab closes: the next ghost tab starts
 // with no cookies, logins or cache.
 void Controller::EndGhostSession() {
+  std::erase_if(downloads_, [](const Download& d) { return d.ghost; });
+  PushSidebar();
   auto it = contexts_.find(kGhostContext);
   if (it == contexts_.end()) return;
   contexts_.erase(it);
@@ -2175,7 +2177,9 @@ bool Controller::OnBeforeDownload(CefRefPtr<CefBrowser> browser, CefRefPtr<CefDo
   std::transform(ext.begin(), ext.end(), ext.begin(), [](unsigned char c) { return std::tolower(c); });
   bool risky = kRisky.count(ext) > 0;
   CefRefPtr<CefDownloadItem> keep = item;
-  auto start = [this, name, keep, callback] {
+  Tab* from = browser ? FindTabByBrowser(browser) : nullptr;
+  bool ghost = from && from->ghost;
+  auto start = [this, name, keep, callback, ghost] {
     std::string path = platform::UniqueDownloadPath(name);
     Download d;
     d.id = next_download_++;
@@ -2184,6 +2188,7 @@ bool Controller::OnBeforeDownload(CefRefPtr<CefBrowser> browser, CefRefPtr<CefDo
     d.path = path;
     d.url = keep->GetURL();
     d.total = keep->GetTotalBytes();
+    d.ghost = ghost;
     downloads_.push_back(d);
     callback->Continue(path, false);
     PushSidebar();
@@ -2231,7 +2236,7 @@ void Controller::OnDownloadUpdated(CefRefPtr<CefDownloadItem> item,
   d->control = item->IsInProgress() ? callback : nullptr;
   if (d->done && !item->GetFullPath().empty()) d->path = item->GetFullPath();
   if (d->done && !was_done) {
-    platform::QuarantineDownload(d->path, d->url);
+    platform::QuarantineDownload(d->path, d->ghost ? "" : d->url);  // No ghost URL on disk.
     d->name = d->path.substr(d->path.rfind('/') + 1);
     ShowHint("Downloaded " + d->name);
   } else if (d->canceled) {

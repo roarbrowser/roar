@@ -71,6 +71,7 @@ struct Download {
   bool done = false;
   bool canceled = false;
   bool failed = false;
+  bool ghost = false;  // From a ghost tab: dropped from the list when the session ends.
   CefRefPtr<CefDownloadItemCallback> control;  // Set while in progress.
 };
 

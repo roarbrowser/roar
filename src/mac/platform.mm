@@ -676,7 +676,7 @@ void QuarantineDownload(const std::string& path, const std::string& url) {
     (__bridge NSString*)kLSQuarantineAgentNameKey : @"Roar",
     (__bridge NSString*)kLSQuarantineTypeKey : (__bridge NSString*)kLSQuarantineTypeWebDownload,
   } mutableCopy];
-  if (NSURL* origin = [NSURL URLWithString:NS(url)]) q[(__bridge NSString*)kLSQuarantineDataURLKey] = origin;
+  if (NSURL* origin = url.empty() ? nil : [NSURL URLWithString:NS(url)]) q[(__bridge NSString*)kLSQuarantineDataURLKey] = origin;
   [file setResourceValue:q forKey:NSURLQuarantinePropertiesKey error:nil];
 }
 
