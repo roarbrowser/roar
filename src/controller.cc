@@ -11,6 +11,7 @@
 #include <functional>
 #include <sstream>
 #include <set>
+#include <unistd.h>
 
 #include "include/cef_command_ids.h"
 #include "include/base/cef_callback.h"
@@ -3084,6 +3085,7 @@ bool Controller::HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> 
 
 void Controller::OnBrowserCreated(CefRefPtr<CefBrowser> browser) {
   ++live_browsers_;
+  browsers_[browser->GetIdentifier()] = browser;
   // Web tabs only: Roar's own pages play no sound.
   if (!IsUiBrowser(browser) && !browser->IsPopup() && !IsExtensionPopup(browser))
     MediaWatcher::Attach(browser, &media_watchers_[browser->GetIdentifier()]);
@@ -3091,6 +3093,7 @@ void Controller::OnBrowserCreated(CefRefPtr<CefBrowser> browser) {
 
 void Controller::OnBrowserClosed(CefRefPtr<CefBrowser> browser) {
   --live_browsers_;
+  browsers_.erase(browser->GetIdentifier());
   media_watchers_.erase(browser->GetIdentifier());
   MaybeQuit();
 }
@@ -3257,6 +3260,12 @@ bool Controller::OnKey(CefRefPtr<CefBrowser> browser, const CefKeyEvent& event) 
       DockTab(t->id);
       return true;
     }
+  }
+  // ⌘W in a window Chrome opened outside Roar closes that window, not Roar's tab.
+  if (cmd && !ctrl && !shift && !alt && key == 'W' && !FindTabByBrowser(browser) &&
+      !IsUiBrowser(browser) && !IsExtensionPopup(browser)) {
+    browser->GetHost()->CloseBrowser(false);
+    return true;
   }
   if (ctrl && !cmd && !shift && !alt && key >= '1' && key <= '9') {
     size_t i = static_cast<size_t>(key - '1');
@@ -3425,10 +3434,17 @@ bool Controller::CanCloseShell() {
   if (hint_window_) hint_window_->Close();
   if (find_window_) find_window_->Close();
   CloseExtensionPopup();
+  // Windows Chrome opened outside Roar (a CDP client's Target.createTarget)
+  // otherwise keep the process alive after the shell closes.
+  auto strays = browsers_;
+  for (auto& [id, b] : strays)
+    if (!FindTabByBrowser(b)) b->GetHost()->CloseBrowser(true);
   // A browser that never reports closing (a stray popup, a CDP-created page, a
   // page stuck in beforeunload) would keep MaybeQuit waiting forever. State is
   // saved above, so quit regardless after a grace period.
   CefPostDelayedTask(TID_UI, base::BindOnce([] { CefQuitMessageLoop(); }), 3000);
+  // A Chrome window can hold the message loop open even then; state is saved.
+  CefPostDelayedTask(TID_UI, base::BindOnce([] { _exit(0); }), 8000);
   return true;
 }
 

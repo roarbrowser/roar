@@ -286,6 +286,7 @@ class Controller {
   bool closing_ = false;
   int hint_generation_ = 0;
   int live_browsers_ = 0;
+  std::map<int, CefRefPtr<CefBrowser>> browsers_;  // Every live browser, Roar's or not.
 
   struct PendingExtract {
     int tab_id;
