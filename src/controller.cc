@@ -2177,8 +2177,10 @@ bool Controller::OnBeforeDownload(CefRefPtr<CefBrowser> browser, CefRefPtr<CefDo
   std::transform(ext.begin(), ext.end(), ext.begin(), [](unsigned char c) { return std::tolower(c); });
   bool risky = kRisky.count(ext) > 0;
   CefRefPtr<CefDownloadItem> keep = item;
-  Tab* from = browser ? FindTabByBrowser(browser) : nullptr;
-  bool ghost = from && from->ghost;
+  // By profile, not tab: a popup a ghost tab opened has no Roar tab.
+  auto ghost_ctx = contexts_.find(kGhostContext);
+  bool ghost = browser && ghost_ctx != contexts_.end() && ghost_ctx->second &&
+               browser->GetHost()->GetRequestContext()->IsSame(ghost_ctx->second);
   auto start = [this, name, keep, callback, ghost] {
     std::string path = platform::UniqueDownloadPath(name);
     Download d;
@@ -2225,7 +2227,13 @@ void Controller::OnDownloadUpdated(CefRefPtr<CefDownloadItem> item,
   for (auto& x : downloads_)
     if (x.item_id == static_cast<int>(item->GetId()) && x.url == url && !x.done && !x.canceled && !x.failed)
       d = &x;
-  if (!d) return;  // Finished already: the last update after completion.
+  if (!d) {
+    // Untracked (finished already, or dropped with its ghost session): still
+    // quarantine it, without a URL since it may have been a ghost download.
+    if (item->IsComplete() && !item->GetFullPath().empty())
+      platform::QuarantineDownload(item->GetFullPath(), "");
+    return;
+  }
   d->received = item->GetReceivedBytes();
   d->total = item->GetTotalBytes();
   d->speed = item->GetCurrentSpeed();
