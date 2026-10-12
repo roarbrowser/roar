@@ -230,6 +230,7 @@ class Controller {
   void ArchiveTab(int id);
   void AutoArchiveTick();
   void GitHubTick();
+  void GmailOpenTick();
   void MaybeQuit();
 
   CefRefPtr<Client> client_;

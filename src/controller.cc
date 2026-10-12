@@ -782,6 +782,7 @@ void Controller::Start() {
   if (platform::Headless()) platform::HideApp();
   AutoArchiveTick();
   GitHubTick();
+  GmailOpenTick();
 }
 
 void Controller::Focus() {
@@ -1514,6 +1515,15 @@ void Controller::GitHubTick() {
   for (const auto& sp : State::Get().spaces) spaces.insert(sp.id);
   for (int space : spaces) RefreshGmail(space);
   CefPostDelayedTask(TID_UI, base::BindOnce([] { Controller::Get()->GitHubTick(); }), 10 * 60 * 1000);
+}
+
+// While a space has a Gmail tab open, keep its unread mail current every 20 s.
+void Controller::GmailOpenTick() {
+  std::set<int> spaces;
+  for (const auto& t : tabs_)
+    if (!t.ghost && StartsWith(t.url, "https://mail.google.com/")) spaces.insert(t.space);
+  for (int space : spaces) RefreshGmail(space);
+  CefPostDelayedTask(TID_UI, base::BindOnce([] { Controller::Get()->GmailOpenTick(); }), 20 * 1000);
 }
 
 void Controller::SwitchSpace(int id) {
