@@ -91,6 +91,8 @@ class Controller {
   // space < 0 means the active space.
   int NewTab(const std::string& url, bool activate, bool pinned = false, double last_active = 0,
              int space = -1, bool ghost = false, int opener = 0);
+  // Opens a CDP Target.createTarget page as a tab; returns its browser id, or 0.
+  int OpenTargetTab(const std::string& url);
   // A link opened in a new tab: beside its opener, in the opener's space and group.
   int NewTabFrom(CefRefPtr<CefBrowser> opener, const std::string& url, bool activate);
   void ActivateTab(int id);

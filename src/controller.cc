@@ -6,6 +6,9 @@
 #include <cctype>
 #include <cmath>
 #include <cstdlib>
+#include <cstring>
+#include <dlfcn.h>
+#include <mach-o/dyld.h>
 #include <filesystem>
 #include <fstream>
 #include <functional>
@@ -727,6 +730,17 @@ void Controller::Start() {
   CEF_REQUIRE_UI_THREAD();
   client_ = new Client();
   action_watch::Start([](const std::string& json) { Controller::Get()->PushActions(json); });
+  // Roar's CEF patch (scripts/cef-patches) routes CDP Target.createTarget here,
+  // so MCP new_page opens a Roar tab instead of a bare Chrome window.
+  // The CEF loader opens the framework RTLD_LOCAL, so look in its own image.
+  using Hook = int (*)(const char*);
+  for (uint32_t i = 0; i < _dyld_image_count(); ++i) {
+    if (!strstr(_dyld_get_image_name(i), "/Chromium Embedded Framework")) continue;
+    void* lib = dlopen(_dyld_get_image_name(i), RTLD_LAZY | RTLD_NOLOAD);
+    if (auto set = reinterpret_cast<void (*)(Hook)>(lib ? dlsym(lib, "roar_set_create_target_hook") : nullptr))
+      set([](const char* url) { return Controller::Get()->OpenTargetTab(url); });
+    break;
+  }
   State& state = State::Get();
   state.Load();
   platform::InstallMenu();
@@ -839,6 +853,18 @@ int Controller::NewTab(const std::string& url, bool activate, bool pinned, doubl
   PushSidebar();
   SaveSoon();
   return tab.id;
+}
+
+int Controller::OpenTargetTab(const std::string& url) {
+  if (!shell_) return 0;
+  int id = NewTab(url, true);
+  // The tab's browser exists once its window does; without one (a space whose
+  // profile is still loading) let Chrome open the page instead.
+  Tab* tab = FindTab(id);
+  auto browser = tab && tab->view ? tab->view->GetBrowser() : nullptr;
+  if (browser) return browser->GetIdentifier();
+  CloseTab(id);
+  return 0;
 }
 
 int Controller::NewTabFrom(CefRefPtr<CefBrowser> opener, const std::string& url, bool activate) {

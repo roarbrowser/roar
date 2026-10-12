@@ -35,6 +35,11 @@ AUTOMATE=(python3 "$CEF_SRC/automate-git.py"
 # re-runs its patcher before every build and rejects files changed under it.
 "${AUTOMATE[@]}" --no-build --no-distrib
 SRC="$CEF_SRC/chromium/src"
+# Reset files Roar patches: CEF's patcher skips a patch only when it reverses
+# cleanly, and a later patch on the same file stops that on a rerun.
+for p in "$ROOT"/scripts/cef-patches/chromium/*.patch; do
+  sed -n 's#^+++ ##p' "$p" | xargs git -C "$SRC" checkout --
+done
 for p in "$ROOT"/scripts/cef-patches/chromium/*.patch; do
   name=$(basename "$p" .patch)
   cp -f "$p" "$SRC/cef/patch/patches/$name.patch"

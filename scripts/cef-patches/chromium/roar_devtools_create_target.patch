@@ -1,0 +1,49 @@
+diff --git chrome/browser/devtools/protocol/target_handler.cc chrome/browser/devtools/protocol/target_handler.cc
+--- chrome/browser/devtools/protocol/target_handler.cc
++++ chrome/browser/devtools/protocol/target_handler.cc
+@@ -8,6 +8,7 @@
+ #include <string_view>
+ 
+ #include "base/notreached.h"
++#include "cef/libcef/features/features.h"
+ #include "chrome/browser/devtools/chrome_devtools_manager_delegate.h"
+ #include "chrome/browser/devtools/devtools_browser_context_manager.h"
+ #include "chrome/browser/profiles/profile_manager.h"
+@@ -85,6 +86,13 @@
+   return protocol::Response::Success();
+ }
+ 
++#if BUILDFLAG(ENABLE_CEF)
++namespace cef {
++// Roar: defined in cef/libcef/browser/chrome/roar_create_target.cc.
++content::WebContents* CreateTargetContents(const GURL& url);
++}  // namespace cef
++#endif
++
+ protocol::Response TargetHandler::CreateTarget(
+     const std::string& url,
+     std::optional<int> left,
+@@ -173,7 +181,23 @@
+   if (!may_read_local_files_ && inner_url.SchemeIsFile()) {
+     return protocol::Response::ServerError(
+         "Creating a target with a local URL is not allowed");
++  }
++
++#if BUILDFLAG(ENABLE_CEF)
++  // Roar: open the page as an embedder tab, not a Chrome tab-strip window,
++  // unless the client asked for a specific profile or window.
++  if (!browser_context_id && !new_window.value_or(false) && !left && !top &&
++      !width && !height && !window_state) {
++    if (auto* contents = cef::CreateTargetContents(gurl)) {
++      *out_target_id =
++          (for_tab.value_or(false)
++               ? content::DevToolsAgentHost::GetOrCreateForTab(contents)
++               : content::DevToolsAgentHost::GetOrCreateFor(contents))
++              ->GetId();
++      return protocol::Response::Success();
++    }
+   }
++#endif
+ 
+   create_new_window = !target_browser_interface;
+ 
