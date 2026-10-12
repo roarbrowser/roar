@@ -15,5 +15,8 @@ rm -rf "$RES/extensions"
 mkdir -p "$RES/extensions"
 cp -R "$ROOT/third_party/ubol" "$RES/extensions/ubol"
 cp "$ROOT/resources/Roar.sdef" "$ROOT/resources/roar.icns" "$RES/"
-codesign --force --deep --sign - "$BUILD/src/Release/Roar.app"
+# Ad-hoc signatures change every build, so macOS forgets privacy grants
+# (Screen Recording loops on "Quit & Reopen"). Use a stable identity when one exists.
+SIGN_ID="${ROAR_SIGN_IDENTITY:-$(security find-identity -v -p codesigning | awk -F'"' '/Apple Development/{print $2; exit}')}"
+codesign --force --deep --sign "${SIGN_ID:--}" "$BUILD/src/Release/Roar.app"
 echo "$BUILD/src/Release/Roar.app"
