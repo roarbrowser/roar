@@ -156,7 +156,7 @@ class ExtensionPopupViewDelegate : public CefBrowserViewDelegate {
   // arrive before ExecuteDevToolsMethod returns.
   class ShimInstaller : public CefDevToolsMessageObserver {
    public:
-    enum { kEnable = 1 << 20, kTargets, kAttach, kWorkerEval, kBreakpoint, kEval, kDisable };
+    enum { kEnable = 1 << 20, kTargets, kAttach, kWorkerEval, kBreakpoint, kEval, kDisable, kResume };
     ShimInstaller(const std::string& url, const std::string& tab_url) : url_(url) {
       static const char kShim[] = R"JS((() => {
   const tabs = globalThis.chrome && chrome.tabs;
@@ -189,7 +189,7 @@ class ExtensionPopupViewDelegate : public CefBrowserViewDelegate {
       if (method != "Debugger.paused") return;
       auto host = browser->GetHost();
       if (paused_) {
-        host->ExecuteDevToolsMethod(0, "Debugger.resume", nullptr);
+        Send(host, kResume, "Debugger.resume", nullptr);
         return;
       }
       paused_ = true;
@@ -199,26 +199,48 @@ class ExtensionPopupViewDelegate : public CefBrowserViewDelegate {
       if (!frames || !frames->GetSize()) return Finish(host);
       auto eval = CefDictionaryValue::Create();
       eval->SetString("callFrameId", frames->GetDictionary(0)->GetString("callFrameId"));
-      eval->SetString("expression", shim_);
-      host->ExecuteDevToolsMethod(kEval, "Debugger.evaluateOnCallFrame", eval);
+      // Also wake the worker, so it can be patched before the page runs: a
+      // worker the page woke itself answered the page before its patch landed.
+      eval->SetString("expression", shim_ + ";chrome.runtime.sendMessage({ roarWake: true }).catch(() => {})");
+      Send(host, kEval, "Debugger.evaluateOnCallFrame", eval);
     }
     void OnDevToolsMethodResult(CefRefPtr<CefBrowser> browser, int message_id, bool success,
                                 const void* result, size_t result_size) override {
       auto host = browser->GetHost();
       auto value = success ? CefParseJSON(result, result_size, JSON_PARSER_RFC) : nullptr;
       auto dict = value ? value->GetDictionary() : nullptr;
-      switch (message_id) {
+      auto kind = kinds_.find(message_id);
+      if (kind == kinds_.end()) return;
+      int step = kind->second;
+      kinds_.erase(kind);
+      switch (step) {
         case kEnable:
-          host->ExecuteDevToolsMethod(kTargets, "Target.getTargets", nullptr);
+          Send(host, kTargets, "Target.getTargets", nullptr);
           break;
         case kTargets:
+          if (waking_) {
+            // The page is paused; wait for the worker it just woke (up to ~2 s).
+            if (AttachWorker(host, dict)) break;
+            if (++polls_ < 40) {
+              PollTargets(host, 50);
+            } else {
+              waking_ = false;
+              Finish(host);
+            }
+            break;
+          }
           if (!AttachWorker(host, dict) && !loaded_) SetBreakpoint(host);
           break;
         case kAttach:
           // Results on a flattened session don't come back here; messages are
-          // handled in order, so the worker is patched before the page loads.
+          // handled in order, so the worker is patched before the page runs.
           if (dict) EvalInWorker(host, dict->GetString("sessionId"));
-          if (!loaded_) SetBreakpoint(host);
+          if (waking_) {
+            waking_ = false;
+            Finish(host);
+          } else if (!loaded_) {
+            SetBreakpoint(host);
+          }
           break;
         case kBreakpoint:
           // Load the extension page only once the breakpoint is in place.
@@ -226,17 +248,33 @@ class ExtensionPopupViewDelegate : public CefBrowserViewDelegate {
           browser->GetMainFrame()->LoadURL(url_);
           break;
         case kEval:
-          Finish(host);
+          // Posted: a call made from inside a result callback can be dropped.
+          waking_ = true;
+          PollTargets(host, 0);
           break;
       }
     }
 
    private:
+    // CEF renumbers a message id that isn't above every id it has seen, so
+    // repeated steps can't reuse fixed ids: let it pick and remember the step.
+    // Ids rise from kEnable and are recorded before sending, since a result
+    // can arrive before ExecuteDevToolsMethod returns.
+    void Send(CefRefPtr<CefBrowserHost> host, int step, const char* method, CefRefPtr<CefDictionaryValue> params) {
+      int id = ++next_id_;
+      kinds_[id] = step;
+      host->ExecuteDevToolsMethod(id, method, params);
+    }
+    void PollTargets(CefRefPtr<CefBrowserHost> host, int64_t delay_ms) {
+      CefPostDelayedTask(TID_UI, base::BindOnce([](CefRefPtr<ShimInstaller> self, CefRefPtr<CefBrowserHost> h) {
+        self->Send(h, kTargets, "Target.getTargets", nullptr);
+      }, CefRefPtr<ShimInstaller>(this), host), delay_ms);
+    }
     void SetBreakpoint(CefRefPtr<CefBrowserHost> host) {
       auto params = CefDictionaryValue::Create();
       params->SetString("urlRegex", "^chrome-extension://");
       params->SetInt("lineNumber", 0);
-      host->ExecuteDevToolsMethod(kBreakpoint, "Debugger.setBreakpointByUrl", params);
+      Send(host, kBreakpoint, "Debugger.setBreakpointByUrl", params);
     }
     bool AttachWorker(CefRefPtr<CefBrowserHost> host, CefRefPtr<CefDictionaryValue> targets) {
       auto infos = targets ? targets->GetList("targetInfos") : nullptr;
@@ -248,7 +286,7 @@ class ExtensionPopupViewDelegate : public CefBrowserViewDelegate {
         auto attach = CefDictionaryValue::Create();
         attach->SetString("targetId", info->GetString("targetId"));
         attach->SetBool("flatten", true);
-        host->ExecuteDevToolsMethod(kAttach, "Target.attachToTarget", attach);
+        Send(host, kAttach, "Target.attachToTarget", attach);
         return true;
       }
       return false;
@@ -258,7 +296,7 @@ class ExtensionPopupViewDelegate : public CefBrowserViewDelegate {
       auto params = CefDictionaryValue::Create();
       params->SetString("expression", shim_);
       auto message = CefDictionaryValue::Create();
-      message->SetInt("id", kWorkerEval);
+      message->SetInt("id", ++next_id_);  // Unregistered: its result goes to the worker session.
       message->SetString("method", "Runtime.evaluate");
       message->SetString("sessionId", session);
       message->SetDictionary("params", params);
@@ -269,13 +307,19 @@ class ExtensionPopupViewDelegate : public CefBrowserViewDelegate {
     }
     // Disabling the debugger drops the breakpoint and resumes the page.
     // Auto-resize starts only now: sized while blank, the popup stays too big.
+    // Posted, like PollTargets: called from a result callback, the calls can be dropped.
     void Finish(CefRefPtr<CefBrowserHost> host) {
-      host->SetAutoResizeEnabled(true, CefSize(360, 120), CefSize(800, 600));
-      host->ExecuteDevToolsMethod(kDisable, "Debugger.disable", nullptr);
-      host->ExecuteDevToolsMethod(kTargets, "Target.getTargets", nullptr);
+      CefPostTask(TID_UI, base::BindOnce([](CefRefPtr<ShimInstaller> self, CefRefPtr<CefBrowserHost> host) {
+        host->SetAutoResizeEnabled(true, CefSize(360, 120), CefSize(800, 600));
+        self->Send(host, kDisable, "Debugger.disable", nullptr);
+        self->Send(host, kTargets, "Target.getTargets", nullptr);
+      }, CefRefPtr<ShimInstaller>(this), host));
     }
     std::string url_, shim_, origin_;
-    bool paused_ = false, loaded_ = false;
+    bool paused_ = false, loaded_ = false, waking_ = false;
+    int polls_ = 0;
+    std::map<int, int> kinds_ = {{kEnable, kEnable}};  // DevTools message id -> step.
+    int next_id_ = kEnable + 100;
     IMPLEMENT_REFCOUNTING(ShimInstaller);
   };
   std::string url_, tab_url_;
