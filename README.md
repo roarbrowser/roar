@@ -23,7 +23,7 @@ Needs macOS, Xcode, `cmake` and `ninja`. Environment overrides:
 - `ROAR_CDP_PORT` (default `9222`): DevTools Protocol port. Set another port if something
   else already holds 9222.
 - `ROAR_DATA_DIR` (default `~/Library/Application Support/Roar`): profile and `state.json`.
-- `--load-extension=<dir>`: load an unpacked Chrome extension.
+- `--load-extension=<dir>`: load an unpacked Chrome extension. It loads into every Space's profile, alongside the bundled uBlock Origin Lite.
 
 ## Architecture
 
@@ -49,18 +49,27 @@ nonce Roar issued to that tab.
 | Video picture-in-picture (⇧⌘P), float tab in a mini window (⇧⌘F) | `Controller::PictureInPicture`, `FloatActiveTab` |
 | AppleScript (`open url`, `execute javascript`, `close tab`, …) and CDP | `resources/Roar.sdef`, `mac/scripting.mm` |
 | Onboarding and settings | `ui/welcome.html` |
-| Spaces: separate tabs and profile per space (⌃1–⌃9, ⇧⌘[ ⇧⌘]); profiles in `Spaces/<id>` | `Controller::SwitchSpace`, `ContextFor` |
+| Spaces: separate tabs and profile per space (⌃1–⌃9, ⇧⌘[ ⇧⌘]); profiles in `Space-<id>` | `Controller::SwitchSpace`, `ContextFor` |
 | Split view: two tabs side by side (⌘\\); picking a tab swaps the focused pane | `Controller::ToggleSplit`, `RectFor` |
 | Page-text search: visible text of visited pages saved to `pages.json` (800 pages, 16 KB each) and matched in the command bar | `Controller::IndexPage`, `SuggestPageText` |
+| Find in page (⌘F, ⌘G / ⇧⌘G): match count, ↵ / ⇧↵ for next and previous, esc closes | `ui/find.html`, `Controller::ShowFind` |
+| Zoom (⌘+, ⌘−, ⌘0): per host, with a zoom toast, kept in `state.json` | `Controller::ZoomStep`, `ApplyZoom` |
+| Print (⌘P) | `Controller::Print` |
+| Downloads: saved to ~/Downloads, a list with progress, cancel and Show in Finder (⇧⌘J), and a sidebar button while there are downloads | `Controller::OnBeforeDownload`, `ui/downloads.html` |
+| History page (⌘Y): browse and search the current space's history, remove entries | `ui/history.html`, `Controller::HistoryJson` |
+| Tab sound: a speaker on sidebar tabs that are playing audio, click to mute or unmute | `Controller::ToggleMute`, `MediaWatcher` |
+| Page context menu: Open Link in Split View, Open Link in Space…, Copy Page as Markdown | `Controller::BuildContextMenu` |
+| Reader mode (⌥⌘R): a cleaned article view built from the Markdown extractor | `ui/reader.html`, `Controller::ToggleReader` |
+| Tab switcher (⌃Tab, ⌃⇧Tab): most recently used first, within the current space | `Controller::CycleTabs` |
+| Permission prompts (camera, microphone, location, notifications): Chromium's own prompts, remembered per site in each space's profile | Chrome-style windows |
 
 ## Known limits
 
-- `--load-extension` extensions load into the default profile only, so they don't run in other Spaces.
 - Page-text search stores page text unencrypted in the data dir (mode 0600). Turn it off in Settings or run "Forget saved page text".
-
-- No H.264/AAC: prebuilt CEF ships without proprietary codecs. WebM/VP9/AV1 play;
-  many `.mp4` sources will not. Fixing it means building CEF with `proprietary_codecs`.
-- Markdown extraction covers HTML pages; PDFs and Google Docs canvases are not handled.
+- H.264 and AAC need a CEF built with proprietary codecs. The stock CEF that `scripts/build.sh` fetches plays WebM, VP9 and AV1 but not many `.mp4` sources;
+  `scripts/build-cef-codecs.sh` builds a CEF that does (hours of compiling and about 100 GB of disk).
+- The tab sound indicator follows `<audio>` and `<video>` elements on the page itself, not Web Audio or media inside cross-origin iframes.
+- Markdown extraction and Reader mode cover HTML pages; PDFs and Google Docs canvases are not handled.
 - The bundle is ad-hoc signed; the first AppleScript call triggers a macOS Automation
   prompt.
 
