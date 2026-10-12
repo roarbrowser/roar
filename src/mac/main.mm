@@ -87,6 +87,22 @@ int main(int argc, char* argv[]) {
                    error:nil];
     // Each Space's profile lives in <root>/Space-<id>.
     NSString* root = [NSString stringWithUTF8String:data_dir.c_str()];
+    // Chrome style starts the global context in Local State's last-used
+    // profile, which a ghost or Space context can claim. Space 0 must stay
+    // Default, or its tabs open in an empty profile with no logins or extensions.
+    NSString* local_state = [root stringByAppendingPathComponent:@"Local State"];
+    if (NSData* data = [NSData dataWithContentsOfFile:local_state]) {
+      NSMutableDictionary* json = [NSJSONSerialization JSONObjectWithData:data
+                                                                  options:NSJSONReadingMutableContainers
+                                                                    error:nil];
+      NSMutableDictionary* profile = [json isKindOfClass:NSMutableDictionary.class] ? json[@"profile"] : nil;
+      if ([profile isKindOfClass:NSMutableDictionary.class] && ![profile[@"last_used"] isEqual:@"Default"]) {
+        profile[@"last_used"] = @"Default";
+        profile[@"last_active_profiles"] = @[ @"Default" ];
+        [[NSJSONSerialization dataWithJSONObject:json options:0 error:nil] writeToFile:local_state
+                                                                             atomically:YES];
+      }
+    }
     for (NSString* name in [NSFileManager.defaultManager contentsOfDirectoryAtPath:root error:nil])
       if ([name hasPrefix:@"Ghost-"])  // Ghost tab profiles from a previous run.
         [NSFileManager.defaultManager removeItemAtPath:[root stringByAppendingPathComponent:name] error:nil];

@@ -37,6 +37,7 @@ struct Tab {
   std::string favicon;
   std::string icon;  // Custom icon for a pinned tab: an emoji or an image URL.
   bool pinned = false;
+  std::string home_url;  // A pinned tab's pinned address: saved, and Cmd-W returns to it.
   bool loading = false;
   bool can_back = false;
   bool can_forward = false;

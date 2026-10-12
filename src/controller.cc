@@ -647,6 +647,7 @@ int Controller::NewTab(const std::string& url, bool activate, bool pinned, doubl
   tab.title = tab.url;
   tab.ghost = ghost;
   tab.pinned = pinned && !ghost;
+  if (tab.pinned) tab.home_url = tab.url;
   tab.last_active = last_active > 0 ? last_active : NowSeconds();
   if (auto it = State::Get().history.find(SpaceKey(tab.space, tab.url));
       it != State::Get().history.end())
@@ -920,6 +921,7 @@ void Controller::SetPinned(int id, bool pinned) {
   if (it == tabs_.end() || it->ghost) return;
   Tab tab = *it;
   tab.pinned = pinned;
+  tab.home_url = pinned ? tab.url : "";
   int old_group = tab.group;
   if (pinned) tab.group = 0;
   tabs_.erase(it);
@@ -941,7 +943,27 @@ bool Controller::IsKept(const Tab& tab) {
 void Controller::CloseActiveUnlessKept() {
   Tab* tab = ActiveTab();
   if (!tab) return;
-  if (IsKept(*tab)) return Reload();  // Pinned tabs stay open; Cmd-W refreshes them.
+  if (tab->pinned && !tab->home_url.empty()) {
+    // Pinned tabs stay in the sidebar: Cmd-W sends one back to its pinned
+    // address and moves on, as if it had closed.
+    if (tab->view && tab->view->GetBrowser()) tab->view->GetBrowser()->GetMainFrame()->LoadURL(tab->home_url);
+    tab->url = tab->home_url;
+    int id = tab->id, space = tab->space;
+    auto it = std::find_if(tabs_.begin(), tabs_.end(), [&](const Tab& t) { return t.id == id; });
+    size_t index = it - tabs_.begin();
+    auto usable = [&](const Tab& t) { return t.id != id && t.space == space && !t.floating && !t.pinned; };
+    Tab* next = nullptr;
+    for (size_t i = index + 1; i < tabs_.size() && !next; ++i)
+      if (usable(tabs_[i])) next = &tabs_[i];
+    for (size_t i = index; i-- > 0 && !next;)
+      if (usable(tabs_[i])) next = &tabs_[i];
+    if (next) ActivateTab(next->id);
+    else ActivateTab(NewTab(kNewTabUrl, false, false, 0, space));
+    PushSidebar();
+    SaveSoon();
+    return;
+  }
+  if (IsKept(*tab)) return Reload();  // Tabs in pinned groups stay open; Cmd-W refreshes them.
   CloseTab(tab->id);
 }
 
@@ -2482,7 +2504,7 @@ void Controller::SaveNow() {
     if (t.ghost) continue;
     if (t.id == active_id_) state.active_index = static_cast<int>(state.tabs.size());
     // Large data: favicons would bloat state.json; the page supplies them again on load.
-    state.tabs.push_back({t.url, t.title, t.pinned, t.last_active, t.space, t.group, t.icon,
+    state.tabs.push_back({t.pinned && !t.home_url.empty() ? t.home_url : t.url, t.title, t.pinned, t.last_active, t.space, t.group, t.icon,
                           t.favicon.size() <= 16 * 1024 ? t.favicon : ""});
   }
   state.Save();
