@@ -1432,8 +1432,12 @@ void Controller::ReloadSpace(int space) {
     if (!t.ghost && t.space == space && t.view && t.view->GetBrowser()) t.view->GetBrowser()->Reload();
 }
 
-void Controller::Reload() {
-  if (Tab* t = ActiveTab(); t && (t->view ? t->view->GetBrowser() : nullptr)) (t->view ? t->view->GetBrowser() : nullptr)->Reload();
+void Controller::Reload(bool ignore_cache) {
+  CefRefPtr<CefBrowser> b;
+  if (Tab* t = ActiveTab(); t && t->view) b = t->view->GetBrowser();
+  if (!b) return;
+  if (ignore_cache) b->ReloadIgnoreCache();
+  else b->Reload();
 }
 
 // Reuses a tab already showing |url| in this space.
@@ -3245,6 +3249,10 @@ bool Controller::OnKey(CefRefPtr<CefBrowser> browser, const CefKeyEvent& event) 
       else browser->GoForward();
       return true;
     }
+    if (shift && key == 'R') {
+      browser->ReloadIgnoreCache();
+      return true;
+    }
     if (shift && key == 'F') {
       DockTab(t->id);
       return true;
@@ -3293,6 +3301,7 @@ bool Controller::OnKey(CefRefPtr<CefBrowser> browser, const CefKeyEvent& event) 
   if (shift && !alt) {
     switch (key) {
       case 'C': ExtractActive("copy"); return true;
+      case 'R': Reload(true); return true;  // hard reload, bypassing the cache
       case 'K': CleanTabs(); return true;
       case 'P': PictureInPicture(); return true;
       case 'F': FloatActiveTab(); return true;

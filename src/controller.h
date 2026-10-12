@@ -121,7 +121,7 @@ class Controller {
   void DockTab(int id);
   void Back();
   void Forward();
-  void Reload();
+  void Reload(bool ignore_cache = false);
   void OpenSettings();
   void ToggleSidebar();
   // `attempt` counts retries after a network failure (launch can beat the network).
