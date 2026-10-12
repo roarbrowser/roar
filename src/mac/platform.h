@@ -4,6 +4,7 @@
 
 #include <functional>
 #include <string>
+#include <vector>
 
 namespace roar::platform {
 
@@ -47,6 +48,9 @@ void CheckForUpdates(void* window);
 void ChooseLookback(void* window, const std::string& what, std::function<void(double since)> done);
 // A path in ~/Downloads for |name| that doesn't exist yet ("name (1).ext" and so on).
 std::string UniqueDownloadPath(const std::string& name);
+// Pops a native menu at the mouse; an empty title is a separator, a leading '-'
+// a disabled label. `done` gets the clicked index (never called if dismissed).
+void PopupMenu(const std::vector<std::string>& titles, std::function<void(int index)> done);
 // Asks whether to save `name`, a file type that can run code, from `host`.
 void ConfirmDownload(void* window, const std::string& name, const std::string& host,
                      std::function<void(bool allow)> done);

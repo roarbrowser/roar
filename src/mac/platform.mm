@@ -176,6 +176,13 @@
 }
 @end
 
+@interface RoarMenuPick : NSObject
+@property(nonatomic) NSInteger picked;
+@end
+@implementation RoarMenuPick
+- (void)pick:(NSMenuItem*)item { self.picked = item.tag; }
+@end
+
 namespace roar::platform {
 
 namespace {
@@ -671,6 +678,24 @@ void QuarantineDownload(const std::string& path, const std::string& url) {
   } mutableCopy];
   if (NSURL* origin = [NSURL URLWithString:NS(url)]) q[(__bridge NSString*)kLSQuarantineDataURLKey] = origin;
   [file setResourceValue:q forKey:NSURLQuarantinePropertiesKey error:nil];
+}
+
+void PopupMenu(const std::vector<std::string>& titles, std::function<void(int index)> done) {
+  NSMenu* menu = [[NSMenu alloc] init];
+  menu.autoenablesItems = NO;
+  RoarMenuPick* target = [[RoarMenuPick alloc] init];
+  target.picked = -1;
+  for (size_t i = 0; i < titles.size(); ++i) {
+    const std::string& t = titles[i];
+    if (t.empty()) { [menu addItem:NSMenuItem.separatorItem]; continue; }
+    bool label = t[0] == '-';
+    NSMenuItem* item = [menu addItemWithTitle:NS(label ? t.substr(1) : t) action:@selector(pick:) keyEquivalent:@""];
+    item.target = target;
+    item.tag = static_cast<NSInteger>(i);
+    item.enabled = !label;
+  }
+  [menu popUpMenuPositioningItem:nil atLocation:NSEvent.mouseLocation inView:nil];
+  if (target.picked >= 0) done(static_cast<int>(target.picked));
 }
 
 std::string UniqueDownloadPath(const std::string& name) {

@@ -1836,6 +1836,13 @@ void Controller::RunCommand(const std::string& id) {
     CefPostDelayedTask(TID_UI, base::BindOnce([](int space) { Controller::Get()->ReloadSpace(space); }, space), 500);
     ShowHint("Cleared cookies in this space");
   }
+  else if (id == "gmailMenu") {
+    std::string account = State::Get().gmail[State::Get().active_space].account;
+    std::vector<std::string> items;
+    if (!account.empty()) items = {"-" + account, ""};
+    items.push_back("Sign Out of Gmail in This Space");
+    platform::PopupMenu(items, [](int) { Controller::Get()->RunCommand("gmailSignOut"); });
+  }
   else if (id == "gmailSignOut") {
     // Signs this space out of Google by dropping its google.com cookies; other
     // spaces keep their own logins.
