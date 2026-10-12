@@ -38,6 +38,10 @@ void TrackHorizontalDrag(void* window, std::function<void(int x)> on_move);
 // Turns a tab window into a titled, always-on-top mini window, or back.
 void SetFloating(void* window, bool floating, const std::string& title);
 void CopyText(const std::string& text);
+// Asks, in a sheet on |window|, how far back to clear |what| ("history",
+// "cookies"). |done| gets the cutoff in Unix seconds (0 for all time); it is
+// not called if the sheet is cancelled.
+void ChooseLookback(void* window, const std::string& what, std::function<void(double since)> done);
 // Writes Markdown to ~/Downloads and returns the path, or "" on failure.
 std::string SaveMarkdown(const std::string& title, const std::string& markdown);
 

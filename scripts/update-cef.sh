@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # Pins fetch-cef.sh to the newest stable CEF (latest Chromium) for macOS arm64,
-# then refetches and rebuilds. Usage: scripts/update-cef.sh [--check]
+# then rebuilds. Usage: scripts/update-cef.sh [--check]
+# If third_party/cef is a codec build (cef.prebuilt exists), the new version is
+# compiled with codecs too (hours), so the update keeps MP4/H.264 playback.
 set -euo pipefail
 ROOT="${ROAR_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}"
 FETCH="$ROOT/scripts/fetch-cef.sh"
@@ -18,5 +20,10 @@ fi
 echo "Update available: $CURRENT -> $NAME"
 [[ "${1:-}" == "--check" ]] && exit 0
 sed -i '' -e "s|^NAME='.*'|NAME='$NAME'|" -e "s|^SHA1='.*'|SHA1='$SHA1'|" "$FETCH"
-rm -rf "$ROOT/third_party/cef" "${ROAR_BUILD_DIR:-$ROOT/build}"
+if [[ -d "$ROOT/third_party/cef.prebuilt" ]]; then
+  "$ROOT/scripts/build-cef-codecs.sh"
+else
+  rm -rf "$ROOT/third_party/cef"
+fi
+rm -rf "${ROAR_BUILD_DIR:-$ROOT/build}"
 "$ROOT/scripts/build.sh"

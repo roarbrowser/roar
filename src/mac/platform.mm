@@ -102,16 +102,26 @@
   add(menu, @"Forward\t⌘]", @"forward", nil);
   add(menu, @"Reopen Closed Tab\t⇧⌘T", @"reopen", nil);
   roar::State& state = roar::State::Get();
-  if (!state.archive.empty()) {
+  // Only the active space: each space is its own profile.
+  int space = state.active_space;
+  std::vector<size_t> closed;
+  for (size_t i = 0; i < state.archive.size() && closed.size() < 10; ++i)
+    if (state.archive[i].space == space) closed.push_back(i);
+  if (!closed.empty()) {
     [menu addItem:[NSMenuItem separatorItem]];
     [menu addItemWithTitle:@"Recently Closed" action:nil keyEquivalent:@""].enabled = NO;
-    for (size_t i = 0; i < std::min<size_t>(state.archive.size(), 10); ++i) {
+    for (size_t i : closed) {
       const auto& a = state.archive[i];
       add(menu, ns(a.title.empty() ? a.url : a.title), [NSString stringWithFormat:@"restore:%zu", i], ns(a.url));
     }
   }
   std::vector<std::pair<std::string, const roar::HistoryEntry*>> recent;
-  for (const auto& [url, e] : state.history) recent.push_back({url, &e});
+  std::string prefix = std::to_string(space) + "\t";
+  for (const auto& [key, e] : state.history) {
+    bool other = key.find('\t') != std::string::npos;
+    if (space == 0 ? other : key.compare(0, prefix.size(), prefix) != 0) continue;
+    recent.push_back({space == 0 ? key : key.substr(prefix.size()), &e});
+  }
   std::sort(recent.begin(), recent.end(),
             [](auto& a, auto& b) { return a.second->last_visit > b.second->last_visit; });
   if (!recent.empty()) {
@@ -122,6 +132,9 @@
       add(menu, ns(e->title.empty() ? url : e->title), [@"open:" stringByAppendingString:ns(url)], ns(url));
     }
   }
+  [menu addItem:[NSMenuItem separatorItem]];
+  add(menu, @"Clear History in This Space", @"clearHistory", nil);
+  add(menu, @"Clear Cookies in This Space", @"clearCookies", nil);
 }
 // Rebuilds the Extensions menu from the active space's profile each time it opens.
 - (void)menuNeedsUpdate:(NSMenu*)menu {
@@ -527,6 +540,28 @@ void CopyText(const std::string& text) {
   NSPasteboard* pb = NSPasteboard.generalPasteboard;
   [pb clearContents];
   [pb setString:NS(text) forType:NSPasteboardTypeString];
+}
+
+void ChooseLookback(void* window, const std::string& what, std::function<void(double since)> done) {
+  NSAlert* alert = [[NSAlert alloc] init];
+  alert.messageText = [NSString stringWithFormat:@"Clear %@ in this space", NS(what)];
+  alert.informativeText = @"How far back?";
+  for (NSString* t in @[ @"Today", @"Last 7 Days", @"Last 14 Days", @"Last 30 Days", @"All Time", @"Cancel" ])
+    [alert addButtonWithTitle:t];
+  alert.buttons.lastObject.keyEquivalent = @"\e";
+  [alert beginSheetModalForWindow:Win(window) ?: NSApp.keyWindow
+                completionHandler:^(NSModalResponse response) {
+                  NSDate* now = [NSDate date];
+                  double t = now.timeIntervalSince1970;
+                  switch (response - NSAlertFirstButtonReturn) {
+                    case 0: done([[NSCalendar currentCalendar] startOfDayForDate:now].timeIntervalSince1970); break;
+                    case 1: done(t - 7 * 86400); break;
+                    case 2: done(t - 14 * 86400); break;
+                    case 3: done(t - 30 * 86400); break;
+                    case 4: done(0); break;
+                    default: break;
+                  }
+                }];
 }
 
 std::string SaveMarkdown(const std::string& title, const std::string& markdown) {

@@ -29,7 +29,7 @@ python3 "$CEF_SRC/automate-git.py" \
   --download-dir="$CEF_SRC" --branch="$BRANCH" --checkout="$CEF_COMMIT" \
   --chromium-checkout="refs/tags/$CHROMIUM" \
   --arm64-build --minimal-distrib-only --no-distrib-docs --no-distrib-symbols \
-  --no-debug-build --no-chromium-history --force-config --force-build
+  --no-debug-build --no-chromium-history --force-build
 
 DIST=$(ls -d "$CEF_SRC"/chromium/src/cef/binary_distrib/cef_binary_*_macosarm64_minimal | head -1)
 rm -rf "$ROOT/third_party/cef.prebuilt"

@@ -146,6 +146,7 @@ class Controller {
   // Fails closed: a browser Roar can't place in the global or a space
   // profile (a ghost tab's popup, say) counts as ghost.
   bool IsGhostBrowser(CefRefPtr<CefBrowser> browser);
+  void ReloadSpace(int space);
   void Relayout();
   void ApplySidebarWidth();
   void PollSidebarDragEnd();

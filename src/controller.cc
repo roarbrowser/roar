@@ -1242,6 +1242,12 @@ void Controller::Forward() {
   if (Tab* t = ActiveTab(); t && (t->view ? t->view->GetBrowser() : nullptr)) (t->view ? t->view->GetBrowser() : nullptr)->GoForward();
 }
 
+// Reloads every open, non-ghost tab in |space|.
+void Controller::ReloadSpace(int space) {
+  for (auto& t : tabs_)
+    if (!t.ghost && t.space == space && t.view && t.view->GetBrowser()) t.view->GetBrowser()->Reload();
+}
+
 void Controller::Reload() {
   if (Tab* t = ActiveTab(); t && (t->view ? t->view->GetBrowser() : nullptr)) (t->view ? t->view->GetBrowser() : nullptr)->Reload();
 }
@@ -1681,29 +1687,62 @@ void Controller::RunCommand(const std::string& id) {
   else if (id == "newSpace") AddSpace("");
   else if (id == "nextSpace") CycleSpace(1);
   else if (id == "prevSpace") CycleSpace(-1);
-  else if (id == "clearHistory") {
-    // History and saved page text for the active space; other spaces keep theirs.
+  else if (id == "clearHistory" || id == "clearCookies") {
+    if (!shell_) return;
+    platform::ChooseLookback(shell_->GetWindowHandle(), id == "clearHistory" ? "history" : "cookies",
+                             [id](double since) {
+                               Controller::Get()->RunCommand(id + ":" + std::to_string(static_cast<long long>(since)));
+                             });
+  }
+  else if (StartsWith(id, "clearHistory:")) {
+    // History and saved page text since the cutoff (Unix seconds, 0 for all),
+    // in the active space only; other spaces keep theirs.
+    double since = std::atof(id.c_str() + 13);
     State& state = State::Get();
     int space = state.active_space;
     auto in_space = [&](const std::string& key) {
       size_t tab = key.find('\t');
       return tab == std::string::npos ? space == 0 : std::atoi(key.c_str()) == space;
     };
-    for (auto* m : {&state.history}) std::erase_if(*m, [&](const auto& kv) { return in_space(kv.first); });
-    std::erase_if(state.pages, [&](const auto& kv) { return in_space(kv.first); });
+    std::erase_if(state.history, [&](const auto& kv) { return in_space(kv.first) && kv.second.last_visit >= since; });
+    std::erase_if(state.pages, [&](const auto& kv) { return in_space(kv.first) && kv.second.indexed_at >= since; });
     state.Save();
     state.SavePages();
+    ReloadSpace(space);
+    PushSidebar();
     ShowHint("Cleared history in this space");
   }
-  else if (id == "clearCookies") {
-    // Signs the active space out of every site. Never the ghost context: it
-    // has its own lifetime, and touching it after its tabs close crashes CEF.
+  else if (StartsWith(id, "clearCookies:")) {
+    // Cookies created since the cutoff, in the active space. Never the ghost
+    // context: touching it after its tabs close crashes CEF.
+    double since = std::atof(id.c_str() + 13);
     int space = State::Get().active_space;
     auto ctx = space == 0 ? CefRequestContext::GetGlobalContext() : ContextFor(space);
-    if (auto cookies = ctx ? ctx->GetCookieManager(nullptr) : nullptr) {
+    auto cookies = ctx ? ctx->GetCookieManager(nullptr) : nullptr;
+    if (!cookies) return;
+    if (since <= 0) {
       cookies->DeleteCookies("", "", nullptr);
-      ShowHint("Cleared cookies in this space");
+    } else {
+      class Visitor : public CefCookieVisitor {
+       public:
+        explicit Visitor(double since) : since_(since) {}
+        bool Visit(const CefCookie& cookie, int, int, bool& remove) override {
+          CefTime created;
+          cef_time_from_basetime(cookie.creation, &created);
+          double t = 0;
+          cef_time_to_doublet(&created, &t);
+          remove = t >= since_;
+          return true;
+        }
+       private:
+        double since_;
+        IMPLEMENT_REFCOUNTING(Visitor);
+      };
+      cookies->VisitAllCookies(new Visitor(since));
     }
+    // Pages pick up the signed-out state once the deletion lands.
+    CefPostDelayedTask(TID_UI, base::BindOnce([](int space) { Controller::Get()->ReloadSpace(space); }, space), 500);
+    ShowHint("Cleared cookies in this space");
   }
   else if (id == "forgetPages") {
     State::Get().pages.clear();
