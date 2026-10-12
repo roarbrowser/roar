@@ -143,10 +143,9 @@ class Controller {
   bool CanCloseTabWindow(CefRefPtr<CefWindow> window);
   void OnTabWindowCreated(CefRefPtr<CefWindow> window);
   void OnTabWindowActivated(CefRefPtr<CefWindow> window);
-  bool IsGhostBrowser(CefRefPtr<CefBrowser> browser) {
-    Tab* t = FindTabByBrowser(browser);
-    return t && t->ghost;
-  }
+  // Fails closed: a browser Roar can't place in the global or a space
+  // profile (a ghost tab's popup, say) counts as ghost.
+  bool IsGhostBrowser(CefRefPtr<CefBrowser> browser);
   void Relayout();
   void ApplySidebarWidth();
   void PollSidebarDragEnd();

@@ -631,7 +631,9 @@ void Controller::Focus() {
 }
 
 void Controller::Quit() {
-  if (shell_) shell_->Close();
+  // A second Quit while one is under way (or with no shell) quits outright.
+  if (shell_ && !closing_) shell_->Close();
+  else CefQuitMessageLoop();
 }
 
 // ---------------------------------------------------------------------------
@@ -1010,6 +1012,16 @@ Tab* Controller::FindTab(int id) {
 
 CefRefPtr<CefClient> Controller::client() { return client_; }
 
+bool Controller::IsGhostBrowser(CefRefPtr<CefBrowser> browser) {
+  if (Tab* t = FindTabByBrowser(browser)) return t->ghost;
+  auto ctx = browser ? browser->GetHost()->GetRequestContext() : nullptr;
+  if (!ctx) return true;
+  if (ctx->IsSharingWith(CefRequestContext::GetGlobalContext())) return false;
+  for (const auto& [space, c] : contexts_)
+    if (space != kGhostContext && c && ctx->IsSharingWith(c)) return false;
+  return true;
+}
+
 Tab* Controller::FindTabByBrowser(CefRefPtr<CefBrowser> browser) {
   if (!browser) return nullptr;
   for (auto& t : tabs_) {
@@ -1039,7 +1051,9 @@ bool Controller::IsUiBrowser(CefRefPtr<CefBrowser> browser) const {
 void Controller::ShowCommandBar(bool new_tab) {
   if (!command_window_) return;
   command_new_tab_ = new_tab;
-  command_ghost_ = false;
+  // Cmd-T from a ghost tab opens another ghost tab, never a regular one.
+  Tab* active = ActiveTab();
+  command_ghost_ = new_tab && active && active->ghost;
   command_visible_ = true;
   Relayout();
   std::string url;
@@ -1667,6 +1681,30 @@ void Controller::RunCommand(const std::string& id) {
   else if (id == "newSpace") AddSpace("");
   else if (id == "nextSpace") CycleSpace(1);
   else if (id == "prevSpace") CycleSpace(-1);
+  else if (id == "clearHistory") {
+    // History and saved page text for the active space; other spaces keep theirs.
+    State& state = State::Get();
+    int space = state.active_space;
+    auto in_space = [&](const std::string& key) {
+      size_t tab = key.find('\t');
+      return tab == std::string::npos ? space == 0 : std::atoi(key.c_str()) == space;
+    };
+    for (auto* m : {&state.history}) std::erase_if(*m, [&](const auto& kv) { return in_space(kv.first); });
+    std::erase_if(state.pages, [&](const auto& kv) { return in_space(kv.first); });
+    state.Save();
+    state.SavePages();
+    ShowHint("Cleared history in this space");
+  }
+  else if (id == "clearCookies") {
+    // Signs the active space out of every site. Never the ghost context: it
+    // has its own lifetime, and touching it after its tabs close crashes CEF.
+    int space = State::Get().active_space;
+    auto ctx = space == 0 ? CefRequestContext::GetGlobalContext() : ContextFor(space);
+    if (auto cookies = ctx ? ctx->GetCookieManager(nullptr) : nullptr) {
+      cookies->DeleteCookies("", "", nullptr);
+      ShowHint("Cleared cookies in this space");
+    }
+  }
   else if (id == "forgetPages") {
     State::Get().pages.clear();
     State::Get().SavePages();
@@ -2040,7 +2078,7 @@ bool Controller::HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> 
       std::string text = "Page: " + title + "\nURL: " + tab->url + "\n\n```markdown\n" + body +
                          "\n```\n\n";
       platform::CopyText(text);
-      int id = NewTab(llm->url, true, false, 0, tab->space);
+      int id = NewTab(llm->url, true, false, 0, tab->space, tab->ghost);
       llm_fills_[id] = text;
       ShowHint(std::string("Opening ") + llm->name + ", page also copied");
     } else if (target == "save") {
@@ -2302,7 +2340,7 @@ void Controller::OnAddress(CefRefPtr<CefBrowser> browser, const std::string& url
   // their pages must stay put.
   if (!tab && !browser->IsPopup() && !IsExtensionPopup(browser) && !url.empty() && !StartsWith(url, "roar:") &&
       stray_seen_.insert(browser->GetIdentifier()).second && !StartsWith(url, "about:blank")) {
-    NewTab(url, true);
+    NewTab(url, true, false, 0, -1, IsGhostBrowser(browser));
     browser->GetHost()->CloseBrowser(true);
     return;
   }
@@ -2571,6 +2609,10 @@ bool Controller::CanCloseShell() {
   if (command_window_) command_window_->Close();
   if (hint_window_) hint_window_->Close();
   CloseExtensionPopup();
+  // A browser that never reports closing (a stray popup, a CDP-created page, a
+  // page stuck in beforeunload) would keep MaybeQuit waiting forever. State is
+  // saved above, so quit regardless after a grace period.
+  CefPostDelayedTask(TID_UI, base::BindOnce([] { CefQuitMessageLoop(); }), 3000);
   return true;
 }
 
