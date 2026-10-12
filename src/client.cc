@@ -163,6 +163,12 @@ bool Client::OnBeforeBrowse(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> f
     if (!kBrowserSchemes.count(scheme)) {
       // Chromium only shows ERR_UNKNOWN_URL_SCHEME; ask before handing it to a Mac app.
       if (user_gesture || is_redirect || frame->IsMain()) Controller::Get()->OpenExternal(url);
+      // A popup opened only to hand off a link (Outlook's "Edit in Excel desktop
+      // app") would stay a blank window.
+      std::string current = frame->GetURL();
+      if (frame->IsMain() && browser->IsPopup() &&
+          (current.empty() || current.rfind("about:blank", 0) == 0))
+        browser->GetHost()->CloseBrowser(true);
       return true;
     }
   }
