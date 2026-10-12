@@ -12,6 +12,7 @@
 #include <sstream>
 #include <set>
 
+#include "include/cef_command_ids.h"
 #include "include/base/cef_callback.h"
 #include "include/cef_app.h"
 #include "include/cef_parser.h"
@@ -802,7 +803,7 @@ void Controller::Quit() {
 // Tabs
 
 int Controller::NewTab(const std::string& url, bool activate, bool pinned, double last_active,
-                       int space, bool ghost) {
+                       int space, bool ghost, int opener) {
   CEF_REQUIRE_UI_THREAD();
   Tab tab;
   tab.id = next_id_++;
@@ -818,9 +819,17 @@ int Controller::NewTab(const std::string& url, bool activate, bool pinned, doubl
     tab.title = it->second.title.empty() ? tab.url : it->second.title;
   // The browser is created with the tab's window, on first activation.
   tab.view = CreateTabView(tab.url, tab.space, ghost);
-  // New tabs open beside the active one, after any pinned tabs.
+  // A link's tab joins its opener's group and opens after it and the tabs it
+  // already opened, in order; other new tabs open beside the active one.
   auto pos = tabs_.end();
-  if (auto* active = ActiveTab(); active && !tab.pinned && active->space == tab.space) {
+  Tab* from = opener ? FindTab(opener) : nullptr;
+  if (from && from->space != tab.space) from = nullptr;
+  if (from) {
+    tab.opener = from->id;
+    if (from->group && !ghost) tab.group = from->group;
+    pos = std::find_if(tabs_.begin(), tabs_.end(), [&](const Tab& t) { return t.id == from->id; }) + 1;
+    while (pos != tabs_.end() && pos->opener == tab.opener) ++pos;
+  } else if (auto* active = ActiveTab(); active && !tab.pinned && active->space == tab.space) {
     pos = std::find_if(tabs_.begin(), tabs_.end(),
                        [&](const Tab& t) { return t.id == active->id; }) + 1;
   }
@@ -829,6 +838,12 @@ int Controller::NewTab(const std::string& url, bool activate, bool pinned, doubl
   PushSidebar();
   SaveSoon();
   return tab.id;
+}
+
+int Controller::NewTabFrom(CefRefPtr<CefBrowser> opener, const std::string& url, bool activate) {
+  Tab* from = FindTabByBrowser(opener);
+  return NewTab(url, activate, false, 0, from ? from->space : -1, IsGhostBrowser(opener),
+                from ? from->id : 0);
 }
 
 CefRect Controller::ContentRect() {
@@ -2355,6 +2370,12 @@ bool Controller::OnContextMenuCommand(CefRefPtr<CefBrowser> browser, CefRefPtr<C
   int tab_id = tab->id;
   bool ghost = tab->ghost;
   std::string link = params->GetLinkUrl();
+  // Chrome's own "Open Link in New Tab/Window" bypasses OnBeforePopup.
+  if ((command_id == IDC_CONTENT_CONTEXT_OPENLINKNEWTAB ||
+       command_id == IDC_CONTENT_CONTEXT_OPENLINKNEWWINDOW) && !link.empty()) {
+    NewTabFrom(browser, link, false);
+    return true;
+  }
   if (command_id == kMenuMarkdown) {
     ExtractActive("copy", tab_id);
     return true;

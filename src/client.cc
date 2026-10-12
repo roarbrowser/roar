@@ -123,8 +123,8 @@ bool Client::OnBeforePopup(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> fr
     case CEF_WOD_SINGLETON_TAB:
     {
       // Links from a ghost tab open as ghost tabs.
-      Controller::Get()->NewTab(target_url, target_disposition != CEF_WOD_NEW_BACKGROUND_TAB, false, 0,
-                                -1, Controller::Get()->IsGhostBrowser(browser));
+      Controller::Get()->NewTabFrom(browser, target_url,
+                                    target_disposition != CEF_WOD_NEW_BACKGROUND_TAB);
     }
       return true;
     default:

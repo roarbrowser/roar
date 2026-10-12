@@ -48,6 +48,7 @@ struct Tab {
   std::string folder;  // "mail" or "github": the space's one tab for that sidebar group's links.
   std::string folder_item;  // The folder link it opened; the sidebar shows the tab in its place.
   int group = 0;
+  int opener = 0;  // The tab whose link opened this one; not saved.
   // Ghost tab: an in-memory profile shared by all ghost tabs, never saved,
   // archived or recorded in history. Shown in every space.
   bool ghost = false;
@@ -89,7 +90,9 @@ class Controller {
   // Tabs. Ids are stable for the life of the process.
   // space < 0 means the active space.
   int NewTab(const std::string& url, bool activate, bool pinned = false, double last_active = 0,
-             int space = -1, bool ghost = false);
+             int space = -1, bool ghost = false, int opener = 0);
+  // A link opened in a new tab: beside its opener, in the opener's space and group.
+  int NewTabFrom(CefRefPtr<CefBrowser> opener, const std::string& url, bool activate);
   void ActivateTab(int id);
   CefRefPtr<CefRequestContext> ContextFor(int space);
   void CloseTab(int id);
