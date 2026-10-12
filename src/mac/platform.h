@@ -41,6 +41,9 @@ void CopyText(const std::string& text);
 // Asks, in a sheet on |window|, how far back to clear |what| ("history",
 // "cookies"). |done| gets the cutoff in Unix seconds (0 for all time); it is
 // not called if the sheet is cancelled.
+// Checks for a newer CEF and, if confirmed, rebuilds and redeploys Roar in the
+// background (scripts/update-cef.sh then scripts/deploy.sh).
+void CheckForUpdates(void* window);
 void ChooseLookback(void* window, const std::string& what, std::function<void(double since)> done);
 // Writes Markdown to ~/Downloads and returns the path, or "" on failure.
 std::string SaveMarkdown(const std::string& title, const std::string& markdown);

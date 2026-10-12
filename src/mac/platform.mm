@@ -357,6 +357,7 @@ void InstallMenu() {
   NSMenu* app = addMenu(@"Roar");
   [app addItemWithTitle:@"About Roar" action:@selector(orderFrontStandardAboutPanel:) keyEquivalent:@""];
   [app addItem:[NSMenuItem separatorItem]];
+  addCommand(app, @"Check for Updates…", @"checkUpdates", @"");
   addCommand(app, @"Settings…", @"settings", @"⌘,");
   [app addItem:[NSMenuItem separatorItem]];
   [app addItemWithTitle:@"Hide Roar" action:@selector(hide:) keyEquivalent:@"h"];
@@ -540,6 +541,68 @@ void CopyText(const std::string& text) {
   NSPasteboard* pb = NSPasteboard.generalPasteboard;
   [pb clearContents];
   [pb setString:NS(text) forType:NSPasteboardTypeString];
+}
+
+void CheckForUpdates(void* window) {
+  NSString* root = @ROAR_SOURCE_DIR;
+  NSWindow* win = Win(window) ?: NSApp.keyWindow;
+  auto show = ^(NSString* title, NSString* text, NSArray<NSString*>* buttons, void (^done)(NSInteger)) {
+    NSAlert* alert = [[NSAlert alloc] init];
+    alert.messageText = title;
+    alert.informativeText = text;
+    for (NSString* b in buttons) [alert addButtonWithTitle:b];
+    [alert beginSheetModalForWindow:win
+                  completionHandler:^(NSModalResponse r) {
+                    if (done) done(r - NSAlertFirstButtonReturn);
+                  }];
+  };
+  NSString* update = [root stringByAppendingPathComponent:@"scripts/update-cef.sh"];
+  if (![NSFileManager.defaultManager fileExistsAtPath:update]) {
+    show(@"Can't check for updates", [NSString stringWithFormat:@"No Roar checkout at %@.", root], @[ @"OK" ], nil);
+    return;
+  }
+  dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+    NSTask* task = [[NSTask alloc] init];
+    task.executableURL = [NSURL fileURLWithPath:@"/bin/bash"];
+    task.arguments = @[ update, @"--check" ];
+    NSPipe* pipe = [NSPipe pipe];
+    task.standardOutput = pipe;
+    task.standardError = pipe;
+    NSString* out = @"";
+    if ([task launchAndReturnError:nil]) {
+      NSData* data = [pipe.fileHandleForReading readDataToEndOfFile];
+      [task waitUntilExit];
+      out = [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding] ?: @"";
+    }
+    out = [out stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceAndNewlineCharacterSet];
+    dispatch_async(dispatch_get_main_queue(), ^{
+      if (task.terminationStatus != 0 || ![out containsString:@"Update available"]) {
+        show(task.terminationStatus ? @"Update check failed" : @"Roar is up to date", out, @[ @"OK" ], nil);
+        return;
+      }
+      bool codecs = [NSFileManager.defaultManager
+          fileExistsAtPath:[root stringByAppendingPathComponent:@"third_party/cef.prebuilt"]];
+      NSString* text = [NSString
+          stringWithFormat:@"%@\n\nRoar rebuilds in the background%@ and relaunches itself when done. "
+                           @"The log is at ~/Library/Logs/Roar-update.log.",
+                           out, codecs ? @" (compiling Chromium with video codecs takes hours)" : @""];
+      show(@"Chromium update available", text, @[ @"Update", @"Later" ], ^(NSInteger choice) {
+        if (choice != 0) return;
+        NSString* log = [NSHomeDirectory() stringByAppendingPathComponent:@"Library/Logs/Roar-update.log"];
+        NSString* cmd = [NSString
+            stringWithFormat:@"cd '%@' && { scripts/update-cef.sh && scripts/deploy.sh; } > '%@' 2>&1 || "
+                             @"osascript -e 'display notification \"See ~/Library/Logs/Roar-update.log\" "
+                             @"with title \"Roar update failed\"'",
+                             root, log];
+        NSTask* run = [[NSTask alloc] init];
+        run.executableURL = [NSURL fileURLWithPath:@"/usr/bin/nohup"];
+        run.arguments = @[ @"/bin/bash", @"-lc", cmd ];
+        run.standardOutput = [NSFileHandle fileHandleWithNullDevice];
+        run.standardError = [NSFileHandle fileHandleWithNullDevice];
+        [run launchAndReturnError:nil];
+      });
+    });
+  });
 }
 
 void ChooseLookback(void* window, const std::string& what, std::function<void(double since)> done) {

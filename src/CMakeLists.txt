@@ -23,6 +23,8 @@ set(ROAR_RES "${CMAKE_SOURCE_DIR}/resources")
 add_executable(${CEF_TARGET} MACOSX_BUNDLE ${ROAR_SRCS})
 SET_EXECUTABLE_TARGET_PROPERTIES(${CEF_TARGET})
 add_dependencies(${CEF_TARGET} libcef_dll_wrapper)
+# Check for Updates runs scripts/update-cef.sh from this checkout.
+target_compile_definitions(${CEF_TARGET} PRIVATE ROAR_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
 target_link_libraries(${CEF_TARGET} libcef_dll_wrapper ${CEF_STANDARD_LIBS} "-framework Carbon" "-framework Security" "-framework QuartzCore" sqlite3)
 set_target_properties(${CEF_TARGET} PROPERTIES
   MACOSX_BUNDLE_INFO_PLIST "${ROAR_RES}/Info.plist.in"
