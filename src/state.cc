@@ -18,6 +18,14 @@ constexpr size_t kMaxHistory = 5000;
 constexpr size_t kMaxPages = 800;
 constexpr size_t kMaxPageChars = 16000;
 
+int CountPinned(CefRefPtr<CefDictionaryValue> d) {
+  auto list = d ? d->GetList("tabs") : nullptr;
+  int n = 0;
+  for (size_t i = 0; list && i < list->GetSize(); ++i)
+    if (auto t = list->GetDictionary(i); t && t->GetBool("pinned")) ++n;
+  return n;
+}
+
 std::string ReadFile(const std::string& path) {
   std::ifstream in(path);
   if (!in) return "";
@@ -101,7 +109,16 @@ void State::Load() {
       pages[k.ToString()] = {Str(e, "title"), Str(e, "text"), Num(e, "indexedAt"), space, url};
     }
   }
-  CefRefPtr<CefValue> root = CefParseJSON(ReadFile(Dir() + "/state.json"), JSON_PARSER_RFC);
+  const std::string text = ReadFile(Dir() + "/state.json");
+  // Keeps the state of the last three launches: state.json.launch-1 is the newest.
+  if (!text.empty()) {
+    const std::string base = Dir() + "/state.json.launch-";
+    std::rename((base + "2").c_str(), (base + "3").c_str());
+    std::rename((base + "1").c_str(), (base + "2").c_str());
+    std::ofstream(base + "1", std::ios::trunc) << text;
+    chmod((base + "1").c_str(), 0600);
+  }
+  CefRefPtr<CefValue> root = CefParseJSON(text, JSON_PARSER_RFC);
   if (!root || root->GetType() != VTYPE_DICTIONARY) return;
   CefRefPtr<CefDictionaryValue> d = root->GetDictionary();
 
@@ -274,6 +291,17 @@ void State::Save() {
   }
   d->SetList("groups", gl);
   d->SetInt("nextGroupId", next_group_id);
+  // A save that drops every pinned tab first sets the old file aside as
+  // state.json.lost-pins, so a bad quit cannot silently wipe them.
+  if (CountPinned(d) == 0) {
+    const std::string path = Dir() + "/state.json";
+    const std::string old = ReadFile(path);
+    auto prev = CefParseJSON(old, JSON_PARSER_RFC);
+    if (prev && prev->GetType() == VTYPE_DICTIONARY && CountPinned(prev->GetDictionary()) > 0) {
+      std::ofstream(path + ".lost-pins", std::ios::trunc) << old;
+      chmod((path + ".lost-pins").c_str(), 0600);
+    }
+  }
   WriteJson(Dir(), "state.json", d);
 }
 
