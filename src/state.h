@@ -96,7 +96,7 @@ struct GmailFeed {
 struct Settings {
   double archive_after_hours = 12;  // 0 disables auto-archive.
   bool onboarded = false;
-  std::string search_url = "https://www.google.com/search?q=";
+  std::string search_url = "https://duckduckgo.com/?q=";
   std::string github_query = "is:open is:pr author:@me archived:false";
   bool github_folder = true;
   bool gmail_folder = true;

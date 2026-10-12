@@ -150,6 +150,9 @@ void State::Load() {
     settings.archive_after_hours = Num(s, "archiveAfterHours", settings.archive_after_hours);
     settings.onboarded = Bool(s, "onboarded");
     settings.search_url = Str(s, "searchUrl", settings.search_url);
+    // Google was the old default, saved though nothing let anyone pick it.
+    if (settings.search_url == "https://www.google.com/search?q=")
+      settings.search_url = "https://duckduckgo.com/?q=";
     settings.github_query = Str(s, "githubQuery", settings.github_query);
     // The old default listed PRs in archived repos too.
     if (settings.github_query == "is:open is:pr author:@me")
