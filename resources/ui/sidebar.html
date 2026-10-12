@@ -124,7 +124,16 @@ body.drag-active .pinned:empty::before { content: 'Drop to pin'; color: var(--in
 .pr .label small { color: var(--ink-3); font-size: 11px; overflow: hidden; text-overflow: ellipsis; }
 .pr { height: 40px; }
 .pr .dot { width: 8px; height: 8px; border-radius: 50%; background: #2f9e5b; flex: none; margin: 0 4px; }
-.mail .dot { background: #d9822b; }
+.mail .dot { background: var(--acct, #d9822b); }
+/* One section per Gmail account when a space has several; the account's hue
+   marks its header swatch and every message dot under it. */
+.acct-head { position: sticky; top: -4px; z-index: 1; display: flex; align-items: center; gap: 8px; margin: 6px 0 2px; padding: 7px 8px 5px; background: var(--ground); border-top: 1px solid var(--rule); font-size: 12px; }
+.acct:first-child .acct-head { margin-top: 0; border-top: 0; }
+.acct-head .swatch { width: 10px; height: 10px; border-radius: 3px; background: var(--acct); flex: none; }
+.acct-head .who { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink); font-weight: 600; }
+.acct-head .who span { color: var(--ink-3); font-weight: 400; }
+.acct-head .n { margin-left: auto; color: var(--ink-3); font-variant-numeric: tabular-nums; }
+.acct .note { padding-left: 26px; }
 
 .foot { flex: none; display: flex; align-items: center; gap: 7px; padding: 8px 14px 12px; color: var(--ink-3); font-size: 11px; border-top: 1px solid var(--rule); }
 .foot .wordmark { font-size: 15px; color: var(--ink-2); }
@@ -314,6 +323,11 @@ window.roar = {
         : folderRows('github', [], () => '') + '<div class="note">No open pull requests.</div>';
 
     const gm = s.gmail;
+    const mailRow = (m) => {
+      const ft = folderTab('mail');
+      if (ft && ft.folderItem === m.url) return tabRow(ft, 0);
+      return `<button class="row pr mail" data-url="${esc(m.url)}" title="${esc(m.title)}"><span class="dot"></span><span class="label">${esc(m.title)}<small>${esc(m.detail)}</small></span></button>`;
+    };
     // Only shown with unread mail (or while its tab is open).
     $('gm-btn').hidden = !gm.enabled || gm.signedOut || !(gm.unread > 0 || s.tabs.some((t) => t.folder === 'mail'));
     $('gm-count').textContent = gm.unread || '';
@@ -322,9 +336,19 @@ window.roar = {
     syncFeeds();
     $('gm').innerHTML = gm.status
       ? (folderTab('mail') ? tabRow(folderTab('mail'), 0) : '') + `<div class="note">${esc(gm.status)}</div>`
-      : gm.items.length
-        ? folderRows('mail', gm.items, (m) => `<button class="row pr mail" data-url="${esc(m.url)}" title="${esc(m.title)}"><span class="dot"></span><span class="label">${esc(m.title)}<small>${esc(m.detail)}</small></span></button>`)
-        : folderRows('mail', [], () => '') + '<div class="note">No unread mail.</div>';
+      : (gm.accounts || []).length > 1
+        ? (folderTab('mail') && !gm.items.some((m) => m.url === folderTab('mail').folderItem) ? tabRow(folderTab('mail'), 0) : '') +
+          gm.accounts.map((a, n) => {
+            const at = a.address.indexOf('@');
+            const who = at < 0 ? esc(a.address) : `${esc(a.address.slice(0, at))}<span>${esc(a.address.slice(at))}</span>`;
+            const items = gm.items.filter((m) => m.account === n);
+            return `<div class="acct" style="--acct:${ACCT_HUES[n % ACCT_HUES.length]}">
+              <div class="acct-head" title="${esc(a.address)}"><span class="swatch"></span><span class="who">${who}</span><span class="n">${a.unread || ''}</span></div>
+              ${items.map(mailRow).join('') || '<div class="note">No unread mail</div>'}</div>`;
+          }).join('')
+        : gm.items.length
+          ? folderRows('mail', gm.items, mailRow)
+          : folderRows('mail', [], () => '') + '<div class="note">No unread mail.</div>';
 
   },
 };
@@ -412,6 +436,8 @@ function showCtx(html, e, bind) {
     bind(b.dataset.act, b.dataset);
   };
 }
+// Gmail account hues, picked to sit with the sidebar's warm browns.
+const ACCT_HUES = ['#d9822b', '#3f9e9a', '#c8607a', '#8f9a3c', '#7d7fd1', '#b9894f'];
 const dot = (c) => `<span class="gdot" style="${c ? '--gc:' + c : ''}"></span>`;
 // A pinned tab's custom icon is an emoji or an image; otherwise its favicon.
 function pinIcon(t) {

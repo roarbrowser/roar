@@ -53,6 +53,7 @@ struct LiveItem {
   std::string title;
   std::string url;
   std::string detail;  // Repository and number, e.g. "owner/repo #42".
+  int account = 0;     // Mail only: position in GmailFeed::accounts.
 };
 
 // A Space is a named set of tabs with its own cookies and storage. Space 0

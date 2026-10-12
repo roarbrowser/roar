@@ -538,6 +538,7 @@ class GmailFetch : public CefURLRequestClient {
       bool seen = std::any_of(so_far_.accounts.begin(), so_far_.accounts.end(),
                               [&](const GmailAccount& a) { return a.address == one.account; });
       if (!seen && !one.account.empty()) {
+        for (auto& item : one.items) item.account = static_cast<int>(so_far_.accounts.size());
         so_far_.accounts.push_back({one.account, index_, one.unread});
         so_far_.items.insert(so_far_.items.end(), one.items.begin(), one.items.end());
         so_far_.unread += one.unread;
@@ -2431,6 +2432,7 @@ std::string Controller::StateJson() {
     d->SetString("title", feed.items[i].title);
     d->SetString("url", feed.items[i].url);
     d->SetString("detail", feed.items[i].detail);
+    d->SetInt("account", feed.items[i].account);
     mail->SetDictionary(i, d);
   }
   gm->SetList("items", mail);
