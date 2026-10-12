@@ -47,6 +47,11 @@ void CheckForUpdates(void* window);
 void ChooseLookback(void* window, const std::string& what, std::function<void(double since)> done);
 // A path in ~/Downloads for |name| that doesn't exist yet ("name (1).ext" and so on).
 std::string UniqueDownloadPath(const std::string& name);
+// Asks whether to save `name`, a file type that can run code, from `host`.
+void ConfirmDownload(void* window, const std::string& name, const std::string& host,
+                     std::function<void(bool allow)> done);
+// Adds com.apple.quarantine to a finished download unless Chromium already did.
+void QuarantineDownload(const std::string& path, const std::string& url);
 void RevealInFinder(const std::string& path);
 // Writes Markdown to ~/Downloads and returns the path, or "" on failure.
 std::string SaveMarkdown(const std::string& title, const std::string& markdown);

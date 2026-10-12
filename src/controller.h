@@ -250,6 +250,7 @@ class Controller {
   std::map<int, CefRefPtr<CefRegistration>> media_watchers_;  // By browser id.
   std::vector<Download> downloads_;
   int next_download_ = 1;
+  std::set<std::pair<int, std::string>> denied_downloads_;  // (CEF item id, url) the user refused.
   // ⌃Tab cycling: the most-recently-used order is frozen while the presses keep coming.
   std::vector<int> cycle_order_;
   std::map<int, double> cycle_saved_;

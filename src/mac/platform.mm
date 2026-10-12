@@ -1,4 +1,5 @@
 #import <Cocoa/Cocoa.h>
+#import <CoreServices/CoreServices.h>
 #import <QuartzCore/QuartzCore.h>
 #include <CommonCrypto/CommonDigest.h>
 #include <Security/Security.h>
@@ -644,6 +645,32 @@ void ChooseLookback(void* window, const std::string& what, std::function<void(do
                   static const double kUnit[] = {3600, 86400, 7 * 86400, 30 * 86400};
                   done([NSDate date].timeIntervalSince1970 - n * kUnit[unit.indexOfSelectedItem]);
                 }];
+}
+
+void ConfirmDownload(void* window, const std::string& name, const std::string& host,
+                     std::function<void(bool allow)> done) {
+  NSAlert* alert = [[NSAlert alloc] init];
+  alert.messageText = [NSString stringWithFormat:@"Download \u201c%@\u201d?", NS(name)];
+  alert.informativeText = [NSString stringWithFormat:@"%@ wants to save a file that can run programs on your Mac.",
+                                                        NS(host.empty() ? "This page" : host)];
+  [alert addButtonWithTitle:@"Cancel"];
+  [alert addButtonWithTitle:@"Download"];
+  alert.buttons.firstObject.keyEquivalent = @"\r";
+  [alert beginSheetModalForWindow:Win(window) ?: NSApp.keyWindow
+                completionHandler:^(NSModalResponse response) { done(response == NSAlertSecondButtonReturn); }];
+}
+
+void QuarantineDownload(const std::string& path, const std::string& url) {
+  NSURL* file = [NSURL fileURLWithPath:NS(path)];
+  NSDictionary* props = nil;
+  [file getResourceValue:&props forKey:NSURLQuarantinePropertiesKey error:nil];
+  if (props) return;  // Chromium's own quarantine, with its origin data.
+  NSMutableDictionary* q = [@{
+    (__bridge NSString*)kLSQuarantineAgentNameKey : @"Roar",
+    (__bridge NSString*)kLSQuarantineTypeKey : (__bridge NSString*)kLSQuarantineTypeWebDownload,
+  } mutableCopy];
+  if (NSURL* origin = [NSURL URLWithString:NS(url)]) q[(__bridge NSString*)kLSQuarantineDataURLKey] = origin;
+  [file setResourceValue:q forKey:NSURLQuarantinePropertiesKey error:nil];
 }
 
 std::string UniqueDownloadPath(const std::string& name) {

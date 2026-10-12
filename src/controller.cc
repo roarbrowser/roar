@@ -2028,18 +2028,45 @@ bool Controller::OnBeforeDownload(CefRefPtr<CefBrowser> browser, CefRefPtr<CefDo
   for (char& c : name)
     if (c == '/' || c == '\\' || c == ':' || static_cast<unsigned char>(c) < 0x20) c = '_';
   if (name.empty() || name == "." || name == "..") name = "download";
-  std::string path = platform::UniqueDownloadPath(name);
-  Download d;
-  d.id = next_download_++;
-  d.item_id = static_cast<int>(item->GetId());
-  d.name = path.substr(path.rfind('/') + 1);
-  d.path = path;
-  d.url = item->GetURL();
-  d.total = item->GetTotalBytes();
-  downloads_.push_back(d);
-  callback->Continue(path, false);
-  PushSidebar();
-  ShowHint("Downloading " + d.name);
+  // Ask first for file types that run code when opened. Chromium itself already
+  // asks before a page starts several downloads ("Download multiple files").
+  static const std::set<std::string> kRisky = {
+      "app", "command", "dmg", "pkg", "mpkg", "sh", "tool", "terminal", "workflow", "scpt",
+      "applescript", "jar", "webloc", "inetloc", "fileloc", "dylib", "kext", "plugin"};
+  std::string ext;
+  if (size_t dot = name.rfind('.'); dot != std::string::npos) ext = name.substr(dot + 1);
+  std::transform(ext.begin(), ext.end(), ext.begin(), [](unsigned char c) { return std::tolower(c); });
+  bool risky = kRisky.count(ext) > 0;
+  CefRefPtr<CefDownloadItem> keep = item;
+  auto start = [this, name, keep, callback] {
+    std::string path = platform::UniqueDownloadPath(name);
+    Download d;
+    d.id = next_download_++;
+    d.item_id = static_cast<int>(keep->GetId());
+    d.name = path.substr(path.rfind('/') + 1);
+    d.path = path;
+    d.url = keep->GetURL();
+    d.total = keep->GetTotalBytes();
+    downloads_.push_back(d);
+    callback->Continue(path, false);
+    PushSidebar();
+    ShowHint("Downloading " + d.name);
+  };
+  if (!risky) {
+    start();
+    return true;
+  }
+  CefURLParts parts;
+  std::string host;
+  if (CefParseURL(item->GetURL(), parts)) host = CefString(&parts.host).ToString();
+  int item_id = static_cast<int>(item->GetId());
+  std::string url = item->GetURL();
+  // The shell, not the tab: a sheet on the frameless tab child window never shows.
+  void* window = shell_ ? shell_->GetWindowHandle() : nullptr;
+  platform::ConfirmDownload(window, name, host, [this, start, item_id, url](bool allow) {
+    if (allow) start();
+    else denied_downloads_.insert({item_id, url});
+  });
   return true;
 }
 
@@ -2047,6 +2074,11 @@ void Controller::OnDownloadUpdated(CefRefPtr<CefDownloadItem> item,
                                    CefRefPtr<CefDownloadItemCallback> callback) {
   if (!item->IsValid()) return;
   std::string url = item->GetURL();
+  if (denied_downloads_.count({static_cast<int>(item->GetId()), url})) {
+    if (item->IsInProgress()) callback->Cancel();
+    else denied_downloads_.erase({static_cast<int>(item->GetId()), url});
+    return;
+  }
   Download* d = nullptr;
   for (auto& x : downloads_)
     if (x.item_id == static_cast<int>(item->GetId()) && x.url == url && !x.done && !x.canceled && !x.failed)
@@ -2062,6 +2094,7 @@ void Controller::OnDownloadUpdated(CefRefPtr<CefDownloadItem> item,
   d->control = item->IsInProgress() ? callback : nullptr;
   if (d->done && !item->GetFullPath().empty()) d->path = item->GetFullPath();
   if (d->done && !was_done) {
+    platform::QuarantineDownload(d->path, d->url);
     d->name = d->path.substr(d->path.rfind('/') + 1);
     ShowHint("Downloaded " + d->name);
   } else if (d->canceled) {
