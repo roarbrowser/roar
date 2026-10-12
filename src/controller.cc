@@ -1836,6 +1836,30 @@ void Controller::RunCommand(const std::string& id) {
     CefPostDelayedTask(TID_UI, base::BindOnce([](int space) { Controller::Get()->ReloadSpace(space); }, space), 500);
     ShowHint("Cleared cookies in this space");
   }
+  else if (id == "gmailSignOut") {
+    // Signs this space out of Google by dropping its google.com cookies; other
+    // spaces keep their own logins.
+    int space = State::Get().active_space;
+    auto ctx = space == 0 ? CefRequestContext::GetGlobalContext() : ContextFor(space);
+    auto cookies = ctx ? ctx->GetCookieManager(nullptr) : nullptr;
+    if (!cookies) return;
+    class Visitor : public CefCookieVisitor {
+     public:
+      bool Visit(const CefCookie& cookie, int, int, bool& remove) override {
+        std::string domain = CefString(&cookie.domain).ToString();
+        remove = domain == "google.com" || domain.ends_with(".google.com");
+        return true;
+      }
+      IMPLEMENT_REFCOUNTING(Visitor);
+    };
+    cookies->VisitAllCookies(new Visitor());
+    std::string account = State::Get().gmail[space].account;
+    CefPostDelayedTask(TID_UI, base::BindOnce([](int space) {
+      Controller::Get()->RefreshGmail(space);
+      Controller::Get()->ReloadSpace(space);
+    }, space), 500);
+    ShowHint(account.empty() ? "Signed out of Gmail in this space" : "Signed out " + account + " in this space");
+  }
   else if (id == "forgetPages") {
     State::Get().pages.clear();
     State::Get().SavePages();

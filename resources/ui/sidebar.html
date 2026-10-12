@@ -371,6 +371,14 @@ $('space-rename').onblur = () => setTimeout(() => { if (!$('space-menu').contain
 $('space-remove').onmousedown = (e) => e.preventDefault();
 $('space-remove').onclick = () => ask({ cmd: 'space.remove', id: menuSpace }).then(() => ask({ cmd: 'state' })).then(roar.render).finally(hideSpaceMenu);
 document.addEventListener('contextmenu', (e) => {
+  if (e.target.closest('#gm-btn') && state && !state.gmail.signedOut) {
+    e.preventDefault();
+    const who = state.gmail.account ? esc(state.gmail.account) : 'Gmail';
+    return showCtx(`<button data-act="out">Sign out of ${who} in this space</button>`, e, () => {
+      hideCtx();
+      ask({ cmd: 'run', id: 'gmailSignOut' });
+    });
+  }
   const dot = e.target.closest('[data-space]');
   if (dot && state) {
     e.preventDefault();
