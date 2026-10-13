@@ -192,6 +192,8 @@ class Controller {
   void OnLoading(CefRefPtr<CefBrowser> browser, bool loading, bool can_back, bool can_forward);
   // A real left click at CSS-pixel (x, y) in a Gmail tab, for mail-act.js.
   void OnMailClick(CefRefPtr<CefBrowser> browser, double x, double y);
+  // What mail-act.js did (or why it did nothing), shown as a hint.
+  void OnMailResult(CefRefPtr<CefBrowser> browser, const std::string& text);
   void OnDraggableRegions(CefRefPtr<CefBrowser> browser,
                           const std::vector<CefDraggableRegion>& regions);
   bool OnKey(CefRefPtr<CefBrowser> browser, const CefKeyEvent& event);

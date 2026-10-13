@@ -40,8 +40,12 @@ bool Client::OnProcessMessageReceived(CefRefPtr<CefBrowser> browser, CefRefPtr<C
 // ones): "__roar_click__ <x> <y>" in CSS pixels.
 bool Client::OnConsoleMessage(CefRefPtr<CefBrowser> browser, cef_log_severity_t level, const CefString& message,
                               const CefString& source, int line) {
-  static const std::string kPrefix = "__roar_click__ ";
+  static const std::string kPrefix = "__roar_click__ ", kResult = "__roar_result__ ";
   std::string text = message.ToString();
+  if (text.rfind(kResult, 0) == 0) {
+    Controller::Get()->OnMailResult(browser, text.substr(kResult.size()));
+    return true;
+  }
   if (text.rfind(kPrefix, 0) != 0) return false;
   double x = 0, y = 0;
   if (sscanf(text.c_str() + kPrefix.size(), "%lf %lf", &x, &y) == 2) Controller::Get()->OnMailClick(browser, x, y);

@@ -3284,6 +3284,12 @@ void Controller::SetFaviconData(int tab_id, const std::string& url, const std::s
   SaveSoon();
 }
 
+void Controller::OnMailResult(CefRefPtr<CefBrowser> browser, const std::string& text) {
+  Tab* tab = FindTabByBrowser(browser);
+  if (!tab || tab->folder != "mail" || !StartsWith(browser->GetMainFrame()->GetURL().ToString(), "https://mail.google.com/")) return;
+  ShowHint(text.substr(0, 120));
+}
+
 void Controller::OnMailClick(CefRefPtr<CefBrowser> browser, double x, double y) {
   Tab* tab = FindTabByBrowser(browser);
   // Only the Gmail folder tab, while it shows Gmail, takes scripted clicks: any other
