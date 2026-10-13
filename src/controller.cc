@@ -823,7 +823,7 @@ int Controller::NewTab(const std::string& raw_url, bool activate, bool pinned, d
   CEF_REQUIRE_UI_THREAD();
   // Every way into a new tab (links from Outlook and Teams, popups, the
   // command line) passes here, so Safe Links and .mcas.ms hosts are undone once.
-  const std::string url = CleanLink(raw_url);
+  const std::string url = State::Get().settings.clean_links ? CleanLink(raw_url) : raw_url;
   Tab tab;
   tab.id = next_id_++;
   tab.space = space < 0 || !State::Get().FindSpace(space) ? State::Get().active_space : space;
@@ -2567,6 +2567,7 @@ std::string Controller::StateJson() {
   settings->SetBool("indexPages", state.settings.index_pages);
   settings->SetInt("pinnedColumns", state.settings.pinned_columns);
   settings->SetBool("pinnedCentered", state.settings.pinned_centered);
+  settings->SetBool("cleanLinks", state.settings.clean_links);
   settings->SetInt("pageCount", static_cast<int>(state.pages.size()));
   settings->SetInt("cdpPort", platform::CdpPort());
   auto pins = CefListValue::Create();
@@ -2741,6 +2742,7 @@ void Controller::ApplySettings(CefRefPtr<CefDictionaryValue> d) {
   if (d->HasKey("indexPages")) s.index_pages = d->GetBool("indexPages");
   if (d->HasKey("pinnedColumns")) s.pinned_columns = std::clamp(d->GetInt("pinnedColumns"), 0, 8);
   if (d->HasKey("pinnedCentered")) s.pinned_centered = d->GetBool("pinnedCentered");
+  if (d->HasKey("cleanLinks")) s.clean_links = d->GetBool("cleanLinks");
   if (d->HasKey("githubFolder")) {
     s.github_folder = d->GetBool("githubFolder");
     if (!s.github_folder) State::Get().github_space = -1;  // Re-enabling binds to that space.

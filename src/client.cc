@@ -6,6 +6,7 @@
 #include "controller.h"
 #include "link_clean.h"
 #include "shared.h"
+#include "state.h"
 
 #include <set>
 
@@ -162,7 +163,8 @@ bool Client::OnBeforeBrowse(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> f
         "chrome-extension", "devtools", "roar", "view-source", "ws", "wss", "ftp", "filesystem"};
     std::string scheme = CefString(&parts.scheme).ToString();
     // A wrapped link clicked inside a page loads its real target instead.
-    if (frame->IsMain() && (scheme == "http" || scheme == "https")) {
+    if (State::Get().settings.clean_links && frame->IsMain() &&
+        (scheme == "http" || scheme == "https")) {
       std::string clean = CleanLink(url);
       if (clean != url) {
         frame->LoadURL(clean);
