@@ -677,6 +677,7 @@ $('bar').addEventListener('click', (e) => {
   const b = e.target.closest('[data-feed]');
   if (!b) return;
   e.stopPropagation();
+  ask({ cmd: 'run', id: b.id === 'gm-btn' ? 'gmail' : 'github' });  // Live update on every click.
   const pop = $(b.dataset.feed), open = !pop.classList.contains('open');
   for (const p of document.querySelectorAll('.feed-pop')) p.classList.remove('open');
   pop.classList.toggle('open', open);
