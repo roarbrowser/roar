@@ -2907,6 +2907,8 @@ bool Controller::HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> 
       // Google; a fresh load only starts sending changes a while after it opens.
       size_t u = url.find("/mail/u/");
       std::string account = u == std::string::npos ? "" : url.substr(u, url.find_first_of("?/", u + 8) - u);
+      // The inbox, not the feed's message link: that link opens the message itself.
+      std::string inbox = "https://mail.google.com" + (account.empty() ? std::string("/mail/u/0") : account) + "/#inbox";
       bool loaded = it != tabs_.end() && !account.empty() && !it->loading &&
                     it->url.find("mail.google.com" + account) != std::string::npos;
       if (it != tabs_.end() && loaded) {
@@ -2917,9 +2919,9 @@ bool Controller::HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> 
       } else if (it != tabs_.end()) {
         id = it->id;
         it->folder_item = url;
-        Navigate(id, url);
+        Navigate(id, inbox);
         mail_acts_[id] = action + " " + mid;
-      } else if (Tab* t = FindTab(NewTab(url, true))) {
+      } else if (Tab* t = FindTab(NewTab(inbox, true))) {
         id = t->id;
         t->folder = "mail";
         t->folder_item = url;
