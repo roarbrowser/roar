@@ -2886,6 +2886,58 @@ bool Controller::HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> 
       PushSidebar();
     }
     callback->Success("");
+  } else if (cmd == "mail.act") {
+    // Delete, mark read, or move a feed message by driving the space's Gmail tab.
+    std::string url = msg->GetString("url");
+    std::string action = msg->GetString("action");
+    if (action == "delete" || action == "read" || action == "move") {
+      HideCommandBar();
+      auto it = std::find_if(tabs_.begin(), tabs_.end(), [&](const Tab& t) {
+        return t.folder == "mail" && t.space == State::Get().active_space;
+      });
+      int id = 0;
+      // "<action> <message id>": the id is Gmail's hex message_id from the feed link.
+      size_t at = url.find("message_id=");
+      std::string mid = at == std::string::npos ? "" : url.substr(at + 11, url.find('&', at) - at - 11);
+      // A Gmail page that is already loaded for this account keeps its connection to
+      // Google; a fresh load only starts sending changes a while after it opens.
+      size_t u = url.find("/mail/u/");
+      std::string account = u == std::string::npos ? "" : url.substr(u, url.find_first_of("?/", u + 8) - u);
+      bool loaded = it != tabs_.end() && !account.empty() && !it->loading &&
+                    it->url.find("mail.google.com" + account) != std::string::npos;
+      if (it != tabs_.end() && loaded) {
+        id = it->id;
+        it->folder_item = url;
+        ExecuteScript(id, platform::ReadResource("ui/mail-act.js") + "\n;window.__roarMailAct(" +
+                              JsString(action) + "," + JsString(mid) + ");");
+      } else if (it != tabs_.end()) {
+        id = it->id;
+        it->folder_item = url;
+        Navigate(id, url);
+        mail_acts_[id] = action + " " + mid;
+      } else if (Tab* t = FindTab(NewTab(url, true))) {
+        id = t->id;
+        t->folder = "mail";
+        t->folder_item = url;
+        mail_acts_[id] = action + " " + mid;
+        PushSidebar();
+      }
+      if (id) {
+        // A background tab throttles its timers, so Gmail would show the change but not
+        // sync it. Show the tab while it works; move keeps it, its picker is Gmail's menu.
+        int previous = active_id_;
+        ActivateTab(id);
+        if (loaded && action != "move" && previous && previous != id)
+          CefPostDelayedTask(TID_UI, base::BindOnce([](int id, int previous) {
+            Controller* c = Controller::Get();
+            if (c->active_id_ == id && c->FindTab(previous)) c->ActivateTab(previous);
+          }, id, previous), 9 * 1000);
+        // Whatever the page does, the feed changes: refetch once it settles.
+        for (int secs : {8, 70})
+          CefPostDelayedTask(TID_UI, base::BindOnce([] { Controller::Get()->RefreshGmail(); }), secs * 1000);
+      }
+    }
+    callback->Success("");
   } else if (cmd == "tab.activate") {
     HideCommandBar();
     ActivateTab(int_arg("id"));
@@ -3226,6 +3278,29 @@ void Controller::SetFaviconData(int tab_id, const std::string& url, const std::s
   SaveSoon();
 }
 
+void Controller::OnMailClick(CefRefPtr<CefBrowser> browser, double x, double y) {
+  Tab* tab = FindTabByBrowser(browser);
+  if (!tab || tab->folder != "mail") return;  // Only the Gmail folder tab takes scripted clicks.
+  // Chromium's own DevTools input path: Gmail only sends its change to the server
+  // after a click that carries what a person's click does, which a plain CEF mouse
+  // event lacks.
+  auto send = [&](const char* type, bool buttons) {
+    auto params = CefDictionaryValue::Create();
+    params->SetString("type", type);
+    params->SetDouble("x", x);
+    params->SetDouble("y", y);
+    if (buttons) {
+      params->SetString("button", "left");
+      params->SetInt("buttons", std::strcmp(type, "mouseReleased") ? 1 : 0);
+      params->SetInt("clickCount", 1);
+    }
+    browser->GetHost()->ExecuteDevToolsMethod(0, "Input.dispatchMouseEvent", params);
+  };
+  send("mouseMoved", false);
+  send("mousePressed", true);
+  send("mouseReleased", true);
+}
+
 void Controller::OnLoading(CefRefPtr<CefBrowser> browser, bool loading, bool can_back,
                            bool can_forward) {
   if (IsUiBrowser(browser)) {
@@ -3240,6 +3315,12 @@ void Controller::OnLoading(CefRefPtr<CefBrowser> browser, bool loading, bool can
   tab->can_forward = can_forward;
   if (!loading) {
     ApplyZoom(browser, tab->url);
+    if (auto act = mail_acts_.find(tab->id); act != mail_acts_.end()) {
+      ExecuteScript(tab->id, platform::ReadResource("ui/mail-act.js") +
+                                 "\n;window.__roarMailAct(" + JsString(act->second.substr(0, act->second.find(' '))) + "," +
+                                 JsString(act->second.substr(act->second.find(' ') + 1)) + ");");
+      mail_acts_.erase(act);
+    }
     if (auto fill = llm_fills_.find(tab->id); fill != llm_fills_.end()) {
       ExecuteScript(tab->id, platform::ReadResource("ui/llm-fill.js") +
                                  "\n;window.__roarFill(" + JsString(fill->second) + ");");

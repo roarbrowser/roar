@@ -55,6 +55,8 @@ class Client : public CefClient,
 
   // CefDisplayHandler
   void OnTitleChange(CefRefPtr<CefBrowser> browser, const CefString& title) override;
+  bool OnConsoleMessage(CefRefPtr<CefBrowser> browser, cef_log_severity_t level, const CefString& message,
+                        const CefString& source, int line) override;
   void OnAddressChange(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> frame,
                        const CefString& url) override;
   void OnFaviconURLChange(CefRefPtr<CefBrowser> browser,

@@ -36,6 +36,18 @@ bool Client::OnProcessMessageReceived(CefRefPtr<CefBrowser> browser, CefRefPtr<C
   return router_->OnProcessMessageReceived(browser, frame, source_process, message);
 }
 
+// A Gmail tab running mail-act.js asks for a real click (Gmail ignores scripted
+// ones): "__roar_click__ <x> <y>" in CSS pixels.
+bool Client::OnConsoleMessage(CefRefPtr<CefBrowser> browser, cef_log_severity_t level, const CefString& message,
+                              const CefString& source, int line) {
+  static const std::string kPrefix = "__roar_click__ ";
+  std::string text = message.ToString();
+  if (text.rfind(kPrefix, 0) != 0) return false;
+  double x = 0, y = 0;
+  if (sscanf(text.c_str() + kPrefix.size(), "%lf %lf", &x, &y) == 2) Controller::Get()->OnMailClick(browser, x, y);
+  return true;
+}
+
 void Client::OnTitleChange(CefRefPtr<CefBrowser> browser, const CefString& title) {
   Controller::Get()->OnTitle(browser, title);
 }

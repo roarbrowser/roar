@@ -125,6 +125,11 @@ body.drag-active .pinned:empty::before { content: 'Drop to pin'; color: var(--in
 .pr { height: 40px; }
 .pr .dot { width: 8px; height: 8px; border-radius: 50%; background: #2f9e5b; flex: none; margin: 0 4px; }
 .mail .dot { background: var(--acct, #d9822b); }
+.mailrow { position: relative; }
+.macts { position: absolute; right: 4px; top: 50%; transform: translateY(-50%); display: none; gap: 2px; padding: 2px; border-radius: 7px; background: var(--ground); box-shadow: 0 0 0 1px var(--rule); }
+.mailrow:hover .macts { display: flex; }
+.macts button { width: 24px; height: 24px; border-radius: 5px; font-size: 12px; line-height: 1; color: var(--ink-2); }
+.macts button:hover { background: var(--hover); color: var(--ink); }
 /* One section per Gmail account when a space has several; the account's hue
    marks its header swatch and every message dot under it. */
 .acct-head { position: sticky; top: -4px; z-index: 1; display: flex; align-items: center; gap: 8px; margin: 6px 0 2px; padding: 7px 8px 5px; background: var(--ground); border-top: 1px solid var(--rule); font-size: 12px; }
@@ -329,7 +334,7 @@ window.roar = {
     const mailRow = (m) => {
       const ft = folderTab('mail');
       if (ft && ft.folderItem === m.url) return tabRow(ft, 0);
-      return `<button class="row pr mail" data-url="${esc(m.url)}" title="${esc(m.title)}"><span class="dot"></span><span class="label">${esc(m.title)}<small>${esc(m.detail)}</small></span></button>`;
+      return `<div class="mailrow" data-murl="${esc(m.url)}"><button class="row pr mail" data-url="${esc(m.url)}" title="${esc(m.title)}"><span class="dot"></span><span class="label">${esc(m.title)}<small>${esc(m.detail)}</small></span></button><span class="macts"><button data-mact="read" title="Mark read">✓</button><button data-mact="move" title="Mark read, pick a label, archive">⇥</button><button data-mact="delete" title="Delete">🗑</button></span></div>`;
     };
     // Only shown with unread mail (or while its tab is open).
     $('gm-btn').hidden = !gm.enabled || gm.signedOut || !(gm.unread > 0 || s.tabs.some((t) => t.folder === 'mail'));
@@ -371,6 +376,8 @@ document.addEventListener('click', (e) => {
   if (close) { e.stopPropagation(); return ask({ cmd: 'tab.close', id: +close.dataset.close }); }
   const tab = e.target.closest('[data-id]');
   if (tab) return ask({ cmd: 'tab.activate', id: +tab.dataset.id });
+  const mact = e.target.closest('[data-mact]');
+  if (mact) { e.stopPropagation(); return ask({ cmd: 'mail.act', action: mact.dataset.mact, url: mact.closest('[data-murl]').dataset.murl }); }
   const item = e.target.closest('#gm [data-url], #gh [data-url]');
   if (item) return ask({ cmd: 'folder.open', folder: item.closest('#gm') ? 'mail' : 'github', url: item.dataset.url });
   const pr = e.target.closest('[data-url]');

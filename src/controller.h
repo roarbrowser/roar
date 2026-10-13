@@ -190,6 +190,8 @@ class Controller {
   void OnAddress(CefRefPtr<CefBrowser> browser, const std::string& url);
   void OnFavicon(CefRefPtr<CefBrowser> browser, const std::string& url);
   void OnLoading(CefRefPtr<CefBrowser> browser, bool loading, bool can_back, bool can_forward);
+  // A real left click at CSS-pixel (x, y) in a Gmail tab, for mail-act.js.
+  void OnMailClick(CefRefPtr<CefBrowser> browser, double x, double y);
   void OnDraggableRegions(CefRefPtr<CefBrowser> browser,
                           const std::vector<CefDraggableRegion>& regions);
   bool OnKey(CefRefPtr<CefBrowser> browser, const CefKeyEvent& event);
@@ -295,6 +297,7 @@ class Controller {
     std::string target;
   };
   std::map<std::string, PendingExtract> extracts_;
+  std::map<int, std::string> mail_acts_;  // Tab id -> Gmail action (delete/read/move) to run once its thread loads.
   std::map<int, std::string> llm_fills_;  // Tab id -> text to put in its chat box.
   struct PendingIndex {
     int tab_id;
