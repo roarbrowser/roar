@@ -104,7 +104,7 @@ struct Settings {
   int sidebar_width = 268;
   int pinned_columns = 0;  // Pinned tiles per row; 0 fits as many as the width allows.
   bool pinned_centered = false;  // Centers a short last row.
-  bool clean_links = true;  // Unwraps Safe Links and strips .mcas.ms (CleanLink).
+  bool clean_links = true;  // Unwraps Safe Links and strips .mcas.ms from copied links (CleanLink).
 };
 
 class State {

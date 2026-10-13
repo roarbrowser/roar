@@ -62,10 +62,10 @@ pre { margin: 0; font: 12px/1.6 var(--mono); background: var(--ground); border-r
       <div class="controls"><span class="status" id="index-status"></span><button class="btn" id="forget" hidden>Forget saved text</button></div>
     </li>
     <li>
-      <h2>Links from Outlook and Teams open as they should</h2>
-      <p>Safe Links wrappers are unwrapped, and <kbd>.mcas.ms</kbd> is dropped from the address, so the link opens the real page.</p>
+      <h2>Links you copy are clean</h2>
+      <p>Copy Link Address unwraps Safe Links and drops <kbd>.mcas.ms</kbd> from the address, so what you send someone is the real page. Links you open are left alone.</p>
       <div class="controls">
-        <label class="switch"><input type="checkbox" id="clean-links"> Clean links before opening them</label>
+        <label class="switch"><input type="checkbox" id="clean-links"> Clean links when I copy them</label>
       </div>
     </li>
     <li>
