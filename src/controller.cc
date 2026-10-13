@@ -3280,7 +3280,9 @@ void Controller::SetFaviconData(int tab_id, const std::string& url, const std::s
 
 void Controller::OnMailClick(CefRefPtr<CefBrowser> browser, double x, double y) {
   Tab* tab = FindTabByBrowser(browser);
-  if (!tab || tab->folder != "mail") return;  // Only the Gmail folder tab takes scripted clicks.
+  // Only the Gmail folder tab, while it shows Gmail, takes scripted clicks: any other
+  // page there could print the same console line.
+  if (!tab || tab->folder != "mail" || !StartsWith(browser->GetMainFrame()->GetURL().ToString(), "https://mail.google.com/")) return;
   // Chromium's own DevTools input path: Gmail only sends its change to the server
   // after a click that carries what a person's click does, which a plain CEF mouse
   // event lacks.
