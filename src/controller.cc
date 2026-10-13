@@ -1571,6 +1571,10 @@ void Controller::GmailOpenTick() {
   std::set<int> spaces;
   for (const auto& t : tabs_)
     if (!t.ghost && StartsWith(t.url, "https://mail.google.com/")) spaces.insert(t.space);
+  // The active space's mail is also checked once a minute, so new mail shows up
+  // without waiting for the 10-minute sweep of every space.
+  static int ticks = 0;
+  if (++ticks % 3 == 0) spaces.insert(State::Get().active_space);
   for (int space : spaces) RefreshGmail(space);
   CefPostDelayedTask(TID_UI, base::BindOnce([] { Controller::Get()->GmailOpenTick(); }), 20 * 1000);
 }
