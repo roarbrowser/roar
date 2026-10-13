@@ -4,6 +4,7 @@
 #include "include/wrapper/cef_helpers.h"
 
 #include "controller.h"
+#include "link_clean.h"
 #include "shared.h"
 
 #include <set>
@@ -160,6 +161,14 @@ bool Client::OnBeforeBrowse(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> f
         "http", "https", "file", "about", "data", "blob", "javascript", "chrome",
         "chrome-extension", "devtools", "roar", "view-source", "ws", "wss", "ftp", "filesystem"};
     std::string scheme = CefString(&parts.scheme).ToString();
+    // A wrapped link clicked inside a page loads its real target instead.
+    if (frame->IsMain() && (scheme == "http" || scheme == "https")) {
+      std::string clean = CleanLink(url);
+      if (clean != url) {
+        frame->LoadURL(clean);
+        return true;
+      }
+    }
     if (!kBrowserSchemes.count(scheme)) {
       // Chromium only shows ERR_UNKNOWN_URL_SCHEME; ask before handing it to a Mac app.
       if (user_gesture || is_redirect || frame->IsMain()) Controller::Get()->OpenExternal(url);

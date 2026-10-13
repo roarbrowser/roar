@@ -10,6 +10,7 @@ set(ROAR_SRCS
   client.cc client.h
   controller.cc controller.h
   library.cc library.h
+  link_clean.cc link_clean.h
   state.cc state.h
   mac/main.mm mac/platform.h mac/platform.mm mac/scripting.mm
   )

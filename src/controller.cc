@@ -1,6 +1,7 @@
 #include "controller.h"
 
 #include "action_watch.h"
+#include "link_clean.h"
 
 #include <algorithm>
 #include <cctype>
@@ -817,9 +818,12 @@ void Controller::Quit() {
 // ---------------------------------------------------------------------------
 // Tabs
 
-int Controller::NewTab(const std::string& url, bool activate, bool pinned, double last_active,
+int Controller::NewTab(const std::string& raw_url, bool activate, bool pinned, double last_active,
                        int space, bool ghost, int opener) {
   CEF_REQUIRE_UI_THREAD();
+  // Every way into a new tab (links from Outlook and Teams, popups, the
+  // command line) passes here, so Safe Links and .mcas.ms hosts are undone once.
+  const std::string url = CleanLink(raw_url);
   Tab tab;
   tab.id = next_id_++;
   tab.space = space < 0 || !State::Get().FindSpace(space) ? State::Get().active_space : space;
