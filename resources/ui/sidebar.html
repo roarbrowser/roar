@@ -279,7 +279,7 @@ window.roar = {
     const pinned = s.tabs.filter((t) => t.pinned);
     const open = s.tabs.filter((t) => !t.pinned && !t.folder && !t.group);
     $('ghost-group').hidden = !ghosts.length;
-    $('ghost-tabs').innerHTML = ghosts.map((t) => tabRow(t, 0)).join('');
+    setHtml($('ghost-tabs'), ghosts.map((t) => tabRow(t, 0)).join(''));
     $('ghost-count').textContent = ghosts.length || '';
     const folderTab = (f) => s.tabs.find((t) => t.folder === f && !t.pinned && !t.group);
     // The folder's tab stands in for the link it opened; elsewhere it leads the list.
@@ -296,8 +296,8 @@ window.roar = {
       </section>`;
     };
     const groups = s.groups || [];
-    $('pinned-groups').innerHTML = groups.filter((g) => g.pinned).map(groupHtml).join('');
-    $('groups').innerHTML = groups.filter((g) => !g.pinned).map(groupHtml).join('');
+    setHtml($('pinned-groups'), groups.filter((g) => g.pinned).map(groupHtml).join(''));
+    setHtml($('groups'), groups.filter((g) => !g.pinned).map(groupHtml).join(''));
     // Spaces stay out of the way: only a name and dots in the footer, and
     // nothing at all until a second space exists.
     const multi = s.spaces.length > 1;
@@ -309,9 +309,9 @@ window.roar = {
       `<button data-space="${sp.id}" draggable="true" aria-pressed="${sp.id === s.activeSpace}" style="${sp.color ? '--dot:' + sp.color : ''}" title="${esc(sp.name)} (⌃${i + 1})" aria-label="${esc(sp.name)}"></button>`).join('') : '';
     $('cdp').hidden = multi;
     layoutPins(s.settings);
-    $('pinned').innerHTML = pinned.map((t) =>
-      `<button class="pin${t.active ? ' active' : ''}" data-id="${t.id}" draggable="true" title="${esc(t.title)}" aria-label="${esc(t.title)}">${pinIcon(t)}${sndButton(t, '')}</button>`).join('');
-    $('tabs').innerHTML = open.map((t) => tabRow(t, limit)).join('');
+    setHtml($('pinned'), pinned.map((t) =>
+      `<button class="pin${t.active ? ' active' : ''}" data-id="${t.id}" draggable="true" title="${esc(t.title)}" aria-label="${esc(t.title)}">${pinIcon(t)}${sndButton(t, '')}</button>`).join(''));
+    setHtml($('tabs'), open.map((t) => tabRow(t, limit)).join(''));
     $('tab-count').textContent = open.length || '';
     $('back').disabled = !s.nav.canBack;
     $('forward').disabled = !s.nav.canForward;
@@ -324,11 +324,11 @@ window.roar = {
     const gh = s.github;
     $('gh-btn').hidden = !gh.enabled;
     $('gh-count').textContent = gh.items.length || '';
-    $('gh').innerHTML = gh.status
+    setHtml($('gh'), gh.status
       ? (folderTab('github') ? tabRow(folderTab('github'), 0) : '') + `<div class="note">${esc(gh.status).replace(/`([^`]+)`/g, '<code>$1</code>')}</div>`
       : gh.items.length
         ? folderRows('github', gh.items, (p) => `<button class="row pr" data-url="${esc(p.url)}" title="${esc(p.title)}"><span class="dot"></span><span class="label">${esc(p.title)}<small>${esc(p.detail)}</small></span></button>`)
-        : folderRows('github', [], () => '') + '<div class="note">No open pull requests.</div>';
+        : folderRows('github', [], () => '') + '<div class="note">No open pull requests.</div>');
 
     const gm = s.gmail;
     const mailRow = (m) => {
@@ -342,7 +342,7 @@ window.roar = {
     $('gm-btn').title = (gm.accounts || []).map((a) => `${a.address}: ${a.unread} unread`).join('\n') || 'Unread mail';
     for (const b of document.querySelectorAll('.feed[hidden]')) $(b.dataset.feed).classList.remove('open');
     syncFeeds();
-    $('gm').innerHTML = gm.status
+    setHtml($('gm'), gm.status
       ? (folderTab('mail') ? tabRow(folderTab('mail'), 0) : '') + `<div class="note">${esc(gm.status)}</div>`
       : (gm.accounts || []).length > 1
         ? (folderTab('mail') && !gm.items.some((m) => m.url === folderTab('mail').folderItem) ? tabRow(folderTab('mail'), 0) : '') +
@@ -356,7 +356,7 @@ window.roar = {
           }).join('')
         : gm.items.length
           ? folderRows('mail', gm.items, mailRow)
-          : folderRows('mail', [], () => '') + '<div class="note">No unread mail.</div>';
+          : folderRows('mail', [], () => '') + '<div class="note">No unread mail.</div>');
 
   },
 };
@@ -432,6 +432,8 @@ document.addEventListener('contextmenu', (e) => {
 
 // Right-click menus for tabs and groups.
 const ctx = $('ctx');
+// Re-assigning identical markup would drop the hovered button under the pointer mid-click.
+const setHtml = (el, html) => { if (el.__html !== html) el.innerHTML = el.__html = html; };
 const hideCtx = () => { ctx.hidden = true; ctx.innerHTML = ''; };
 function showCtx(html, e, bind) {
   ctx.innerHTML = html;
