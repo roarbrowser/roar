@@ -22,7 +22,7 @@ window.__roarMailAct = (action, id) => {
         if (r.offsetParent && r.querySelector(`[data-legacy-thread-id="${id}"], [data-legacy-last-message-id="${id}"]`)) return r;
     };
     // A page that only just loaded shows the change but sends it to Google much later.
-    await until(() => performance.now() > 50000, 400);
+    await until(() => performance.now() > 33000, 400);
     // Gmail may open the message itself; the inbox list is where the row buttons work.
     if (location.hash !== '#inbox') { location.hash = '#inbox'; await wait(1500); }
     const found = await until(row);
