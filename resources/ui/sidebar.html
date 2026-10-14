@@ -128,6 +128,11 @@ body.drag-active .pinned:empty::before { content: 'Drop to pin'; color: var(--in
 .mailrow { position: relative; }
 .macts { position: absolute; right: 4px; top: 50%; transform: translateY(-50%); display: none; gap: 2px; padding: 2px; border-radius: 7px; background: var(--ground); box-shadow: 0 0 0 1px var(--rule); }
 .mailrow:hover .macts { display: flex; }
+.msel { flex: none; margin: 0 2px 0 8px; accent-color: var(--acct, #d9822b); }
+.mailrow:has(.msel) { display: flex; align-items: center; }
+.mailrow .row { flex: 1; min-width: 0; }
+.acct-head { cursor: pointer; }
+.acct-head:hover .who { text-decoration: underline; }
 .macts button { width: 24px; height: 24px; border-radius: 5px; font-size: 12px; line-height: 1; color: var(--ink-2); }
 .macts button:hover { background: var(--hover); color: var(--ink); }
 /* One section per Gmail account when a space has several; the account's hue
@@ -220,7 +225,7 @@ body.drag-active .pinned:empty::before { content: 'Drop to pin'; color: var(--in
   <div class="rows" id="gh"></div>
 </section>
 <section class="feed-pop" id="gm-group">
-  <div class="group-head"><span>Unread mail</span><span class="spacer"></span><button id="gm-refresh" title="Refresh mail">Refresh</button></div>
+  <div class="group-head"><span>Unread mail</span><span class="spacer"></span><button id="gm-delsel" title="Delete the selected messages" hidden></button><button id="gm-refresh" title="Refresh mail">Refresh</button></div>
   <div class="rows" id="gm"></div>
 </section>
 <div class="bar" id="bar">
@@ -277,7 +282,7 @@ window.roar = {
     const ghosts = s.tabs.filter((t) => t.ghost);
     s = { ...s, tabs: s.tabs.filter((t) => !t.ghost) };
     const pinned = s.tabs.filter((t) => t.pinned);
-    const open = s.tabs.filter((t) => !t.pinned && !t.folder && !t.group);
+    const open = s.tabs.filter((t) => !t.pinned && !t.group);  // Mail/PR tabs too: everything opened is a real tab.
     $('ghost-group').hidden = !ghosts.length;
     setHtml($('ghost-tabs'), ghosts.map((t) => tabRow(t, 0)).join(''));
     $('ghost-count').textContent = ghosts.length || '';
@@ -334,10 +339,11 @@ window.roar = {
     const mailRow = (m) => {
       const ft = folderTab('mail');
       if (ft && ft.folderItem === m.url) return tabRow(ft, 0);
-      return `<div class="mailrow" data-murl="${esc(m.url)}"><button class="row pr mail" data-url="${esc(m.url)}" title="${esc(m.title)}"><span class="dot"></span><span class="label">${esc(m.title)}<small>${esc(m.detail)}</small></span></button><span class="macts"><button data-mact="read" title="Mark read">✓</button><button data-mact="move" title="Mark read, pick a label, archive">⇥</button><button data-mact="delete" title="Delete">🗑</button></span></div>`;
+      return `<div class="mailrow" data-murl="${esc(m.url)}"><input type="checkbox" class="msel" title="Select" ${mailSel.has(m.url) ? 'checked' : ''}><button class="row pr mail" data-url="${esc(m.url)}" title="${esc(m.title)}"><span class="dot"></span><span class="label">${esc(m.title)}<small>${esc(m.detail)}</small></span></button><span class="macts"><button data-mact="read" title="Mark read">✓</button><button data-mact="move" title="Mark read, pick a label, archive">⇥</button><button data-mact="delete" title="Delete">🗑</button></span></div>`;
     };
-    // Only shown with unread mail (or while its tab is open).
-    $('gm-btn').hidden = !gm.enabled || gm.signedOut || !(gm.unread > 0 || s.tabs.some((t) => t.folder === 'mail'));
+    for (const u of [...mailSel]) if (!gm.items.some((m) => m.url === u)) mailSel.delete(u);
+    syncMailSel();
+    $('gm-btn').hidden = !gm.enabled || gm.signedOut;
     $('gm-count').textContent = gm.unread || '';
     $('gm-btn').title = (gm.accounts || []).map((a) => `${a.address}: ${a.unread} unread`).join('\n') || 'Unread mail';
     for (const b of document.querySelectorAll('.feed[hidden]')) $(b.dataset.feed).classList.remove('open');
@@ -351,7 +357,7 @@ window.roar = {
             const who = at < 0 ? esc(a.address) : `${esc(a.address.slice(0, at))}<span>${esc(a.address.slice(at))}</span>`;
             const items = gm.items.filter((m) => m.account === n);
             return `<div class="acct" style="--acct:${ACCT_HUES[n % ACCT_HUES.length]}">
-              <div class="acct-head" title="${esc(a.address)}"><span class="swatch"></span><span class="who">${who}</span><span class="n">${a.unread || ''}</span></div>
+              <div class="acct-head" data-acct="${n}" title="Open ${esc(a.address)} in a tab"><span class="swatch"></span><span class="who">${who}</span><span class="n">${a.unread || ''}</span></div>
               ${items.map(mailRow).join('') || '<div class="note">No unread mail</div>'}</div>`;
           }).join('')
         : gm.items.length
@@ -376,6 +382,8 @@ document.addEventListener('click', (e) => {
   if (close) { e.stopPropagation(); return ask({ cmd: 'tab.close', id: +close.dataset.close }); }
   const tab = e.target.closest('[data-id]');
   if (tab) return ask({ cmd: 'tab.activate', id: +tab.dataset.id });
+  const acct = e.target.closest('[data-acct]');
+  if (acct) return ask({ cmd: 'open', text: `https://mail.google.com/mail/u/${acct.dataset.acct}/`, newTab: true });
   const mact = e.target.closest('[data-mact]');
   if (mact) { e.stopPropagation(); return ask({ cmd: 'mail.act', action: mact.dataset.mact, url: mact.closest('[data-murl]').dataset.murl }); }
   const item = e.target.closest('#gm [data-url], #gh [data-url]');
@@ -619,6 +627,33 @@ $('forward').onclick = () => ask({ cmd: 'run', id: 'forward' });
 $('reload').onclick = () => ask({ cmd: 'run', id: 'reload' });
 $('gh-refresh').onclick = () => ask({ cmd: 'run', id: 'github' });
 $('gm-refresh').onclick = () => ask({ cmd: 'run', id: 'gmail' });
+// Multi-select delete: ticked messages go to Gmail in one Delete per account.
+const mailSel = new Set();
+function syncMailSel() {
+  $('gm-delsel').hidden = !mailSel.size;
+  $('gm-delsel').textContent = `Delete ${mailSel.size}`;
+}
+$('gm').addEventListener('change', (e) => {
+  const box = e.target.closest('.msel');
+  if (!box) return;
+  const url = box.closest('[data-murl]').dataset.murl;
+  box.checked ? mailSel.add(url) : mailSel.delete(url);
+  syncMailSel();
+});
+$('gm-delsel').onclick = async (e) => {
+  e.stopPropagation();
+  const byAcct = {};
+  for (const m of state.gmail.items) if (mailSel.has(m.url)) (byAcct[m.account || 0] ||= []).push(m.url);
+  mailSel.clear();
+  syncMailSel();
+  for (const m of document.querySelectorAll('#gm .msel')) m.checked = false;
+  // shortcut: accounts share one Gmail tab, so wait out each run (~35 s after a load) before the next; a queue in Roar would be faster.
+  const batches = Object.values(byAcct);
+  for (const [i, urls] of batches.entries()) {
+    if (i) await new Promise((r) => setTimeout(r, 45000));
+    ask({ cmd: 'mail.act', action: 'delete', url: urls[0], urls });
+  }
+};
 $('hide-sidebar').onclick = () => ask({ cmd: 'run', id: 'sidebar' });
 // Pinned extensions: click opens the extension's popup page in a bubble beside
 // the button (an options-only extension opens in a tab); right-click unpins. Pin from the Extensions menu in the menu bar.

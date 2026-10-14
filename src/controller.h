@@ -100,6 +100,8 @@ class Controller {
   int OpenTargetTab(const std::string& url);
   // A link opened in a new tab: beside its opener, in the opener's space and group.
   int NewTabFrom(CefRefPtr<CefBrowser> opener, const std::string& url, bool activate);
+  bool AdoptPopup(CefRefPtr<CefBrowser> opener, CefRefPtr<CefBrowserView> popup);
+  void ReloadBrowser(CefRefPtr<CefBrowser> browser, bool ignore_cache);
   void ActivateTab(int id);
   CefRefPtr<CefRequestContext> ContextFor(int space);
   void CloseTab(int id);

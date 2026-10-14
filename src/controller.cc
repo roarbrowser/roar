@@ -128,6 +128,10 @@ class TabViewDelegate : public CefBrowserViewDelegate {
     return true;
   }
   bool AllowMoveForPictureInPicture(CefRefPtr<CefBrowserView> view) override { return true; }
+  bool OnPopupBrowserViewCreated(CefRefPtr<CefBrowserView> view, CefRefPtr<CefBrowserView> popup,
+                                 bool is_devtools) override {
+    return !is_devtools && Controller::Get()->AdoptPopup(view->GetBrowser(), popup);
+  }
 
  private:
   IMPLEMENT_REFCOUNTING(TabViewDelegate);
@@ -1511,15 +1515,34 @@ void Controller::Forward() {
 // Reloads every open, non-ghost tab in |space|.
 void Controller::ReloadSpace(int space) {
   for (auto& t : tabs_)
-    if (!t.ghost && t.space == space && t.view && t.view->GetBrowser()) t.view->GetBrowser()->Reload();
+    if (!t.ghost && t.space == space && t.view && t.view->GetBrowser()) ReloadBrowser(t.view->GetBrowser(), false);
+}
+
+// A page reached by a form POST reloads as a plain GET: Chrome's "Confirm Form
+// Resubmission" dialog took the whole session down when cancelled.
+void Controller::ReloadBrowser(CefRefPtr<CefBrowser> b, bool ignore_cache) {
+  auto entry = b->GetHost()->GetVisibleNavigationEntry();
+  if (entry && entry->HasPostData()) b->GetMainFrame()->LoadURL(entry->GetURL());
+  else if (ignore_cache) b->ReloadIgnoreCache();
+  else b->Reload();
 }
 
 void Controller::Reload(bool ignore_cache) {
-  CefRefPtr<CefBrowser> b;
-  if (Tab* t = ActiveTab(); t && t->view) b = t->view->GetBrowser();
-  if (!b) return;
-  if (ignore_cache) b->ReloadIgnoreCache();
-  else b->Reload();
+  if (Tab* t = ActiveTab(); t && t->view && t->view->GetBrowser())
+    ReloadBrowser(t->view->GetBrowser(), ignore_cache);
+}
+
+// A scripted popup (sign-in flows, window.open) becomes a Roar tab beside its
+// opener, keeping window.opener, instead of a bare Chrome window with no sidebar.
+bool Controller::AdoptPopup(CefRefPtr<CefBrowser> opener, CefRefPtr<CefBrowserView> popup) {
+  Tab* from = opener ? FindTabByBrowser(opener) : nullptr;
+  if (!from || !shell_) return false;
+  int id = NewTab("about:blank", false, false, 0, from->space, from->ghost, from->id);
+  Tab* tab = FindTab(id);
+  if (!tab) return false;
+  tab->view = popup;  // Replaces the unstarted view NewTab made.
+  ActivateTab(id);
+  return true;
 }
 
 // Reuses a tab already showing |url| in this space.
@@ -2958,6 +2981,13 @@ bool Controller::HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> 
       // "<action> <message id>": the id is Gmail's hex message_id from the feed link.
       size_t at = url.find("message_id=");
       std::string mid = at == std::string::npos ? "" : url.substr(at + 11, url.find('&', at) - at - 11);
+      // A multi-select delete lists the rest of its messages (same account) in "urls".
+      if (auto more = msg->GetList("urls"); more && action == "delete")
+        for (size_t i = 1; i < more->GetSize(); ++i) {
+          std::string u = more->GetString(i);
+          size_t a = u.find("message_id=");
+          if (a != std::string::npos) mid += "," + u.substr(a + 11, u.find('&', a) - a - 11);
+        }
       // A Gmail page that is already loaded for this account keeps its connection to
       // Google; a fresh load only starts sending changes a while after it opens.
       size_t u = url.find("/mail/u/");
@@ -3433,13 +3463,13 @@ bool Controller::OnKey(CefRefPtr<CefBrowser> browser, const CefKeyEvent& event) 
   if (Tab* t = FindTabByBrowser(browser); t && t->floating && cmd && !ctrl && !alt) {
     if (!shift && (key == 'W' || key == 'R' || key == 0xDB || key == 0xDD)) {
       if (key == 'W') DockTab(t->id);
-      else if (key == 'R') browser->Reload();
+      else if (key == 'R') ReloadBrowser(browser, false);
       else if (key == 0xDB) browser->GoBack();
       else browser->GoForward();
       return true;
     }
     if (shift && key == 'R') {
-      browser->ReloadIgnoreCache();
+      ReloadBrowser(browser, true);
       return true;
     }
     if (shift && key == 'F') {

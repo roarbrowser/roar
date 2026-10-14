@@ -1,5 +1,6 @@
-// Runs in a Gmail tab Roar has loaded: ticks the inbox row for one message,
-// checks that it is the only one selected, presses Gmail's own toolbar button
+// Runs in a Gmail tab Roar has loaded: ticks the inbox rows for the messages
+// (|id| is a comma-separated list; only delete takes several), checks that only
+// they are selected, presses Gmail's own toolbar button
 // (delete, mark read, move to) and reports the outcome to Roar's hint.
 window.__roarMailAct = (action, id) => {
   const trace = (window.__roarActTrace = ['start ' + action + ' ' + id]);
@@ -20,25 +21,30 @@ window.__roarMailAct = (action, id) => {
   const rows = () => [...document.querySelectorAll('tr.zA')].filter((r) => r.offsetParent);
   const boxOf = (r) => r.querySelector('div[role="checkbox"]');
   const checked = () => rows().filter((r) => boxOf(r)?.getAttribute('aria-checked') === 'true');
-  const find = () => rows().find((r) => r.querySelector(`[data-legacy-thread-id="${id}"], [data-legacy-last-message-id="${id}"]`));
-  // Whether the page still lists the message in this inbox view.
-  const listed = () => !!find();
+  const ids = id.split(',');
+  const findId = (i) => rows().find((r) => r.querySelector(`[data-legacy-thread-id="${i}"], [data-legacy-last-message-id="${i}"]`));
+  const find = () => findId(ids[0]);
+  const targets = () => ids.map(findId).filter(Boolean);
+  // Whether the page still lists any of the messages in this inbox view.
+  const listed = () => targets().length > 0;
   (async () => {
     // A page that only just loaded shows the change but sends it to Google much later.
     await until(() => performance.now() > 33000, 400);
     // Gmail may open the message itself; the inbox list is where the row buttons work.
     if (location.hash !== '#inbox') { location.hash = '#inbox'; await wait(1500); }
-    let row = await until(find);
-    if (!row) return report('Message not found in the inbox page; nothing was changed');
-    // Start from no selection, so only this message can be acted on.
-    for (const r of checked()) { if (r !== row) { press(boxOf(r)); await wait(500); } }
-    row = find();
-    if (!row) return report('Message moved; nothing was changed');
-    row.scrollIntoView({ block: 'center' });
-    await wait(400);
-    if (boxOf(row).getAttribute('aria-checked') !== 'true') { press(boxOf(row)); await wait(700); }
-    const only = checked();
-    if (only.length !== 1 || only[0] !== find()) {
+    if (!(await until(() => targets().length === ids.length)))
+      return report('Message not found in the inbox page; nothing was changed');
+    // Start from no selection, so only these messages can be acted on.
+    for (const r of checked()) { if (!targets().includes(r)) { press(boxOf(r)); await wait(500); } }
+    for (const i of ids) {
+      const row = findId(i);
+      if (!row) return report('Message moved; nothing was changed');
+      row.scrollIntoView({ block: 'center' });
+      await wait(400);
+      if (boxOf(row).getAttribute('aria-checked') !== 'true') { press(boxOf(row)); await wait(700); }
+    }
+    const only = checked(), want = targets();
+    if (only.length !== ids.length || !want.every((r) => only.includes(r))) {
       for (const r of only) { press(boxOf(r)); await wait(500); }
       return report('Could not select just that message; nothing was changed');
     }
@@ -54,7 +60,7 @@ window.__roarMailAct = (action, id) => {
       const b = await until(() => button('Delete', '10'), 10);
       if (!b) return report('Gmail has no Delete button for it; nothing was deleted');
       press(b);
-      if (await until(() => !listed(), 15)) report('Deleted');
+      if (await until(() => !listed(), 15)) report(ids.length > 1 ? `Deleted ${ids.length}` : 'Deleted');
       else report('Gmail did not delete it');
       return void (await nudge());
     }
