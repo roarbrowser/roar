@@ -23,6 +23,9 @@ int main() {
   Check("https://contoso.sharepoint.com.mcas.ms:8443/a", "https://contoso.sharepoint.com:8443/a");
   Check("http://contoso.sharepoint.com.mcas.ms", "http://contoso.sharepoint.com");
   Check("https://contoso--my-sharepoint-com.mcas.ms/x", "https://contoso-my.sharepoint.com/x");
+  Check("https://teams.microsoft.com.mcas.ms/l/meetup-join/19%3ameeting_Y2E%40thread.v2/0?context=%7b%22Tid%22%3a%221%22%7d&McasTsid=28375&McasCtx=4",
+        "https://teams.microsoft.com/l/meetup-join/19%3ameeting_Y2E%40thread.v2/0?context=%7b%22Tid%22%3a%221%22%7d");
+  Check("https://teams.cloud.microsoft.mcas.ms/?lm=deeplink&McasTsid=28375&McasCtx=4", "https://teams.cloud.microsoft/?lm=deeplink");
   Check("https://contoso.sharepoint.com.mcas-gov.us/x", "https://contoso.sharepoint.com/x");
   // Safe Links, including the Teams redirector and nesting with MCAS.
   Check("https://nam12.safelinks.protection.outlook.com/?url=https%3A%2F%2Fexample.com%2Fa%3Fb%3D1%26c%3D2&data=05%7C01&reserved=0",
