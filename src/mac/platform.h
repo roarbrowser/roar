@@ -11,7 +11,16 @@ namespace roar::platform {
 std::string ResourcePath(const std::string& relative);
 std::string ReadResource(const std::string& relative);
 std::string RandomToken();
+// Several Roars can run at once. Each extra one is named (--instance=<name>,
+// ROAR_INSTANCE), keeps its data in "Roar-<name>" beside the main data dir and
+// takes the first free CDP port from 9333; the main one keeps 9222.
+std::string InstanceName();
 int CdpPort();
+// Locks |dir| for this process and writes the CDP port to <dir>/cdp-port.
+// False when another Roar already runs from |dir|.
+bool ClaimInstance(const std::string& dir);
+// Starts a new Roar process under the lowest unused instance name.
+void LaunchInstance();
 
 void InstallMenu();
 // Launched with --headless: Roar runs hidden with a menu bar icon instead of a

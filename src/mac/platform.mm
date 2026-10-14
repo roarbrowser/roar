@@ -5,6 +5,11 @@
 #include <Security/Security.h>
 
 #include <algorithm>
+#include <fcntl.h>
+#include <netinet/in.h>
+#include <sys/file.h>
+#include <sys/socket.h>
+#include <unistd.h>
 
 #include "mac/platform.h"
 
@@ -307,10 +312,70 @@ std::string UnpackedExtensionId(const std::string& path) {
   return id;
 }
 
+namespace {
+bool PortFree(int port) {
+  int fd = socket(AF_INET, SOCK_STREAM, 0);
+  if (fd < 0) return false;
+  sockaddr_in addr = {};
+  addr.sin_family = AF_INET;
+  addr.sin_port = htons(port);
+  addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+  bool ok = bind(fd, reinterpret_cast<sockaddr*>(&addr), sizeof(addr)) == 0;
+  close(fd);
+  return ok;
+}
+
+std::string InstanceDir(const std::string& name) {
+  return std::string(getenv("HOME")) + "/Library/Application Support/Roar-" + name;
+}
+
+// Whether a running Roar holds |dir|'s instance lock.
+bool InstanceRunning(const std::string& dir) {
+  int fd = open((dir + "/instance.lock").c_str(), O_RDONLY);
+  if (fd < 0) return false;
+  bool held = flock(fd, LOCK_EX | LOCK_NB) != 0;
+  close(fd);
+  return held;
+}
+}  // namespace
+
+std::string InstanceName() {
+  const char* env = getenv("ROAR_INSTANCE");
+  return env ? env : "";
+}
+
 int CdpPort() {
-  const char* env = getenv("ROAR_CDP_PORT");
-  int port = env ? atoi(env) : 0;
-  return port > 0 ? port : 9222;
+  static int port = [] {
+    const char* env = getenv("ROAR_CDP_PORT");
+    if (int p = env ? atoi(env) : 0; p > 0) return p;
+    if (InstanceName().empty()) return 9222;
+    // 9222 belongs to other Chromes and 9444 to headless Roar.
+    for (int p = 9333; p < 9500; ++p)
+      if (p != 9444 && PortFree(p)) return p;
+    return 0;
+  }();
+  return port;
+}
+
+bool ClaimInstance(const std::string& dir) {
+  [NSFileManager.defaultManager createDirectoryAtPath:NS(dir) withIntermediateDirectories:YES attributes:nil error:nil];
+  int fd = open((dir + "/instance.lock").c_str(), O_RDWR | O_CREAT | O_CLOEXEC, 0644);
+  if (fd < 0 || flock(fd, LOCK_EX | LOCK_NB) != 0) return false;  // fd stays open, holding the lock
+  [[NSString stringWithFormat:@"%d\n", CdpPort()] writeToFile:NS(dir + "/cdp-port")
+                                                     atomically:YES
+                                                       encoding:NSUTF8StringEncoding
+                                                          error:nil];
+  return true;
+}
+
+void LaunchInstance() {
+  std::string name;
+  for (int n = 2;; ++n)
+    if (!InstanceRunning(InstanceDir(name = std::to_string(n)))) break;
+  NSTask* task = [[NSTask alloc] init];
+  task.launchPath = @"/usr/bin/open";
+  task.arguments = @[ @"-n", NSBundle.mainBundle.bundlePath, @"--args", NS("--instance=" + name) ];
+  [task launch];
 }
 
 bool Headless() {
@@ -367,6 +432,13 @@ void InstallMenu() {
   [app addItemWithTitle:@"About Roar" action:@selector(orderFrontStandardAboutPanel:) keyEquivalent:@""];
   [app addItem:[NSMenuItem separatorItem]];
   addCommand(app, @"Check for Updates…", @"checkUpdates", @"");
+  addCommand(app, @"New Instance", @"newInstance", @"");
+  {
+    std::string name = InstanceName();
+    NSString* label = [NSString stringWithFormat:@"%@ · CDP port %d",
+                                                 name.empty() ? @"Main instance" : NS("Instance " + name), CdpPort()];
+    [app addItemWithTitle:label action:nil keyEquivalent:@""].enabled = NO;
+  }
   addCommand(app, @"Settings…", @"settings", @"⌘,");
   [app addItem:[NSMenuItem separatorItem]];
   [app addItemWithTitle:@"Hide Roar" action:@selector(hide:) keyEquivalent:@"h"];
@@ -490,7 +562,11 @@ void StyleWindow(void* window, double corner_radius, bool shadow) {
   w.opaque = NO;
   w.backgroundColor = NSColor.clearColor;
   w.hasShadow = shadow;
-  w.collectionBehavior |= NSWindowCollectionBehaviorFullScreenAuxiliary;
+  // Tab and popup windows are parts of the shell window: keep them out of the
+  // Dock's window list, Exposé, the Window menu and ⌘` cycling.
+  w.collectionBehavior |= NSWindowCollectionBehaviorFullScreenAuxiliary | NSWindowCollectionBehaviorTransient |
+                          NSWindowCollectionBehaviorIgnoresCycle;
+  w.excludedFromWindowsMenu = YES;
   // A resizable edge would sit over the sidebar's resize handle and drag the
   // tab window out from under the layout instead.
   w.styleMask &= ~NSWindowStyleMaskResizable;
@@ -540,7 +616,9 @@ void SetFloating(void* window, bool floating, const std::string& title) {
     w.title = NS(title);
     w.level = NSFloatingWindowLevel;
     w.hasShadow = YES;
-    w.collectionBehavior |= NSWindowCollectionBehaviorCanJoinAllSpaces;
+    w.collectionBehavior = (w.collectionBehavior | NSWindowCollectionBehaviorCanJoinAllSpaces) &
+                           ~(NSWindowCollectionBehaviorTransient | NSWindowCollectionBehaviorIgnoresCycle);
+    w.excludedFromWindowsMenu = NO;
     w.contentView.layer.cornerRadius = 0;
   } else {
     w.styleMask = (w.styleMask & ~(NSWindowStyleMaskTitled | NSWindowStyleMaskClosable |
@@ -551,7 +629,9 @@ void SetFloating(void* window, bool floating, const std::string& title) {
     [w standardWindowButton:NSWindowCloseButton].hidden = YES;
     w.level = NSNormalWindowLevel;
     w.hasShadow = NO;
-    w.collectionBehavior &= ~NSWindowCollectionBehaviorCanJoinAllSpaces;
+    w.collectionBehavior = (w.collectionBehavior & ~NSWindowCollectionBehaviorCanJoinAllSpaces) |
+                           NSWindowCollectionBehaviorTransient | NSWindowCollectionBehaviorIgnoresCycle;
+    w.excludedFromWindowsMenu = YES;
     w.contentView.layer.cornerRadius = 10;
   }
 }

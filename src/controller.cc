@@ -1880,6 +1880,7 @@ void Controller::RunCommand(const std::string& id) {
   else if (id == "forward") Forward();
   else if (id == "reload") Reload();
   else if (id == "settings") OpenSettings();
+  else if (id == "newInstance") platform::LaunchInstance();
   else if (id == "checkUpdates") platform::CheckForUpdates(shell_ ? shell_->GetWindowHandle() : nullptr);
   else if (id == "sidebar") ToggleSidebar();
   else if (id == "github") RefreshGitHub();

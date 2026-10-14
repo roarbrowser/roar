@@ -76,7 +76,10 @@ State& State::Get() {
 std::string State::Dir() const {
   const char* override_dir = std::getenv("ROAR_DATA_DIR");
   if (override_dir && *override_dir) return override_dir;
-  return std::string(std::getenv("HOME")) + "/Library/Application Support/Roar";
+  std::string dir = std::string(std::getenv("HOME")) + "/Library/Application Support/Roar";
+  // Extra instances (platform::InstanceName) sit beside the main data dir.
+  const char* instance = std::getenv("ROAR_INSTANCE");
+  return instance && *instance ? dir + "-" + instance : dir;
 }
 
 std::string State::ProfileDir(int space) const {

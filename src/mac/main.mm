@@ -63,6 +63,8 @@ int main(int argc, char* argv[]) {
   if (!library_loader.LoadInMain()) return 1;
 
   CefMainArgs main_args(argc, argv);
+  for (int i = 1; i < argc; ++i)
+    if (!strncmp(argv[i], "--instance=", 11) && argv[i][11]) setenv("ROAR_INSTANCE", argv[i] + 11, 1);
   roar::action_watch::PrepareMain();
   @autoreleasepool {
     [RoarApplication sharedApplication];
@@ -77,8 +79,15 @@ int main(int argc, char* argv[]) {
 #if !defined(CEF_USE_SANDBOX)
     settings.no_sandbox = true;
 #endif
-    settings.remote_debugging_port = roar::platform::CdpPort();
+    // A second Roar on the same data dir would fight over its profiles, so a
+    // plain second launch becomes the next free instance.
     std::string data_dir = roar::State::Get().Dir();
+    for (int n = 2; !roar::platform::ClaimInstance(data_dir); ++n) {
+      if (getenv("ROAR_DATA_DIR") || n > 50) return 0;
+      setenv("ROAR_INSTANCE", std::to_string(n).c_str(), 1);
+      data_dir = roar::State::Get().Dir();
+    }
+    settings.remote_debugging_port = roar::platform::CdpPort();
     // Roar restores its own tabs; Chromium's session restore would reopen them
     // a second time as plain Chrome windows.
     // Chrome style keeps its profile in <root>/Default.
