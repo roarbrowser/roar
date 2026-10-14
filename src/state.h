@@ -119,6 +119,8 @@ class State {
   std::string ProfileDir(int space) const;
 
   std::vector<SavedTab> tabs;
+  // Unpinned tabs open at the last quit, for History > Reopen Last Session (not saved).
+  std::vector<SavedTab> last_session;
   int active_index = 0;
   std::vector<ArchivedTab> archive;
   std::map<std::string, HistoryEntry> history;

@@ -111,6 +111,9 @@
   roar::State& state = roar::State::Get();
   // Only the active space: each space is its own profile.
   int space = state.active_space;
+  long last = std::count_if(state.last_session.begin(), state.last_session.end(),
+                            [&](const roar::SavedTab& t) { return t.space == space; });
+  if (last) add(menu, [NSString stringWithFormat:@"Reopen All Tabs from Last Session (%ld)", last], @"lastSession", nil);
   std::vector<size_t> closed;
   for (size_t i = 0; i < state.archive.size() && closed.size() < 10; ++i)
     if (state.archive[i].space == space) closed.push_back(i);

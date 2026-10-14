@@ -823,7 +823,11 @@ void Controller::Start() {
                      state.groups.end());
   for (const auto& saved : state.tabs) {
     bool in_group = state.FindGroup(saved.group);
-    if (!saved.pinned && !in_group) continue;
+    if (!saved.pinned && !in_group) {
+      if (!StartsWith(saved.url, kNewTabUrl) && !StartsWith(saved.url, kWelcomeUrl))
+        state.last_session.push_back(saved);
+      continue;
+    }
     int id = NewTab(saved.url, false, saved.pinned && !in_group, saved.last_active, saved.space);
     if (in_group) FindTab(id)->group = saved.group;
     FindTab(id)->icon = saved.icon;
@@ -1983,6 +1987,19 @@ void Controller::RunCommand(const std::string& id) {
   else if (id == "newGhostTab") ShowCommandBar(true), command_ghost_ = true;
   else if (id == "closeTab") CloseActiveUnlessKept();
   else if (StartsWith(id, "restore:")) RestoreArchived(std::atoi(id.c_str() + 8));
+  else if (id == "lastSession") {
+    // Brings back the active space's tabs from before the last quit, once.
+    auto& last = State::Get().last_session;
+    int space = State::Get().active_space;
+    for (const auto& saved : last)
+      if (saved.space == space) {
+        int tab = NewTab(saved.url, false, false, saved.last_active, space);
+        FindTab(tab)->icon = saved.icon;
+        FindTab(tab)->favicon = saved.favicon;
+      }
+    last.erase(std::remove_if(last.begin(), last.end(), [&](const SavedTab& t) { return t.space == space; }),
+               last.end());
+  }
   else if (id == "reopen") {
     const auto& archive = State::Get().archive;
     for (size_t i = 0; i < archive.size(); ++i)
