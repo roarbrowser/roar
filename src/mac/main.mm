@@ -59,6 +59,14 @@
   roar::Controller::Get()->Focus();
   return NO;
 }
+- (void)newWindow:(id)sender {
+  roar::platform::LaunchInstance();
+}
+- (NSMenu*)applicationDockMenu:(NSApplication*)sender {
+  NSMenu* menu = [[NSMenu alloc] init];
+  [menu addItemWithTitle:@"New Window" action:@selector(newWindow:) keyEquivalent:@""].target = self;
+  return menu;
+}
 - (BOOL)application:(NSApplication*)sender delegateHandlesKey:(NSString*)key {
   return [key isEqualToString:@"roarTabs"] || [key isEqualToString:@"activeRoarTab"];
 }

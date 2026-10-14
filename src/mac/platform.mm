@@ -447,6 +447,7 @@ void InstallMenu() {
 
   NSMenu* file = addMenu(@"File");
   addCommand(file, @"New Tab", @"newTab", @"⌘T");
+  addCommand(file, @"New Window", @"newInstance", @"⌘N");
   addCommand(file, @"New Ghost Tab", @"newGhostTab", @"⇧⌘N");
   addCommand(file, @"Reopen Archived Tab", @"reopen", @"⇧⌘T");
   addCommand(file, @"Close Tab", @"closeTab", @"⌘W");

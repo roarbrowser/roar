@@ -3466,6 +3466,7 @@ bool Controller::OnKey(CefRefPtr<CefBrowser> browser, const CefKeyEvent& event) 
   if (!shift && !alt) {
     switch (key) {
       case 'T': ShowCommandBar(true); return true;
+      case 'N': RunCommand("newInstance"); return true;
       case 'L': ShowCommandBar(false); return true;
       case 'W': CloseActiveUnlessKept(); return true;
       case 'R': Reload(); return true;
