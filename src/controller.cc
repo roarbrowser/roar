@@ -3542,7 +3542,8 @@ void Controller::SaveSoon() {
   save_pending_ = true;
   CefPostDelayedTask(TID_UI, base::BindOnce([] {
                        Controller::Get()->save_pending_ = false;
-                       Controller::Get()->SaveNow();
+                       // Quit already saved; a save queued before it would see the cleared tab list.
+                       if (!Controller::Get()->closing_) Controller::Get()->SaveNow();
                      }),
                      1000);
 }
@@ -3648,6 +3649,11 @@ void Controller::OnShellDestroyed() {
   hint_window_ = nullptr;
   find_ = nullptr;
   find_window_ = nullptr;
+  // The shell can go without CanCloseShell (Chrome closing every window, e.g. over CDP).
+  if (!closing_) {
+    closing_ = true;
+    SaveNow();
+  }
   tabs_.clear();
   MaybeQuit();
 }
