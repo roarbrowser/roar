@@ -49,6 +49,12 @@
   NSString* url = [[event paramDescriptorForKeyword:keyDirectObject] stringValue];
   if (url) roar::Controller::Get()->NewTab(url.UTF8String, true);
 }
+- (void)applicationDidResignActive:(NSNotification*)notification {
+  roar::Controller::Get()->PaintPreview();
+}
+- (void)applicationDidBecomeActive:(NSNotification*)notification {
+  roar::Controller::Get()->ClearPreview();
+}
 - (BOOL)applicationShouldHandleReopen:(NSApplication*)app hasVisibleWindows:(BOOL)visible {
   roar::Controller::Get()->Focus();
   return NO;

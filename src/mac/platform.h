@@ -39,6 +39,10 @@ void SetSidebarButton(void* window, bool visible);
 // Window plumbing. |window| arguments are CefWindow::GetWindowHandle() values.
 void AttachChild(void* parent, void* child);  // Shows |child| above |parent|.
 void DetachChild(void* parent, void* child);  // Hides |child|.
+// Shows |jpeg| in |parent| under the area |child| covers, for window previews
+// that capture |parent| alone. ClearBackdrop removes every such image.
+void AddBackdrop(void* parent, void* child, const std::string& jpeg);
+void ClearBackdrop(void* parent);
 void StyleWindow(void* window, double corner_radius, bool shadow);
 void SetIgnoresMouse(void* window, bool ignores);
 bool IsLeftMouseDown();

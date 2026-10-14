@@ -85,6 +85,11 @@ class Controller {
 
   void Start();
   void Focus();
+  // Roar went to the background: paint the visible tabs onto the shell window,
+  // so window previews that capture only it (Vorssaint) show the page.
+  void PaintPreview();
+  void ClearPreview();
+  void OnPreviewShot(int tab_id, const std::string& jpeg);
   void Quit();
 
   // Tabs. Ids are stable for the life of the process.

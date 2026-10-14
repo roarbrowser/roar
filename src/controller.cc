@@ -722,6 +722,41 @@ class MediaWatcher : public CefDevToolsMessageObserver {
 
 }  // namespace
 
+// Grabs one screenshot of a tab's page and hands it to the shell window as
+// the backdrop under that tab's window (platform::AddBackdrop).
+class PreviewShot : public CefDevToolsMessageObserver {
+ public:
+  static void Take(CefRefPtr<CefBrowser> browser, int tab_id) {
+    CefRefPtr<PreviewShot> shot = new PreviewShot(tab_id);
+    shot->registration_ = browser->GetHost()->AddDevToolsMessageObserver(shot);
+    auto params = CefDictionaryValue::Create();
+    params->SetString("format", "jpeg");
+    params->SetInt("quality", 80);
+    shot->id_ = browser->GetHost()->ExecuteDevToolsMethod(0, "Page.captureScreenshot", params);
+  }
+  void OnDevToolsMethodResult(CefRefPtr<CefBrowser> browser, int message_id, bool success,
+                              const void* result, size_t result_size) override {
+    if (message_id != id_) return;
+    auto value = success ? CefParseJSON(result, result_size, JSON_PARSER_RFC) : nullptr;
+    auto dict = value && value->GetType() == VTYPE_DICTIONARY ? value->GetDictionary() : nullptr;
+    if (auto bytes = dict ? CefBase64Decode(dict->GetString("data")) : nullptr; bytes && bytes->GetSize()) {
+      std::string data(bytes->GetSize(), '\0');
+      bytes->GetData(data.data(), data.size(), 0);
+      Controller::Get()->OnPreviewShot(tab_id_, data);
+    }
+    // Dropping the registration from inside its own callback can trip the
+    // observer list; let it go on the next task.
+    CefPostTask(TID_UI, base::BindOnce([](CefRefPtr<CefRegistration>) {}, std::move(registration_)));
+  }
+
+ private:
+  explicit PreviewShot(int tab_id) : tab_id_(tab_id) {}
+  int tab_id_;
+  int id_ = 0;
+  CefRefPtr<CefRegistration> registration_;
+  IMPLEMENT_REFCOUNTING(PreviewShot);
+};
+
 Controller* Controller::Get() {
   static Controller* controller = new Controller();
   return controller;
@@ -800,6 +835,25 @@ void Controller::Start() {
   AutoArchiveTick();
   GitHubTick();
   GmailOpenTick();
+}
+
+void Controller::PaintPreview() {
+  if (!shell_ || platform::Headless()) return;
+  platform::ClearBackdrop(shell_->GetWindowHandle());
+  for (const Tab& tab : tabs_)
+    if (tab.view && tab.window && !tab.floating && tab.window->IsVisible())
+      if (auto browser = tab.view->GetBrowser())
+        PreviewShot::Take(browser, tab.id);
+}
+
+void Controller::OnPreviewShot(int tab_id, const std::string& jpeg) {
+  Tab* tab = FindTab(tab_id);
+  if (shell_ && tab && tab->window && tab->window->IsVisible())
+    platform::AddBackdrop(shell_->GetWindowHandle(), tab->window->GetWindowHandle(), jpeg);
+}
+
+void Controller::ClearPreview() {
+  if (shell_) platform::ClearBackdrop(shell_->GetWindowHandle());
 }
 
 void Controller::Focus() {

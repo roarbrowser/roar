@@ -556,6 +556,33 @@ void DetachChild(void* parent, void* child) {
   [c orderOut:nil];
 }
 
+namespace {
+NSString* const kBackdropId = @"roar.backdrop";
+}
+
+void AddBackdrop(void* parent, void* child, const std::string& jpeg) {
+  NSWindow* p = Win(parent);
+  NSWindow* c = Win(child);
+  NSImage* image = [[NSImage alloc] initWithData:[NSData dataWithBytes:jpeg.data() length:jpeg.size()]];
+  if (!p || !c || !image || NSApp.active) return;
+  NSView* content = p.contentView;
+  NSRect frame = [content convertRect:[p convertRectFromScreen:c.frame] fromView:nil];
+  NSImageView* view = [NSImageView imageViewWithImage:image];
+  view.identifier = kBackdropId;
+  view.imageScaling = NSImageScaleAxesIndependently;
+  view.frame = frame;
+  view.wantsLayer = YES;
+  view.layer.cornerRadius = c.contentView.layer.cornerRadius;
+  view.layer.masksToBounds = YES;
+  [content addSubview:view positioned:NSWindowAbove relativeTo:nil];
+}
+
+void ClearBackdrop(void* parent) {
+  NSWindow* p = Win(parent);
+  for (NSView* v in [p.contentView.subviews copy])
+    if ([v.identifier isEqualToString:kBackdropId]) [v removeFromSuperview];
+}
+
 void StyleWindow(void* window, double corner_radius, bool shadow) {
   NSWindow* w = Win(window);
   if (!w) return;
