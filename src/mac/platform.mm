@@ -567,6 +567,9 @@ void StyleWindow(void* window, double corner_radius, bool shadow) {
   w.collectionBehavior |= NSWindowCollectionBehaviorFullScreenAuxiliary | NSWindowCollectionBehaviorTransient |
                           NSWindowCollectionBehaviorIgnoresCycle;
   w.excludedFromWindowsMenu = YES;
+  // Window switchers and Dock previews (Vorssaint, AltTab) list a process's
+  // AXStandardWindows; a tab window is not one.
+  w.accessibilitySubrole = NSAccessibilityUnknownSubrole;
   // A resizable edge would sit over the sidebar's resize handle and drag the
   // tab window out from under the layout instead.
   w.styleMask &= ~NSWindowStyleMaskResizable;
@@ -619,6 +622,7 @@ void SetFloating(void* window, bool floating, const std::string& title) {
     w.collectionBehavior = (w.collectionBehavior | NSWindowCollectionBehaviorCanJoinAllSpaces) &
                            ~(NSWindowCollectionBehaviorTransient | NSWindowCollectionBehaviorIgnoresCycle);
     w.excludedFromWindowsMenu = NO;
+    w.accessibilitySubrole = NSAccessibilityStandardWindowSubrole;
     w.contentView.layer.cornerRadius = 0;
   } else {
     w.styleMask = (w.styleMask & ~(NSWindowStyleMaskTitled | NSWindowStyleMaskClosable |
@@ -632,6 +636,7 @@ void SetFloating(void* window, bool floating, const std::string& title) {
     w.collectionBehavior = (w.collectionBehavior & ~NSWindowCollectionBehaviorCanJoinAllSpaces) |
                            NSWindowCollectionBehaviorTransient | NSWindowCollectionBehaviorIgnoresCycle;
     w.excludedFromWindowsMenu = YES;
+    w.accessibilitySubrole = NSAccessibilityUnknownSubrole;
     w.contentView.layer.cornerRadius = 10;
   }
 }
