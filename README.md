@@ -40,7 +40,9 @@ claude mcp add roar -- /Applications/Roar.app/Contents/Resources/roar-mcp.sh
 
 Other MCP clients take the same command as a stdio server.
 
-## Coming from Arc?
+## Coming from Dia or legacy Arc?
+
+*We don't need a browser company to build a browser.*
 
 Arc is in maintenance mode. Roar keeps the parts you liked and brings them over on first launch.
 
