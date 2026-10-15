@@ -112,7 +112,25 @@ void State::Load() {
       pages[k.ToString()] = {Str(e, "title"), Str(e, "text"), Num(e, "indexedAt"), space, url};
     }
   }
-  const std::string text = ReadFile(Dir() + "/state.json");
+  std::string text = ReadFile(Dir() + "/state.json");
+  // A new window (an extra instance) starts with the main window's spaces and pins.
+  const char* instance = std::getenv("ROAR_INSTANCE");
+  const char* data_dir = std::getenv("ROAR_DATA_DIR");
+  bool seed = instance && *instance && !(data_dir && *data_dir);
+  if (seed && !text.empty()) {  // Its own state counts once it has a second space or a pin.
+    auto own = CefParseJSON(text, JSON_PARSER_RFC);
+    auto od = own && own->GetType() == VTYPE_DICTIONARY ? own->GetDictionary() : nullptr;
+    auto sp = od ? od->GetList("spaces") : nullptr;
+    bool pinned = false;
+    if (auto tl = od ? od->GetList("tabs") : nullptr)
+      for (size_t i = 0; i < tl->GetSize(); ++i) pinned |= Bool(tl->GetDictionary(i), "pinned");
+    seed = !pinned && (!sp || sp->GetSize() <= 1);
+  }
+  if (seed) {
+    std::string main = ReadFile(std::string(std::getenv("HOME")) + "/Library/Application Support/Roar/state.json");
+    if (!main.empty()) text = main;
+    else seed = false;
+  }
   // Keeps the state of the last three launches: state.json.launch-1 is the newest.
   if (!text.empty()) {
     const std::string base = Dir() + "/state.json.launch-";
@@ -198,6 +216,14 @@ void State::Load() {
     }
   }
   next_group_id = static_cast<int>(Num(d, "nextGroupId", 1));
+  if (seed) {  // Keep only spaces, pinned tabs and their groups.
+    std::erase_if(tabs, [](const SavedTab& t) { return !t.pinned; });
+    std::erase_if(groups, [](const TabGroup& g) { return !g.pinned; });
+    archive.clear();
+    history.clear();
+    pages.clear();
+    active_index = 0;
+  }
   for (const auto& g : groups) next_group_id = std::max(next_group_id, g.id + 1);
   for (const auto& sp : spaces) next_space_id = std::max(next_space_id, sp.id + 1);
   if (!FindSpace(active_space)) active_space = spaces.front().id;
