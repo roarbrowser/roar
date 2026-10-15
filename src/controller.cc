@@ -1,6 +1,7 @@
 #include "controller.h"
 
 #include "action_watch.h"
+#include "arc_import.h"
 #include "link_clean.h"
 
 #include <algorithm>
@@ -1794,6 +1795,71 @@ void Controller::ImportBrowser(const std::string& browser) {
   ShowHint(label + ": " + (summary.empty() ? "nothing new" : summary));
 }
 
+// Arc spaces become Roar spaces of the same name (space 0 included), Arc's
+// pinned tabs Roar pins, and its folders pinned groups, which persist like Arc
+// folders. Anything already there by name or URL is skipped, so re-import is safe.
+void Controller::ImportArc() {
+  std::ifstream in(arc::SidebarPath());
+  if (!in) return ShowHint("Arc: nothing found");
+  std::stringstream text;
+  text << in.rdbuf();
+  std::string error;
+  auto spaces = arc::Parse(text.str(), &error);
+  if (spaces.empty()) return ShowHint("Arc: " + (error.empty() ? "nothing found" : error));
+
+  State& state = State::Get();
+  int added_spaces = 0, pinned = 0, grouped = 0;
+  auto has_tab = [&](int space, int group, const std::string& url) {
+    return std::any_of(tabs_.begin(), tabs_.end(), [&](const Tab& t) {
+      return t.space == space && t.url == url && (group ? t.group == group : t.pinned);
+    });
+  };
+  for (const auto& a : spaces) {
+    std::string name = a.name.substr(0, 40);
+    int space = -1;
+    for (const auto& s : state.spaces)
+      if (s.name == name) space = s.id;
+    if (space < 0) {
+      space = state.next_space_id++;
+      state.spaces.push_back({space, name, "", {}});
+      ++added_spaces;
+    }
+    if (Space* s = state.FindSpace(space); s && s->color.empty()) s->color = a.color;
+    for (const auto& link : a.pinned) {
+      if (has_tab(space, 0, link.url)) continue;
+      NewTab(link.url, false, true, 0, space);
+      ++pinned;
+    }
+    for (const auto& folder : a.folders) {
+      int group = 0;
+      for (const auto& g : state.groups)
+        if (g.space == space && g.name == folder.name) group = g.id;
+      if (!group) {
+        TabGroup g;
+        g.id = group = state.next_group_id++;
+        g.name = folder.name;
+        g.space = space;
+        g.pinned = true;
+        state.groups.push_back(g);
+      }
+      for (const auto& link : folder.tabs) {
+        if (has_tab(space, group, link.url)) continue;
+        SetGroup(NewTab(link.url, false, false, 0, space), group);
+        ++grouped;
+      }
+    }
+  }
+  PushSidebar();
+  SaveSoon();
+  std::vector<std::string> parts;
+  if (added_spaces) parts.push_back(std::to_string(added_spaces) + " spaces");
+  if (pinned) parts.push_back(std::to_string(pinned) + " pinned tabs");
+  if (grouped) parts.push_back(std::to_string(grouped) + " tabs in folders");
+  std::string summary;
+  for (size_t i = 0; i < parts.size(); ++i) summary += (i ? ", " : "") + parts[i];
+  ShowHint("Arc: " + (summary.empty() ? "nothing new" : summary));
+}
+
 // The active space's bookmarks and Read Later list.
 std::string Controller::LibraryJson() {
   auto v = CefValue::Create();
@@ -1999,6 +2065,7 @@ void Controller::RunCommand(const std::string& id) {
   else if (id == "github") RefreshGitHub();
   else if (id == "gmail") RefreshGmail();
   else if (id == "importDia") ImportBrowser("dia");
+  else if (id == "import:arc") ImportArc();
   else if (StartsWith(id, "import:")) ImportBrowser(id.substr(7));
   else if (id == "bookmarkAdd") SaveToLibrary(false);
   else if (id == "readLaterAdd") SaveToLibrary(true);
@@ -2726,6 +2793,7 @@ std::string Controller::StateJson() {
   auto settings = CefDictionaryValue::Create();
   settings->SetDouble("archiveAfterHours", state.settings.archive_after_hours);
   settings->SetBool("onboarded", state.settings.onboarded);
+  settings->SetBool("arcAvailable", std::filesystem::exists(arc::SidebarPath()));
   settings->SetString("searchUrl", state.settings.search_url);
   settings->SetBool("indexPages", state.settings.index_pages);
   settings->SetInt("pinnedColumns", state.settings.pinned_columns);

@@ -138,6 +138,7 @@ class Controller {
   void RefreshGmail();
   void RefreshGmail(int space, int attempt = 0);
   void ImportBrowser(const std::string& browser);
+  void ImportArc();
   std::string LibraryJson();
   void SaveToLibrary(bool read_later);
   void OpenUiPage(const std::string& url);

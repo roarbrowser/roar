@@ -557,7 +557,7 @@ void InstallMenu() {
   [file addItem:[NSMenuItem separatorItem]];
   NSMenuItem* importHolder = [file addItemWithTitle:@"Import From" action:nil keyEquivalent:@""];
   NSMenu* importMenu = [[NSMenu alloc] initWithTitle:@"Import From"];
-  for (NSArray* b in @[ @[ @"Chrome", @"chrome" ], @[ @"Edge", @"edge" ], @[ @"Firefox", @"firefox" ],
+  for (NSArray* b in @[ @[ @"Arc", @"arc" ], @[ @"Chrome", @"chrome" ], @[ @"Edge", @"edge" ], @[ @"Firefox", @"firefox" ],
                         @[ @"Safari", @"safari" ], @[ @"Dia", @"dia" ] ])
     addCommand(importMenu, b[0], [@"import:" stringByAppendingString:b[1]], @"");
   importHolder.submenu = importMenu;

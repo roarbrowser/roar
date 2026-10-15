@@ -6,6 +6,7 @@ set(ROAR_SHARED_SRCS shared.cc shared.h)
 set(ROAR_SRCS
   ${ROAR_SHARED_SRCS}
   action_watch.cc action_watch.h
+  arc_import.cc arc_import.h
   browser_app.cc browser_app.h
   client.cc client.h
   controller.cc controller.h
