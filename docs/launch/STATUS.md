@@ -13,7 +13,7 @@ States: `todo`, `in progress`, `done`, `blocked (maintainer)`.
 | 4 | Launch copy | done (drafts) | Review docs/launch/posts/; r/macapps needs the App Pile megathread or mod OK; post from established accounts |
 | 5 | One-page site | done, not published | Maintainer enables GitHub Pages from /docs; drop docs/media/roar-demo.mp4 + .jpg in when the demo exists |
 | 6 | Auto-update | done, unreleased | Sparkle 2.10.0 wired (feed: appcast.xml on main; EdDSA private key in the login keychain item "Private key for signing Sparkle updates"). Verified against a local test feed (ROAR_SPARKLE_TEST=1 + ROAR_SPARKLE_FEED). First real release will exercise sign_update; consider signing Sparkle's XPC helpers individually once Developer ID signing is live |
-| 7 | Brand accounts | in progress | Handle `roarbrowser`. Gmail signup: name + password set; waiting on maintainer's QR device verification, then confirm the final address in the password manager entry |
+| 7 | Brand accounts | in progress | Done: roarbrowser@gmail.com (recovery: maintainer's notifications inbox), GitHub org github.com/roarbrowser (org-owned, lion avatar). Next: X @roarbrowser, Product Hunt, Reddit u/roarbrowser, Hacker News roarbrowser |
 
 ## Maintainer steps outstanding
 
