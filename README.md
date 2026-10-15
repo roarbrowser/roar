@@ -7,8 +7,8 @@
 <p align="center"><strong>The AI-native, open-source browser your agent can drive.</strong></p>
 
 <p align="center">
-  A Chromium sidebar browser for macOS, with a built-in MCP server so Claude, Cursor or any
-  MCP client can browse in the same window you do, logins and all.
+  A Chromium sidebar browser for macOS with a built-in MCP server. Claude, Cursor or any
+  MCP client browses in the same window you do, logins and all. Open source. Yours.
 </p>
 
 <p align="center">
@@ -44,7 +44,13 @@ Other MCP clients take the same command as a stdio server.
 
 *We don't need a browser company to build a browser.*
 
-Arc is in maintenance mode. Roar keeps the parts you liked and brings them over on first launch.
+The Browser Company put Arc in maintenance mode in May 2025 to build Dia. If you lived in
+Arc, a company decided for you that your browser was done. Dia is their answer: closed
+source, with the AI they built in.
+
+Roar is the other answer. MIT licensed, so nobody can shelve it. No built-in assistant;
+bring the agent you already use and plug it in over MCP. Your spaces and pinned tabs come
+over on first launch.
 
 | In Arc | In Roar |
 |---|---|
@@ -53,15 +59,16 @@ Arc is in maintenance mode. Roar keeps the parts you liked and brings them over 
 | Tabs that archive themselves | The same, after 6h, 12h, 1 day or 1 week |
 | Split view | Split view (⌘\\), or drag one tab onto another |
 | Command bar | Command bar (⌘T), including the text of pages you've read |
+| Closed source, in maintenance mode | Open source, MIT, shipping |
 
 ## Built for agents
 
-The MCP server (`roar-mcp.sh`, a launcher for
-[chrome-devtools-mcp](https://github.com/ChromeDevTools/chrome-devtools-mcp)) lets an agent
-open pages, read them, click, fill forms, run scripts and take screenshots. It starts Roar
-if it isn't running. Settings > "Your AI agent drives Roar" picks which Roar agents get: this
-one, so you see what they do (the default), or a hidden headless Roar with its own profile
-(`~/.roar-headless`, port 9444) that the server starts on demand.
+Your agent, not ours. The MCP server (`roar-mcp.sh`, a launcher for
+[chrome-devtools-mcp](https://github.com/ChromeDevTools/chrome-devtools-mcp)) lets it open
+pages, read them, click, fill forms, run scripts and take screenshots, and starts Roar if
+needed. Settings > "Your AI agent drives Roar" picks where it works: this window, so you
+watch (the default), or a hidden headless Roar with its own profile (`~/.roar-headless`,
+port 9444) started on demand.
 
 - **Agents can reach you.** Two extra tools put cards in the sidebar: `notify_user` (info,
   done, or needs-you, with an optional Open link) and `ask_user`, which shows buttons and hands
@@ -184,8 +191,8 @@ nonce Roar issued to that tab.
 
 ## Contributing
 
-Issues and pull requests are welcome. Build with `./scripts/build.sh` before sending a
-change, since UI-only edits reach the app bundle only through that script.
+The source is right here. Issues and pull requests welcome. Build with `./scripts/build.sh`
+before sending a change; UI-only edits reach the app bundle only through that script.
 
 ## License
 
