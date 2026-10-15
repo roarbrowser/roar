@@ -17,7 +17,8 @@ git rev-parse -q --verify "refs/tags/$TAG" >/dev/null && { echo "$TAG already ex
 # Version lives in Info.plist.in; the build number stays in step with it.
 sed -i '' -E "s|(<key>CFBundleShortVersionString</key><string>)[^<]*|\1$VERSION|" "$PLIST"
 
-bash scripts/build.sh
+# Public builds are ad-hoc signed: an Apple Development identity embeds the developer's real name.
+ROAR_SIGN_IDENTITY="${ROAR_SIGN_IDENTITY:--}" bash scripts/build.sh
 
 APP="$ROOT/build/src/Release/Roar.app"
 STAGE="$(mktemp -d)"
