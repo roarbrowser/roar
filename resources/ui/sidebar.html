@@ -641,7 +641,10 @@ function groupMenu(id, e) {
   });
 }
 document.addEventListener('mousedown', (e) => { if (!ctx.hidden && !ctx.contains(e.target)) hideCtx(); }, true);
-document.addEventListener('keydown', (e) => { if (e.key === 'Escape') hideCtx(); });
+document.addEventListener('mousedown', (e) => { if (!$('space-menu').hidden && !$('space-menu').contains(e.target)) hideSpaceMenu(); }, true);
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { hideCtx(); hideSpaceMenu(); } });
+// Clicking into a tab never reaches the sidebar's document; close menus when it loses focus.
+window.addEventListener('blur', () => { hideCtx(); hideSpaceMenu(); });
 
 // Drag a tab onto a group, back into Tabs, or onto the pinned strip.
 let dragId = 0;
