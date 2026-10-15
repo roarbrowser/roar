@@ -6,7 +6,7 @@ cask "roar" do
 
   url "https://github.com/roarbrowser/roar/releases/download/v#{version}/Roar-#{version}.dmg"
   name "Roar"
-  desc "Open-source Chromium sidebar browser your AI agent can drive"
+  desc "AI-native, open-source Chromium browser your agent can drive"
   homepage "https://github.com/roarbrowser/roar"
 
   depends_on arch: :arm64

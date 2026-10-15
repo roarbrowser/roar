@@ -1,7 +1,7 @@
 # X thread
 
 1/
-Roar: the open-source browser your AI agent can drive.
+Roar: the AI-native, open-source browser your agent can drive.
 
 A sidebar browser for macOS with a built-in MCP server. You browse; Claude, Cursor or any MCP client can use the same browser, logins and all.
 

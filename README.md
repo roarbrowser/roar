@@ -5,11 +5,11 @@
 
 <h1 align="center">Roar</h1>
 
-<p align="center"><strong>The open-source browser your AI agent can drive.</strong></p>
+<p align="center"><strong>The AI-native, open-source browser your agent can drive.</strong></p>
 
 <p align="center">
-  An AI-first Chromium browser for macOS: a sidebar browser you use, with a built-in MCP server<br>
-  so your agent can use it too. Built on CEF 154 (Chromium 154.0.8037.98). Free and open source under the MIT License.
+  An AI-native Chromium browser for macOS: a sidebar browser you use, with a built-in MCP server<br>
+  so your agent can use it too. Built on CEF 154.0.34 (Chromium 154.0.8037.98). Free and open source under the MIT License.
 </p>
 
 ## Built for agents
@@ -39,9 +39,10 @@ one, so you see what they do (the default), or a hidden headless Roar with its o
   it. Blocked spaces and ghost tabs are hidden from CDP entirely, so agents can't list or
   attach to them; with several spaces allowed, the agent asks you which to use (or calls
   `use_profile`), and its new pages open there.
-- **One click to cut it off.** The dot under the settings icon shows whether the CDP port is
-  open (`CDP: 9222 open` on hover); click it to close the port and drop every connected
-  agent, or reopen it, without restarting.
+- **One click to cut it off.** The dot under the settings icon shows whether agents can
+  reach the current space (hover for the port, connected agents and allowed spaces); click
+  it to allow or block agents in this space. Settings > "Allow agents to connect" closes
+  the CDP port entirely, without restarting.
 - **Looks like Chrome to sites.** Roar reports the Google Chrome brand and a real window
   frame, and doesn't run polling scripts in pages, so it trips fewer bot checks.
 - **Also scriptable:** AppleScript (`open url`, `execute javascript`, `get URL of every tab`)
@@ -50,7 +51,7 @@ one, so you see what they do (the default), or a hidden headless Roar with its o
 ## Build and run
 
 ```bash
-./scripts/build.sh                       # fetches CEF into third_party/, builds, ad-hoc signs
+./scripts/build.sh                       # fetches CEF into third_party/, builds, signs (Developer ID or Apple Development identity if present, else ad-hoc)
 open build/src/Release/Roar.app
 ./scripts/update-cef.sh                  # move to the newest stable CEF/Chromium and rebuild (--check to only report)
 ```
@@ -58,8 +59,8 @@ open build/src/Release/Roar.app
 Needs macOS, Xcode, `cmake` and `ninja`. Environment overrides:
 
 - `ROAR_CDP_PORT` (default `9222`): DevTools Protocol port; setting it also forces the port on.
-  The port is on by default; the CDP indicator at the bottom right of the sidebar opens or
-  closes it while Roar runs (Settings > Automation tools does the same).
+  The port is on by default; Settings > "Allow agents to connect" opens or closes it while
+  Roar runs.
 - `ROAR_DATA_DIR` (default `~/Library/Application Support/Roar`): profile and `state.json`.
 - `--load-extension=<dir>`: load an unpacked Chrome extension. It loads into every Space's profile, alongside the bundled uBlock Origin Lite.
 
@@ -72,7 +73,7 @@ and toast are small Alloy child windows. Chrome style on tabs is what keeps exte
 DevTools and CDP working. See `src/controller.h`.
 
 The UI is HTML in `resources/ui`, served from `roar://ui/`, and talks to C++ through the
-CEF message router (`window.roarQuery`). Web pages may only send `extract.result` with a
+CEF message router (`window.roarQuery`). Web pages may only send `extract.result` or `index.result` with a
 nonce Roar issued to that tab.
 
 ## Features
@@ -88,8 +89,8 @@ nonce Roar issued to that tab.
 | AppleScript (`open url`, `execute javascript`, `close tab`, …) and CDP | `resources/Roar.sdef`, `mac/scripting.mm` |
 | Onboarding and settings | `ui/welcome.html` |
 | Spaces: separate tabs and profile per space (⌃1–⌃9, ⇧⌘[ ⇧⌘]); profiles in `Space-<id>` | `Controller::SwitchSpace`, `ContextFor` |
-| Split view: two tabs side by side (⌘\\); picking a tab swaps the focused pane | `Controller::ToggleSplit`, `RectFor` |
-| Page-text search: visible text of visited pages saved to `pages.json` (800 pages, 16 KB each) and matched in the command bar | `Controller::IndexPage`, `SuggestPageText` |
+| Split view: two tabs side by side (⌘\\), or drag a tab onto another (left half: side by side, right half: top and bottom); picking a tab swaps the focused pane | `Controller::ToggleSplit`, `RectFor` |
+| Page-text search: visible text of visited pages saved to `pages.json` (800 pages, 16,000 characters each) and matched in the command bar | `Controller::IndexPage`, `SuggestPageText` |
 | Find in page (⌘F, ⌘G / ⇧⌘G): match count, ↵ / ⇧↵ for next and previous, esc closes | `ui/find.html`, `Controller::ShowFind` |
 | Zoom (⌘+, ⌘−, ⌘0): per host, with a zoom toast, kept in `state.json` | `Controller::ZoomStep`, `ApplyZoom` |
 | Print (⌘P) | `Controller::Print` |
@@ -98,22 +99,28 @@ nonce Roar issued to that tab.
 | Reopen All Tabs from Last Session (History menu), per space | `State::last_session` |
 | Popups (sign-in flows, `window.open`) open as sidebar tabs that keep `window.opener` | `Controller::AdoptPopup` |
 | Tab groups as their own sidebar sections; Close All Tabs in a space | `ui/sidebar.html`, `closeSpaceTabs` |
-| Unread Gmail in the sidebar: multi-select delete, Select all, account links | `ui/mail-act.js`, `Controller::RefreshGmail` |
-| MCP server for AI agents; live CDP open/close dot | `resources/roar-mcp.sh`, `Controller::SetCdp` |
+| Unread Gmail in the sidebar: Read, Move and Delete per message, multi-select delete, Select all, account links | `ui/mail-act.js`, `Controller::RefreshGmail` |
+| MCP server for AI agents; per-space agent dot | `resources/roar-mcp.sh`, `Controller::SetCdp` |
 | Tab sound: a speaker on sidebar tabs that are playing audio, click to mute or unmute | `Controller::ToggleMute`, `MediaWatcher` |
 | Page context menu: Open Link in Split View, Open Link in Space…, Copy Page as Markdown | `Controller::BuildContextMenu` |
 | Reader mode (⌥⌘R): a cleaned article view built from the Markdown extractor | `ui/reader.html`, `Controller::ToggleReader` |
 | Tab switcher (⌃Tab, ⌃⇧Tab): most recently used first, within the current space | `Controller::CycleTabs` |
+| Import from Arc (spaces, pinned tabs, folders as pinned groups; offered on first launch), Chrome, Edge and Firefox (File > Import From) | `src/arc_import.cc`, `src/library.cc` |
+| Ghost tabs (⇧⌘N): a throwaway profile per session; new tabs stay ghost while one is open | `GhostDir` |
+| New Window (⌘N): starts with the main window's spaces, pinned tabs and pinned groups; extra Roar instances get their own data dir and CDP port | `platform::ClaimInstance` |
+| Pinned tabs (⌘D) and pinned groups, reorder by drag; Reopen Archived Tab (⇧⌘T); ⌘1–⌘9 jump to a tab; Toggle Sidebar (⌥⌘B); DevTools (⌥⌘I) | `ui/sidebar.html`, `Controller::OnKey` |
+| Clean links: Copy Link Address unwraps Safe Links and `.mcas.ms` (setting, on by default) | `src/link_clean.cc` |
+| Auto-update: Roar > Check for Updates… (Sparkle) | `mac/platform.mm` |
 | Permission prompts (camera, microphone, location, notifications): Chromium's own prompts, remembered per site in each space's profile | Chrome-style windows |
 
 ## Known limits
 
-- Page-text search stores page text unencrypted in the data dir (mode 0600). Turn it off in Settings or run "Forget saved page text".
+- Page-text search stores page text unencrypted in the data dir (mode 0600). Turn it off in Settings, or clear it with "Forget saved text" there ("Forget saved page text" in the command bar).
 - H.264 and AAC need a CEF built with proprietary codecs. The stock CEF that `scripts/build.sh` fetches plays WebM, VP9 and AV1 but not many `.mp4` sources;
-  `scripts/build-cef-codecs.sh` builds one that does, with Roar's Chromium patches (about 20 minutes once the source is checked out; the checkout needs about 100 GB).
+  `scripts/build-cef-codecs.sh` builds one that does, with Roar's Chromium patches (hours for a first build, about 30 minutes incremental; the checkout needs about 100 GB).
 - The tab sound indicator follows `<audio>` and `<video>` elements on the page itself, not Web Audio or media inside cross-origin iframes.
 - Markdown extraction and Reader mode cover HTML pages; PDFs and Google Docs canvases are not handled.
-- The bundle is ad-hoc signed; the first AppleScript call triggers a macOS Automation
+- Release builds are ad-hoc signed (not yet notarized), so macOS asks you to confirm the first launch; the first AppleScript call triggers a macOS Automation
   prompt.
 
 ## Contributing

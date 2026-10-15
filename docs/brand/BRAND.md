@@ -11,7 +11,7 @@ manager, folder **"Roar brand"**, one entry per account.
 |---|---|
 | Name | Roar |
 | Handle | `roarbrowser` (use it everywhere; fall back to `roar_browser`, then `getroar`) |
-| Tagline | The open-source browser your AI agent can drive. |
+| Tagline | The AI-native, open-source browser your agent can drive. |
 | One-liner | A Chromium sidebar browser for macOS with a built-in MCP server. |
 | Category | Web browser / developer tool / AI agent tooling |
 | Website | https://github.com/roarbrowser/roar (site: `docs/index.html`, GitHub Pages once enabled) |
@@ -48,7 +48,7 @@ Roar speaks as the product, written by a solo maker who builds it in the open.
 
 ## Profile copy (paste-ready)
 
-- **Bio, short (≤160):** The open-source browser your AI agent can drive. Chromium
+- **Bio, short (≤160):** The AI-native, open-source browser your agent can drive. Chromium
   sidebar browser for macOS with a built-in MCP server. 🦁
 - **Bio, long:** Roar is a free, open-source Chromium browser for macOS: a vertical
   sidebar with spaces, pinned tabs and split view for you, and a built-in MCP server so

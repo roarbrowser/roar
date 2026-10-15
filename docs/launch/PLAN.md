@@ -1,6 +1,6 @@
 # Roar launch plan
 
-Tagline: **The open-source browser your AI agent can drive.**
+Tagline: **The AI-native, open-source browser your agent can drive.**
 
 Goal: make Roar easy to install and switch to, show what agents can do in it, and
 launch where people looking for an Arc replacement, and people building with
