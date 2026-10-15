@@ -1988,6 +1988,16 @@ void Controller::RunCommand(const std::string& id) {
   else if (id == "newGhostTab") ShowCommandBar(true), command_ghost_ = true;
   else if (id == "closeTab") CloseActiveUnlessKept();
   else if (StartsWith(id, "restore:")) RestoreArchived(std::atoi(id.c_str() + 8));
+  else if (id == "closeSpaceTabs" || StartsWith(id, "closeSpaceTabs:")) {
+    // Closes a space's tabs (pinned ones stay, closed ones go to Recently Closed)
+    // and moves on to the next space.
+    int space = id == "closeSpaceTabs" ? State::Get().active_space : atoi(id.c_str() + 15);
+    std::vector<int> ids;
+    for (const auto& t : tabs_)
+      if (t.space == space && !t.pinned && !t.ghost) ids.push_back(t.id);
+    for (int tab : ids) CloseTab(tab);
+    if (space == State::Get().active_space && State::Get().spaces.size() > 1) CycleSpace(1);
+  }
   else if (id == "lastSession") {
     // Brings back the active space's tabs from before the last quit, once.
     auto& last = State::Get().last_session;

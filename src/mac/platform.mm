@@ -507,6 +507,7 @@ void InstallMenu() {
 
   NSMenu* tabs = addMenu(@"Tabs");
   addCommand(tabs, @"Clean Up Tabs", @"clean", @"⇧⌘K");
+  addCommand(tabs, @"Close All Tabs in This Space", @"closeSpaceTabs", @"");
   addCommand(tabs, @"Pin or Unpin Tab", @"pin", @"⌘D");
   addCommand(tabs, @"Mute or Unmute Tab", @"mute", @"");
   addCommand(tabs, @"Show Downloads", @"downloads", @"⇧⌘J");
