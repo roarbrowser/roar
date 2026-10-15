@@ -11,7 +11,7 @@ States: `todo`, `in progress`, `done`, `blocked (maintainer)`.
 | 2 | Import from Arc | done (d3fb35d) | Verify against a real Arc StorableSidebar.json when one is available (fixture is modeled on open-source exporters) |
 | 3 | Demo video | blocked (maintainer) | Script verified headless (`node scripts/demo/run-demo.mjs --auto-answer`, ~27 s). Recording needs a visible window: maintainer runs `scripts/demo/record.sh` on a clean desktop (see demo.md), closes the Welcome tab first; output goes to docs/media/roar-demo.mp4 + .jpg |
 | 4 | Launch copy | done (drafts) | Review docs/launch/posts/; r/macapps needs the App Pile megathread or mod OK; post from established accounts |
-| 5 | One-page site | done, not published | Maintainer enables GitHub Pages from /docs; drop docs/media/roar-demo.mp4 + .jpg in when the demo exists |
+| 5 | One-page site | done, live at https://roarbrowser.github.io/roar/ | Drop docs/media/roar-demo.mp4 + .jpg in when the demo exists |
 | 6 | Auto-update | done, unreleased | Sparkle 2.10.0 wired (feed: appcast.xml on main; EdDSA private key in the login keychain item "Private key for signing Sparkle updates"). Verified against a local test feed (ROAR_SPARKLE_TEST=1 + ROAR_SPARKLE_FEED). First real release will exercise sign_update; consider signing Sparkle's XPC helpers individually once Developer ID signing is live |
 | 8 | Agents per profile | done (unreleased) | Per-space "Allow agents" switch (space menu, welcome page); Chromium filter hides off spaces from /json/list, Target.* and direct attach; MCP asks which profile when several are on; use_profile tool. Known gaps: toggling off does not drop an already-attached agent; workers in blocked pages still listed |
 | 7 | Brand accounts | in progress | Done: Gmail, GitHub org, X @roarbrowser, Product Hunt @roarbrowser (X login) (see docs/brand/ACCOUNTS.md). Next: Reddit u/roarbrowser, Hacker News roarbrowser |
@@ -21,7 +21,6 @@ States: `todo`, `in progress`, `done`, `blocked (maintainer)`.
 - Developer ID Application certificate in the login keychain (Apple Developer Program).
 - `xcrun notarytool store-credentials` profile; name it in `ROAR_NOTARY_PROFILE`.
 - Approve creating the `homebrew-roar` tap repo.
-- Approve enabling GitHub Pages from `/docs`.
 - Solve CAPTCHAs and phone/email verification during account signups.
 
 ## Log
