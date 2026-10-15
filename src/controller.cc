@@ -3294,6 +3294,21 @@ bool Controller::HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> 
   } else if (cmd == "tab.pin") {
     SetPinned(int_arg("id"), msg->GetBool("pinned"));
     callback->Success("");
+  } else if (cmd == "tab.move") {
+    // Reorders pinned tiles: puts the tab before `before`, or last among pinned when 0.
+    int id = int_arg("id"), before = int_arg("before");
+    auto it = std::find_if(tabs_.begin(), tabs_.end(), [&](const Tab& t) { return t.id == id; });
+    if (it != tabs_.end() && it->pinned && id != before) {
+      Tab tab = *it;
+      tabs_.erase(it);
+      auto at = std::find_if(tabs_.begin(), tabs_.end(), [&](const Tab& t) { return t.id == before; });
+      if (at == tabs_.end() || !at->pinned)
+        at = std::find_if(tabs_.begin(), tabs_.end(), [](const Tab& t) { return !t.pinned; });
+      tabs_.insert(at, tab);
+      PushSidebar();
+      SaveSoon();
+    }
+    callback->Success("");
   } else if (cmd == "tab.dock") {
     DockTab(int_arg("id"));
     callback->Success("");

@@ -26,6 +26,8 @@ body { background: var(--ground); display: flex; flex-direction: column; overflo
 .spaces button.dragging { opacity: .3; }
 .spaces button.drop-before { box-shadow: -2px 0 0 var(--mane); }
 .spaces button.drop-after { box-shadow: 2px 0 0 var(--mane); }
+.pin.drop-before { box-shadow: -2px 0 0 var(--mane); }
+.pin.drop-after { box-shadow: 2px 0 0 var(--mane); }
 .spaces button[aria-pressed="true"]::before { background: var(--dot, var(--mane)); opacity: 1; width: 8px; height: 8px; }
 body { box-shadow: inset 3px 0 0 var(--space-color, transparent); }
 .resize { position: fixed; top: 0; right: 0; bottom: 0; width: 5px; cursor: col-resize; z-index: 10; }
@@ -619,19 +621,38 @@ document.addEventListener('dragend', () => {
   document.querySelectorAll('.dragging, .drop-target').forEach((el) => el.classList.remove('dragging', 'drop-target'));
 });
 const dropZone = (el) => el.closest?.('.tgroup, #tabs-group, #pinned');
+// A pinned tile dragged over another pinned tile reorders: drop before or after it.
+const pinSpot = (e) => {
+  const pin = e.target.closest?.('#pinned .pin[data-id]');
+  const t = state.tabs.find((t) => t.id === dragId);
+  if (!pin || !t?.pinned || +pin.dataset.id === dragId) return null;
+  const r = pin.getBoundingClientRect();
+  return { pin, after: e.clientX > r.left + r.width / 2 };
+};
+const clearPinMarks = () => document.querySelectorAll('#pinned .drop-before, #pinned .drop-after')
+  .forEach((el) => el.classList.remove('drop-before', 'drop-after'));
 document.addEventListener('dragover', (e) => {
   const zone = dragId && dropZone(e.target);
   document.querySelectorAll('.drop-target').forEach((el) => el !== zone && el.classList.remove('drop-target'));
+  clearPinMarks();
   if (!zone) return;
   e.preventDefault();
-  zone.classList.add('drop-target');
+  const spot = pinSpot(e);
+  if (spot) spot.pin.classList.add(spot.after ? 'drop-after' : 'drop-before');
+  else zone.classList.add('drop-target');
 });
 document.addEventListener('drop', (e) => {
   const zone = dragId && dropZone(e.target);
   if (!zone) return;
   e.preventDefault();
   const t = state.tabs.find((t) => t.id === dragId);
-  if (zone.id === 'pinned') { if (!t.pinned) ask({ cmd: 'tab.pin', id: dragId, pinned: true }); }
+  const spot = pinSpot(e);
+  clearPinMarks();
+  if (spot) {
+    let next = spot.after ? spot.pin.nextElementSibling : spot.pin;
+    if (next && +next.dataset.id === dragId) next = next.nextElementSibling;
+    ask({ cmd: 'tab.move', id: dragId, before: next ? +next.dataset.id : 0 });
+  } else if (zone.id === 'pinned') { if (!t.pinned) ask({ cmd: 'tab.pin', id: dragId, pinned: true }); }
   else if (zone.dataset.group) ask({ cmd: 'tab.group', id: dragId, group: +zone.dataset.group });
   else if (t.pinned) ask({ cmd: 'tab.pin', id: dragId, pinned: false });
   else if (t.group) ask({ cmd: 'tab.group', id: dragId, group: 0 });
