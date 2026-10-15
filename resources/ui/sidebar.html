@@ -363,7 +363,7 @@ window.roar = {
     $('forward').disabled = !s.nav.canForward;
     const url = s.nav.url || '';
     $('host').textContent = url && !url.startsWith('roar:') ? hostOf(url) : 'Search or enter address';
-    $('cdp').classList.toggle('on', s.settings.cdpOn);
+    $('cdp').classList.toggle('on', s.settings.cdpOn && spaceAgents(s));
     const alerts = s.alerts || [];
     const ago = (t) => { const m = Math.round((Date.now() / 1000 - t) / 60); return m < 1 ? 'now' : m < 60 ? m + ' min ago' : Math.round(m / 60) + ' h ago'; };
     setHtml($('alerts'), (alerts.length > 1 ? '<button class="clear-all" data-alert-clear>Clear all</button>' : '') + alerts.map((a) =>
@@ -482,6 +482,7 @@ $('space-agents').onclick = () => {
   ask({ cmd: 'space.agents', id: menuSpace, on }).then(() => ask({ cmd: 'state' })).then(roar.render);
 };
 // " · agents in: Work, Personal" for the CDP dot's hover text.
+const spaceAgents = (s) => s.spaces.find((sp) => sp.id === s.activeSpace)?.agents !== false;
 const agentSpaces = (s) => {
   const names = s.spaces.filter((sp) => sp.agents).map((sp) => sp.name);
   return ' · agents in: ' + (names.length ? names.join(', ') : 'none');
@@ -871,7 +872,13 @@ $('cdp').onmouseenter = () => ask({ cmd: 'cdp.clients' }).then((n) => {
   $('cdp').title = `CDP: ${state.settings.cdpPort} ${state.settings.cdpOn ? 'open' : 'closed'}` +
     (state.settings.cdpOn ? ` · ${n} agent${n === 1 ? '' : 's'} connected` : '') + agentSpaces(state);
 });
-$('cdp').onclick = () => ask({ cmd: 'settings.set', settings: { cdpEnabled: !state.settings.cdpOn } }).then(() => ask({ cmd: 'state' })).then(roar.render);
+// The dot switches agents for this space only; the port itself lives in Settings.
+$('cdp').onclick = () => {
+  const on = !(state.settings.cdpOn && spaceAgents(state));
+  (on && !state.settings.cdpOn ? ask({ cmd: 'settings.set', settings: { cdpEnabled: true } }) : Promise.resolve())
+    .then(() => ask({ cmd: 'space.agents', id: state.activeSpace, on }))
+    .then(() => ask({ cmd: 'state' })).then(roar.render);
+};
 // GitHub PRs and Unread mail open as popovers from their footer icons.
 function syncFeeds() {
   const bar = $('bar').getBoundingClientRect();
