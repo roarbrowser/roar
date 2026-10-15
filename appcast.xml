@@ -20,5 +20,14 @@
       <description><![CDATA[Space menu closes on outside click or Escape; new windows start with your spaces and pinned tabs.]]></description>
       <enclosure url="https://github.com/roarbrowser/roar/releases/download/v0.8.1/Roar-0.8.1.dmg" type="application/octet-stream" sparkle:edSignature="wgLyYNuJJLSMMbfunkK1TTggShWTmwKhTGNFcZO+lwHligr76InuQ4vMWJ5Hkv8vNUndBgrICTFL6qxrXogvCA==" length="183701774"/>
     </item>
+    <item>
+      <title>0.8.2</title>
+      <pubDate>Thu, 15 Oct 2026 12:18:34 +0000</pubDate>
+      <sparkle:version>0.8.2</sparkle:version>
+      <sparkle:shortVersionString>0.8.2</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[The sidebar CDP dot now switches agents for the current space only.]]></description>
+      <enclosure url="https://github.com/roarbrowser/roar/releases/download/v0.8.2/Roar-0.8.2.dmg" type="application/octet-stream" sparkle:edSignature="SxDOoTzv6KaURjYXsTq4SSHN2X+2oTOnpy9oTJA9mjdO81OprByc/KAPHNKf/WVEWMkLH8XSwd2hVJ14i8amBA==" length="183701886"/>
+    </item>
   </channel>
 </rss>
