@@ -154,11 +154,11 @@ body.drag-active .pinned:empty::before { content: 'Drop to pin'; color: var(--in
 .foot .brand .space-name { grid-column: 1 / -1; line-height: 1.2; margin-top: 2px; }
 .foot .tools { display: flex; flex-direction: column; align-items: center; gap: 4px; }
 .foot .brand .space-name:empty { display: none; }
-/* CDP: a dot in the space's color while the port is open, hollow while closed. */
+/* CDP: a filled dot in the ink color (never a space color) while open, hollow while closed. */
 .foot .cdp { width: 8px; height: 8px; flex: none; padding: 0; border-radius: 50%; background: transparent; box-shadow: inset 0 0 0 1.5px var(--ink-3); }
-.foot .cdp.on { background: var(--cdp-color, var(--mane)); box-shadow: none; }
+.foot .cdp.on { background: var(--ink-2); box-shadow: none; }
 .foot .cdp:hover { background: var(--hover); box-shadow: inset 0 0 0 1.5px var(--ink-2); }
-.foot .cdp.on:hover { background: var(--cdp-color, var(--mane)); box-shadow: 0 0 0 2px var(--hover); }
+.foot .cdp.on:hover { background: var(--ink); box-shadow: 0 0 0 2px var(--hover); }
 .foot .spacer { flex: 1; }
 .foot button { width: 24px; height: 24px; border-radius: 6px; display: grid; place-items: center; color: var(--ink-3); }
 .foot button:hover { background: var(--hover); color: var(--ink); }
@@ -332,7 +332,6 @@ window.roar = {
     const url = s.nav.url || '';
     $('host').textContent = url && !url.startsWith('roar:') ? hostOf(url) : 'Search or enter address';
     $('cdp').classList.toggle('on', s.settings.cdpOn);
-    $('cdp').style.setProperty('--cdp-color', cur?.color || 'var(--mane)');
     $('cdp').title = `CDP: ${s.settings.cdpPort} ${s.settings.cdpOn ? 'open' : 'closed'}`;
 
     $('dl-btn').hidden = !(s.downloads && s.downloads.count);
