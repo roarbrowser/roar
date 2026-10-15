@@ -82,3 +82,15 @@ never here.
   Reddit, Hacker News. Signups are driven in a browser; CAPTCHAs and phone or email
   verification are handed to the maintainer. Each credential is saved to the password
   manager as it is created. Names and status (no secrets) are tracked in STATUS.md.
+
+## 8. Agents per profile
+
+- **Goal:** agents only ever see and act in profiles (spaces) the user switched on; with
+  several on, the agent asks which to use.
+- **Approach:** `Space.agents` flag (sidebar space menu and Settings); a Chromium patch lets
+  Roar filter what remote DevTools clients can list or attach to (Roar's own UI pages,
+  the pipe and per-browser sessions are exempt); `Target.createTarget` opens in the agent
+  space; the MCP server asks via an `ask_user` card when several spaces allow agents, and
+  adds a `use_profile` tool.
+- **Done when:** a disallowed space's tabs are absent from `/json/list` and `Target.getTargets`
+  and refuse direct attach, in a headless scratch test.
