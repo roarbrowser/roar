@@ -37,8 +37,16 @@ AUTOMATE=(python3 "$CEF_SRC/automate-git.py"
 SRC="$CEF_SRC/chromium/src"
 # Reset files Roar patches: CEF's patcher skips a patch only when it reverses
 # cleanly, and a later patch on the same file stops that on a rerun.
+# A CEF patch sharing a file with Roar's is reset whole, or it neither applies
+# nor reverses on the reset file and CEF's patcher fails.
 for p in "$ROOT"/scripts/cef-patches/chromium/*.patch; do
-  sed -n 's#^+++ ##p' "$p" | xargs git -C "$SRC" checkout --
+  for f in $(sed -n 's#^+++ ##p' "$p"); do
+    git -C "$SRC" checkout -- "$f"
+    for cp in $(grep -l "^+++ $f\$" "$SRC"/cef/patch/patches/*.patch); do
+      [[ -e "$ROOT/scripts/cef-patches/chromium/$(basename "$cp")" ]] ||
+        sed -n 's#^+++ ##p' "$cp" | xargs git -C "$SRC" checkout --
+    done
+  done
 done
 for p in "$ROOT"/scripts/cef-patches/chromium/*.patch; do
   name=$(basename "$p" .patch)

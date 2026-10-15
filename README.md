@@ -35,6 +35,10 @@ one, so you see what they do (the default), or a hidden headless Roar with its o
   badge while Roar is in the background. Cards last for the session.
 - **Agent pages are real tabs.** `new_page` opens a tab in your active space's sidebar,
   not a stray window, so you can watch, take over, or close what the agent is doing.
+- **Agents per profile.** Right-click a space (or use Settings) to allow or block agents in
+  it. Blocked spaces and ghost tabs are hidden from CDP entirely, so agents can't list or
+  attach to them; with several spaces allowed, the agent asks you which to use (or calls
+  `use_profile`), and its new pages open there.
 - **One click to cut it off.** The dot under the settings icon shows whether the CDP port is
   open (`CDP: 9222 open` on hover); click it to close the port and drop every connected
   agent, or reopen it, without restarting.

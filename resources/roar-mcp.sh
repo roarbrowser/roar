@@ -3,7 +3,7 @@
 # Roar over the Chrome DevTools Protocol through chrome-devtools-mcp. Ships inside
 # Roar.app/Contents/Resources. Register it once:
 #   claude mcp add roar -- /Applications/Roar.app/Contents/Resources/roar-mcp.sh
-# Pages the agent opens (new_page) become real Roar tabs in the active space.
+# Pages the agent opens (new_page) become real Roar tabs in a space that allows agents.
 #
 # Which Roar: Settings > "Agents use" (agentHeadless in state.json). Headed (default)
 # drives your Roar on 9222; headless starts a hidden Roar with its own profile

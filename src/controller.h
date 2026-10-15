@@ -99,7 +99,7 @@ class Controller {
   // Opens a CDP Target.createTarget page as a tab; returns its browser id, or 0.
   int OpenTargetTab(const std::string& url);
   // Whether remote CDP clients may see this browser (Roar's DevTools filter).
-  bool AgentMayReach(int browser_id);
+  bool AgentMayReach(int browser_id, const std::string& profile_path);
   // Where agent pages open: the chosen agent space, else the active one, else
   // the first that allows agents; -1 when none does.
   int AgentSpace();

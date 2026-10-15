@@ -2,6 +2,9 @@
 // adds tools that reach the person at Roar's sidebar:
 //   notify_user: an alert card in the sidebar (needs_you also notifies macOS)
 //   ask_user:    a card with choices; waits for the click and returns it
+//   use_profile: picks the Roar profile (space) new pages open in
+// Before the first browser tool runs, it picks a profile that allows agents,
+// asking the person when several do (Roar hides the others from CDP).
 // Alerts go through the sidebar page over CDP (ask({cmd:'agent.notify'})), the same
 // port the browser tools use. Started by roar-mcp.sh; needs Node 22+ (WebSocket).
 import { spawn } from 'node:child_process';
@@ -44,6 +47,15 @@ const TOOLS = [
       required: ['question', 'choices'],
     },
   },
+  {
+    name: 'use_profile',
+    description: 'Choose which Roar profile (space) the pages you open go to. Only profiles the person allows agents in are accepted; the error lists them.',
+    inputSchema: {
+      type: 'object',
+      properties: { name: { type: 'string', description: 'The profile\'s name, as shown in Roar.' } },
+      required: ['name'],
+    },
+  },
 ];
 
 const out = (msg) => process.stdout.write(JSON.stringify(msg) + '\n');
@@ -74,10 +86,60 @@ async function sidebarAsk(payload, timeoutMs) {
   }
 }
 
+const NO_PROFILE = 'No Roar profile allows agents; turn one on in Roar\'s sidebar (right-click a space).';
+const agentSpaces = async () => {
+  let r = await sidebarAsk({ cmd: 'agent.spaces' }, 10000);
+  if (typeof r === 'string') r = JSON.parse(r);
+  return r;
+};
+const useSpace = (id) => sidebarAsk({ cmd: 'agent.space', id }, 10000);
+
+// The profile is settled once per session; a failed or unanswered ask settles nothing.
+let profileReady = null;
+async function pickProfile() {
+  const { spaces, active } = await agentSpaces();
+  const allowed = spaces.filter((s) => s.agents);
+  if (!allowed.length) throw new Error(NO_PROFILE);
+  if (allowed.length === 1) return useSpace(allowed[0].id);
+  const names = allowed.map((s) => s.name);
+  // The active space, when allowed, is the suggested (first) choice.
+  const first = allowed.find((s) => s.id === active);
+  if (first) names.unshift(...names.splice(names.indexOf(first.name), 1));
+  const key = crypto.randomUUID();
+  pending.add(key);
+  let choice;
+  try {
+    choice = String(await sidebarAsk({ cmd: 'agent.notify', agent, wait: true, key, title: `Which profile should ${agent || 'the agent'} use?`, body: '', url: '', choices: names.slice(0, 6) }, 600000));
+  } finally {
+    pending.delete(key);
+  }
+  const pick = allowed.find((s) => s.name === choice);
+  if (!pick) {
+    if (choice === 'timed out') await expire(key);
+    throw new Error('The person did not pick a Roar profile (' + choice + '); call use_profile or try again.');
+  }
+  return useSpace(pick.id);
+}
+function ensureProfile() {
+  profileReady ??= pickProfile().catch((e) => { profileReady = null; throw e; });
+  return profileReady;
+}
+const fail = (id, e) => out({ jsonrpc: '2.0', id, result: { content: [{ type: 'text', text: String(e.message || e) }], isError: true } });
+
 async function callOwn(id, name, args) {
   try {
     let text;
-    if (name === 'notify_user') {
+    if (name === 'use_profile') {
+      const { spaces } = await agentSpaces();
+      const allowed = spaces.filter((s) => s.agents);
+      const want = String(args.name || '').trim().toLowerCase();
+      const pick = allowed.find((s) => s.name.toLowerCase() === want);
+      if (!allowed.length) throw new Error(NO_PROFILE);
+      if (!pick) throw new Error(`"${args.name}" is not a profile that allows agents. Allowed: ${allowed.map((s) => s.name).join(', ')}.`);
+      await useSpace(pick.id);
+      profileReady = Promise.resolve();
+      text = `New pages open in the "${pick.name}" profile.`;
+    } else if (name === 'notify_user') {
       await sidebarAsk({ cmd: 'agent.notify', agent, title: String(args.title || ''), body: String(args.body || ''), level: args.level || 'info', url: args.url || '' }, 15000);
       text = 'Shown in Roar\'s sidebar.';
     } else {
@@ -93,7 +155,7 @@ async function callOwn(id, name, args) {
     }
     out({ jsonrpc: '2.0', id, result: { content: [{ type: 'text', text }] } });
   } catch (e) {
-    out({ jsonrpc: '2.0', id, result: { content: [{ type: 'text', text: String(e.message || e) }], isError: true } });
+    fail(id, e);
   }
 }
 
@@ -121,5 +183,8 @@ createInterface({ input: process.stdin }).on('line', (line) => {
   if (msg.method === 'tools/list') listIds.add(msg.id);
   if (msg.method === 'tools/call' && TOOLS.some((t) => t.name === msg.params?.name))
     return void callOwn(msg.id, msg.params.name, msg.params.arguments || {});
+  // A browser tool waits for the profile; shortcut: calls behind an ask may reach the child out of order.
+  if (msg.method === 'tools/call')
+    return void ensureProfile().then(() => child.stdin.write(line + '\n'), (e) => fail(msg.id, e));
   child.stdin.write(line + '\n');
 }).on('close', () => { child.stdin.end(); shutdown(0); });

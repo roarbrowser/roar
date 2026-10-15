@@ -783,9 +783,10 @@ void Controller::Start() {
       set([](const char* url) { return Controller::Get()->OpenTargetTab(url); });
     cdp_http_ = reinterpret_cast<void (*)(int)>(lib ? dlsym(lib, "roar_devtools_http") : nullptr);
     // Hides ghost tabs and spaces with agents off from CDP clients (scripts/cef-patches).
-    if (auto filter = reinterpret_cast<void (*)(bool (*)(int))>(
+    using Filter = bool (*)(int, const char*);
+    if (auto filter = reinterpret_cast<void (*)(Filter)>(
             lib ? dlsym(lib, "roar_set_devtools_target_filter") : nullptr))
-      filter([](int id) { return Controller::Get()->AgentMayReach(id); });
+      filter([](int id, const char* path) { return Controller::Get()->AgentMayReach(id, path); });
     break;
   }
   cdp_on_ = platform::CdpEnabled();
@@ -952,26 +953,16 @@ int Controller::AgentSpace() {
   return -1;
 }
 
-bool Controller::AgentMayReach(int browser_id) {
-  if (browser_id == 0) return true;  // Not a Roar browser (a native Chrome window).
+bool Controller::AgentMayReach(int browser_id, const std::string& profile_path) {
   auto it = browsers_.find(browser_id);
-  // Not announced yet: OpenTargetTab's own tab, which is in an agent space.
-  if (it == browsers_.end()) return true;
-  auto browser = it->second;
-  if (IsUiBrowser(browser)) return true;  // roar-mcp.mjs drives the sidebar.
-  int space = -1;
-  if (Tab* t = FindTabByBrowser(browser)) {
-    if (t->ghost) return false;
-    space = t->space;
-  } else {
-    // A popup or stray page: its space is its profile.
-    auto ctx = browser->GetHost()->GetRequestContext();
-    if (ctx && ctx->IsSharingWith(CefRequestContext::GetGlobalContext())) space = 0;
-    for (const auto& [id, c] : contexts_)
-      if (id != kGhostContext && c && ctx && ctx->IsSharingWith(c)) space = id;
+  if (it != browsers_.end() && IsUiBrowser(it->second)) return true;  // roar-mcp.mjs drives the sidebar.
+  // Decide by profile, which covers popups and pages Roar has not seen yet.
+  // Ghost-<n> and anything unknown match no space and stay hidden.
+  State& st = State::Get();
+  for (const auto& sp : st.spaces) {
+    if (profile_path == st.ProfileDir(sp.id)) return sp.agents;
   }
-  Space* sp = State::Get().FindSpace(space);
-  return sp && sp->agents;
+  return false;
 }
 
 int Controller::NewTabFrom(CefRefPtr<CefBrowser> opener, const std::string& url, bool activate) {
@@ -2763,6 +2754,7 @@ std::string Controller::StateJson() {
     d->SetInt("id", state.spaces[i].id);
     d->SetString("name", state.spaces[i].name);
     d->SetString("color", state.spaces[i].color);
+    d->SetBool("agents", state.spaces[i].agents);
     d->SetInt("tabCount", static_cast<int>(std::count_if(
         tabs_.begin(), tabs_.end(), [&](const Tab& t) { return t.space == state.spaces[i].id; })));
     spaces->SetDictionary(i, d);
@@ -3426,6 +3418,37 @@ bool Controller::HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> 
       SaveSoon();
     }
     callback->Success(StateJson());
+  } else if (cmd == "space.agents") {
+    // Whether agents (CDP clients) may see and open this space's tabs.
+    if (Space* sp = State::Get().FindSpace(int_arg("id"))) {
+      sp->agents = msg->GetBool("on");
+      PushSidebar();
+      SaveSoon();
+    }
+    callback->Success(StateJson());
+  } else if (cmd == "agent.spaces") {
+    // For roar-mcp.mjs: which profiles an agent may use, and where it would open pages.
+    auto d = CefDictionaryValue::Create();
+    auto list = CefListValue::Create();
+    for (const auto& sp : State::Get().spaces) {
+      auto e = CefDictionaryValue::Create();
+      e->SetInt("id", sp.id);
+      e->SetString("name", sp.name);
+      e->SetBool("agents", sp.agents);
+      list->SetDictionary(list->GetSize(), e);
+    }
+    d->SetList("spaces", list);
+    d->SetInt("active", State::Get().active_space);
+    d->SetInt("agentSpace", AgentSpace());
+    auto v = CefValue::Create();
+    v->SetDictionary(d);
+    callback->Success(ToJson(v));
+  } else if (cmd == "agent.space") {
+    // The space the agent chose (ask_user or use_profile); new pages open there.
+    Space* sp = State::Get().FindSpace(int_arg("id"));
+    if (!sp || !sp->agents) return callback->Failure(1, "That profile does not allow agents"), true;
+    agent_space_ = sp->id;
+    callback->Success("");
   } else if (cmd == "library.get") {
     callback->Success(LibraryJson());
   } else if (cmd == "library.set") {
