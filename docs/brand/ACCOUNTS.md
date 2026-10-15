@@ -17,7 +17,7 @@ the form; update this table when an account changes.
 | X | [@roarbrowser](https://x.com/roarbrowser) | roarbrowser@gmail.com | active (2026-10-15) | Name Roar, lion avatar, short bio from BRAND.md, link to the repo. No posts yet. |
 | Product Hunt | [producthunt.com/@roarbrowser](https://www.producthunt.com/@roarbrowser) | sign in with X (@roarbrowser) | active (2026-10-14) | Name Roar, lion avatar, headline "Open-source browser your AI can drive"; newsletters off. PH holds X OAuth write access; revoke in X settings › Connected apps if unused. Launch day: 12:01 am Pacific. |
 | Reddit | u/roarbrowser (target) | — | todo | New accounts get filtered; launch posts go from the maintainer's own account. |
-| Hacker News | roarbrowser (target) | — | todo | Same: Show HN from the maintainer's established account. |
+| Hacker News | [roarbrowser](https://news.ycombinator.com/user?id=roarbrowser) | own password | active (2026-10-15) | About: tagline + repo link; email roarbrowser@gmail.com. Show HN still goes from the maintainer's established account. |
 
 ## Where things are used
 
