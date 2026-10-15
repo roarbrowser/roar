@@ -151,8 +151,8 @@ body.drag-active .pinned:empty::before { content: 'Drop to pin'; color: var(--in
 .foot { flex: none; display: flex; align-items: center; gap: 7px; padding: 8px 14px 12px; color: var(--ink-3); font-size: 11px; border-top: 1px solid var(--rule); }
 .foot .wordmark { font-size: 15px; color: var(--ink-2); }
 .foot .brand { display: grid; grid-template-columns: auto auto; align-items: center; column-gap: 7px; }
-.foot .brand .space-line { grid-column: 1 / -1; display: flex; align-items: center; gap: 6px; margin-top: 2px; min-width: 0; }
-.foot .brand .space-name { line-height: 1.2; }
+.foot .brand .space-name { grid-column: 1 / -1; line-height: 1.2; margin-top: 2px; }
+.foot .tools { display: flex; flex-direction: column; align-items: center; gap: 4px; }
 .foot .brand .space-name:empty { display: none; }
 /* CDP: a dot in the space's color while the port is open, hollow while closed. */
 .foot .cdp { width: 8px; height: 8px; flex: none; padding: 0; border-radius: 50%; background: transparent; box-shadow: inset 0 0 0 1.5px var(--ink-3); }
@@ -246,11 +246,14 @@ body.drag-active .pinned:empty::before { content: 'Drop to pin'; color: var(--in
 <div class="ctx" id="ctx" hidden></div>
 <div class="foot">
   <span class="brand"><span class="lion" style="width:22px;height:22px" aria-hidden="true"></span><span class="wordmark">Roar</span>
-  <span class="space-line"><span class="space-name" id="space-name"></span><button class="cdp" id="cdp" aria-label="CDP"></button></span></span>
+  <span class="space-name" id="space-name"></span></span>
   <span class="spaces" id="spaces" role="group" aria-label="Spaces"></span>
   <div class="space-menu" id="space-menu" hidden><input id="space-rename" maxlength="40" aria-label="Space name" spellcheck="false"><button id="space-remove" title="Archive its tabs and remove the space">Remove</button><button id="space-close" title="Close this space's tabs (pinned stay) and switch to the next space">Close all tabs</button><div class="swatches" id="swatches" role="group" aria-label="Space color"></div></div>
   <span class="spacer"></span>
-  <button id="settings" title="Settings (⌘,)" aria-label="Settings"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M2.5 5h11M2.5 11h11"/><circle class="knob" cx="5.5" cy="5" r="1.8"/><circle class="knob" cx="10.5" cy="11" r="1.8"/></svg></button>
+  <span class="tools">
+    <button id="settings" title="Settings (⌘,)" aria-label="Settings"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M2.5 5h11M2.5 11h11"/><circle class="knob" cx="5.5" cy="5" r="1.8"/><circle class="knob" cx="10.5" cy="11" r="1.8"/></svg></button>
+    <button class="cdp" id="cdp" aria-label="CDP"></button>
+  </span>
 </div>
 <script src="bridge.js"></script>
 <script>
