@@ -21,7 +21,7 @@ Features:
 - Vertical sidebar, spaces with separate profiles, pinned tabs, tab groups, split view
 - Command bar, reader mode, page to Markdown, find, history, downloads
 - Chrome extensions, uBlock Origin Lite bundled
-- Import from Chrome, Edge, Firefox, Safari and Dia (Arc import coming in the launch release)
+- Import from Arc, Chrome, Edge, Firefox, Safari and Dia
 - Built-in MCP server: `claude mcp add roar -- /Applications/Roar.app/Contents/Resources/roar-mcp.sh`
 - Agents can send you sidebar cards (`notify_user`) or ask you a question with buttons (`ask_user`)
 - One click on the CDP dot disconnects every agent

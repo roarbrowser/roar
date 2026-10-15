@@ -14,7 +14,7 @@ Drafts only. Nothing here has been posted.
 ## Checklist
 
 - [ ] Demo video recorded and uploaded; replace `[VIDEO]` and link it in every post
-- [ ] Release DMG on GitHub Releases; Arc import shipped (or remove the "coming" line)
+- [x] Release DMG on GitHub Releases; Arc import shipped
 - [ ] Re-read every claim against the shipped build
 - [ ] Post from established accounts with real history, not fresh ones
 - [ ] Show HN: Tuesday to Thursday, morning US Eastern time; post the first comment right away

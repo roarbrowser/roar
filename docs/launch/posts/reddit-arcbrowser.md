@@ -19,7 +19,7 @@ What's there today:
 - Command bar (⌘T), reader mode (⌥⌘R), copy page as Markdown
 - Auto-archive of old tabs (6h/12h/1d/1w), picture-in-picture and floating mini window
 - Chrome extensions work; uBlock Origin Lite is bundled
-- Import from Chrome, Edge, Firefox, Safari and Dia. Arc import is coming in the launch release.
+- Imports your Arc spaces, pinned tabs and folders on first launch (also Chrome, Edge, Firefox, Safari and Dia)
 - Built on Chromium 154, so sites behave like they do in Chrome
 
 The other half: it has a built-in MCP server, so an AI agent (Claude, Cursor, etc.) can drive the browser in tabs you can see, and you can cut it off with one click. Ignore that entirely if you don't use agents.

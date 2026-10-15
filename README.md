@@ -24,7 +24,7 @@
 | Split view, a command bar and Reader mode | Pages it opens appear as tabs you can watch or take over |
 | Tabs that archive themselves when you stop using them | A way to ask you a question or ping you when it's done |
 | Chrome extensions, with uBlock Origin Lite built in | Only the spaces you allow; ghost tabs are always off-limits |
-| Import from Arc, Chrome, Edge or Firefox | Chrome's look to sites, so fewer bot checks |
+| Import from Arc, Chrome, Safari, Firefox, Edge or Dia | Chrome's look to sites, so fewer bot checks |
 
 ## Install
 
@@ -39,6 +39,20 @@ claude mcp add roar -- /Applications/Roar.app/Contents/Resources/roar-mcp.sh
 ```
 
 Other MCP clients take the same command as a stdio server.
+
+## Coming from Arc?
+
+Arc is in maintenance mode. Roar keeps the parts you liked and brings them over on first launch.
+
+| In Arc | In Roar |
+|---|---|
+| Spaces with their own profiles | Spaces, each with its own logins (⌃1–⌃9) |
+| Pinned tabs and folders | Pinned tabs and pinned groups, nested folders included |
+| Tabs that archive themselves | The same, after 6h, 12h, 1 day or 1 week |
+| Split view | Split view (⌘\\), or drag one tab onto another |
+| Command bar | Command bar (⌘T), including the text of pages you've read |
+
+Not here yet: Boosts, Little Arc and sync between devices.
 
 ## Built for agents
 

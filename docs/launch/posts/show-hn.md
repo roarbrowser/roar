@@ -20,11 +20,11 @@ How it works:
 - The MCP server is `Roar.app/Contents/Resources/roar-mcp.sh`, a launcher for chrome-devtools-mcp pointed at Roar's CDP port. Setup: `claude mcp add roar -- /Applications/Roar.app/Contents/Resources/roar-mcp.sh` (needs Node 22+).
 - I patch Chromium's `Target.createTarget` handler so `new_page` opens a real sidebar tab in the active space instead of a stray window. You can watch the agent, take over, or close the tab.
 - Two extra tools: `notify_user` puts a card in the sidebar, and `ask_user` shows buttons and returns your click to the agent.
-- A dot in the sidebar shows whether the CDP port is open and how many agents are connected; one click closes the port and drops them, without restarting.
+- Agents are allowed per space; a dot in the sidebar shows who's connected, and one click blocks agents from the current space. A setting closes the CDP port entirely, without restarting.
 - You can choose headed (agents use this window) or headless (a hidden Roar with its own profile, started on demand).
 - Roar reports the Google Chrome brand and a real window frame, and doesn't run polling scripts in pages, so it trips fewer bot checks than typical automation setups.
 
-Other bits: separate profiles per space, Chrome extensions (uBlock Origin Lite bundled), reader mode, copy page as Markdown, import from Chrome, Edge, Firefox, Safari and Dia. Arc import is coming in the launch release.
+Other bits: separate profiles per space, Chrome extensions (uBlock Origin Lite bundled), reader mode, copy page as Markdown, import from Arc, Chrome, Edge, Firefox, Safari and Dia.
 
 What's rough:
 
@@ -34,3 +34,8 @@ What's rough:
 - Page-text search stores visited page text unencrypted in the data dir (you can turn it off).
 
 I'd like feedback on the agent side most: what you'd want an agent to be able to do (or never do) in your real browser, and whether the cut-off and ask_user model feels like enough control.
+
+## Prepared replies
+
+**"How is this different from Dia?"**
+Dia is a good browser with AI built in by The Browser Company. Roar goes the other way: we don't need a browser company to build a browser. It's open source (MIT), and the AI is whatever agent you already run (Claude, Cursor, anything that speaks MCP), driving the same browser you're logged into.
