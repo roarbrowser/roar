@@ -48,10 +48,21 @@ pre { margin: 0; font: 12px/1.6 var(--mono); background: var(--ground); border-r
   <header>
     <span class="lion hero" aria-hidden="true"></span>
     <h1 id="headline">Roar<span class="grr">.</span></h1>
-    <p class="lede" id="lede">A Chromium browser with a loud voice and a tidy den. Four things are worth knowing before you start.</p>
+    <p class="lede" id="lede">An AI-first Chromium browser: a tidy sidebar for you, an MCP server for your agent. A few things are worth knowing before you start.</p>
   </header>
 
   <ol>
+    <li>
+      <h2>Your AI agent drives Roar</h2>
+      <p>Roar ships an MCP server, so Claude and other agents can open tabs, read pages, click, fill forms and take screenshots in the browser you're using. Pages an agent opens show up as real tabs in your sidebar. Add it to Claude Code once:</p>
+      <pre id="mcp-cmd">claude mcp add roar -- /Applications/Roar.app/Contents/Resources/roar-mcp.sh</pre>
+      <div class="controls">
+        <button class="btn" id="mcp-copy">Copy command</button>
+        <label class="switch"><input type="checkbox" id="cdp-on"> Allow agents to connect</label>
+        <button class="btn" id="cdp-relaunch" hidden>Relaunch Roar now</button>
+      </div>
+      <p class="status">The dot under the settings icon shows whether agents can connect; click it to switch. Close it before a site that flags automated browsers.</p>
+    </li>
     <li>
       <h2>Everything starts at ⌘T</h2>
       <p>One bar opens addresses, searches the web, jumps to an open tab, and finds pages from your history or archive. Type <kbd>&gt;</kbd> first to run a command such as “Copy page as Markdown”.</p>
@@ -60,14 +71,6 @@ pre { margin: 0; font: 12px/1.6 var(--mono); background: var(--ground); border-r
         <label class="switch"><input type="checkbox" id="index-on"> Remember the text of pages you visit, so the bar can find them by what they said</label>
       </div>
       <div class="controls"><span class="status" id="index-status"></span><button class="btn" id="forget" hidden>Forget saved text</button></div>
-    </li>
-    <li>
-      <h2>Automation tools</h2>
-      <p>Lets tools such as Claude drive Roar over the Chrome DevTools Protocol. Turn it off before visiting a site that flags Roar as a bot; the CDP indicator at the bottom of the sidebar does the same.</p>
-      <div class="controls">
-        <label class="switch"><input type="checkbox" id="cdp-on"> Allow automation tools</label>
-        <button class="btn" id="cdp-relaunch" hidden>Relaunch Roar now</button>
-      </div>
     </li>
     <li>
       <h2>Links you copy are clean</h2>
@@ -129,7 +132,7 @@ pre { margin: 0; font: 12px/1.6 var(--mono); background: var(--ground); border-r
 
   <section class="auto">
     <h2>Automation</h2>
-    <p>When on in "Automation tools" above, Roar exposes the Chrome DevTools Protocol on <code id="port">127.0.0.1:9222</code>. Roar also has an AppleScript dictionary.</p>
+    <p>Agents connect through the Chrome DevTools Protocol on <code id="port">127.0.0.1:9222</code> (the MCP server above uses it; any CDP client can too). Roar also has an AppleScript dictionary.</p>
     <pre>tell application "Roar"
   open url "https://example.com"
   execute javascript "document.title"
@@ -165,7 +168,7 @@ function apply(s) {
   if (s.settings.onboarded) {
     document.title = 'Settings';
     $('headline').innerHTML = 'Settings<span class="grr">.</span>';
-    $('lede').textContent = 'How Roar tidies tabs and what it shows in the sidebar.';
+    $('lede').textContent = 'How Roar works with your agent, tidies tabs, and what it shows in the sidebar.';
     $('finish').textContent = 'Done';
   }
 }
@@ -198,6 +201,7 @@ $('index-on').onchange = () => set({ indexPages: $('index-on').checked });
 $('pin-cols').onchange = () => set({ pinnedColumns: +$('pin-cols').value });
 $('pin-center').onchange = () => set({ pinnedCentered: $('pin-center').checked });
 $('cdp-on').onchange = () => set({ cdpEnabled: $('cdp-on').checked });
+$('mcp-copy').onclick = () => navigator.clipboard.writeText($('mcp-cmd').textContent).then(() => { $('mcp-copy').textContent = 'Copied'; setTimeout(() => { $('mcp-copy').textContent = 'Copy command'; }, 1500); });
 $('cdp-relaunch').onclick = () => ask({ cmd: 'run', id: 'relaunch' });
 $('clean-links').onchange = () => set({ cleanLinks: $('clean-links').checked });
 $('forget').onclick = () => ask({ cmd: 'run', id: 'forgetPages' }).then(() => ask({ cmd: 'state' })).then(apply);

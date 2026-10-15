@@ -6,9 +6,34 @@
 <h1 align="center">Roar</h1>
 
 <p align="center">
-  A fast, keyboard-first macOS browser with a vertical sidebar, spaces, and split view.<br>
-  Built on CEF 154 (Chromium 154.0.8037.98). Free and open source under the MIT License.
+  An AI-first Chromium browser for macOS: a sidebar browser you use, with a built-in MCP server<br>
+  so your agent can use it too. Built on CEF 154 (Chromium 154.0.8037.98). Free and open source under the MIT License.
 </p>
+
+## Built for agents
+
+Roar is a browser you and your AI agent share. It ships an MCP server
+(`Roar.app/Contents/Resources/roar-mcp.sh`, a launcher for
+[chrome-devtools-mcp](https://github.com/ChromeDevTools/chrome-devtools-mcp)), so Claude,
+Cursor or any MCP client can open pages, read them, click, fill forms, run scripts and take
+screenshots in the same browser, logins and all.
+
+```bash
+claude mcp add roar -- /Applications/Roar.app/Contents/Resources/roar-mcp.sh
+```
+
+Other clients take the same command as a stdio server. It needs Node.js (`npx`), starts Roar
+if it isn't running, and prefers a headless Roar on port 9444 when one is up.
+
+- **Agent pages are real tabs.** `new_page` opens a tab in your active space's sidebar,
+  not a stray window, so you can watch, take over, or close what the agent is doing.
+- **One click to cut it off.** The dot under the settings icon shows whether the CDP port is
+  open (`CDP: 9222 open` on hover); click it to close the port and drop every connected
+  agent, or reopen it, without restarting.
+- **Looks like Chrome to sites.** Roar reports the Google Chrome brand and a real window
+  frame, and doesn't run polling scripts in pages, so it trips fewer bot checks.
+- **Also scriptable:** AppleScript (`open url`, `execute javascript`, `get URL of every tab`)
+  and raw CDP on `127.0.0.1:9222`.
 
 ## Build and run
 
@@ -57,7 +82,12 @@ nonce Roar issued to that tab.
 | Zoom (⌘+, ⌘−, ⌘0): per host, with a zoom toast, kept in `state.json` | `Controller::ZoomStep`, `ApplyZoom` |
 | Print (⌘P) | `Controller::Print` |
 | Downloads: saved to ~/Downloads, a list with progress, cancel and Show in Finder (⇧⌘J), and a sidebar button while there are downloads | `Controller::OnBeforeDownload`, `ui/downloads.html` |
-| History page (⌘Y): browse and search the current space's history, remove entries | `ui/history.html`, `Controller::HistoryJson` |
+| History page (⌘Y): day rail, search, filter by site, keyboard navigation, remove entries | `ui/history.html`, `Controller::HistoryJson` |
+| Reopen All Tabs from Last Session (History menu), per space | `State::last_session` |
+| Popups (sign-in flows, `window.open`) open as sidebar tabs that keep `window.opener` | `Controller::AdoptPopup` |
+| Tab groups as their own sidebar sections; Close All Tabs in a space | `ui/sidebar.html`, `closeSpaceTabs` |
+| Unread Gmail in the sidebar: multi-select delete, Select all, account links | `ui/mail-act.js`, `Controller::RefreshGmail` |
+| MCP server for AI agents; live CDP open/close dot | `resources/roar-mcp.sh`, `Controller::SetCdp` |
 | Tab sound: a speaker on sidebar tabs that are playing audio, click to mute or unmute | `Controller::ToggleMute`, `MediaWatcher` |
 | Page context menu: Open Link in Split View, Open Link in Space…, Copy Page as Markdown | `Controller::BuildContextMenu` |
 | Reader mode (⌥⌘R): a cleaned article view built from the Markdown extractor | `ui/reader.html`, `Controller::ToggleReader` |

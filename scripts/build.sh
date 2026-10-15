@@ -11,6 +11,7 @@ cmake --build "$BUILD" --target roar
 RES="$BUILD/src/Release/Roar.app/Contents/Resources"
 rm -rf "$RES/ui"
 cp -R "$ROOT/resources/ui" "$RES/ui"
+cp "$ROOT/resources/roar-mcp.sh" "$RES/roar-mcp.sh"
 rm -rf "$RES/extensions"
 mkdir -p "$RES/extensions"
 cp -R "$ROOT/third_party/ubol" "$RES/extensions/ubol"
