@@ -372,6 +372,21 @@ bool CdpEnabled() {
   return on;
 }
 
+void RelaunchAfterExit() {
+  // Instances and scratch runs come back as themselves.
+  NSMutableString* env = [NSMutableString string];
+  for (const char* key : {"ROAR_DATA_DIR", "ROAR_INSTANCE", "ROAR_CDP_PORT"})
+    if (const char* v = getenv(key)) [env appendFormat:@" --env '%s=%s'", key, v];
+  NSString* cmd = [NSString stringWithFormat:@"while kill -0 %d 2>/dev/null; do sleep 0.5; done; open -n%@ '%@'",
+                                             getpid(), env, NSBundle.mainBundle.bundlePath];
+  NSTask* run = [[NSTask alloc] init];
+  run.executableURL = [NSURL fileURLWithPath:@"/usr/bin/nohup"];
+  run.arguments = @[ @"/bin/sh", @"-c", cmd ];
+  run.standardOutput = [NSFileHandle fileHandleWithNullDevice];
+  run.standardError = [NSFileHandle fileHandleWithNullDevice];
+  [run launchAndReturnError:nil];
+}
+
 bool ClaimInstance(const std::string& dir) {
   [NSFileManager.defaultManager createDirectoryAtPath:NS(dir) withIntermediateDirectories:YES attributes:nil error:nil];
   int fd = open((dir + "/instance.lock").c_str(), O_RDWR | O_CREAT | O_CLOEXEC, 0644);

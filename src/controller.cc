@@ -1943,6 +1943,10 @@ void Controller::SavePagesSoon() {
 
 void Controller::RunCommand(const std::string& id) {
   if (id == "quit") Quit();
+  else if (id == "relaunch") {
+    platform::RelaunchAfterExit();
+    Quit();
+  }
   else if (id == "clean") CleanTabs();
   else if (id == "copyMarkdown") ExtractActive("copy");
   else if (id == "saveMarkdown") ExtractActive("save");

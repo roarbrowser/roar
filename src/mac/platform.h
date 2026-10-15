@@ -18,6 +18,8 @@ std::string InstanceName();
 int CdpPort();
 // Whether this launch listens on CdpPort(): ROAR_CDP_PORT, headless, or the cdpEnabled setting.
 bool CdpEnabled();
+// Reopens this app bundle once this process has exited; call before quitting.
+void RelaunchAfterExit();
 // Locks |dir| for this process and writes the CDP port to <dir>/cdp-port.
 // False when another Roar already runs from |dir|.
 bool ClaimInstance(const std::string& dir);

@@ -62,6 +62,14 @@ pre { margin: 0; font: 12px/1.6 var(--mono); background: var(--ground); border-r
       <div class="controls"><span class="status" id="index-status"></span><button class="btn" id="forget" hidden>Forget saved text</button></div>
     </li>
     <li>
+      <h2>Automation tools</h2>
+      <p>Lets tools such as Claude drive Roar over the Chrome DevTools Protocol. Off by default: an open debugging port helps bank and shopping sites flag the browser as a bot. Changes apply after a relaunch.</p>
+      <div class="controls">
+        <label class="switch"><input type="checkbox" id="cdp-on"> Allow automation tools</label>
+        <button class="btn" id="cdp-relaunch" hidden>Relaunch Roar now</button>
+      </div>
+    </li>
+    <li>
       <h2>Links you copy are clean</h2>
       <p>Copy Link Address unwraps Safe Links and drops <kbd>.mcas.ms</kbd> from the address, so what you send someone is the real page. Links you open are left alone.</p>
       <div class="controls">
@@ -121,8 +129,7 @@ pre { margin: 0; font: 12px/1.6 var(--mono); background: var(--ground); border-r
 
   <section class="auto">
     <h2>Automation</h2>
-    <label class="switch"><input type="checkbox" id="cdp-on"> Allow automation tools (Chrome DevTools Protocol) — off avoids bot checks; applies on relaunch</label>
-    <p>When on, Roar exposes the Chrome DevTools Protocol on <code id="port">127.0.0.1:9222</code>. Roar also has an AppleScript dictionary.</p>
+    <p>When on in "Automation tools" above, Roar exposes the Chrome DevTools Protocol on <code id="port">127.0.0.1:9222</code>. Roar also has an AppleScript dictionary.</p>
     <pre>tell application "Roar"
   open url "https://example.com"
   execute javascript "document.title"
@@ -150,6 +157,7 @@ function apply(s) {
   $('pin-center').checked = s.settings.pinnedCentered;
   $('clean-links').checked = s.settings.cleanLinks;
   $('cdp-on').checked = s.settings.cdpEnabled;
+  $('cdp-relaunch').hidden = s.settings.cdpEnabled === s.settings.cdpOn;
   $('index-status').textContent = s.settings.pageCount ? `${s.settings.pageCount} pages saved on this Mac.` : 'Nothing saved yet.';
   $('forget').hidden = !s.settings.pageCount;
   renderSpaces(s);
@@ -189,6 +197,7 @@ $('index-on').onchange = () => set({ indexPages: $('index-on').checked });
 $('pin-cols').onchange = () => set({ pinnedColumns: +$('pin-cols').value });
 $('pin-center').onchange = () => set({ pinnedCentered: $('pin-center').checked });
 $('cdp-on').onchange = () => set({ cdpEnabled: $('cdp-on').checked });
+$('cdp-relaunch').onclick = () => ask({ cmd: 'run', id: 'relaunch' });
 $('clean-links').onchange = () => set({ cleanLinks: $('clean-links').checked });
 $('forget').onclick = () => ask({ cmd: 'run', id: 'forgetPages' }).then(() => ask({ cmd: 'state' })).then(apply);
 
