@@ -11,6 +11,8 @@ const port = process.argv[2];
 const mcpPkg = process.argv[3];
 let agent = '';
 const listIds = new Set();
+const pending = new Set();  // ask_user keys still waiting, expired in Roar on timeout or exit.
+const expire = (key) => sidebarAsk({ cmd: 'agent.expire', key }, 3000).catch(() => {});
 
 const TOOLS = [
   {
@@ -80,7 +82,14 @@ async function callOwn(id, name, args) {
       text = 'Shown in Roar\'s sidebar.';
     } else {
       const secs = Math.min(Math.max(Number(args.timeout_seconds) || 600, 5), 3600);
-      text = String(await sidebarAsk({ cmd: 'agent.notify', agent, wait: true, title: String(args.question || ''), body: String(args.body || ''), url: args.url || '', choices: (args.choices || []).map(String) }, secs * 1000));
+      const key = crypto.randomUUID();
+      pending.add(key);
+      try {
+        text = String(await sidebarAsk({ cmd: 'agent.notify', agent, wait: true, key, title: String(args.question || ''), body: String(args.body || ''), url: args.url || '', choices: (args.choices || []).map(String) }, secs * 1000));
+      } finally {
+        pending.delete(key);
+      }
+      if (text === 'timed out') await expire(key);
     }
     out({ jsonrpc: '2.0', id, result: { content: [{ type: 'text', text }] } });
   } catch (e) {
@@ -88,8 +97,15 @@ async function callOwn(id, name, args) {
   }
 }
 
+// The agent's session ended: questions still on screen can no longer be answered.
+async function shutdown(code) {
+  await Promise.all([...pending].map(expire));
+  process.exit(code);
+}
+for (const sig of ['SIGTERM', 'SIGINT', 'SIGHUP']) process.on(sig, () => shutdown(0));
+
 const child = spawn('npx', ['-y', mcpPkg, '--browserUrl', `http://127.0.0.1:${port}`], { stdio: ['pipe', 'pipe', 'inherit'] });
-child.on('exit', (code) => process.exit(code ?? 0));
+child.on('exit', (code) => shutdown(code ?? 0));
 
 createInterface({ input: child.stdout }).on('line', (line) => {
   let msg;
@@ -106,4 +122,4 @@ createInterface({ input: process.stdin }).on('line', (line) => {
   if (msg.method === 'tools/call' && TOOLS.some((t) => t.name === msg.params?.name))
     return void callOwn(msg.id, msg.params.name, msg.params.arguments || {});
   child.stdin.write(line + '\n');
-}).on('close', () => child.stdin.end());
+}).on('close', () => { child.stdin.end(); shutdown(0); });

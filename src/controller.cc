@@ -2637,6 +2637,7 @@ std::string Controller::StateJson() {
     for (size_t i = 0; i < a.choices.size(); ++i) choices->SetString(i, a.choices[i]);
     d->SetList("choices", choices);
     d->SetBool("waiting", a.answer != nullptr);
+    d->SetBool("expired", a.expired);
     alerts->SetDictionary(alerts->GetSize(), d);
   }
   root->SetList("alerts", alerts);
@@ -3333,6 +3334,7 @@ bool Controller::HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> 
     if (wait) a.level = "needs_you";
     if (a.title.empty()) a.title = wait ? "Your agent has a question" : "Message from your agent";
     if (wait) a.answer = callback;
+    a.key = msg->GetString("key").ToString();
     a.time = NowSeconds();
     if (a.level == "needs_you" && !platform::AppActive())
       platform::Notify((a.agent.empty() ? std::string("Agent") : a.agent) + ": " + a.title, a.body);
@@ -3340,6 +3342,21 @@ bool Controller::HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> 
     SyncAlertBadge();
     PushSidebar();
     if (!wait) callback->Success(std::to_string(a.id));
+  } else if (cmd == "agent.expire") {
+    // The MCP server gave up on an ask_user (timeout, or the agent's session ended):
+    // keep the card as a note without buttons, so a late click can't go nowhere.
+    std::string key = msg->GetString("key").ToString();
+    for (auto& a : agent_alerts_)
+      if (!key.empty() && a.key == key && a.answer) {
+        a.answer->Success("timed out");
+        a.answer = nullptr;
+        a.expired = true;
+        a.choices.clear();
+        a.level = "info";
+      }
+    SyncAlertBadge();
+    PushSidebar();
+    callback->Success("");
   } else if (cmd == "agent.answer") {
     ResolveAlert(int_arg("id"), msg->GetString("choice").ToString());
     callback->Success("");

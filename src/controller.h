@@ -289,6 +289,8 @@ class Controller {
   struct AgentAlert {
     int id = 0;
     std::string title, body, level, url, agent;
+    std::string key;       // ask_user's id from the MCP server, for agent.expire.
+    bool expired = false;  // The agent stopped waiting; the card stays as a note.
     std::vector<std::string> choices;
     double time = 0;
     CefRefPtr<Callback> answer;  // ask_user waits on this until the user picks.
