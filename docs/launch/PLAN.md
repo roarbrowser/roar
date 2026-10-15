@@ -43,8 +43,9 @@ never here.
 
 ## 3. Demo video (30 seconds)
 
-- **Story:** an agent opens pages that appear as sidebar tabs, posts a "done" card, then
-  asks "Pay the $412 balance now?"; one click answers it.
+- **Story:** an agent planning a safari opens pages that appear as sidebar tabs, posts a
+  "Found 3 flights under $400" card, then asks "Book the 8:05 AM flight for $386?"; one
+  click answers it and a "Booked" card follows.
 - **Approach:** `scripts/demo/run-demo.mjs` drives a scratch Roar through the bundled MCP
   server; `scripts/demo/record.sh` records the Roar window. Shot list in
   [demo.md](demo.md).
