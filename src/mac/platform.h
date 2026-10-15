@@ -16,7 +16,7 @@ std::string RandomToken();
 // takes the first free CDP port from 9333; the main one keeps 9222.
 std::string InstanceName();
 int CdpPort();
-// Whether this launch listens on CdpPort(): ROAR_CDP_PORT, headless, or the cdpEnabled setting.
+// Whether this launch starts listening on CdpPort(): ROAR_CDP_PORT, headless, or the cdpEnabled setting.
 bool CdpEnabled();
 // Reopens this app bundle once this process has exited; call before quitting.
 void RelaunchAfterExit();

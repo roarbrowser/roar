@@ -104,8 +104,8 @@ struct Settings {
   int sidebar_width = 268;
   int pinned_columns = 0;  // Pinned tiles per row; 0 fits as many as the width allows.
   bool pinned_centered = false;  // Centers a short last row.
-  // The CDP port is opt-in: a listening debug port and the clients it invites are bot-check tells.
-  bool cdp_enabled = false;
+  // The CDP port, on by default; the sidebar's CDP indicator opens or closes it live.
+  bool cdp_enabled = true;
   bool clean_links = true;  // Unwraps Safe Links and strips .mcas.ms from copied links (CleanLink).
 };
 

@@ -63,7 +63,7 @@ pre { margin: 0; font: 12px/1.6 var(--mono); background: var(--ground); border-r
     </li>
     <li>
       <h2>Automation tools</h2>
-      <p>Lets tools such as Claude drive Roar over the Chrome DevTools Protocol. Off by default: an open debugging port helps bank and shopping sites flag the browser as a bot. Changes apply after a relaunch.</p>
+      <p>Lets tools such as Claude drive Roar over the Chrome DevTools Protocol. Turn it off before visiting a site that flags Roar as a bot; the CDP indicator at the bottom of the sidebar does the same.</p>
       <div class="controls">
         <label class="switch"><input type="checkbox" id="cdp-on"> Allow automation tools</label>
         <button class="btn" id="cdp-relaunch" hidden>Relaunch Roar now</button>
@@ -157,7 +157,8 @@ function apply(s) {
   $('pin-center').checked = s.settings.pinnedCentered;
   $('clean-links').checked = s.settings.cleanLinks;
   $('cdp-on').checked = s.settings.cdpEnabled;
-  $('cdp-relaunch').hidden = s.settings.cdpEnabled === s.settings.cdpOn;
+  // Only a build without Roar's CEF patch needs a relaunch to apply it.
+  $('cdp-relaunch').hidden = s.settings.cdpLive || s.settings.cdpEnabled === s.settings.cdpOn;
   $('index-status').textContent = s.settings.pageCount ? `${s.settings.pageCount} pages saved on this Mac.` : 'Nothing saved yet.';
   $('forget').hidden = !s.settings.pageCount;
   renderSpaces(s);

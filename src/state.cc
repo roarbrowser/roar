@@ -167,7 +167,7 @@ void State::Load() {
     settings.pinned_columns = static_cast<int>(Num(s, "pinnedColumns", 0));
     settings.pinned_centered = Bool(s, "pinnedCentered", false);
     settings.clean_links = Bool(s, "cleanLinks", true);
-    settings.cdp_enabled = Bool(s, "cdpEnabled", false);
+    settings.cdp_enabled = Bool(s, "cdpEnabled", true);
   }
   if (auto z = d->GetDictionary("zoom")) {
     CefDictionaryValue::KeyList keys;

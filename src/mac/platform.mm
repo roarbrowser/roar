@@ -367,7 +367,8 @@ bool CdpEnabled() {
     NSData* data = [NSData dataWithContentsOfFile:NS(roar::State::Get().Dir() + "/state.json")];
     NSDictionary* root = data ? [NSJSONSerialization JSONObjectWithData:data options:0 error:nil] : nil;
     id s = [root isKindOfClass:NSDictionary.class] ? root[@"settings"] : nil;
-    return [s isKindOfClass:NSDictionary.class] && [s[@"cdpEnabled"] boolValue];
+    id on = [s isKindOfClass:NSDictionary.class] ? s[@"cdpEnabled"] : nil;
+    return on ? [on boolValue] : YES;
   }();
   return on;
 }
@@ -466,7 +467,7 @@ void InstallMenu() {
   {
     std::string name = InstanceName();
     NSString* label = [NSString stringWithFormat:@"%@ · %@", name.empty() ? @"Main instance" : NS("Instance " + name),
-                                                 CdpEnabled() ? [NSString stringWithFormat:@"CDP port %d", CdpPort()] : @"CDP off"];
+                                                 [NSString stringWithFormat:@"CDP port %d", CdpPort()]];
     [app addItemWithTitle:label action:nil keyEquivalent:@""].enabled = NO;
   }
   addCommand(app, @"Settings…", @"settings", @"⌘,");

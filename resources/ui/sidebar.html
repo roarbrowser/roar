@@ -153,7 +153,9 @@ body.drag-active .pinned:empty::before { content: 'Drop to pin'; color: var(--in
 .foot .brand { display: grid; grid-template-columns: auto auto; align-items: center; column-gap: 7px; }
 .foot .brand .space-name { grid-column: 1 / -1; line-height: 1.2; margin-top: 2px; }
 .foot .brand .space-name:empty { display: none; }
-.foot .cdp { font-family: var(--mono); font-size: 10.5px; }
+.foot .cdp { width: auto; display: flex; gap: 5px; padding: 0 6px; font-family: var(--mono); font-size: 10.5px; }
+.foot .cdp .cdot { width: 6px; height: 6px; border-radius: 50%; background: var(--ink-3); }
+.foot .cdp.on .cdot { background: #2f9e5b; }
 .foot .spacer { flex: 1; }
 .foot button { width: 24px; height: 24px; border-radius: 6px; display: grid; place-items: center; color: var(--ink-3); }
 .foot button:hover { background: var(--hover); color: var(--ink); }
@@ -244,8 +246,8 @@ body.drag-active .pinned:empty::before { content: 'Drop to pin'; color: var(--in
   <span class="space-name" id="space-name"></span></span>
   <span class="spaces" id="spaces" role="group" aria-label="Spaces"></span>
   <div class="space-menu" id="space-menu" hidden><input id="space-rename" maxlength="40" aria-label="Space name" spellcheck="false"><button id="space-remove" title="Archive its tabs and remove the space">Remove</button><button id="space-close" title="Close this space's tabs (pinned stay) and switch to the next space">Close all tabs</button><div class="swatches" id="swatches" role="group" aria-label="Space color"></div></div>
-  <span class="cdp" id="cdp" title="Chrome DevTools Protocol endpoint"></span>
   <span class="spacer"></span>
+  <button class="cdp" id="cdp" title="Chrome DevTools Protocol port: click to open or close it"><span class="cdot"></span><span id="cdp-label"></span></button>
   <button id="settings" title="Settings (⌘,)" aria-label="Settings"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M2.5 5h11M2.5 11h11"/><circle class="knob" cx="5.5" cy="5" r="1.8"/><circle class="knob" cx="10.5" cy="11" r="1.8"/></svg></button>
 </div>
 <script src="bridge.js"></script>
@@ -315,7 +317,6 @@ window.roar = {
     $('space-name').textContent = multi ? (s.spaces.find((sp) => sp.id === s.activeSpace)?.name || '') : '';
     $('spaces').innerHTML = multi ? s.spaces.map((sp, i) =>
       `<button data-space="${sp.id}" draggable="true" aria-pressed="${sp.id === s.activeSpace}" style="${sp.color ? '--dot:' + sp.color : ''}" title="${esc(sp.name)} (⌃${i + 1})" aria-label="${esc(sp.name)}"></button>`).join('') : '';
-    $('cdp').hidden = multi;
     layoutPins(s.settings);
     setHtml($('pinned'), pinned.map((t) =>
       `<button class="pin${t.active ? ' active' : ''}" data-id="${t.id}" draggable="true" title="${esc(t.title)}" aria-label="${esc(t.title)}">${pinIcon(t)}${sndButton(t, '')}</button>`).join(''));
@@ -325,7 +326,9 @@ window.roar = {
     $('forward').disabled = !s.nav.canForward;
     const url = s.nav.url || '';
     $('host').textContent = url && !url.startsWith('roar:') ? hostOf(url) : 'Search or enter address';
-    $('cdp').textContent = s.settings.cdpOn ? 'CDP :' + s.settings.cdpPort : 'CDP off';
+    $('cdp-label').textContent = s.settings.cdpOn ? 'CDP :' + s.settings.cdpPort : 'CDP off';
+    $('cdp').classList.toggle('on', s.settings.cdpOn);
+    $('cdp').title = s.settings.cdpOn ? `CDP open on 127.0.0.1:${s.settings.cdpPort}. Click to close it.` : 'CDP closed. Click to open it.';
 
     $('dl-btn').hidden = !(s.downloads && s.downloads.count);
     $('dl-count').textContent = (s.downloads && s.downloads.active) || '';
@@ -725,6 +728,7 @@ $('ext-pins').oncontextmenu = (e) => {
   if (b) { e.preventDefault(); e.stopPropagation(); ask({ cmd: 'run', id: 'extensionPin:' + b.dataset.extPin }); }
 };
 $('settings').onclick = () => ask({ cmd: 'run', id: 'settings' });
+$('cdp').onclick = () => ask({ cmd: 'settings.set', settings: { cdpEnabled: !state.settings.cdpOn } }).then(() => ask({ cmd: 'state' })).then(roar.render);
 // GitHub PRs and Unread mail open as popovers from their footer icons.
 function syncFeeds() {
   const bar = $('bar').getBoundingClientRect();

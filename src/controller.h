@@ -183,7 +183,7 @@ class Controller {
   void OnDownloadUpdated(CefRefPtr<CefDownloadItem> item,
                          CefRefPtr<CefDownloadItemCallback> callback);
   std::string DownloadsJson();
-  std::string HistoryJson(const std::string& query);
+  std::string HistoryJson(const std::string& query, size_t limit = 500);
   void BuildContextMenu(CefRefPtr<CefBrowser> browser, CefRefPtr<CefContextMenuParams> params,
                         CefRefPtr<CefMenuModel> model);
   bool OnContextMenuCommand(CefRefPtr<CefBrowser> browser, CefRefPtr<CefContextMenuParams> params,
@@ -285,6 +285,9 @@ class Controller {
   int ghost_session_ = 0;  // Names the Ghost-<n> profile of the current ghost session.
   int active_id_ = 0;
   std::set<int> stray_seen_;  // Browsers outside Roar whose first address was seen.
+  bool cdp_on_ = false;                 // Whether the CDP HTTP port is listening now.
+  void (*cdp_http_)(int port) = nullptr;  // Roar's CEF patch: opens (port) or closes (0) it live.
+  void SetCdp(bool on);
   int gmail_refresh_gen_ = 0;  // Debounces refreshes while the mail tab navigates.
   int split_a_ = 0;  // Split view pair, left and right; 0 when not split.
   int split_b_ = 0;

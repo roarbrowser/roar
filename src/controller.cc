@@ -780,8 +780,10 @@ void Controller::Start() {
     void* lib = dlopen(_dyld_get_image_name(i), RTLD_LAZY | RTLD_NOLOAD);
     if (auto set = reinterpret_cast<void (*)(Hook)>(lib ? dlsym(lib, "roar_set_create_target_hook") : nullptr))
       set([](const char* url) { return Controller::Get()->OpenTargetTab(url); });
+    cdp_http_ = reinterpret_cast<void (*)(int)>(lib ? dlsym(lib, "roar_devtools_http") : nullptr);
     break;
   }
+  cdp_on_ = platform::CdpEnabled();
   State& state = State::Get();
   state.Load();
   platform::InstallMenu();
@@ -1518,6 +1520,15 @@ void Controller::Forward() {
 }
 
 // Reloads every open, non-ghost tab in |space|.
+// Opens or closes the CDP port without a relaunch (needs Roar's CEF patch;
+// without it the setting applies on the next launch).
+void Controller::SetCdp(bool on) {
+  if (!cdp_http_ || on == cdp_on_) return;
+  cdp_http_(on ? platform::CdpPort() : 0);
+  cdp_on_ = on;
+  PushSidebar();
+}
+
 void Controller::ReloadSpace(int space) {
   for (auto& t : tabs_)
     if (!t.ghost && t.space == space && t.view && t.view->GetBrowser()) ReloadBrowser(t.view->GetBrowser(), false);
@@ -2436,7 +2447,7 @@ std::string Controller::DownloadsJson() {
 // ---------------------------------------------------------------------------
 // History page
 
-std::string Controller::HistoryJson(const std::string& raw) {
+std::string Controller::HistoryJson(const std::string& raw, size_t limit) {
   State& state = State::Get();
   std::vector<std::string> words;
   std::string q = Lower(raw);
@@ -2463,7 +2474,7 @@ std::string Controller::HistoryJson(const std::string& raw) {
   }
   std::sort(rows.begin(), rows.end(), [](const Row& a, const Row& b) { return a.when > b.when; });
   auto list = CefListValue::Create();
-  for (size_t i = 0; i < rows.size() && i < 500; ++i) {
+  for (size_t i = 0; i < rows.size() && i < limit; ++i) {
     auto d = CefDictionaryValue::Create();
     d->SetString("title", rows[i].title);
     d->SetString("url", rows[i].url);
@@ -2687,7 +2698,8 @@ std::string Controller::StateJson() {
   settings->SetBool("pinnedCentered", state.settings.pinned_centered);
   settings->SetBool("cleanLinks", state.settings.clean_links);
   settings->SetBool("cdpEnabled", state.settings.cdp_enabled);
-  settings->SetBool("cdpOn", platform::CdpEnabled());
+  settings->SetBool("cdpOn", cdp_on_);
+  settings->SetBool("cdpLive", cdp_http_ != nullptr);
   settings->SetInt("pageCount", static_cast<int>(state.pages.size()));
   settings->SetInt("cdpPort", platform::CdpPort());
   auto pins = CefListValue::Create();
@@ -2863,7 +2875,10 @@ void Controller::ApplySettings(CefRefPtr<CefDictionaryValue> d) {
   if (d->HasKey("pinnedColumns")) s.pinned_columns = std::clamp(d->GetInt("pinnedColumns"), 0, 8);
   if (d->HasKey("pinnedCentered")) s.pinned_centered = d->GetBool("pinnedCentered");
   if (d->HasKey("cleanLinks")) s.clean_links = d->GetBool("cleanLinks");
-  if (d->HasKey("cdpEnabled")) s.cdp_enabled = d->GetBool("cdpEnabled");  // Takes effect on relaunch.
+  if (d->HasKey("cdpEnabled")) {
+    s.cdp_enabled = d->GetBool("cdpEnabled");
+    SetCdp(s.cdp_enabled);
+  }
   if (d->HasKey("githubFolder")) {
     s.github_folder = d->GetBool("githubFolder");
     if (!s.github_folder) State::Get().github_space = -1;  // Re-enabling binds to that space.
@@ -3267,7 +3282,9 @@ bool Controller::HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> 
     PushSidebar();
     callback->Success("");
   } else if (cmd == "history.list") {
-    callback->Success(HistoryJson(msg->GetString("q")));
+    // The page asks for more as it shows older days.
+    int limit = msg->HasKey("limit") ? msg->GetInt("limit") : 500;
+    callback->Success(HistoryJson(msg->GetString("q"), static_cast<size_t>(std::clamp(limit, 1, 20000))));
   } else if (cmd == "history.remove") {
     State& state = State::Get();
     state.history.erase(SpaceKey(state.active_space, msg->GetString("url")));
