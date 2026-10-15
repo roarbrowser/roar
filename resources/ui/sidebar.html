@@ -111,6 +111,9 @@ body.drag-active .pinned:empty::before { content: 'Drop to pin'; color: var(--in
 .tgroup .empty { color: var(--ink-3); font-size: 12px; padding: 4px 8px; }
 .drop-target { background: var(--hover); border-radius: 8px; }
 .row.dragging { opacity: .4; }
+/* Dropping a tab on another tab splits them; the half under the pointer picks the layout. */
+.row.split-drop { position: relative; background: var(--hover); box-shadow: inset 0 0 0 1.5px var(--mane); }
+.row.split-drop::after { content: attr(data-split-label); position: absolute; right: 8px; top: 50%; transform: translateY(-50%); padding: 2px 7px; border-radius: 6px; background: var(--mane); color: #2a1604; font: 600 11px var(--ui); pointer-events: none; }
 .ctx { position: fixed; z-index: 20; min-width: 180px; max-width: 240px; padding: 4px; border-radius: 9px; background: var(--ground); box-shadow: 0 0 0 1px var(--rule), 0 8px 24px rgba(0,0,0,.35); display: flex; flex-direction: column; }
 .ctx[hidden] { display: none; }
 .ctx button { text-align: left; padding: 5px 8px; border-radius: 6px; color: var(--ink); font-size: 12.5px; display: flex; align-items: center; gap: 7px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -637,6 +640,7 @@ document.addEventListener('dragstart', (e) => {
 });
 document.addEventListener('dragend', () => {
   dragId = 0;
+  clearSplitMarks();
   document.body.classList.remove('drag-active');
   document.querySelectorAll('.dragging, .drop-target').forEach((el) => el.classList.remove('dragging', 'drop-target'));
 });
@@ -649,9 +653,29 @@ const pinSpot = (e) => {
   const r = pin.getBoundingClientRect();
   return { pin, after: e.clientX > r.left + r.width / 2 };
 };
+// A tab row under the dragged tab (not itself, not a ghost/floating mismatch): split target.
+const splitSpot = (e) => {
+  const row = e.target.closest?.('.row[data-id]');
+  if (!row || +row.dataset.id === dragId) return null;
+  const a = state.tabs.find((t) => t.id === dragId), b = state.tabs.find((t) => t.id === +row.dataset.id);
+  if (!a || !b || a.floating || b.floating) return null;
+  const r = row.getBoundingClientRect();
+  return { row, stacked: e.clientX > r.left + r.width / 2 };
+};
+const clearSplitMarks = () => document.querySelectorAll('.split-drop').forEach((el) => el.classList.remove('split-drop'));
 const clearPinMarks = () => document.querySelectorAll('#pinned .drop-before, #pinned .drop-after')
   .forEach((el) => el.classList.remove('drop-before', 'drop-after'));
 document.addEventListener('dragover', (e) => {
+  clearSplitMarks();
+  const split = dragId && splitSpot(e);
+  if (split) {
+    e.preventDefault();
+    document.querySelectorAll('.drop-target').forEach((el) => el.classList.remove('drop-target'));
+    clearPinMarks();
+    split.row.dataset.splitLabel = split.stacked ? 'Split top and bottom' : 'Split side by side';
+    split.row.classList.add('split-drop');
+    return;
+  }
   const zone = dragId && dropZone(e.target);
   document.querySelectorAll('.drop-target').forEach((el) => el !== zone && el.classList.remove('drop-target'));
   clearPinMarks();
@@ -662,6 +686,12 @@ document.addEventListener('dragover', (e) => {
   else zone.classList.add('drop-target');
 });
 document.addEventListener('drop', (e) => {
+  const split = dragId && splitSpot(e);
+  clearSplitMarks();
+  if (split) {
+    e.preventDefault();
+    return ask({ cmd: 'tab.split', id: dragId, with: +split.row.dataset.id, stacked: split.stacked });
+  }
   const zone = dragId && dropZone(e.target);
   if (!zone) return;
   e.preventDefault();

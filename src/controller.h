@@ -312,6 +312,7 @@ class Controller {
   int gmail_refresh_gen_ = 0;  // Debounces refreshes while the mail tab navigates.
   int split_a_ = 0;  // Split view pair, left and right; 0 when not split.
   int split_b_ = 0;
+  bool split_stacked_ = false;  // Split panes top and bottom instead of left and right.
   int command_height_ = 0;
   bool command_new_tab_ = true;
   bool command_ghost_ = false;  // The command bar opens a ghost tab.

@@ -1005,6 +1005,11 @@ CefRect Controller::RectFor(int id) {
   CefRect r = ContentRect();
   auto v = VisibleIds();
   if (v.size() < 2) return r;
+  if (split_stacked_) {
+    int half = (r.height - kGutter) / 2;
+    if (id == v[0]) return CefRect(r.x, r.y, r.width, half);
+    return CefRect(r.x, r.y + half + kGutter, r.width, r.height - half - kGutter);
+  }
   int half = (r.width - kGutter) / 2;
   if (id == v[0]) return CefRect(r.x, r.y, half, r.height);
   return CefRect(r.x + half + kGutter, r.y, r.width - half - kGutter, r.height);
@@ -2044,6 +2049,7 @@ void Controller::ToggleSplit() {
   int other_id = other ? other->id : NewTab(kNewTabUrl, false, false, 0, tab->space);
   split_a_ = id;
   split_b_ = other_id;
+  split_stacked_ = false;
   SyncWindows();
   FocusTab(ActiveTab());
   PushSidebar();
@@ -2695,6 +2701,7 @@ void Controller::OpenInSplit(const std::string& url, bool ghost) {
   int second = NewTab(url, false, false, 0, cur->space, ghost);
   split_a_ = first;
   split_b_ = second;
+  split_stacked_ = false;
   ActivateTab(second);
 }
 
@@ -3309,6 +3316,19 @@ bool Controller::HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> 
     // Floating works on the active tab.
     ActivateTab(int_arg("id"));
     FloatActiveTab();
+    callback->Success("");
+  } else if (cmd == "tab.split") {
+    // A tab dropped on another: the target keeps the first pane, the dropped tab takes the second.
+    Tab* a = FindTab(int_arg("with"));
+    Tab* b = FindTab(int_arg("id"));
+    if (a && b && a != b && a->space == b->space && !a->floating && !b->floating) {
+      split_a_ = a->id;
+      split_b_ = b->id;
+      split_stacked_ = msg->GetBool("stacked");
+      ActivateTab(b->id);
+      SyncWindows();
+      PushSidebar();
+    }
     callback->Success("");
   } else if (cmd == "tab.move") {
     // Reorders pinned tiles: puts the tab before `before`, or last among pinned when 0.
