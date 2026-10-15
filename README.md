@@ -5,6 +5,8 @@
 
 <h1 align="center">Roar</h1>
 
+<p align="center"><strong>The open-source browser your AI agent can drive.</strong></p>
+
 <p align="center">
   An AI-first Chromium browser for macOS: a sidebar browser you use, with a built-in MCP server<br>
   so your agent can use it too. Built on CEF 154 (Chromium 154.0.8037.98). Free and open source under the MIT License.
