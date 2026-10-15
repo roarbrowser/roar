@@ -12,7 +12,7 @@ I'm the developer. Roar is free and MIT licensed.
 
 **Problem.** I wanted an Arc-style sidebar browser that is open source, and I wanted my AI agent to work in the same browser I use (logins included) where I can see and stop it.
 
-**Comparison.** Compared with Arc (now in maintenance mode) and closed-source AI browsers, Roar is open source and lets any MCP client drive it rather than a built-in assistant. Compared with a plain Chrome automation profile, agent pages show up as real tabs in your sidebar.
+**Comparison.** Compared with Arc (now in maintenance mode) and Dia (The Browser Company's AI browser, closed source), Roar is open source and lets any MCP client drive it rather than a built-in assistant. Compared with a plain Chrome automation profile, agent pages show up as real tabs in your sidebar.
 
 **Pricing.** Free. No account.
 
@@ -21,7 +21,7 @@ Features:
 - Vertical sidebar, spaces with separate profiles, pinned tabs, tab groups, split view
 - Command bar, reader mode, page to Markdown, find, history, downloads
 - Chrome extensions, uBlock Origin Lite bundled
-- Import from Arc, Chrome, Edge, Firefox, and Safari
+- Import from Arc, Chrome, Edge, Firefox, Safari and Dia
 - Built-in MCP server: `claude mcp add roar -- /Applications/Roar.app/Contents/Resources/roar-mcp.sh`
 - Agents can send you sidebar cards (`notify_user`) or ask you a question with buttons (`ask_user`)
 - One click on the CDP dot disconnects every agent
