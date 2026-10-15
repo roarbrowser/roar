@@ -9,7 +9,8 @@ OUT=docs/media; mkdir -p "$OUT"
 SECS=${DEMO_SECONDS:-36}
 PORT=9343
 
-node scripts/demo/run-demo.mjs --headed "$@" &
+# --keep: the scratch window must outlive the capture, or the region shows whatever is behind it.
+node scripts/demo/run-demo.mjs --headed --keep "$@" &
 DEMO=$!
 # Shell window bounds in points: the sidebar reports them (Browser.getWindowForTarget finds no window in CEF).
 for _ in $(seq 1 60); do
@@ -31,6 +32,14 @@ if ! screencapture -v -V "$SECS" -R "$RECT" -x "$OUT/roar-demo.mov" || [ ! -s "$
   wait $DEMO || true; exit 1
 fi
 wait $DEMO || true
+quit_roar() { node -e '
+  const p = process.argv[1];
+  const t = (await (await fetch(`http://127.0.0.1:${p}/json/list`)).json()).find((t) => t.url.startsWith("roar://ui/sidebar.html"));
+  const ws = new WebSocket(t.webSocketDebuggerUrl);
+  await new Promise((r) => (ws.onopen = r));
+  ws.send(JSON.stringify({ id: 1, method: "Runtime.evaluate", params: { expression: "ask({cmd:\"run\",id:\"quit\"})" } }));
+  setTimeout(() => process.exit(0), 500);' --input-type=module "$PORT" 2>/dev/null || true; }
+quit_roar
 
 if ! command -v ffmpeg >/dev/null; then echo "record: ffmpeg missing; only the .mov was made"; exit 0; fi
 # ~1.6 Mbps keeps 36 s under 8 MB.
