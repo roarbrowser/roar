@@ -22,8 +22,10 @@ screenshots in the same browser, logins and all.
 claude mcp add roar -- /Applications/Roar.app/Contents/Resources/roar-mcp.sh
 ```
 
-Other clients take the same command as a stdio server. It needs Node.js (`npx`), starts Roar
-if it isn't running, and prefers a headless Roar on port 9444 when one is up.
+Other clients take the same command as a stdio server. It needs Node.js (`npx`) and starts Roar
+if it isn't running. Settings > "Your AI agent drives Roar" picks which Roar agents get: this
+one, so you see what they do (the default), or a hidden headless Roar with its own profile
+(`~/.roar-headless`, port 9444) that the server starts on demand.
 
 - **Agent pages are real tabs.** `new_page` opens a tab in your active space's sidebar,
   not a stray window, so you can watch, take over, or close what the agent is doing.

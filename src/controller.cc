@@ -2700,6 +2700,7 @@ std::string Controller::StateJson() {
   settings->SetBool("cdpEnabled", state.settings.cdp_enabled);
   settings->SetBool("cdpOn", cdp_on_);
   settings->SetBool("cdpLive", cdp_http_ != nullptr);
+  settings->SetBool("agentHeadless", state.settings.agent_headless);
   settings->SetInt("pageCount", static_cast<int>(state.pages.size()));
   settings->SetInt("cdpPort", platform::CdpPort());
   auto pins = CefListValue::Create();
@@ -2875,6 +2876,7 @@ void Controller::ApplySettings(CefRefPtr<CefDictionaryValue> d) {
   if (d->HasKey("pinnedColumns")) s.pinned_columns = std::clamp(d->GetInt("pinnedColumns"), 0, 8);
   if (d->HasKey("pinnedCentered")) s.pinned_centered = d->GetBool("pinnedCentered");
   if (d->HasKey("cleanLinks")) s.clean_links = d->GetBool("cleanLinks");
+  if (d->HasKey("agentHeadless")) s.agent_headless = d->GetBool("agentHeadless");
   if (d->HasKey("cdpEnabled")) {
     s.cdp_enabled = d->GetBool("cdpEnabled");
     SetCdp(s.cdp_enabled);

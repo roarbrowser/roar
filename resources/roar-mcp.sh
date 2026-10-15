@@ -5,8 +5,9 @@
 #   claude mcp add roar -- /Applications/Roar.app/Contents/Resources/roar-mcp.sh
 # Pages the agent opens (new_page) become real Roar tabs in the active space.
 #
-# Port: ROAR_CDP_PORT if set, else a headless Roar on 9444 if one is up, else 9222.
-# Starts Roar when it is not running. Needs Node (npx).
+# Which Roar: Settings > "Agents use" (agentHeadless in state.json). Headed (default)
+# drives your Roar on 9222; headless starts a hidden Roar with its own profile
+# (~/.roar-headless) on 9444. ROAR_CDP_PORT overrides both. Needs Node (npx).
 set -euo pipefail
 
 APP="$(cd "$(dirname "$0")/../.." && pwd)"
@@ -18,13 +19,27 @@ if ! command -v npx >/dev/null 2>&1; then
   exit 1
 fi
 
+STATE="${ROAR_DATA_DIR:-$HOME/Library/Application Support/Roar}/state.json"
+HEADLESS=$(plutil -extract settings.agentHeadless raw -o - "$STATE" 2>/dev/null || echo false)
+
 if [ -n "${ROAR_CDP_PORT:-}" ]; then PORT=$ROAR_CDP_PORT
-elif up 9444; then PORT=9444
+elif [ "$HEADLESS" = true ]; then PORT=9444
 else PORT=9222
 fi
 
-if ! up "$PORT"; then
-  pgrep -f "$APP/Contents/MacOS/Roar" >/dev/null || open -a "$APP"
+if [ -z "${ROAR_CDP_PORT:-}" ] && [ "$HEADLESS" = true ] && ! up "$PORT"; then
+  mkdir -p "$HOME/.roar-headless"
+  ROAR_DATA_DIR="$HOME/.roar-headless" ROAR_CDP_PORT=$PORT nohup "$APP/Contents/MacOS/Roar" --headless=new \
+    >/dev/null 2>&1 &
+  for _ in $(seq 1 40); do up "$PORT" && break; sleep 0.5; done
+  # CDP answers before Roar's UI exists; an agent attaching then sees no pages.
+  for _ in $(seq 1 40); do
+    curl -sf "http://127.0.0.1:$PORT/json/list" | grep -q 'roar://ui/sidebar' && break; sleep 0.5
+  done
+  curl -sf -X PUT "http://127.0.0.1:$PORT/json/new?about:blank" >/dev/null || true
+elif ! up "$PORT"; then
+  # Anchored: a headless Roar runs the same binary, with arguments.
+  pgrep -f "$APP/Contents/MacOS/Roar$" >/dev/null || open -a "$APP"
   for _ in $(seq 1 40); do up "$PORT" && break; sleep 0.5; done
 fi
 if ! up "$PORT"; then

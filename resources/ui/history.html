@@ -46,6 +46,16 @@ input:focus { outline: 2px solid var(--mane); outline-offset: -1px; }
 .entry:hover .x, .entry.sel .x { visibility: visible; }
 .entry .x:hover { background: var(--rule); color: var(--ink); }
 .empty { color: var(--ink-3); padding: 24px 6px; }
+.pick { width: 15px; height: 15px; flex: none; margin: 0; accent-color: var(--mane); opacity: 0; }
+.entry:hover .pick, .entry.sel .pick, .pick:checked, .picking .pick { opacity: 1; }
+.entry.picked { background: var(--mane-soft); }
+.bulk { display: none; width: 100%; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 8px; background: var(--ground); font-size: 12.5px; color: var(--ink-2); }
+.bulk.on { display: flex; }
+.bulk .count { font-weight: 600; color: var(--ink); margin-right: auto; }
+.bulk button { padding: 5px 10px; border-radius: 6px; font: 500 12.5px var(--ui); color: var(--ink-2); }
+.bulk button:hover { background: var(--hover); color: var(--ink); }
+.bulk .primary { background: var(--mane); color: #2a1604; font-weight: 600; }
+.bulk .primary:hover { background: var(--mane); filter: brightness(1.05); color: #2a1604; }
 .older { margin: 18px 6px 0; padding: 8px 14px; border-radius: 8px; background: var(--ground); color: var(--ink-2); font: 500 12.5px var(--ui); }
 .older:hover { background: var(--hover); color: var(--ink); }
 button:focus-visible, a:focus-visible { outline: 2px solid var(--mane); outline-offset: 1px; }
@@ -68,7 +78,8 @@ button:focus-visible, a:focus-visible { outline: 2px solid var(--mane); outline-
     <div class="find">
       <input id="q" type="search" autocomplete="off" placeholder="Search titles and addresses" aria-label="Search history">
       <span class="site" id="site"><span id="site-name"></span><button id="site-clear" aria-label="Show every site" title="Show every site"><svg viewBox="0 0 12 12" width="9" height="9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="m3 3 6 6M9 3l-6 6"/></svg></button></span>
-      <div class="keys"><kbd>/</kbd> search · <kbd>↑</kbd><kbd>↓</kbd> move · <kbd>↩</kbd> open · <kbd>⌘↩</kbd> new tab · <kbd>⌫</kbd> remove · click a site to see only it</div>
+      <div class="bulk" id="bulk"><span class="count" id="bulk-count"></span><button class="primary" id="bulk-open">Open in new tabs</button><button id="bulk-remove">Remove</button><button id="bulk-clear">Clear</button></div>
+      <div class="keys"><kbd>/</kbd> search · <kbd>↑</kbd><kbd>↓</kbd> move · <kbd>↩</kbd> open · <kbd>⌘↩</kbd> new tab · <kbd>⌫</kbd> remove · <kbd>space</kbd> select · shift-click selects a range · click a site to see only it</div>
     </div>
     <div id="list"></div>
   </main>
@@ -78,7 +89,33 @@ button:focus-visible, a:focus-visible { outline: 2px solid var(--mane); outline-
 const $ = (id) => document.getElementById(id);
 const x = '<svg viewBox="0 0 12 12" width="10" height="10" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="m3 3 6 6M9 3l-6 6"/></svg>';
 const PAGE = 500;
-let limit = PAGE, site = '', seq = 0, sel = -1;
+let limit = PAGE, site = '', seq = 0, sel = -1, anchor = -1;
+const picked = new Set();
+function syncBulk() {
+  for (const r of rows()) {
+    const on = picked.has(r.dataset.entry);
+    r.classList.toggle('picked', on);
+    r.querySelector('.pick').checked = on;
+  }
+  $('list').classList.toggle('picking', picked.size > 0);
+  $('bulk').classList.toggle('on', picked.size > 0);
+  $('bulk-count').textContent = `${picked.size} selected`;
+}
+function pick(i, range) {
+  const all = rows();
+  if (range && anchor >= 0) {
+    const on = !picked.has(all[i].dataset.entry);
+    for (let j = Math.min(anchor, i); j <= Math.max(anchor, i); ++j) on ? picked.add(all[j].dataset.entry) : picked.delete(all[j].dataset.entry);
+  } else {
+    const url = all[i].dataset.entry;
+    picked.has(url) ? picked.delete(url) : picked.add(url);
+    anchor = i;
+  }
+  syncBulk();
+}
+$('bulk-open').onclick = () => { for (const url of picked) ask({ cmd: 'open', text: url, newTab: true }); picked.clear(); syncBulk(); };
+$('bulk-remove').onclick = async () => { for (const url of picked) await ask({ cmd: 'history.remove', url }); picked.clear(); load(); };
+$('bulk-clear').onclick = () => { picked.clear(); syncBulk(); };
 const dayKey = (t) => { const d = new Date(t * 1000); return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`; };
 const dayLabel = (t, short) => {
   const d = new Date(t * 1000), now = new Date();
@@ -116,11 +153,12 @@ async function load() {
     d.entries.map((e) => {
       const time = new Date(e.lastVisit * 1000).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
       const host = hostOf(e.url);
-      return `<div class="entry" data-entry="${esc(e.url)}"><span class="when">${esc(time)}</span><span class="fav">${esc((host[0] || '•').toUpperCase())}</span><a href="#" data-url="${esc(e.url)}" title="${esc(e.url)}">${esc(e.title || e.url)}</a><button class="host" data-site="${esc(host)}" title="Show only ${esc(host)}">${esc(host)}</button><button class="x" data-remove="${esc(e.url)}" aria-label="Remove from history" title="Remove from history">${x}</button></div>`;
+      return `<div class="entry${picked.has(e.url) ? ' picked' : ''}" data-entry="${esc(e.url)}"><input type="checkbox" class="pick" aria-label="Select" ${picked.has(e.url) ? 'checked' : ''}><span class="when">${esc(time)}</span><span class="fav">${esc((host[0] || '•').toUpperCase())}</span><a href="#" data-url="${esc(e.url)}" title="${esc(e.url)}">${esc(e.title || e.url)}</a><button class="host" data-site="${esc(host)}" title="Show only ${esc(host)}">${esc(host)}</button><button class="x" data-remove="${esc(e.url)}" aria-label="Remove from history" title="Remove from history">${x}</button></div>`;
     }).join('') + '</section>').join('') +
     (more ? '<button class="older" data-older>Show older days</button>' : '') ||
     `<div class="empty">${$('q').value || site ? 'Nothing matches. Try fewer words or clear the site filter.' : 'No history in this space yet. Pages you visit show up here.'}</div>`;
   sel = Math.min(sel, rows().length - 1);
+  syncBulk();
   mark();
   spy();
 }
@@ -150,6 +188,8 @@ let typing;
 $('q').addEventListener('input', () => { clearTimeout(typing); limit = PAGE; sel = -1; typing = setTimeout(load, 120); });
 $('site-clear').onclick = () => { site = ''; limit = PAGE; sel = -1; load(); };
 document.addEventListener('click', async (e) => {
+  const box = e.target.closest('.pick');
+  if (box) { e.preventDefault(); return pick(rows().indexOf(box.closest('.entry')), e.shiftKey); }
   const rm = e.target.closest('[data-remove]');
   if (rm) { await ask({ cmd: 'history.remove', url: rm.dataset.remove }); return load(); }
   const s = e.target.closest('[data-site]');
@@ -163,6 +203,7 @@ document.addEventListener('click', async (e) => {
 document.addEventListener('keydown', async (e) => {
   const inSearch = document.activeElement === $('q');
   if (e.key === '/' && !inSearch) { e.preventDefault(); $('q').focus(); $('q').select(); return; }
+  if (e.key === 'Escape' && picked.size) { picked.clear(); return syncBulk(); }
   if (e.key === 'Escape') {
     if (inSearch && $('q').value) { $('q').value = ''; limit = PAGE; return load(); }
     if (site) { site = ''; return load(); }
@@ -177,6 +218,7 @@ document.addEventListener('keydown', async (e) => {
     return mark(true);
   }
   if (sel < 0 || inSearch && e.key !== 'Enter') return;
+  if (e.key === ' ') { e.preventDefault(); pick(sel, e.shiftKey); return; }
   const url = rows()[sel].dataset.entry;
   if (e.key === 'Enter') { e.preventDefault(); ask({ cmd: 'open', text: url, newTab: e.metaKey || e.shiftKey }); }
   else if (e.key === 'Backspace' || e.key === 'Delete') { e.preventDefault(); await ask({ cmd: 'history.remove', url }); load(); }

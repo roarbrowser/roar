@@ -106,6 +106,8 @@ struct Settings {
   bool pinned_centered = false;  // Centers a short last row.
   // The CDP port, on by default; the sidebar's CDP indicator opens or closes it live.
   bool cdp_enabled = true;
+  // Which Roar the bundled MCP server (roar-mcp.sh) drives: this one, or a hidden one on 9444.
+  bool agent_headless = false;
   bool clean_links = true;  // Unwraps Safe Links and strips .mcas.ms from copied links (CleanLink).
 };
 

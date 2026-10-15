@@ -169,6 +169,7 @@ void State::Load() {
     settings.clean_links = Bool(s, "cleanLinks", true);
     // "cdpOpen", not 0.5.0's "cdpEnabled": that release saved false for everyone.
     settings.cdp_enabled = Bool(s, "cdpOpen", true);
+    settings.agent_headless = Bool(s, "agentHeadless", false);
   }
   if (auto z = d->GetDictionary("zoom")) {
     CefDictionaryValue::KeyList keys;
@@ -270,6 +271,7 @@ void State::Save() {
   s->SetBool("pinnedCentered", settings.pinned_centered);
   s->SetBool("cleanLinks", settings.clean_links);
   s->SetBool("cdpOpen", settings.cdp_enabled);
+  s->SetBool("agentHeadless", settings.agent_headless);
   d->SetDictionary("settings", s);
   auto zl = CefDictionaryValue::Create();
   for (const auto& [host, level] : zoom) zl->SetDouble(host, level);
