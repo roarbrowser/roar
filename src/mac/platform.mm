@@ -7,6 +7,7 @@
 #include <algorithm>
 #include <set>
 #include <fcntl.h>
+#import <UserNotifications/UserNotifications.h>
 #include <libproc.h>
 #include <netinet/in.h>
 #include <sys/file.h>
@@ -416,6 +417,30 @@ int CdpClientCount() {
   return static_cast<int>(clients.size() + peers.size());
 }
 
+void Notify(const std::string& title, const std::string& body) {
+  UNUserNotificationCenter* center = UNUserNotificationCenter.currentNotificationCenter;
+  NSString* t = NS(title);
+  NSString* b = NS(body);
+  [center requestAuthorizationWithOptions:UNAuthorizationOptionAlert | UNAuthorizationOptionSound
+                        completionHandler:^(BOOL granted, NSError*) {
+                          if (!granted) return;
+                          UNMutableNotificationContent* c = [[UNMutableNotificationContent alloc] init];
+                          c.title = t;
+                          c.body = b;
+                          c.sound = UNNotificationSound.defaultSound;
+                          [center addNotificationRequest:[UNNotificationRequest requestWithIdentifier:NSUUID.UUID.UUIDString
+                                                                                              content:c
+                                                                                              trigger:nil]
+                                   withCompletionHandler:nil];
+                        }];
+}
+
+void SetDockBadge(int count) {
+  NSApp.dockTile.badgeLabel = count > 0 ? [NSString stringWithFormat:@"%d", count] : nil;
+}
+
+bool AppActive() { return NSApp.isActive; }
+
 void RelaunchAfterExit() {
   // Instances and scratch runs come back as themselves.
   NSMutableString* env = [NSMutableString string];
@@ -792,7 +817,7 @@ void CheckForUpdates(void* window) {
       NSString* text = [NSString
           stringWithFormat:@"%@\n\nRoar rebuilds in the background%@ and relaunches itself when done. "
                            @"The log is at ~/Library/Logs/Roar-update.log.",
-                           out, codecs ? @" (compiling Chromium with video codecs takes hours)" : @""];
+                           out, codecs ? @" (the Chromium rebuild takes about 20 minutes)" : @""];
       show(@"Chromium update available", text, @[ @"Update", @"Later" ], ^(NSInteger choice) {
         if (choice != 0) return;
         NSString* log = [NSHomeDirectory() stringByAppendingPathComponent:@"Library/Logs/Roar-update.log"];

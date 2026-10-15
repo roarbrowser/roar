@@ -22,11 +22,15 @@ screenshots in the same browser, logins and all.
 claude mcp add roar -- /Applications/Roar.app/Contents/Resources/roar-mcp.sh
 ```
 
-Other clients take the same command as a stdio server. It needs Node.js (`npx`) and starts Roar
+Other clients take the same command as a stdio server. It needs Node.js 22+ and starts Roar
 if it isn't running. Settings > "Your AI agent drives Roar" picks which Roar agents get: this
 one, so you see what they do (the default), or a hidden headless Roar with its own profile
 (`~/.roar-headless`, port 9444) that the server starts on demand.
 
+- **Agents can reach you.** Two extra tools put cards in the sidebar: `notify_user` (info,
+  done, or needs-you, with an optional Open link) and `ask_user`, which shows buttons and hands
+  your click back to the agent. Needs-you cards also raise a macOS notification and a Dock
+  badge while Roar is in the background. Cards last for the session.
 - **Agent pages are real tabs.** `new_page` opens a tab in your active space's sidebar,
   not a stray window, so you can watch, take over, or close what the agent is doing.
 - **One click to cut it off.** The dot under the settings icon shows whether the CDP port is
@@ -100,7 +104,7 @@ nonce Roar issued to that tab.
 
 - Page-text search stores page text unencrypted in the data dir (mode 0600). Turn it off in Settings or run "Forget saved page text".
 - H.264 and AAC need a CEF built with proprietary codecs. The stock CEF that `scripts/build.sh` fetches plays WebM, VP9 and AV1 but not many `.mp4` sources;
-  `scripts/build-cef-codecs.sh` builds a CEF that does (hours of compiling and about 100 GB of disk).
+  `scripts/build-cef-codecs.sh` builds one that does, with Roar's Chromium patches (about 20 minutes once the source is checked out; the checkout needs about 100 GB).
 - The tab sound indicator follows `<audio>` and `<video>` elements on the page itself, not Web Audio or media inside cross-origin iframes.
 - Markdown extraction and Reader mode cover HTML pages; PDFs and Google Docs canvases are not handled.
 - The bundle is ad-hoc signed; the first AppleScript call triggers a macOS Automation

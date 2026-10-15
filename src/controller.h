@@ -285,6 +285,18 @@ class Controller {
   int ghost_session_ = 0;  // Names the Ghost-<n> profile of the current ghost session.
   int active_id_ = 0;
   std::set<int> stray_seen_;  // Browsers outside Roar whose first address was seen.
+  // Alerts agents sent through the MCP server (notify_user / ask_user), this session only.
+  struct AgentAlert {
+    int id = 0;
+    std::string title, body, level, url, agent;
+    std::vector<std::string> choices;
+    double time = 0;
+    CefRefPtr<Callback> answer;  // ask_user waits on this until the user picks.
+  };
+  std::vector<AgentAlert> agent_alerts_;
+  int next_alert_id_ = 1;
+  void ResolveAlert(int id, const std::string& result);
+  void SyncAlertBadge();
   bool cdp_on_ = false;                 // Whether the CDP HTTP port is listening now.
   void (*cdp_http_)(int port) = nullptr;  // Roar's CEF patch: opens (port) or closes (0) it live.
   void SetCdp(bool on);

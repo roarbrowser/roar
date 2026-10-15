@@ -7,7 +7,7 @@
 #
 # Which Roar: Settings > "Agents use" (agentHeadless in state.json). Headed (default)
 # drives your Roar on 9222; headless starts a hidden Roar with its own profile
-# (~/.roar-headless) on 9444. ROAR_CDP_PORT overrides both. Needs Node (npx).
+# (~/.roar-headless) on 9444. ROAR_CDP_PORT overrides both. Needs Node 22+.
 set -euo pipefail
 
 APP="$(cd "$(dirname "$0")/../.." && pwd)"
@@ -48,4 +48,5 @@ if ! up "$PORT"; then
   exit 1
 fi
 
-exec npx -y "$MCP_PKG" --browserUrl "http://127.0.0.1:$PORT"
+# roar-mcp.mjs adds the sidebar alert tools (notify_user, ask_user) on top.
+exec node "$(dirname "$0")/roar-mcp.mjs" "$PORT" "$MCP_PKG"

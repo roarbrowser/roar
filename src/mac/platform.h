@@ -22,6 +22,11 @@ bool CdpEnabled();
 void RelaunchAfterExit();
 // Open TCP connections to this process's CDP port: one per connected agent/CDP client.
 int CdpClientCount();
+// A macOS notification (asks for permission the first time).
+void Notify(const std::string& title, const std::string& body);
+// The Dock icon's badge; 0 clears it.
+void SetDockBadge(int count);
+bool AppActive();
 // Locks |dir| for this process and writes the CDP port to <dir>/cdp-port.
 // False when another Roar already runs from |dir|.
 bool ClaimInstance(const std::string& dir);

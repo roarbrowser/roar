@@ -1520,6 +1520,22 @@ void Controller::Forward() {
 }
 
 // Reloads every open, non-ghost tab in |space|.
+// Removes an alert; an ask_user waiting on it gets |result| ("" = dismissed).
+void Controller::ResolveAlert(int id, const std::string& result) {
+  auto it = std::find_if(agent_alerts_.begin(), agent_alerts_.end(), [&](const AgentAlert& a) { return a.id == id; });
+  if (it == agent_alerts_.end()) return;
+  if (it->answer) it->answer->Success(result.empty() ? "dismissed" : result);
+  agent_alerts_.erase(it);
+  SyncAlertBadge();
+  PushSidebar();
+}
+
+void Controller::SyncAlertBadge() {
+  int n = 0;
+  for (const auto& a : agent_alerts_) n += a.level == "needs_you";
+  platform::SetDockBadge(n);
+}
+
 // Opens or closes the CDP port without a relaunch (needs Roar's CEF patch;
 // without it the setting applies on the next launch).
 void Controller::SetCdp(bool on) {
@@ -2607,6 +2623,23 @@ std::string Controller::StateJson() {
     tabs->SetDictionary(shown++, d);
   }
   root->SetList("tabs", tabs);
+  auto alerts = CefListValue::Create();
+  for (const auto& a : agent_alerts_) {
+    auto d = CefDictionaryValue::Create();
+    d->SetInt("id", a.id);
+    d->SetString("title", a.title);
+    d->SetString("body", a.body);
+    d->SetString("level", a.level);
+    d->SetString("url", a.url);
+    d->SetString("agent", a.agent);
+    d->SetDouble("time", a.time);
+    auto choices = CefListValue::Create();
+    for (size_t i = 0; i < a.choices.size(); ++i) choices->SetString(i, a.choices[i]);
+    d->SetList("choices", choices);
+    d->SetBool("waiting", a.answer != nullptr);
+    alerts->SetDictionary(alerts->GetSize(), d);
+  }
+  root->SetList("alerts", alerts);
   auto spaces = CefListValue::Create();
   for (size_t i = 0; i < state.spaces.size(); ++i) {
     auto d = CefDictionaryValue::Create();
@@ -3282,6 +3315,38 @@ bool Controller::HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> 
   } else if (cmd == "downloads.clear") {
     std::erase_if(downloads_, [](const Download& d) { return d.done || d.canceled || d.failed; });
     PushSidebar();
+    callback->Success("");
+  } else if (cmd == "agent.notify") {
+    // From the bundled MCP server (roar-mcp), which evaluates this in the sidebar
+    // over CDP. ask_user ("wait") answers only when the user picks a choice.
+    AgentAlert a;
+    a.id = next_alert_id_++;
+    a.title = msg->GetString("title").ToString().substr(0, 200);
+    a.body = msg->GetString("body").ToString().substr(0, 2000);
+    a.level = msg->GetString("level").ToString();
+    if (a.level != "done" && a.level != "needs_you") a.level = "info";
+    a.url = msg->GetString("url").ToString();
+    a.agent = msg->GetString("agent").ToString().substr(0, 60);
+    if (auto list = msg->GetList("choices"))
+      for (size_t i = 0; i < list->GetSize() && i < 6; ++i) a.choices.push_back(list->GetString(i).ToString().substr(0, 60));
+    bool wait = msg->HasKey("wait") && msg->GetBool("wait");
+    if (wait) a.level = "needs_you";
+    if (a.title.empty()) a.title = wait ? "Your agent has a question" : "Message from your agent";
+    if (wait) a.answer = callback;
+    a.time = NowSeconds();
+    if (a.level == "needs_you" && !platform::AppActive())
+      platform::Notify((a.agent.empty() ? std::string("Agent") : a.agent) + ": " + a.title, a.body);
+    agent_alerts_.push_back(a);
+    SyncAlertBadge();
+    PushSidebar();
+    if (!wait) callback->Success(std::to_string(a.id));
+  } else if (cmd == "agent.answer") {
+    ResolveAlert(int_arg("id"), msg->GetString("choice").ToString());
+    callback->Success("");
+  } else if (cmd == "agent.clear") {
+    std::vector<int> ids;
+    for (const auto& a : agent_alerts_) ids.push_back(a.id);
+    for (int id : ids) ResolveAlert(id, "");
     callback->Success("");
   } else if (cmd == "cdp.clients") {
     callback->Success(std::to_string(cdp_on_ ? platform::CdpClientCount() : 0));

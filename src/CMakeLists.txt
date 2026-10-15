@@ -26,7 +26,7 @@ SET_EXECUTABLE_TARGET_PROPERTIES(${CEF_TARGET})
 add_dependencies(${CEF_TARGET} libcef_dll_wrapper)
 # Check for Updates runs scripts/update-cef.sh from this checkout.
 target_compile_definitions(${CEF_TARGET} PRIVATE ROAR_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
-target_link_libraries(${CEF_TARGET} libcef_dll_wrapper ${CEF_STANDARD_LIBS} "-framework Carbon" "-framework Security" "-framework QuartzCore" sqlite3)
+target_link_libraries(${CEF_TARGET} libcef_dll_wrapper ${CEF_STANDARD_LIBS} "-framework Carbon" "-framework Security" "-framework QuartzCore" "-framework UserNotifications" sqlite3)
 set_target_properties(${CEF_TARGET} PROPERTIES
   MACOSX_BUNDLE_INFO_PLIST "${ROAR_RES}/Info.plist.in"
   OUTPUT_NAME "Roar")
@@ -38,6 +38,7 @@ add_custom_command(TARGET ${CEF_TARGET} POST_BUILD
   COMMAND ${CMAKE_COMMAND} -E copy_directory "${ROAR_RES}/ui" "${CEF_APP}/Contents/Resources/ui"
   COMMAND ${CMAKE_COMMAND} -E copy "${ROAR_RES}/Roar.sdef" "${CEF_APP}/Contents/Resources/Roar.sdef"
   COMMAND ${CMAKE_COMMAND} -E copy "${ROAR_RES}/roar-mcp.sh" "${CEF_APP}/Contents/Resources/roar-mcp.sh"
+  COMMAND ${CMAKE_COMMAND} -E copy "${ROAR_RES}/roar-mcp.mjs" "${CEF_APP}/Contents/Resources/roar-mcp.mjs"
   COMMAND ${CMAKE_COMMAND} -E copy "${ROAR_RES}/roar.icns" "${CEF_APP}/Contents/Resources/roar.icns"
   VERBATIM)
 
