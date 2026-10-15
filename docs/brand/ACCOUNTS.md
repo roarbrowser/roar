@@ -15,7 +15,7 @@ the form; update this table when an account changes.
 | Google (Gmail) | roarbrowser@gmail.com | own password | active (2026-10-15) | Root account; recovery goes to the maintainer's notifications inbox. Signed in as the second Google account in the maintainer's Roar. |
 | GitHub | [github.com/roarbrowser](https://github.com/roarbrowser) (organization) | Roar organization | active (2026-10-15) | Display name Roar, lion avatar, tagline as description. Home for the `homebrew-roar` tap; the main repo is `roarbrowser/roar`. |
 | X | [@roarbrowser](https://x.com/roarbrowser) | roarbrowser@gmail.com | active (2026-10-15) | Name Roar, lion avatar, short bio from BRAND.md, link to the repo. No posts yet. |
-| Product Hunt | roarbrowser (target) | — | todo | Launch day: 12:01 am Pacific. |
+| Product Hunt | [producthunt.com/@roarbrowser](https://www.producthunt.com/@roarbrowser) | sign in with X (@roarbrowser) | active (2026-10-14) | Name Roar, lion avatar, headline "Open-source browser your AI can drive"; newsletters off. PH holds X OAuth write access; revoke in X settings › Connected apps if unused. Launch day: 12:01 am Pacific. |
 | Reddit | u/roarbrowser (target) | — | todo | New accounts get filtered; launch posts go from the maintainer's own account. |
 | Hacker News | roarbrowser (target) | — | todo | Same: Show HN from the maintainer's established account. |
 

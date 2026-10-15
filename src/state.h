@@ -63,6 +63,7 @@ struct Space {
   std::string name;
   std::string color;  // CSS color for the space dot and accent; empty uses the default.
   std::vector<std::string> pinned_extensions;  // Extension ids shown in the sidebar.
+  bool agents = true;  // CDP clients (agents) may see and open this space's tabs.
 };
 
 // Visible text of a page, kept for full-text search in the command bar.

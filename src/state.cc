@@ -183,6 +183,7 @@ void State::Load() {
       spaces.push_back({static_cast<int>(Num(sp, "id")), Str(sp, "name", "Space"), Str(sp, "color", ""), {}});
       if (auto pins = sp->GetList("pinnedExtensions"))
         for (size_t j = 0; j < pins->GetSize(); ++j) spaces.back().pinned_extensions.push_back(pins->GetString(j));
+      spaces.back().agents = Bool(sp, "agents", true);
     }
   }
   active_space = static_cast<int>(Num(d, "activeSpace"));
@@ -282,6 +283,7 @@ void State::Save() {
     sp->SetInt("id", spaces[i].id);
     sp->SetString("name", spaces[i].name);
     sp->SetString("color", spaces[i].color);
+    sp->SetBool("agents", spaces[i].agents);
     auto pins = CefListValue::Create();
     for (size_t j = 0; j < spaces[i].pinned_extensions.size(); ++j) pins->SetString(j, spaces[i].pinned_extensions[j]);
     sp->SetList("pinnedExtensions", pins);
