@@ -218,6 +218,8 @@ class Controller {
   bool CanCloseTabWindow(CefRefPtr<CefWindow> window);
   void OnTabWindowCreated(CefRefPtr<CefWindow> window);
   void OnTabWindowActivated(CefRefPtr<CefWindow> window);
+  void OnTabWindowMoved(CefRefPtr<CefWindow> window, const CefRect& bounds);
+  void SnapTabWindow(int id);
   // Fails closed: a browser Roar can't place in the global or a space
   // profile (a ghost tab's popup, say) counts as ghost.
   bool IsGhostBrowser(CefRefPtr<CefBrowser> browser);

@@ -393,6 +393,9 @@ class TabWindowDelegate : public CefWindowDelegate {
   void OnWindowActivationChanged(CefRefPtr<CefWindow> window, bool active) override {
     if (active) Controller::Get()->OnTabWindowActivated(window);
   }
+  void OnWindowBoundsChanged(CefRefPtr<CefWindow> window, const CefRect& bounds) override {
+    Controller::Get()->OnTabWindowMoved(window, bounds);
+  }
   CefRect GetInitialBounds(CefRefPtr<CefWindow> window) override { return bounds_; }
   bool IsFrameless(CefRefPtr<CefWindow> window) override { return true; }
   bool WithStandardWindowButtons(CefRefPtr<CefWindow> window) override { return false; }
@@ -1098,6 +1101,20 @@ void Controller::OnTabWindowCreated(CefRefPtr<CefWindow> window) {
   window->Show();
   platform::AttachChild(shell_->GetWindowHandle(), window->GetWindowHandle());
   if (tab->id == active_id_) FocusTab(tab);
+}
+
+// A page may move or resize a popup it opened (window.moveTo/resizeTo; Outlook's
+// pop-out compose does); a docked tab snaps back to its slot.
+void Controller::OnTabWindowMoved(CefRefPtr<CefWindow> window, const CefRect& bounds) {
+  Tab* tab = FindTabByWindow(window);
+  if (!tab || tab->floating || !IsVisible(tab->id) || !shell_) return;
+  CefRect want = RectFor(tab->id);
+  if (bounds == want) return;
+  CefPostTask(TID_UI, base::BindOnce([](int id) { Controller::Get()->SnapTabWindow(id); }, tab->id));
+}
+
+void Controller::SnapTabWindow(int id) {
+  if (Tab* t = FindTab(id); t && t->window && !t->floating && IsVisible(id)) t->window->SetBounds(RectFor(id));
 }
 
 // Clicking into the other split pane makes that tab the active one.
