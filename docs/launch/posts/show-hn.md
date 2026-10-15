@@ -24,7 +24,7 @@ How it works:
 - You can choose headed (agents use this window) or headless (a hidden Roar with its own profile, started on demand).
 - Roar reports the Google Chrome brand and a real window frame, and doesn't run polling scripts in pages, so it trips fewer bot checks than typical automation setups.
 
-Other bits: separate profiles per space, Chrome extensions (uBlock Origin Lite bundled), reader mode, copy page as Markdown, import from Arc, Chrome, Edge, Firefox, Safari and Dia.
+Other bits: separate profiles per space, Chrome extensions (uBlock Origin Lite bundled), reader mode, copy page as Markdown, import from Arc, Chrome, Edge, Firefox and Safari.
 
 What's rough:
 
@@ -37,5 +37,5 @@ I'd like feedback on the agent side most: what you'd want an agent to be able to
 
 ## Prepared replies
 
-**"How is this different from Dia?"**
-Dia is a good browser with AI built in by The Browser Company. Roar goes the other way: we don't need a browser company to build a browser. It's open source (MIT), and the AI is whatever agent you already run (Claude, Cursor, anything that speaks MCP), driving the same browser you're logged into.
+**"How is this different from the AI browsers?"**
+Roar goes the other way: we don't need a browser company to build a browser. It's open source (MIT), and the AI is whatever agent you already run (Claude, Cursor, anything that speaks MCP), driving the same browser you're logged into.

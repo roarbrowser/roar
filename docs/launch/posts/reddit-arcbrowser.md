@@ -10,7 +10,7 @@ I made an open-source sidebar browser for Mac while looking for my own Arc repla
 
 Disclosure: I'm the developer. It's free and MIT licensed.
 
-With Arc in maintenance mode I wanted something that kept the parts I used daily, and I wanted the source to be open so it can't be shelved. Arc was a great browser and Dia is The Browser Company's take on an AI browser; Roar is a smaller, different project, not a clone of either.
+With Arc in maintenance mode I wanted something that kept the parts I used daily, and I wanted the source to be open so it can't be shelved. Arc was a great browser; Roar is a smaller, different project, not a clone of it.
 
 What's there today:
 
@@ -19,7 +19,7 @@ What's there today:
 - Command bar (⌘T), reader mode (⌥⌘R), copy page as Markdown
 - Auto-archive of old tabs (6h/12h/1d/1w), picture-in-picture and floating mini window
 - Chrome extensions work; uBlock Origin Lite is bundled
-- Imports your Arc spaces, pinned tabs and folders on first launch (also Chrome, Edge, Firefox, Safari and Dia)
+- Imports your Arc spaces, pinned tabs and folders on first launch (also Chrome, Edge, Firefox, and Safari)
 - Built on Chromium 154, so sites behave like they do in Chrome
 
 The other half: it has a built-in MCP server, so an AI agent (Claude, Cursor, etc.) can drive the browser in tabs you can see, and you can cut it off with one click. Ignore that entirely if you don't use agents.

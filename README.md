@@ -24,7 +24,7 @@
 | Split view, a command bar and Reader mode | Pages it opens appear as tabs you can watch or take over |
 | Tabs that archive themselves when you stop using them | A way to ask you a question or ping you when it's done |
 | Chrome extensions, with uBlock Origin Lite built in | Only the spaces you allow; ghost tabs are always off-limits |
-| Import from Arc, Chrome, Safari, Firefox, Edge or Dia | Chrome's look to sites, so fewer bot checks |
+| Import from Arc, Chrome, Safari, Firefox or Edge | Chrome's look to sites, so fewer bot checks |
 
 ## Install
 

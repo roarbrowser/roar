@@ -40,7 +40,7 @@ Roar speaks as the product, written by a solo maker who builds it in the open.
 - **First person for the maker** in launch posts and replies ("I built Roar because…");
   "Roar" in product copy.
 - **Honest about limits:** macOS only, early, unsigned until notarization lands.
-- **Fair to other browsers.** Arc and Dia get credit for what they do; comparisons are
+- **Fair to other browsers.** Arc gets credit for what it does; never name Dia in public copy (the "browser company" line makes the point). Comparisons are
   dated and factual.
 - **Sentence case** everywhere; no emoji runs; one lion emoji at most, rarely.
 - **Lion flavor, lightly:** an occasional "roar" pun is fine; never in error messages

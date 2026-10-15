@@ -27,12 +27,12 @@ You stay in control. Each space has its own switch for agents, and a dot in the 
 It's also a browser I use all day: spaces with separate profiles, pinned tabs, tab groups, split view, command bar, reader mode, page to Markdown, Chrome extensions with uBlock Origin Lite.
 
 7/
-Import from Arc (spaces, pinned tabs, folders), Chrome, Edge, Firefox, Safari and Dia.
+Import from Arc (spaces, pinned tabs, folders), Chrome, Edge, Firefox, and Safari.
 
 Built on CEF / Chromium 154. macOS only, early.
 
 8/
-Dia is great. But we don't need a browser company to build a browser.
+We don't need a browser company to build a browser.
 
 Roar is open source, and the AI is whatever agent you already use.
 
