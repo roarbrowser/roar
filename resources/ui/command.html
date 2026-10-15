@@ -234,10 +234,10 @@ $('list').addEventListener('mousedown', (e) => {
 window.addEventListener('blur', () => setTimeout(() => { if (!document.hasFocus()) ask({ cmd: 'commandbar.hide' }); }, 120));
 
 window.roar = {
-  open(isNewTab, url) {
+  open(isNewTab, url, ghost) {
     newTab = isNewTab;
     submenu = null;
-    q.placeholder = 'Search, enter an address, or type > for commands';
+    q.placeholder = ghost ? 'New ghost tab: search or enter an address' : 'Search, enter an address, or type > for commands';
     q.value = url || '';
     q.focus();
     q.select();

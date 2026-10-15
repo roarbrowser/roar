@@ -122,7 +122,7 @@ class Controller {
   int active_id() const { return active_id_; }
 
   // Commands.
-  void ShowCommandBar(bool new_tab);
+  void ShowCommandBar(bool new_tab, bool ghost = false);
   void HideCommandBar();
   void CleanTabs();
   void ClearArchive();

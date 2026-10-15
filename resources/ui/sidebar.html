@@ -487,8 +487,11 @@ document.addEventListener('contextmenu', (e) => {
   const head = e.target.closest('[data-group-head]');
   if (head && state) { e.preventDefault(); return groupMenu(+head.dataset.groupHead, e); }
   const tab = e.target.closest('[data-id]');
-  if (!tab || !state) return;
+  if (!state) return;
+  // Text fields keep Chromium's own menu (copy, paste, spelling).
+  if (!tab && e.target.closest('input, textarea, [contenteditable]')) return;
   e.preventDefault();
+  if (!tab) return sidebarMenu(e);
   const t = state.tabs.find((t) => t.id === +tab.dataset.id);
   if (t) tabMenu(t, e);
 });
@@ -563,13 +566,30 @@ function tabMenu(t, e) {
     <button data-act="new">New group…</button>
     ${groups.filter((g) => g.id !== t.group).map((g) => `<button data-act="move" data-g="${g.id}">${dot(g.color)}${esc(g.name)}</button>`).join('')}
     ${t.group ? '<button data-act="ungroup">Remove from group</button>' : ''}
-    <hr><button data-act="close">Close tab</button>`, e, (act, d) => {
-    if (act === 'pin' || act === 'unpin') ask({ cmd: 'tab.pin', id: t.id, pinned: act === 'pin' });
+    ${!t.ghost && state.spaces.length > 1 ? `<hr><div class="head">Move to space</div>${state.spaces.filter((sp) => sp.id !== state.activeSpace).map((sp) => `<button data-act="space" data-s="${sp.id}">${dot(sp.color)}${esc(sp.name)}</button>`).join('')}` : ''}
+    <hr>${t.floating ? '' : '<button data-act="float">Open in floating window</button>'}
+    <button data-act="close">Close tab</button>`, e, (act, d) => {
+    if (act === 'space') ask({ cmd: 'tab.space', id: t.id, space: +d.s });
+    else if (act === 'float') ask({ cmd: 'tab.float', id: t.id });
+    else if (act === 'pin' || act === 'unpin') ask({ cmd: 'tab.pin', id: t.id, pinned: act === 'pin' });
     else if (act === 'icon') return iconMenu(t, e);
     else if (act === 'move') ask({ cmd: 'tab.group', id: t.id, group: +d.g });
     else if (act === 'ungroup') ask({ cmd: 'tab.group', id: t.id, group: 0 });
     else if (act === 'close') ask({ cmd: 'tab.close', id: t.id });
     else if (act === 'new') return nameMenu('', e, (name) => ask({ cmd: 'group.create', name, color: COLORS[1 + (groups.length % (COLORS.length - 1))], tab: t.id }));
+    hideCtx();
+  });
+}
+// Right-click on empty sidebar space.
+function sidebarMenu(e) {
+  const others = state.spaces.filter((sp) => sp.id !== state.activeSpace);
+  showCtx(`<button data-act="newTab">New tab</button>
+    <button data-act="newGhostTab">New ghost tab</button>
+    <button data-act="newInstance">New window</button>
+    ${others.length ? `<hr><div class="head">Switch to space</div>${others.map((sp) => `<button data-act="space" data-s="${sp.id}">${dot(sp.color)}${esc(sp.name)}</button>`).join('')}` : '<hr>'}
+    <button data-act="newSpace">New space</button>`, e, (act, d) => {
+    if (act === 'space') ask({ cmd: 'space.switch', id: +d.s });
+    else ask({ cmd: 'run', id: act });
     hideCtx();
   });
 }

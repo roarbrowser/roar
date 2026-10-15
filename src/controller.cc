@@ -1366,12 +1366,11 @@ bool Controller::IsUiBrowser(CefRefPtr<CefBrowser> browser) const {
 // ---------------------------------------------------------------------------
 // Commands
 
-void Controller::ShowCommandBar(bool new_tab) {
+void Controller::ShowCommandBar(bool new_tab, bool ghost) {
   if (!command_window_) return;
   command_new_tab_ = new_tab;
-  // Cmd-T from a ghost tab opens another ghost tab, never a regular one.
-  Tab* active = ActiveTab();
-  command_ghost_ = new_tab && active && active->ghost;
+  // While any ghost tab is open, a new tab is a ghost too.
+  command_ghost_ = new_tab && (ghost || std::any_of(tabs_.begin(), tabs_.end(), [](const Tab& t) { return t.ghost; }));
   command_visible_ = true;
   Relayout();
   std::string url;
@@ -1382,7 +1381,7 @@ void Controller::ShowCommandBar(bool new_tab) {
   if (auto browser = command_bar_->GetBrowser()) {
     browser->GetMainFrame()->ExecuteJavaScript(
         "window.roar && roar.open(" + std::string(new_tab ? "true" : "false") + "," +
-            JsString(url) + ")",
+            JsString(url) + "," + (command_ghost_ ? "true" : "false") + ")",
         "", 0);
     command_bar_->RequestFocus();
     browser->GetHost()->SetFocus(true);
@@ -2124,7 +2123,7 @@ void Controller::RunCommand(const std::string& id) {
   }
   else if (StartsWith(id, "extension:")) NewTab("chrome://extensions/?id=" + id.substr(10), true);
   else if (id == "newTab") ShowCommandBar(true);
-  else if (id == "newGhostTab") ShowCommandBar(true), command_ghost_ = true;
+  else if (id == "newGhostTab") ShowCommandBar(true, true);
   else if (id == "closeTab") CloseActiveUnlessKept();
   else if (StartsWith(id, "restore:")) RestoreArchived(std::atoi(id.c_str() + 8));
   else if (id == "closeSpaceTabs" || StartsWith(id, "closeSpaceTabs:")) {
@@ -3134,7 +3133,7 @@ bool Controller::HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> 
   } else if (cmd == "open") {
     std::string url = ResolveInput(msg->GetString("text"));
     bool new_tab = msg->HasKey("newTab") ? msg->GetBool("newTab") : command_new_tab_;
-    // Only the command bar opened by New Ghost Tab makes one.
+    // Only the command bar opened as a ghost new tab makes one.
     auto bar = command_bar_ ? command_bar_->GetBrowser() : nullptr;
     bool ghost = new_tab && command_ghost_ && bar && bar->IsSame(browser);
     command_ghost_ = false;
@@ -3295,6 +3294,21 @@ bool Controller::HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> 
     callback->Success("");
   } else if (cmd == "tab.pin") {
     SetPinned(int_arg("id"), msg->GetBool("pinned"));
+    callback->Success("");
+  } else if (cmd == "tab.space") {
+    // Another space is another profile, so the page reopens there (with that space's logins).
+    Tab* t = FindTab(int_arg("id"));
+    int space = int_arg("space");
+    if (t && !t->ghost && t->space != space && State::Get().FindSpace(space)) {
+      int id = t->id;
+      NewTab(t->url, false, t->pinned, t->last_active, space);
+      CloseTab(id);
+    }
+    callback->Success("");
+  } else if (cmd == "tab.float") {
+    // Floating works on the active tab.
+    ActivateTab(int_arg("id"));
+    FloatActiveTab();
     callback->Success("");
   } else if (cmd == "tab.move") {
     // Reorders pinned tiles: puts the tab before `before`, or last among pinned when 0.
