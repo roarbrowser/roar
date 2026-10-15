@@ -167,7 +167,8 @@ void State::Load() {
     settings.pinned_columns = static_cast<int>(Num(s, "pinnedColumns", 0));
     settings.pinned_centered = Bool(s, "pinnedCentered", false);
     settings.clean_links = Bool(s, "cleanLinks", true);
-    settings.cdp_enabled = Bool(s, "cdpEnabled", true);
+    // "cdpOpen", not 0.5.0's "cdpEnabled": that release saved false for everyone.
+    settings.cdp_enabled = Bool(s, "cdpOpen", true);
   }
   if (auto z = d->GetDictionary("zoom")) {
     CefDictionaryValue::KeyList keys;
@@ -268,7 +269,7 @@ void State::Save() {
   s->SetInt("pinnedColumns", settings.pinned_columns);
   s->SetBool("pinnedCentered", settings.pinned_centered);
   s->SetBool("cleanLinks", settings.clean_links);
-  s->SetBool("cdpEnabled", settings.cdp_enabled);
+  s->SetBool("cdpOpen", settings.cdp_enabled);
   d->SetDictionary("settings", s);
   auto zl = CefDictionaryValue::Create();
   for (const auto& [host, level] : zoom) zl->SetDouble(host, level);
