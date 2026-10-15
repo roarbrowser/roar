@@ -8,6 +8,7 @@
 #include <set>
 #include <fcntl.h>
 #import <UserNotifications/UserNotifications.h>
+#import <Sparkle/Sparkle.h>
 #include <libproc.h>
 #include <netinet/in.h>
 #include <sys/file.h>
@@ -23,12 +24,24 @@
 #include "controller.h"
 #include "state.h"
 
-@interface RoarMenuTarget : NSObject <NSMenuDelegate>
+@interface RoarMenuTarget : NSObject <NSMenuDelegate, SPUUpdaterDelegate>
 @property(nonatomic, strong) NSArray<NSString*>* commands;
 - (void)run:(NSMenuItem*)sender;
 @end
 
 @implementation RoarMenuTarget
+// ROAR_SPARKLE_FEED points a ROAR_SPARKLE_TEST=1 scratch instance at a local appcast.
+- (NSString*)feedURLStringForUpdater:(SPUUpdater*)updater {
+  const char* feed = getenv("ROAR_SPARKLE_FEED");
+  const char* test = getenv("ROAR_SPARKLE_TEST");
+  return feed && test && !strcmp(test, "1") ? @(feed) : nil;
+}
+- (void)updater:(SPUUpdater*)updater didFindValidUpdate:(SUAppcastItem*)item {
+  if (getenv("ROAR_SPARKLE_TEST")) fprintf(stderr, "sparkle: found update %s\n", item.displayVersionString.UTF8String);
+}
+- (void)updaterDidNotFindUpdate:(SPUUpdater*)updater {
+  if (getenv("ROAR_SPARKLE_TEST")) fprintf(stderr, "sparkle: no update\n");
+}
 - (void)run:(NSMenuItem*)sender {
   NSString* command = self.commands[sender.tag];
   roar::Controller::Get()->RunCommand(command.UTF8String);
@@ -199,6 +212,7 @@ namespace roar::platform {
 namespace {
 
 RoarMenuTarget* g_menu_target = nil;
+SPUStandardUpdaterController* g_updater = nil;
 
 NSString* NS(const std::string& s) { return [NSString stringWithUTF8String:s.c_str()]; }
 
@@ -508,6 +522,15 @@ void HideApp() { [NSApp hide:nil]; }
 
 void InstallMenu() {
   g_menu_target = [[RoarMenuTarget alloc] init];
+  {
+    // Scratch/test instances and headless Roar never check, unless ROAR_SPARKLE_TEST=1.
+    const char* test = getenv("ROAR_SPARKLE_TEST");
+    bool on = (test && !strcmp(test, "1")) || !(getenv("ROAR_DATA_DIR") || getenv("ROAR_CDP_PORT") || Headless());
+    if (on)
+      g_updater = [[SPUStandardUpdaterController alloc] initWithStartingUpdater:YES
+                                                                updaterDelegate:g_menu_target
+                                                             userDriverDelegate:nil];
+  }
   NSMutableArray<NSString*>* commands = [NSMutableArray array];
   NSMenu* bar = [[NSMenu alloc] init];
 
@@ -531,6 +554,7 @@ void InstallMenu() {
   [app addItemWithTitle:@"About Roar" action:@selector(orderFrontStandardAboutPanel:) keyEquivalent:@""];
   [app addItem:[NSMenuItem separatorItem]];
   addCommand(app, @"Check for Updates…", @"checkUpdates", @"");
+  addCommand(app, @"Update Chromium…", @"updateChromium", @"");
   addCommand(app, @"New Instance", @"newInstance", @"");
   {
     std::string name = InstanceName();
@@ -775,7 +799,14 @@ void CopyText(const std::string& text) {
   [pb setString:NS(text) forType:NSPasteboardTypeString];
 }
 
-void CheckForUpdates(void* window) {
+void CheckForUpdates() {
+  // Test mode checks without UI so a scratch instance never takes the front.
+  if (g_updater && getenv("ROAR_SPARKLE_TEST")) [g_updater.updater checkForUpdateInformation];
+  else if (g_updater) [g_updater checkForUpdates:nil];
+  else NSBeep();
+}
+
+void UpdateChromium(void* window) {
   NSString* root = @ROAR_SOURCE_DIR;
   NSWindow* win = Win(window) ?: NSApp.keyWindow;
   auto show = ^(NSString* title, NSString* text, NSArray<NSString*>* buttons, void (^done)(NSInteger)) {

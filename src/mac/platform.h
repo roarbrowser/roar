@@ -68,7 +68,9 @@ void CopyText(const std::string& text);
 // not called if the sheet is cancelled.
 // Checks for a newer CEF and, if confirmed, rebuilds and redeploys Roar in the
 // background (scripts/update-cef.sh then scripts/deploy.sh).
-void CheckForUpdates(void* window);
+void UpdateChromium(void* window);
+// Sparkle: checks the appcast for a newer Roar release and shows its update UI.
+void CheckForUpdates();
 void ChooseLookback(void* window, const std::string& what, std::function<void(double since)> done);
 // A path in ~/Downloads for |name| that doesn't exist yet ("name (1).ext" and so on).
 std::string UniqueDownloadPath(const std::string& name);

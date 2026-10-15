@@ -23,6 +23,9 @@
   <key>NSMicrophoneUsageDescription</key><string>Websites you allow can use the microphone.</string>
   <key>NSLocationUsageDescription</key><string>Websites you allow can use your location.</string>
   <key>NSLocationWhenInUseUsageDescription</key><string>Websites you allow can use your location.</string>
+  <key>SUFeedURL</key><string>https://raw.githubusercontent.com/roarbrowser/roar/main/appcast.xml</string>
+  <key>SUPublicEDKey</key><string>dTKkB+OrdfD/zFbY1cIwwhY5K7nQdBZ3WO/Qdng8tyw=</string>
+  <key>SUEnableAutomaticChecks</key><true/>
   <key>CFBundleURLTypes</key>
   <array>
     <dict>

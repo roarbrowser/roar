@@ -25,9 +25,11 @@ set(ROAR_RES "${CMAKE_SOURCE_DIR}/resources")
 add_executable(${CEF_TARGET} MACOSX_BUNDLE ${ROAR_SRCS})
 SET_EXECUTABLE_TARGET_PROPERTIES(${CEF_TARGET})
 add_dependencies(${CEF_TARGET} libcef_dll_wrapper)
-# Check for Updates runs scripts/update-cef.sh from this checkout.
+# Update Chromium runs scripts/update-cef.sh from this checkout.
 target_compile_definitions(${CEF_TARGET} PRIVATE ROAR_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
-target_link_libraries(${CEF_TARGET} libcef_dll_wrapper ${CEF_STANDARD_LIBS} "-framework Carbon" "-framework Security" "-framework QuartzCore" "-framework UserNotifications" sqlite3)
+target_link_libraries(${CEF_TARGET} libcef_dll_wrapper ${CEF_STANDARD_LIBS} "-framework Carbon" "-framework Security" "-framework QuartzCore" "-framework UserNotifications" sqlite3
+  "-F${CMAKE_SOURCE_DIR}/third_party/Sparkle" "-framework Sparkle" "-Wl,-rpath,@executable_path/../Frameworks")
+target_compile_options(${CEF_TARGET} PRIVATE "-F${CMAKE_SOURCE_DIR}/third_party/Sparkle")
 set_target_properties(${CEF_TARGET} PROPERTIES
   MACOSX_BUNDLE_INFO_PLIST "${ROAR_RES}/Info.plist.in"
   OUTPUT_NAME "Roar")
@@ -36,6 +38,8 @@ add_custom_command(TARGET ${CEF_TARGET} POST_BUILD
   COMMAND ${CMAKE_COMMAND} -E copy_directory
           "${CEF_BINARY_DIR}/Chromium Embedded Framework.framework"
           "${CEF_APP}/Contents/Frameworks/Chromium Embedded Framework.framework"
+  COMMAND rm -rf "${CEF_APP}/Contents/Frameworks/Sparkle.framework"
+  COMMAND ditto "${CMAKE_SOURCE_DIR}/third_party/Sparkle/Sparkle.framework" "${CEF_APP}/Contents/Frameworks/Sparkle.framework"
   COMMAND ${CMAKE_COMMAND} -E copy_directory "${ROAR_RES}/ui" "${CEF_APP}/Contents/Resources/ui"
   COMMAND ${CMAKE_COMMAND} -E copy "${ROAR_RES}/Roar.sdef" "${CEF_APP}/Contents/Resources/Roar.sdef"
   COMMAND ${CMAKE_COMMAND} -E copy "${ROAR_RES}/roar-mcp.sh" "${CEF_APP}/Contents/Resources/roar-mcp.sh"

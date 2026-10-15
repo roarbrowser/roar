@@ -42,7 +42,22 @@ else
 fi
 SHA="$(shasum -a 256 "$DMG" | cut -d' ' -f1)"
 
-git add "$PLIST"
+# Sparkle appcast entry; sign_update reads the EdDSA private key from the login keychain.
+SIG="$(third_party/Sparkle/bin/sign_update "$DMG")"   # sparkle:edSignature="..." length="..."
+ITEM="    <item>
+      <title>$VERSION</title>
+      <pubDate>$(LC_ALL=C date -u '+%a, %d %b %Y %H:%M:%S +0000')</pubDate>
+      <sparkle:version>$VERSION</sparkle:version>
+      <sparkle:shortVersionString>$VERSION</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[${NOTES//]]>/]]]]><![CDATA[>}]]></description>
+      <enclosure url=\"https://github.com/roarbrowser/roar/releases/download/$TAG/Roar-$VERSION.dmg\" type=\"application/octet-stream\" $SIG/>
+    </item>"
+ITEM="$ITEM" perl -0pi -e 's|(\s*</channel>)|\n$ENV{ITEM}$1|' appcast.xml
+# The Homebrew cask (packaging/homebrew/roar.rb) pins this version and checksum.
+sed -i '' -E "s|^  version \"[^\"]*\"|  version \"$VERSION\"|; s|^  sha256 \"[^\"]*\"|  sha256 \"$SHA\"|" packaging/homebrew/roar.rb
+
+git add "$PLIST" appcast.xml packaging/homebrew/roar.rb
 git commit -q -m "Release $VERSION"
 git tag "$TAG"
 git push -q origin HEAD "$TAG"
@@ -56,5 +71,3 @@ The app is not notarized. On first launch, right-click Roar → Open, or run \`x
 $BODY"
 gh release create "$TAG" "$DMG" --title "Roar $VERSION" --notes "$BODY"
 echo "released $TAG (sha256 $SHA)"
-# The Homebrew cask (packaging/homebrew/roar.rb) pins this version and checksum.
-sed -i '' -E "s|^  version \"[^\"]*\"|  version \"$VERSION\"|; s|^  sha256 \"[^\"]*\"|  sha256 \"$SHA\"|" packaging/homebrew/roar.rb

@@ -5,6 +5,7 @@ ROOT="${ROAR_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}"
 BUILD="${ROAR_BUILD_DIR:-$ROOT/build}"
 "$ROOT/scripts/fetch-cef.sh"
 "$ROOT/scripts/fetch-ubol.sh"
+"$ROOT/scripts/fetch-sparkle.sh"
 cmake -S "$ROOT" -B "$BUILD" -G Ninja -DCMAKE_BUILD_TYPE=Release
 cmake --build "$BUILD" --target roar
 # The post-build copy only runs when the binary relinks; refresh resources every time.
@@ -16,6 +17,8 @@ rm -rf "$RES/extensions"
 mkdir -p "$RES/extensions"
 cp -R "$ROOT/third_party/ubol" "$RES/extensions/ubol"
 cp "$ROOT/resources/Roar.sdef" "$ROOT/resources/roar.icns" "$RES/"
+rm -rf "$RES/../Frameworks/Sparkle.framework"
+ditto "$ROOT/third_party/Sparkle/Sparkle.framework" "$RES/../Frameworks/Sparkle.framework"
 # Ad-hoc signatures change every build, so macOS forgets privacy grants
 # (Screen Recording loops on "Quit & Reopen"). Use a stable identity when one exists.
 # A Developer ID identity (needed for notarized releases) wins over Apple Development;
