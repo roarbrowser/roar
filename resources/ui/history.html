@@ -33,6 +33,16 @@ input:focus { outline: 2px solid var(--mane); outline-offset: -1px; }
 
 .day { position: sticky; top: 72px; z-index: 1; background: var(--panel); color: var(--ink); font: 700 14px var(--round); padding: 16px 6px 6px; scroll-margin-top: 72px; }
 .day span { color: var(--ink-3); font: 500 12px var(--ui); margin-left: 8px; }
+.group-toggle { flex: none; padding: 5px 10px; border-radius: 8px; font: 500 12.5px var(--ui); color: var(--ink-2); }
+.group-toggle:hover { background: var(--hover); color: var(--ink); }
+.group-toggle[aria-pressed="true"] { background: var(--mane-soft); color: var(--mane-ink); font-weight: 600; }
+.sitehead { display: flex; align-items: center; gap: 8px; margin: 10px 0 2px; padding: 4px 6px; font: 600 13px var(--ui); color: var(--ink); }
+.sitehead .fav { width: 16px; height: 16px; flex: none; border-radius: 4px; display: grid; place-items: center; background: var(--rule); color: var(--ink-2); font: 700 9.5px var(--round); }
+.sitehead .host { padding: 2px 4px; border-radius: 5px; font: inherit; color: inherit; }
+.sitehead .host:hover { background: var(--rule); }
+.grouped .entry .host { display: none; }
+.sitehead span:last-child { color: var(--ink-3); font-weight: 500; font-size: 12px; }
+.grouped .entry { padding-left: 22px; }
 .entry { display: flex; align-items: center; gap: 10px; height: 34px; padding: 0 6px; border-radius: 7px; }
 .entry:hover, .entry.sel { background: var(--hover); }
 .entry.sel { box-shadow: inset 2px 0 0 var(--mane); }
@@ -46,7 +56,7 @@ input:focus { outline: 2px solid var(--mane); outline-offset: -1px; }
 .entry:hover .x, .entry.sel .x { visibility: visible; }
 .entry .x:hover { background: var(--rule); color: var(--ink); }
 .empty { color: var(--ink-3); padding: 24px 6px; }
-.pick { width: 15px; height: 15px; flex: none; margin: 0; accent-color: var(--mane); opacity: 0; }
+.pick { width: 15px; height: 15px; min-width: 0; padding: 0; flex: none; margin: 0; accent-color: var(--mane); opacity: 0; }
 .entry:hover .pick, .entry.sel .pick, .pick:checked, .picking .pick { opacity: 1; }
 .entry.picked { background: var(--mane-soft); }
 .bulk { display: none; width: 100%; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 8px; background: var(--ground); font-size: 12.5px; color: var(--ink-2); }
@@ -77,9 +87,10 @@ button:focus-visible, a:focus-visible { outline: 2px solid var(--mane); outline-
   <main>
     <div class="find">
       <input id="q" type="search" autocomplete="off" placeholder="Search titles and addresses" aria-label="Search history">
+      <button class="group-toggle" id="group" aria-pressed="false" title="Group each day's pages by site">Group by site</button>
       <span class="site" id="site"><span id="site-name"></span><button id="site-clear" aria-label="Show every site" title="Show every site"><svg viewBox="0 0 12 12" width="9" height="9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="m3 3 6 6M9 3l-6 6"/></svg></button></span>
       <div class="bulk" id="bulk"><span class="count" id="bulk-count"></span><button class="primary" id="bulk-open">Open in new tabs</button><button id="bulk-remove">Remove</button><button id="bulk-clear">Clear</button></div>
-      <div class="keys"><kbd>/</kbd> search · <kbd>↑</kbd><kbd>↓</kbd> move · <kbd>↩</kbd> open · <kbd>⌘↩</kbd> new tab · <kbd>⌫</kbd> remove · <kbd>space</kbd> select · shift-click selects a range · click a site to see only it</div>
+      <div class="keys"><kbd>/</kbd> search · <kbd>↑</kbd><kbd>↓</kbd> move · <kbd>↩</kbd> open · <kbd>⌘↩</kbd> new tab · <kbd>⌫</kbd> remove · <kbd>space</kbd> select · shift-click selects a range · click a site to see only it · <kbd>g</kbd> group by site</div>
     </div>
     <div id="list"></div>
   </main>
@@ -90,6 +101,8 @@ const $ = (id) => document.getElementById(id);
 const x = '<svg viewBox="0 0 12 12" width="10" height="10" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="m3 3 6 6M9 3l-6 6"/></svg>';
 const PAGE = 500;
 let limit = PAGE, site = '', seq = 0, sel = -1, anchor = -1;
+let grouped = false;
+try { grouped = localStorage.getItem('historyGrouped') === '1'; } catch {}
 const picked = new Set();
 function syncBulk() {
   for (const r of rows()) {
@@ -127,6 +140,21 @@ const dayLabel = (t, short) => {
                                                : { weekday: 'long', month: 'long', day: 'numeric', year });
 };
 const rows = () => [...document.querySelectorAll('.entry')];
+const entry = (e) => {
+  const time = new Date(e.lastVisit * 1000).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+  const host = hostOf(e.url);
+  return `<div class="entry${picked.has(e.url) ? ' picked' : ''}" data-entry="${esc(e.url)}"><input type="checkbox" class="pick" aria-label="Select" ${picked.has(e.url) ? 'checked' : ''}><span class="when">${esc(time)}</span><span class="fav">${esc((host[0] || '•').toUpperCase())}</span><a href="#" data-url="${esc(e.url)}" title="${esc(e.url)}">${esc(e.title || e.url)}</a><button class="host" data-site="${esc(host)}" title="Show only ${esc(host)}">${esc(host)}</button><button class="x" data-remove="${esc(e.url)}" aria-label="Remove from history" title="Remove from history">${x}</button></div>`;
+};
+// One day's entries by site, the most recently visited site first (entries arrive newest first).
+const bySite = (entries) => {
+  const sites = new Map();
+  for (const e of entries) {
+    const h = hostOf(e.url);
+    if (!sites.has(h)) sites.set(h, []);
+    sites.get(h).push(e);
+  }
+  return [...sites];
+};
 
 async function load() {
   const mine = ++seq;
@@ -137,6 +165,8 @@ async function load() {
   $('space').textContent = res.space ? `${res.space} · ${res.total} page${res.total === 1 ? '' : 's'}` : '';
   $('site').classList.toggle('on', !!site);
   $('site-name').textContent = site;
+  $('group').setAttribute('aria-pressed', grouped);
+  $('list').classList.toggle('grouped', grouped);
   // Group by day, newest first.
   const days = [];
   for (const e of res.entries) {
@@ -150,11 +180,9 @@ async function load() {
     (more ? '<button class="more" data-older>Show older days</button>' : '');
   $('list').innerHTML = days.map((d) =>
     `<section data-day-list="${d.key}"><div class="day" id="d-${d.key}">${esc(dayLabel(d.when))}<span>${d.entries.length} page${d.entries.length === 1 ? '' : 's'}</span></div>` +
-    d.entries.map((e) => {
-      const time = new Date(e.lastVisit * 1000).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
-      const host = hostOf(e.url);
-      return `<div class="entry${picked.has(e.url) ? ' picked' : ''}" data-entry="${esc(e.url)}"><input type="checkbox" class="pick" aria-label="Select" ${picked.has(e.url) ? 'checked' : ''}><span class="when">${esc(time)}</span><span class="fav">${esc((host[0] || '•').toUpperCase())}</span><a href="#" data-url="${esc(e.url)}" title="${esc(e.url)}">${esc(e.title || e.url)}</a><button class="host" data-site="${esc(host)}" title="Show only ${esc(host)}">${esc(host)}</button><button class="x" data-remove="${esc(e.url)}" aria-label="Remove from history" title="Remove from history">${x}</button></div>`;
-    }).join('') + '</section>').join('') +
+    (grouped ? bySite(d.entries).map(([host, list]) =>
+      `<div class="sitehead"><span class="fav">${esc((host[0] || '•').toUpperCase())}</span><button class="host" data-site="${esc(host)}" title="Show only ${esc(host)}">${esc(host || 'Other')}</button><span>${list.length}</span></div>` +
+      list.map(entry).join('')).join('') : d.entries.map(entry).join('')) + '</section>').join('') +
     (more ? '<button class="older" data-older>Show older days</button>' : '') ||
     `<div class="empty">${$('q').value || site ? 'Nothing matches. Try fewer words or clear the site filter.' : 'No history in this space yet. Pages you visit show up here.'}</div>`;
   sel = Math.min(sel, rows().length - 1);
@@ -186,6 +214,12 @@ addEventListener('scroll', spy, { passive: true });
 
 let typing;
 $('q').addEventListener('input', () => { clearTimeout(typing); limit = PAGE; sel = -1; typing = setTimeout(load, 120); });
+$('group').onclick = () => {
+  grouped = !grouped;
+  try { localStorage.setItem('historyGrouped', grouped ? '1' : '0'); } catch {}
+  sel = -1;
+  load();
+};
 $('site-clear').onclick = () => { site = ''; limit = PAGE; sel = -1; load(); };
 document.addEventListener('click', async (e) => {
   const box = e.target.closest('.pick');
@@ -203,6 +237,7 @@ document.addEventListener('click', async (e) => {
 document.addEventListener('keydown', async (e) => {
   const inSearch = document.activeElement === $('q');
   if (e.key === '/' && !inSearch) { e.preventDefault(); $('q').focus(); $('q').select(); return; }
+  if (e.key === 'g' && !inSearch && !e.metaKey && !e.ctrlKey && !e.altKey) { e.preventDefault(); return $('group').click(); }
   if (e.key === 'Escape' && picked.size) { picked.clear(); return syncBulk(); }
   if (e.key === 'Escape') {
     if (inSearch && $('q').value) { $('q').value = ''; limit = PAGE; return load(); }

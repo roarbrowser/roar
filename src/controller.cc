@@ -2472,20 +2472,24 @@ bool Controller::OnBeforeDownload(CefRefPtr<CefBrowser> browser, CefRefPtr<CefDo
   if (size_t dot = name.rfind('.'); dot != std::string::npos) ext = name.substr(dot + 1);
   std::transform(ext.begin(), ext.end(), ext.begin(), [](unsigned char c) { return std::tolower(c); });
   bool risky = kRisky.count(ext) > 0;
-  CefRefPtr<CefDownloadItem> keep = item;
+  // Read the item now: it is invalid by the time the confirm sheet is answered,
+  // and an empty URL never matched OnDownloadUpdated, so the row stuck at 0 bytes.
+  int item_id = static_cast<int>(item->GetId());
+  std::string url = item->GetURL();
+  int64_t total = item->GetTotalBytes();
   // By profile, not tab: a popup a ghost tab opened has no Roar tab.
   auto ghost_ctx = contexts_.find(kGhostContext);
   bool ghost = browser && ghost_ctx != contexts_.end() && ghost_ctx->second &&
                browser->GetHost()->GetRequestContext()->IsSame(ghost_ctx->second);
-  auto start = [this, name, keep, callback, ghost] {
+  auto start = [this, name, item_id, url, total, callback, ghost] {
     std::string path = platform::UniqueDownloadPath(name);
     Download d;
     d.id = next_download_++;
-    d.item_id = static_cast<int>(keep->GetId());
+    d.item_id = item_id;
     d.name = path.substr(path.rfind('/') + 1);
     d.path = path;
-    d.url = keep->GetURL();
-    d.total = keep->GetTotalBytes();
+    d.url = url;
+    d.total = total;
     d.ghost = ghost;
     downloads_.push_back(d);
     callback->Continue(path, false);
@@ -2498,9 +2502,7 @@ bool Controller::OnBeforeDownload(CefRefPtr<CefBrowser> browser, CefRefPtr<CefDo
   }
   CefURLParts parts;
   std::string host;
-  if (CefParseURL(item->GetURL(), parts)) host = CefString(&parts.host).ToString();
-  int item_id = static_cast<int>(item->GetId());
-  std::string url = item->GetURL();
+  if (CefParseURL(url, parts)) host = CefString(&parts.host).ToString();
   // The shell, not the tab: a sheet on the frameless tab child window never shows.
   void* window = shell_ ? shell_->GetWindowHandle() : nullptr;
   platform::ConfirmDownload(window, name, host, [this, start, item_id, url](bool allow) {
@@ -3434,6 +3436,11 @@ bool Controller::HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> 
     for (auto& d : downloads_) {
       if (d.id != id) continue;
       if (cmd == "downloads.cancel" && d.control) d.control->Cancel();
+      // Never heard from Chromium (no control yet): drop the row instead of leaving it stuck.
+      else if (cmd == "downloads.cancel" && !d.done && !d.failed) {
+        d.canceled = true;
+        PushSidebar();
+      }
       if (cmd == "downloads.reveal" && d.done) platform::RevealInFinder(d.path);
     }
     callback->Success("");
