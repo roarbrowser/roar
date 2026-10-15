@@ -1,6 +1,5 @@
-
 <p align="center">
-  <img src="resources/lion.svg" alt="Roar logo" width="160">
+  <img src="resources/lion.svg" alt="Roar logo" width="140">
 </p>
 
 <h1 align="center">Roar</h1>
@@ -8,23 +7,44 @@
 <p align="center"><strong>The AI-native, open-source browser your agent can drive.</strong></p>
 
 <p align="center">
-  An AI-native Chromium browser for macOS: a sidebar browser you use, with a built-in MCP server<br>
-  so your agent can use it too. Built on CEF 154.0.34 (Chromium 154.0.8037.98). Free and open source under the MIT License.
+  A Chromium sidebar browser for macOS, with a built-in MCP server so Claude, Cursor or any
+  MCP client can browse in the same window you do, logins and all.
 </p>
 
-## Built for agents
+<p align="center">
+  <a href="https://github.com/roarbrowser/roar/releases/latest"><b>Download for macOS</b></a>
+  &nbsp;·&nbsp; Apple Silicon &nbsp;·&nbsp; Free, MIT licensed
+</p>
 
-Roar is a browser you and your AI agent share. It ships an MCP server
-(`Roar.app/Contents/Resources/roar-mcp.sh`, a launcher for
-[chrome-devtools-mcp](https://github.com/ChromeDevTools/chrome-devtools-mcp)), so Claude,
-Cursor or any MCP client can open pages, read them, click, fill forms, run scripts and take
-screenshots in the same browser, logins and all.
+<br>
+
+| You get | Your agent gets |
+|---|---|
+| A vertical sidebar with spaces, each with its own logins | One command to connect: `claude mcp add roar …` |
+| Split view, a command bar and Reader mode | Pages it opens appear as tabs you can watch or take over |
+| Tabs that archive themselves when you stop using them | A way to ask you a question or ping you when it's done |
+| Chrome extensions, with uBlock Origin Lite built in | Only the spaces you allow; ghost tabs are always off-limits |
+| Import from Arc, Chrome, Edge or Firefox | Chrome's look to sites, so fewer bot checks |
+
+## Install
+
+1. Download the latest `Roar-<version>.dmg` from [Releases](https://github.com/roarbrowser/roar/releases/latest) and drag Roar to Applications.
+2. Releases aren't notarized yet. If macOS blocks the first launch, open System Settings › Privacy & Security and click **Open Anyway**.
+3. On first launch Roar offers to bring over your Arc spaces and pinned tabs. Updates arrive through Roar › **Check for Updates…**
+
+Connect your agent (needs Node.js 22+):
 
 ```bash
 claude mcp add roar -- /Applications/Roar.app/Contents/Resources/roar-mcp.sh
 ```
 
-Other clients take the same command as a stdio server. It needs Node.js 22+ and starts Roar
+Other MCP clients take the same command as a stdio server.
+
+## Built for agents
+
+The MCP server (`roar-mcp.sh`, a launcher for
+[chrome-devtools-mcp](https://github.com/ChromeDevTools/chrome-devtools-mcp)) lets an agent
+open pages, read them, click, fill forms, run scripts and take screenshots. It starts Roar
 if it isn't running. Settings > "Your AI agent drives Roar" picks which Roar agents get: this
 one, so you see what they do (the default), or a hidden headless Roar with its own profile
 (`~/.roar-headless`, port 9444) that the server starts on demand.
@@ -48,7 +68,63 @@ one, so you see what they do (the default), or a hidden headless Roar with its o
 - **Also scriptable:** AppleScript (`open url`, `execute javascript`, `get URL of every tab`)
   and raw CDP on `127.0.0.1:9222`.
 
-## Build and run
+## For browsing
+
+**Tabs that stay tidy**
+- A vertical sidebar with pinned tabs (⌘D), pinned groups and tab groups; drag to reorder.
+- Each tab has a thin bar that shrinks while you ignore it; when it runs out the tab moves to
+  Archived (after 6h, 12h, 1 day or 1 week, or never). ⇧⌘K archives now, ⇧⌘T brings one back.
+- ⌃Tab switches tabs most recently used first; ⌘1–⌘9 jumps straight to one.
+- A speaker on tabs playing audio; click it to mute.
+
+**Spaces and privacy**
+- Spaces keep separate tabs and a separate profile (logins, cookies, extensions): ⌃1–⌃9 or ⇧⌘[ ⇧⌘].
+- Ghost tabs (⇧⌘N) use a throwaway profile per session that Roar deletes on its next launch.
+- Copy Link Address unwraps Outlook Safe Links and `.mcas.ms` wrappers.
+- uBlock Origin Lite is built in; other Chrome extensions install as usual.
+
+**Getting around**
+- One command bar (⌘T, ⌘L) for addresses, search, open tabs, history and the text of pages
+  you've visited. Type `>` for commands.
+- Split view (⌘\\), or drag a tab onto another: left half for side by side, right half for top and bottom.
+- Reader mode (⌥⌘R), find in page (⌘F), per-site zoom, swipe back and forward.
+- Picture-in-picture for video (⇧⌘P), or float any tab in a mini window (⇧⌘F).
+- New windows (⌘N) start with your spaces and pinned tabs.
+
+**Small things that add up**
+- Copy any page as Markdown (⇧⌘C) or save it to Downloads.
+- Unread Gmail in the sidebar, with Read, Move and Delete per message.
+- Your open GitHub pull requests as a live folder (via `gh`).
+- Sign-in popups open as sidebar tabs, not stray windows.
+- A history page (⌘Y) with search and a day-by-day view; Reopen All Tabs from Last Session.
+
+<details>
+<summary><b>Keyboard shortcuts</b></summary>
+
+| Shortcut | Action |
+|---|---|
+| ⌘T / ⌘L | Command bar: new tab / current tab |
+| ⌘N / ⇧⌘N | New window / ghost tab |
+| ⌘D | Pin tab |
+| ⇧⌘K / ⇧⌘T | Archive tabs now / reopen archived tab |
+| ⌃Tab / ⌃⇧Tab | Next / previous tab, most recent first |
+| ⌘1–⌘9 | Jump to tab |
+| ⌃1–⌃9, ⇧⌘[ / ⇧⌘] | Switch space |
+| ⌘\\ | Split view |
+| ⌥⌘R | Reader mode |
+| ⇧⌘C | Copy page as Markdown |
+| ⇧⌘P / ⇧⌘F | Picture-in-picture / float tab |
+| ⌘F, ⌘G / ⇧⌘G | Find, next / previous |
+| ⌘+ / ⌘− / ⌘0 | Zoom |
+| ⌘Y / ⇧⌘J | History / downloads |
+| ⌥⌘B / ⌥⌘I | Toggle sidebar / DevTools |
+
+</details>
+
+## For developers
+
+<details>
+<summary><b>Build from source</b></summary>
 
 ```bash
 ./scripts/build.sh                       # fetches CEF into third_party/, builds, signs (Developer ID or Apple Development identity if present, else ad-hoc)
@@ -64,7 +140,11 @@ Needs macOS, Xcode, `cmake` and `ninja`. Environment overrides:
 - `ROAR_DATA_DIR` (default `~/Library/Application Support/Roar`): profile and `state.json`.
 - `--load-extension=<dir>`: load an unpacked Chrome extension. It loads into every Space's profile, alongside the bundled uBlock Origin Lite.
 
-## Architecture
+</details>
+
+<details>
+<summary><b>How it works</b></summary>
+
 
 CEF binds a Chrome-style window to the first Chrome-style BrowserView it hosts, so
 Roar uses a frameless Alloy shell window for the sidebar and one frameless Chrome-style
@@ -76,42 +156,7 @@ The UI is HTML in `resources/ui`, served from `roar://ui/`, and talks to C++ thr
 CEF message router (`window.roarQuery`). Web pages may only send `extract.result` or `index.result` with a
 nonce Roar issued to that tab.
 
-## Features
-
-| Feature | Where |
-|---|---|
-| Command bar (⌘T new tab, ⌘L current tab, `>` for commands) | `ui/command.html`, `Controller::Suggest` |
-| Page to Markdown (⇧⌘C copy, "Save page as Markdown" to ~/Downloads) | `ui/extract.js` |
-| Clean Tabs: cooling bars, auto-archive after 6h/12h/1d/1w, ⇧⌘K | `Controller::AutoArchiveTick` |
-| Live folder: your open pull requests via `gh` | `platform::SearchGitHub` |
-| Swipe navigation with a "← Back to …" toast | `Controller::OnGesture` |
-| Video picture-in-picture (⇧⌘P), float tab in a mini window (⇧⌘F) | `Controller::PictureInPicture`, `FloatActiveTab` |
-| AppleScript (`open url`, `execute javascript`, `close tab`, …) and CDP | `resources/Roar.sdef`, `mac/scripting.mm` |
-| Onboarding and settings | `ui/welcome.html` |
-| Spaces: separate tabs and profile per space (⌃1–⌃9, ⇧⌘[ ⇧⌘]); profiles in `Space-<id>` | `Controller::SwitchSpace`, `ContextFor` |
-| Split view: two tabs side by side (⌘\\), or drag a tab onto another (left half: side by side, right half: top and bottom); picking a tab swaps the focused pane | `Controller::ToggleSplit`, `RectFor` |
-| Page-text search: visible text of visited pages saved to `pages.json` (800 pages, 16,000 characters each) and matched in the command bar | `Controller::IndexPage`, `SuggestPageText` |
-| Find in page (⌘F, ⌘G / ⇧⌘G): match count, ↵ / ⇧↵ for next and previous, esc closes | `ui/find.html`, `Controller::ShowFind` |
-| Zoom (⌘+, ⌘−, ⌘0): per host, with a zoom toast, kept in `state.json` | `Controller::ZoomStep`, `ApplyZoom` |
-| Print (⌘P) | `Controller::Print` |
-| Downloads: saved to ~/Downloads, a list with progress, cancel and Show in Finder (⇧⌘J), and a sidebar button while there are downloads | `Controller::OnBeforeDownload`, `ui/downloads.html` |
-| History page (⌘Y): day rail, search, filter by site, keyboard navigation, remove entries | `ui/history.html`, `Controller::HistoryJson` |
-| Reopen All Tabs from Last Session (History menu), per space | `State::last_session` |
-| Popups (sign-in flows, `window.open`) open as sidebar tabs that keep `window.opener` | `Controller::AdoptPopup` |
-| Tab groups as their own sidebar sections; Close All Tabs in a space | `ui/sidebar.html`, `closeSpaceTabs` |
-| Unread Gmail in the sidebar: Read, Move and Delete per message, multi-select delete, Select all, account links | `ui/mail-act.js`, `Controller::RefreshGmail` |
-| MCP server for AI agents; per-space agent dot | `resources/roar-mcp.sh`, `Controller::SetCdp` |
-| Tab sound: a speaker on sidebar tabs that are playing audio, click to mute or unmute | `Controller::ToggleMute`, `MediaWatcher` |
-| Page context menu: Open Link in Split View, Open Link in Space…, Copy Page as Markdown | `Controller::BuildContextMenu` |
-| Reader mode (⌥⌘R): a cleaned article view built from the Markdown extractor | `ui/reader.html`, `Controller::ToggleReader` |
-| Tab switcher (⌃Tab, ⌃⇧Tab): most recently used first, within the current space | `Controller::CycleTabs` |
-| Import from Arc (spaces, pinned tabs, folders as pinned groups; offered on first launch), Chrome, Edge and Firefox (File > Import From) | `src/arc_import.cc`, `src/library.cc` |
-| Ghost tabs (⇧⌘N): a throwaway profile per session; new tabs stay ghost while one is open | `GhostDir` |
-| New Window (⌘N): starts with the main window's spaces, pinned tabs and pinned groups; extra Roar instances get their own data dir and CDP port | `platform::ClaimInstance` |
-| Pinned tabs (⌘D) and pinned groups, reorder by drag; Reopen Archived Tab (⇧⌘T); ⌘1–⌘9 jump to a tab; Toggle Sidebar (⌥⌘B); DevTools (⌥⌘I) | `ui/sidebar.html`, `Controller::OnKey` |
-| Clean links: Copy Link Address unwraps Safe Links and `.mcas.ms` (setting, on by default) | `src/link_clean.cc` |
-| Auto-update: Roar > Check for Updates… (Sparkle) | `mac/platform.mm` |
-| Permission prompts (camera, microphone, location, notifications): Chromium's own prompts, remembered per site in each space's profile | Chrome-style windows |
+</details>
 
 ## Known limits
 
