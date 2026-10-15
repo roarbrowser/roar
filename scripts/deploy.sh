@@ -10,4 +10,6 @@ for _ in $(seq 90); do pgrep -f "$APP/Contents/MacOS/Roar" >/dev/null || break; 
 if pgrep -f "$APP/Contents/MacOS/Roar" >/dev/null; then echo "Roar did not quit; not deploying"; exit 1; fi
 rm -rf "$APP"
 ditto "$ROOT/build/src/Release/Roar.app" "$APP"
+# A replaced bundle can keep a blank cached Dock icon; re-register it.
+touch "$APP"; /System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -f "$APP"
 open -n "$APP"
