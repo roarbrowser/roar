@@ -101,7 +101,7 @@ int main(int argc, char* argv[]) {
       setenv("ROAR_INSTANCE", std::to_string(n).c_str(), 1);
       data_dir = roar::State::Get().Dir();
     }
-    settings.remote_debugging_port = roar::platform::CdpPort();
+    if (roar::platform::CdpEnabled()) settings.remote_debugging_port = roar::platform::CdpPort();
     // Roar restores its own tabs; Chromium's session restore would reopen them
     // a second time as plain Chrome windows.
     // Chrome style keeps its profile in <root>/Default.

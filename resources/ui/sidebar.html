@@ -227,7 +227,7 @@ body.drag-active .pinned:empty::before { content: 'Drop to pin'; color: var(--in
   <div class="rows" id="gh"></div>
 </section>
 <section class="feed-pop" id="gm-group">
-  <div class="group-head"><span>Unread mail</span><span class="spacer"></span><button id="gm-delsel" title="Delete the selected messages" hidden></button><button id="gm-refresh" title="Refresh mail">Refresh</button></div>
+  <div class="group-head"><span>Unread mail</span><span class="spacer"></span><button id="gm-selall" title="Select every message">Select all</button><button id="gm-delsel" title="Delete the selected messages" hidden></button><button id="gm-refresh" title="Refresh mail">Refresh</button></div>
   <div class="rows" id="gm"></div>
 </section>
 <div class="bar" id="bar">
@@ -324,7 +324,7 @@ window.roar = {
     $('forward').disabled = !s.nav.canForward;
     const url = s.nav.url || '';
     $('host').textContent = url && !url.startsWith('roar:') ? hostOf(url) : 'Search or enter address';
-    $('cdp').textContent = 'CDP :' + s.settings.cdpPort;
+    $('cdp').textContent = s.settings.cdpOn ? 'CDP :' + s.settings.cdpPort : 'CDP off';
 
     $('dl-btn').hidden = !(s.downloads && s.downloads.count);
     $('dl-count').textContent = (s.downloads && s.downloads.active) || '';
@@ -634,7 +634,19 @@ const mailSel = new Set();
 function syncMailSel() {
   $('gm-delsel').hidden = !mailSel.size;
   $('gm-delsel').textContent = `Delete ${mailSel.size}`;
+  const items = state?.gmail?.items || [];
+  const all = items.length > 0 && items.every((m) => mailSel.has(m.url));
+  $('gm-selall').hidden = !items.length;
+  $('gm-selall').textContent = all ? 'Select none' : 'Select all';
 }
+$('gm-selall').onclick = (e) => {
+  e.stopPropagation();
+  const items = state.gmail.items || [];
+  const all = items.every((m) => mailSel.has(m.url));
+  for (const m of items) all ? mailSel.delete(m.url) : mailSel.add(m.url);
+  for (const box of document.querySelectorAll('#gm .msel')) box.checked = !all;
+  syncMailSel();
+};
 $('gm').addEventListener('change', (e) => {
   const box = e.target.closest('.msel');
   if (!box) return;

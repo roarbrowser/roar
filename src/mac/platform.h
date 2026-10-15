@@ -16,6 +16,8 @@ std::string RandomToken();
 // takes the first free CDP port from 9333; the main one keeps 9222.
 std::string InstanceName();
 int CdpPort();
+// Whether this launch listens on CdpPort(): ROAR_CDP_PORT, headless, or the cdpEnabled setting.
+bool CdpEnabled();
 // Locks |dir| for this process and writes the CDP port to <dir>/cdp-port.
 // False when another Roar already runs from |dir|.
 bool ClaimInstance(const std::string& dir);

@@ -674,8 +674,8 @@ class SpaceContextHandler : public CefRequestContextHandler {
 
 // Tells the controller when a tab's media starts or stops making sound. Chrome-style
 // CEF never calls CefAudioHandler, so this follows the DevTools Media domain: any
-// player event triggers a look at the page's media elements, repeated every 2s
-// while something plays so a mute or a stream that ends is noticed.
+// player event triggers a look at the page's media elements. No timer: a page
+// mute or volume change that raises no player event is missed until the next one.
 class MediaWatcher : public CefDevToolsMessageObserver {
  public:
   static void Attach(CefRefPtr<CefBrowser> browser, CefRefPtr<CefRegistration>* registration) {
@@ -695,8 +695,9 @@ class MediaWatcher : public CefDevToolsMessageObserver {
     auto dict = value && value->GetType() == VTYPE_DICTIONARY ? value->GetDictionary() : nullptr;
     auto inner = dict ? dict->GetDictionary("result") : nullptr;
     bool audible = inner && inner->GetType("value") == VTYPE_BOOL && inner->GetBool("value");
+    // No polling while it plays: a script run in the page every 2s is a bot-check tell.
+    // Play, pause, end and source changes all raise Media.player events.
     Controller::Get()->OnAudible(browser, audible);
-    if (audible) Schedule(browser, 2000);
   }
 
  private:
@@ -2671,6 +2672,8 @@ std::string Controller::StateJson() {
   settings->SetInt("pinnedColumns", state.settings.pinned_columns);
   settings->SetBool("pinnedCentered", state.settings.pinned_centered);
   settings->SetBool("cleanLinks", state.settings.clean_links);
+  settings->SetBool("cdpEnabled", state.settings.cdp_enabled);
+  settings->SetBool("cdpOn", platform::CdpEnabled());
   settings->SetInt("pageCount", static_cast<int>(state.pages.size()));
   settings->SetInt("cdpPort", platform::CdpPort());
   auto pins = CefListValue::Create();
@@ -2846,6 +2849,7 @@ void Controller::ApplySettings(CefRefPtr<CefDictionaryValue> d) {
   if (d->HasKey("pinnedColumns")) s.pinned_columns = std::clamp(d->GetInt("pinnedColumns"), 0, 8);
   if (d->HasKey("pinnedCentered")) s.pinned_centered = d->GetBool("pinnedCentered");
   if (d->HasKey("cleanLinks")) s.clean_links = d->GetBool("cleanLinks");
+  if (d->HasKey("cdpEnabled")) s.cdp_enabled = d->GetBool("cdpEnabled");  // Takes effect on relaunch.
   if (d->HasKey("githubFolder")) {
     s.github_folder = d->GetBool("githubFolder");
     if (!s.github_folder) State::Get().github_space = -1;  // Re-enabling binds to that space.

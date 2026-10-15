@@ -360,6 +360,18 @@ int CdpPort() {
   return port;
 }
 
+bool CdpEnabled() {
+  static bool on = [] {
+    if (getenv("ROAR_CDP_PORT") || Headless()) return true;
+    // Read before CefInitialize, so straight from state.json rather than State.
+    NSData* data = [NSData dataWithContentsOfFile:NS(roar::State::Get().Dir() + "/state.json")];
+    NSDictionary* root = data ? [NSJSONSerialization JSONObjectWithData:data options:0 error:nil] : nil;
+    id s = [root isKindOfClass:NSDictionary.class] ? root[@"settings"] : nil;
+    return [s isKindOfClass:NSDictionary.class] && [s[@"cdpEnabled"] boolValue];
+  }();
+  return on;
+}
+
 bool ClaimInstance(const std::string& dir) {
   [NSFileManager.defaultManager createDirectoryAtPath:NS(dir) withIntermediateDirectories:YES attributes:nil error:nil];
   int fd = open((dir + "/instance.lock").c_str(), O_RDWR | O_CREAT | O_CLOEXEC, 0644);
@@ -438,8 +450,8 @@ void InstallMenu() {
   addCommand(app, @"New Instance", @"newInstance", @"");
   {
     std::string name = InstanceName();
-    NSString* label = [NSString stringWithFormat:@"%@ · CDP port %d",
-                                                 name.empty() ? @"Main instance" : NS("Instance " + name), CdpPort()];
+    NSString* label = [NSString stringWithFormat:@"%@ · %@", name.empty() ? @"Main instance" : NS("Instance " + name),
+                                                 CdpEnabled() ? [NSString stringWithFormat:@"CDP port %d", CdpPort()] : @"CDP off"];
     [app addItemWithTitle:label action:nil keyEquivalent:@""].enabled = NO;
   }
   addCommand(app, @"Settings…", @"settings", @"⌘,");

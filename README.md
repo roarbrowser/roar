@@ -20,8 +20,9 @@ open build/src/Release/Roar.app
 
 Needs macOS, Xcode, `cmake` and `ninja`. Environment overrides:
 
-- `ROAR_CDP_PORT` (default `9222`): DevTools Protocol port. Set another port if something
-  else already holds 9222.
+- `ROAR_CDP_PORT` (default `9222`): DevTools Protocol port; setting it also turns the port on.
+  The port is off by default (a listening debug port helps bot checks spot automation);
+  turn it on in Settings > Automation, then relaunch.
 - `ROAR_DATA_DIR` (default `~/Library/Application Support/Roar`): profile and `state.json`.
 - `--load-extension=<dir>`: load an unpacked Chrome extension. It loads into every Space's profile, alongside the bundled uBlock Origin Lite.
 

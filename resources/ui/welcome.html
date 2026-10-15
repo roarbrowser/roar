@@ -121,7 +121,8 @@ pre { margin: 0; font: 12px/1.6 var(--mono); background: var(--ground); border-r
 
   <section class="auto">
     <h2>Automation</h2>
-    <p>Roar exposes the Chrome DevTools Protocol on <code id="port">127.0.0.1:9222</code> and has an AppleScript dictionary.</p>
+    <label class="switch"><input type="checkbox" id="cdp-on"> Allow automation tools (Chrome DevTools Protocol) — off avoids bot checks; applies on relaunch</label>
+    <p>When on, Roar exposes the Chrome DevTools Protocol on <code id="port">127.0.0.1:9222</code>. Roar also has an AppleScript dictionary.</p>
     <pre>tell application "Roar"
   open url "https://example.com"
   execute javascript "document.title"
@@ -148,6 +149,7 @@ function apply(s) {
   $('pin-cols').value = String(s.settings.pinnedColumns || 0);
   $('pin-center').checked = s.settings.pinnedCentered;
   $('clean-links').checked = s.settings.cleanLinks;
+  $('cdp-on').checked = s.settings.cdpEnabled;
   $('index-status').textContent = s.settings.pageCount ? `${s.settings.pageCount} pages saved on this Mac.` : 'Nothing saved yet.';
   $('forget').hidden = !s.settings.pageCount;
   renderSpaces(s);
@@ -186,6 +188,7 @@ $('space-add').onclick = () => ask({ cmd: 'space.add', name: '' });
 $('index-on').onchange = () => set({ indexPages: $('index-on').checked });
 $('pin-cols').onchange = () => set({ pinnedColumns: +$('pin-cols').value });
 $('pin-center').onchange = () => set({ pinnedCentered: $('pin-center').checked });
+$('cdp-on').onchange = () => set({ cdpEnabled: $('cdp-on').checked });
 $('clean-links').onchange = () => set({ cleanLinks: $('clean-links').checked });
 $('forget').onclick = () => ask({ cmd: 'run', id: 'forgetPages' }).then(() => ask({ cmd: 'state' })).then(apply);
 
