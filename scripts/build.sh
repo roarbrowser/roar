@@ -18,6 +18,16 @@ cp -R "$ROOT/third_party/ubol" "$RES/extensions/ubol"
 cp "$ROOT/resources/Roar.sdef" "$ROOT/resources/roar.icns" "$RES/"
 # Ad-hoc signatures change every build, so macOS forgets privacy grants
 # (Screen Recording loops on "Quit & Reopen"). Use a stable identity when one exists.
-SIGN_ID="${ROAR_SIGN_IDENTITY:-$(security find-identity -v -p codesigning | awk -F'"' '/Apple Development/{print $2; exit}')}"
-codesign --force --deep --sign "${SIGN_ID:--}" "$BUILD/src/Release/Roar.app"
+# A Developer ID identity (needed for notarized releases) wins over Apple Development;
+# it signs with the hardened runtime, a secure timestamp and Roar.entitlements.
+# ROAR_HARDENED=1 does the same with any identity, to test the hardened build locally.
+IDS="$(security find-identity -v -p codesigning)"
+SIGN_ID="${ROAR_SIGN_IDENTITY:-$(awk -F'"' '/Developer ID Application/{print $2; exit}' <<<"$IDS")}"
+SIGN_ID="${SIGN_ID:-$(awk -F'"' '/Apple Development/{print $2; exit}' <<<"$IDS")}"
+if [[ "$SIGN_ID" == "Developer ID Application"* || "${ROAR_HARDENED:-}" == 1 ]]; then
+  codesign --force --deep --options runtime --timestamp --entitlements "$ROOT/resources/Roar.entitlements" \
+    --sign "$SIGN_ID" "$BUILD/src/Release/Roar.app"
+else
+  codesign --force --deep --sign "${SIGN_ID:--}" "$BUILD/src/Release/Roar.app"
+fi
 echo "$BUILD/src/Release/Roar.app"

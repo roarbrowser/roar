@@ -28,16 +28,33 @@ ditto "$APP" "$STAGE/Roar.app"
 ln -s /Applications "$STAGE/Applications"
 hdiutil create -quiet -volname "Roar $VERSION" -srcfolder "$STAGE" -ov -format UDZO "$DMG"
 
+# Notarize when the app carries a Developer ID signature and a notarytool keychain
+# profile is named (xcrun notarytool store-credentials <name>; ROAR_NOTARY_PROFILE=<name>).
+NOTARIZED=0
+if codesign -dvv "$APP" 2>&1 | grep -q "Authority=Developer ID Application" && [[ -n "${ROAR_NOTARY_PROFILE:-}" ]]; then
+  SIGN_ID="$(codesign -dvv "$APP" 2>&1 | sed -n 's/^Authority=\(Developer ID Application.*\)/\1/p' | head -1)"
+  codesign --force --timestamp --sign "$SIGN_ID" "$DMG"
+  xcrun notarytool submit "$DMG" --keychain-profile "$ROAR_NOTARY_PROFILE" --wait
+  xcrun stapler staple "$DMG"
+  NOTARIZED=1
+else
+  echo "not notarizing: needs a Developer ID Application identity and ROAR_NOTARY_PROFILE" >&2
+fi
+SHA="$(shasum -a 256 "$DMG" | cut -d' ' -f1)"
+
 git add "$PLIST"
 git commit -q -m "Release $VERSION"
 git tag "$TAG"
 git push -q origin HEAD "$TAG"
 
-BODY="macOS (Apple Silicon) build of Roar. Open the DMG and drag Roar to Applications.
+BODY="macOS (Apple Silicon) build of Roar. Open the DMG and drag Roar to Applications."
+[[ $NOTARIZED == 1 ]] || BODY="$BODY
 
 The app is not notarized. On first launch, right-click Roar → Open, or run \`xattr -dr com.apple.quarantine /Applications/Roar.app\`."
 [[ -n "$NOTES" ]] && BODY="$NOTES
 
 $BODY"
 gh release create "$TAG" "$DMG" --title "Roar $VERSION" --notes "$BODY"
-echo "released $TAG"
+echo "released $TAG (sha256 $SHA)"
+# The Homebrew cask (packaging/homebrew/roar.rb) pins this version and checksum.
+sed -i '' -E "s|^  version \"[^\"]*\"|  version \"$VERSION\"|; s|^  sha256 \"[^\"]*\"|  sha256 \"$SHA\"|" packaging/homebrew/roar.rb
