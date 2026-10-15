@@ -96,8 +96,10 @@ body.drag-active .pinned:empty::before { content: 'Drop to pin'; color: var(--in
 .spin { width: 16px; height: 16px; flex: none; border-radius: 50%; border: 2px solid var(--rule); border-top-color: var(--mane); animation: spin .8s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 
-/* Tab groups: a colored, collapsible folder of tabs. */
+/* Tab groups: their own section beside Tabs, headed by the group's name. */
+.tgroup { margin-bottom: 8px; }
 .tgroup .group-head { cursor: default; }
+.tgroup .gname { font-weight: 600; }
 .tgroup .gdot { width: 8px; height: 8px; border-radius: 50%; background: var(--gc, var(--ink-3)); flex: none; }
 .tgroup .gname { color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .tgroup .gpin { width: 10px; height: 10px; color: var(--ink-3); flex: none; }
@@ -214,9 +216,9 @@ body.drag-active .pinned:empty::before { content: 'Drop to pin'; color: var(--in
     <div class="group-head"><svg class="ghost-ico" viewBox="0 0 16 16" fill="currentColor"><path d="M8 1.5a5 5 0 0 0-5 5v7.2l1.7-1.2 1.6 1.2L8 12.5l1.7 1.2 1.6-1.2 1.7 1.2V6.5a5 5 0 0 0-5-5zM6 5.6a1 1 0 1 1 0 2 1 1 0 0 1 0-2zm4 0a1 1 0 1 1 0 2 1 1 0 0 1 0-2z"/></svg><span>Ghost</span><span class="count" id="ghost-count"></span></div>
     <div class="rows" id="ghost-tabs"></div>
   </section>
+  <div id="groups"></div>
   <section id="tabs-group">
     <div class="group-head"><span>Tabs</span><span class="count" id="tab-count"></span></div>
-    <div id="groups"></div>
     <div class="rows" id="tabs"></div>
   </section>
 </div>
