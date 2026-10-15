@@ -10,9 +10,9 @@ URL: https://github.com/roarbrowser/roar
 
 ## First comment
 
-Hi HN, I'm the maker of Roar. It's a macOS browser with a vertical sidebar (spaces, pinned tabs, tab groups, split view, a command bar) that ships an MCP server, so an agent like Claude Code or Cursor can use the same browser I do, logins included. MIT licensed, built on CEF 154 (Chromium 154).
+Hi HN, I'm the maker of Roar. It's a macOS browser with a vertical sidebar (spaces, pinned tabs, tab groups, split view, a command bar) that ships an MCP server, so an agent like Claude Code or Cursor can use the same browser I do, logins included. MIT licensed, built on CEF (Chromium).
 
-Why I built it: I kept pointing agents at a separate automation Chrome, then logging in again, then losing track of what the agent had open. I wanted the agent to work in my browser, in tabs I can see, with a way to cut it off.
+Why I built it: I kept pointing agents at a separate automation Chrome, then logging in again, then losing track of what the agent had open. I wanted the agent to work in my browser, in tabs I can see, with a way to cut it off. The other push: I used Arc, and The Browser Company put it in maintenance mode in May 2025 to build Dia, which is closed source and ships its own AI. I wanted a sidebar browser whose source is open and where the agent is mine.
 
 How it works:
 
@@ -20,11 +20,11 @@ How it works:
 - The MCP server is `Roar.app/Contents/Resources/roar-mcp.sh`, a launcher for chrome-devtools-mcp pointed at Roar's CDP port. Setup: `claude mcp add roar -- /Applications/Roar.app/Contents/Resources/roar-mcp.sh` (needs Node 22+).
 - I patch Chromium's `Target.createTarget` handler so `new_page` opens a real sidebar tab in the active space instead of a stray window. You can watch the agent, take over, or close the tab.
 - Two extra tools: `notify_user` puts a card in the sidebar, and `ask_user` shows buttons and returns your click to the agent.
-- Agents are allowed per space; a dot in the sidebar shows who's connected, and one click blocks agents from the current space. A setting closes the CDP port entirely, without restarting.
+- Agents are allowed per space. Blocked spaces and ghost tabs are hidden from CDP entirely (I patch Chromium's target discovery and `/json/list` with a per-profile filter). A dot in the sidebar shows whether agents can reach the current space; one click blocks them. A setting closes the CDP port entirely, without restarting.
 - You can choose headed (agents use this window) or headless (a hidden Roar with its own profile, started on demand).
 - Roar reports the Google Chrome brand and a real window frame, and doesn't run polling scripts in pages, so it trips fewer bot checks than typical automation setups.
 
-Other bits: separate profiles per space, Chrome extensions (uBlock Origin Lite bundled), reader mode, copy page as Markdown, import from Arc, Chrome, Edge, Firefox, Safari and Dia.
+Other bits: separate profiles per space, Chrome extensions (uBlock Origin Lite bundled), reader mode, copy page as Markdown, tabs that archive themselves, import from Arc (spaces and pinned tabs), Chrome, Edge, Firefox, Safari and Dia.
 
 What's rough:
 
@@ -38,4 +38,4 @@ I'd like feedback on the agent side most: what you'd want an agent to be able to
 ## Prepared replies
 
 **"How is this different from Dia?"**
-Dia is a good browser with AI built in by The Browser Company. Roar goes the other way: we don't need a browser company to build a browser. It's open source (MIT), and the AI is whatever agent you already run (Claude, Cursor, anything that speaks MCP), driving the same browser you're logged into.
+We don't need a browser company to build a browser. Dia is closed source and comes with The Browser Company's AI built in; Arc, its predecessor, has been in maintenance mode since May 2025. Roar is MIT licensed, so it can't be shelved, and it has no built-in assistant: the AI is whatever agent you already run (Claude, Cursor, anything that speaks MCP), driving the same browser you're logged into.

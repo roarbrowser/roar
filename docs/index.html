@@ -4,7 +4,12 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Roar browser</title>
-<meta name="description" content="Roar is an open-source Chromium sidebar browser for macOS with a built-in MCP server, so your AI agent can drive it.">
+<meta name="description" content="Roar is an open-source Chromium sidebar browser for macOS with a built-in MCP server. Bring your own agent; nobody can shelve it.">
+<meta property="og:title" content="Roar browser">
+<meta property="og:description" content="The AI-native, open-source browser your agent can drive.">
+<meta property="og:image" content="https://roarbrowser.github.io/roar/media/roar-social.png">
+<meta property="og:url" content="https://roarbrowser.github.io/roar/">
+<meta name="twitter:card" content="summary_large_image">
 <link rel="icon" href="media/lion.svg" type="image/svg+xml">
 <style>
 :root {
@@ -122,7 +127,7 @@ footer .wrap { display: flex; flex-wrap: wrap; gap: 8px 28px; align-items: cente
 <div class="wrap hero">
   <div>
     <h1>The AI-native, open-source browser your agent can drive.</h1>
-    <p class="sub">A Chromium sidebar browser for macOS with a built-in MCP server.</p>
+    <p class="sub">A Chromium sidebar browser for macOS with a built-in MCP server. Claude, Cursor or any MCP client browses in the same window you do, logins and all. Open source, so nobody can shelve it.</p>
     <div class="cta">
       <a class="btn primary" href="https://github.com/roarbrowser/roar/releases/latest">Download for Mac</a>
       <a class="btn ghost" href="#agents">Connect your agent</a>
@@ -181,8 +186,9 @@ footer .wrap { display: flex; flex-wrap: wrap; gap: 8px 28px; align-items: cente
         <ul class="list">
           <li><strong>Real tabs.</strong> Pages the agent opens land in your sidebar, so you can watch, take over or close them.</li>
           <li><strong>A way to reach you.</strong> <code>notify_user</code> and <code>ask_user</code> put cards in the sidebar; <code>ask_user</code> waits for your click.</li>
-          <li><strong>One-click cut-off.</strong> The CDP dot closes the port and drops every connected agent, without a restart.</li>
+          <li><strong>One-click cut-off.</strong> Click the dot in the sidebar to block agents from the space you're in. A setting closes the CDP port entirely, without a restart.</li>
           <li><strong>Headed or headless.</strong> Let agents use the Roar you see, or a hidden headless Roar with its own profile.</li>
+          <li><strong>Only where you allow.</strong> Agents reach the spaces you allow; ghost tabs are always off-limits.</li>
           <li><strong>Looks like Chrome to sites.</strong> Roar reports the Chrome brand and a real window frame, so it trips fewer bot checks.</li>
         </ul>
       </div>
@@ -191,10 +197,11 @@ footer .wrap { display: flex; flex-wrap: wrap; gap: 8px 28px; align-items: cente
         <ul class="list">
           <li><strong>A vertical sidebar with spaces.</strong> Each space has its own tabs and its own profile.</li>
           <li><strong>Pinned tabs and tab groups</strong>, plus split view for two tabs side by side.</li>
+          <li><strong>Tabs that archive themselves</strong> after 6h, 12h, 1 day or 1 week, like Arc did.</li>
           <li><strong>Command bar.</strong> ⌘T to open, search tabs, history and page text.</li>
           <li><strong>Reader mode and page to Markdown.</strong> Clean articles, or copy any page as Markdown.</li>
           <li><strong>Chrome extensions.</strong> uBlock Origin Lite comes bundled.</li>
-          <li><strong>Import your browser.</strong> From Arc (spaces, pinned tabs, folders), Chrome, Safari, Firefox, Edge and Dia.</li>
+          <li><strong>Leave Arc or Dia in one step.</strong> Your Arc spaces and pinned tabs come over on first launch; Chrome, Safari, Firefox, Edge and Dia import too.</li>
         </ul>
       </div>
     </div>
@@ -204,11 +211,13 @@ footer .wrap { display: flex; flex-wrap: wrap; gap: 8px 28px; align-items: cente
 <section aria-labelledby="cmp-h">
   <div class="wrap">
     <h2 id="cmp-h">Arc vs Dia vs Roar</h2>
+    <p>The Browser Company put Arc in maintenance mode in May 2025 to build Dia. If you lived in Arc, a company decided for you that your browser was done. Dia is their answer: closed source, with the AI they built in. Roar is the other answer: MIT licensed, no built-in assistant, and your own agent plugged in over MCP.</p>
     <div class="tablewrap">
       <table>
         <thead><tr><th scope="col"></th><th scope="col">Arc</th><th scope="col">Dia</th><th scope="col" class="roar">Roar</th></tr></thead>
         <tbody>
           <tr><th scope="row">Open source</th><td>No</td><td>No</td><td class="roar">Yes, MIT</td></tr>
+          <tr><th scope="row">AI</th><td>Arc Max, built in</td><td>Built in, theirs</td><td class="roar">Your own agent, over MCP</td></tr>
           <tr><th scope="row">Actively developed</th><td>Maintenance mode since May 2025</td><td>Yes</td><td class="roar">Yes</td></tr>
           <tr><th scope="row">Vertical sidebar and spaces</th><td>Yes</td><td>Vertical tabs since July 2025; spaces —</td><td class="roar">Yes</td></tr>
           <tr><th scope="row">MCP server for your own agents</th><td>No</td><td>—</td><td class="roar">Yes</td></tr>
