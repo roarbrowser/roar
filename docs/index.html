@@ -98,14 +98,23 @@ pre { background: var(--panel); border-radius: 12px; padding: 14px 16px; overflo
 .list li::before { content: ""; position: absolute; left: 2px; top: 22px; width: 10px; height: 10px; border-radius: 50%; background: var(--mane); }
 .list strong { font-family: var(--round); }
 
-table { width: 100%; border-collapse: collapse; font-size: 16px; }
-th, td { text-align: left; padding: 12px 10px; border-bottom: 1px solid var(--rule); vertical-align: top; }
-thead th { font: 700 18px var(--round); }
-th[scope=row] { font-weight: 600; }
-.tablewrap table { min-width: 640px; }
-th[scope=row] { position: sticky; left: 0; background: var(--ground); }
-td.roar, th.roar, tr.roar > * { background: var(--mane-soft); }
-.tablewrap { overflow-x: auto; }
+table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 15px; }
+th, td { text-align: left; padding: 13px 14px; border-bottom: 1px solid var(--rule); vertical-align: top; }
+.tablewrap { overflow-x: auto; margin-top: 28px; }
+.cmp { min-width: 760px; }
+.cmp thead th { font: 700 15px/1.25 var(--round); color: var(--ink-2); border-bottom: 2px solid var(--ink); padding-bottom: 10px; vertical-align: bottom; }
+.cmp th[scope=row] { font: 600 16px var(--round); position: sticky; left: 0; background: var(--ground); white-space: nowrap; }
+.cmp td.y { color: var(--ink); font-weight: 600; }
+.cmp td.p { color: var(--ink-2); }
+.cmp td.n, .cmp td.u { color: var(--ink-3); }
+.cmp tr.roar > * { background: var(--mane-soft); color: var(--ink); font-weight: 700; border-bottom: 0; padding-top: 18px; padding-bottom: 18px; }
+.cmp tr.roar th { font-size: 19px; box-shadow: inset 5px 0 0 var(--mane); border-radius: 12px 0 0 12px; }
+.cmp tr.roar td:last-child { border-radius: 0 12px 12px 0; }
+.cmp tr.grp th { font: 600 14px var(--ui); color: var(--ink-3); padding: 28px 14px 8px; border-bottom: 1px solid var(--rule); position: static; background: none; }
+.src { margin-top: 10px; color: var(--ink-2); font-size: 14px; }
+.src summary { cursor: pointer; color: var(--ink-3); }
+.src ul { padding-left: 18px; margin: 10px 0 0; }
+.src li { margin: 4px 0; }
 .asof { color: var(--ink-3); font-size: 14px; margin-top: 12px; }
 .quip { font: 700 clamp(20px, 3vw, 26px)/1.3 var(--round); margin-top: 28px; max-width: 30ch; }
 
@@ -221,24 +230,38 @@ footer .wrap { display: flex; flex-wrap: wrap; gap: 8px 28px; align-items: cente
     <h2 id="cmp-h">Roar vs the rest</h2>
     <p>The Browser Company put Arc in maintenance mode in May 2025 to build Dia. If you lived in Arc, a company decided for you that your browser was done. The new AI browsers ship their own assistant and keep the source closed. Roar is the other answer: MIT licensed, no built-in assistant, and your own agent plugged in over MCP.</p>
     <div class="tablewrap">
-      <table>
+      <table class="cmp">
         <thead><tr><th scope="col">Browser</th><th scope="col">Open source</th><th scope="col">Built-in AI</th><th scope="col">Your own agent can drive it</th><th scope="col">Vertical tabs</th></tr></thead>
         <tbody>
-          <tr class="roar"><th scope="row">Roar</th><td>Yes, MIT</td><td>None; bring your own</td><td>Yes, built-in MCP server, free</td><td>Yes, with spaces</td></tr>
-          <tr><th scope="row">Arc</th><td>No</td><td>Arc Max</td><td>No</td><td>Yes (maintenance mode since May 2025)</td></tr>
-          <tr><th scope="row">Dia</th><td>No</td><td>Dia's assistant</td><td>—</td><td>Optional, since July 2025</td></tr>
-          <tr><th scope="row">ChatGPT Atlas</th><td>No</td><td>ChatGPT</td><td>—</td><td>Optional, since November 2025</td></tr>
-          <tr><th scope="row">Perplexity Comet</th><td>No</td><td>Perplexity</td><td>Community add-ons only</td><td>—</td></tr>
-          <tr><th scope="row">Opera Neon</th><td>No</td><td>Neon AI (paid)</td><td>Yes, MCP Connector</td><td>—</td></tr>
-          <tr><th scope="row">Chrome</th><td>No (Chromium is)</td><td>Gemini</td><td>Separate setup (chrome-devtools-mcp)</td><td>Optional, since April 2026</td></tr>
-          <tr><th scope="row">Edge</th><td>No</td><td>Copilot</td><td>—</td><td>Optional, since 2021</td></tr>
-          <tr><th scope="row">Brave</th><td>Yes, MPL 2.0</td><td>Leo</td><td>—</td><td>Optional</td></tr>
-          <tr><th scope="row">Firefox</th><td>Yes, MPL 2.0</td><td>Chatbot sidebar, your pick of provider</td><td>No</td><td>Optional, since March 2025</td></tr>
-          <tr><th scope="row">Safari</th><td>No</td><td>Apple Intelligence</td><td>No</td><td>No</td></tr>
+          <tr class="roar"><th scope="row">Roar</th><td>Yes, MIT</td><td>None. Bring your own</td><td>Yes, built-in MCP server</td><td>Yes, with spaces</td></tr>
+          <tr class="grp"><th scope="rowgroup" colspan="5">AI browsers</th></tr>
+          <tr><th scope="row">Arc</th><td class="n">No</td><td class="n">Arc Max</td><td class="n">No</td><td class="y">Yes, maintenance only since May 2025</td></tr>
+          <tr><th scope="row">Dia</th><td class="n">No</td><td class="n">Dia's assistant</td><td class="n">No, community add-ons only</td><td class="p">Optional, since July 2025</td></tr>
+          <tr><th scope="row">Perplexity Comet</th><td class="n">No</td><td class="n">Perplexity</td><td class="n">No, community add-ons only</td><td class="u">—</td></tr>
+          <tr><th scope="row">Opera Neon</th><td class="n">No</td><td class="n">Neon AI, paid plan</td><td class="y">Yes, MCP Connector</td><td class="u">—</td></tr>
+          <tr class="grp"><th scope="rowgroup" colspan="5">Everyday browsers</th></tr>
+          <tr><th scope="row">Chrome</th><td class="n">No, only Chromium is</td><td class="n">Gemini</td><td class="p">Separate setup (chrome-devtools-mcp)</td><td class="p">Optional, since April 2026</td></tr>
+          <tr><th scope="row">Edge</th><td class="n">No</td><td class="n">Copilot</td><td class="n">No official one</td><td class="p">Optional, since 2021</td></tr>
+          <tr><th scope="row">Brave</th><td class="y">Yes, MPL 2.0</td><td class="n">Leo</td><td class="n">No, community add-ons only</td><td class="p">Optional, since 2023</td></tr>
+          <tr><th scope="row">Firefox</th><td class="y">Yes, MPL 2.0</td><td class="n">Chatbot sidebar, your pick of provider</td><td class="n">No</td><td class="p">Optional, since March 2025</td></tr>
+          <tr><th scope="row">Safari</th><td class="n">No</td><td class="n">Apple Intelligence</td><td class="n">No</td><td class="n">No</td></tr>
         </tbody>
       </table>
     </div>
-    <p class="asof">As of October 2026. A dash means we couldn't confirm it.</p>
+    <p class="asof">Checked October 15, 2026. A dash means we couldn't confirm it from the maker or the press.</p>
+    <details class="src">
+      <summary>Sources</summary>
+      <ul>
+        <li>Arc in maintenance mode, for Dia: <a href="https://browsercompany.substack.com/p/letter-to-arc-members-2025">The Browser Company, May 26, 2025</a></li>
+        <li>Dia vertical tabs: <a href="https://alternativeto.net/news/2025/7/vertical-tabs-and-faster-sidebar-interaction-now-available-in-dia-browser/">AlternativeTo, July 8, 2025</a></li>
+        <li>Comet: <a href="https://www.perplexity.ai/comet">perplexity.ai/comet</a></li>
+        <li>Opera Neon MCP Connector, free plan: <a href="https://operaneon.com/news/your-ai-agents-can-use-opera-neon-free-of-charge">Opera, August 12, 2026</a></li>
+        <li>Chrome vertical tabs: <a href="https://blog.google/products-and-platforms/products/chrome/new-chrome-productivity-features/">Google, April 7, 2026</a>; chrome-devtools-mcp: <a href="https://github.com/ChromeDevTools/chrome-devtools-mcp">GitHub</a></li>
+        <li>Edge vertical tabs: <a href="https://explore.microsoft.com/en-us/edge/features/vertical-tabs">Microsoft</a></li>
+        <li>Brave license: <a href="https://github.com/brave/brave-browser/blob/master/LICENSE">GitHub</a>; vertical tabs: <a href="https://brave.com/blog/vertical-tabs/">Brave, May 31, 2023</a></li>
+        <li>Firefox vertical tabs: <a href="https://www.firefox.com/en-US/firefox/136.0/releasenotes/">Firefox 136 release notes, March 4, 2025</a></li>
+      </ul>
+    </details>
     <p class="quip">We don't need a browser company to build a browser.</p>
   </div>
 </section>
