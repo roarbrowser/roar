@@ -782,6 +782,10 @@ void Controller::Start() {
     if (auto set = reinterpret_cast<void (*)(Hook)>(lib ? dlsym(lib, "roar_set_create_target_hook") : nullptr))
       set([](const char* url) { return Controller::Get()->OpenTargetTab(url); });
     cdp_http_ = reinterpret_cast<void (*)(int)>(lib ? dlsym(lib, "roar_devtools_http") : nullptr);
+    // Hides ghost tabs and spaces with agents off from CDP clients (scripts/cef-patches).
+    if (auto filter = reinterpret_cast<void (*)(bool (*)(int))>(
+            lib ? dlsym(lib, "roar_set_devtools_target_filter") : nullptr))
+      filter([](int id) { return Controller::Get()->AgentMayReach(id); });
     break;
   }
   cdp_on_ = platform::CdpEnabled();
@@ -923,15 +927,51 @@ int Controller::NewTab(const std::string& url, bool activate, bool pinned, doubl
 }
 
 int Controller::OpenTargetTab(const std::string& url) {
-  if (!shell_) return 0;
-  int id = NewTab(url, true);
-  // The tab's browser exists once its window does; without one (a space whose
-  // profile is still loading) let Chrome open the page instead.
+  int space = AgentSpace();
+  // No space allows agents: fail createTarget rather than open one anywhere.
+  if (!shell_ || space < 0) return -1;
+  bool here = space == State::Get().active_space;
+  int id = NewTab(url, here, false, 0, space);
+  // The tab's browser exists once its window does; a background space's tab
+  // gets its window now, unshown (OnTabWindowCreated shows only visible tabs).
   Tab* tab = FindTab(id);
+  if (tab && !here) ShowTabWindow(tab);
   auto browser = tab && tab->view ? tab->view->GetBrowser() : nullptr;
   if (browser) return browser->GetIdentifier();
   CloseTab(id);
-  return 0;
+  return -1;
+}
+
+int Controller::AgentSpace() {
+  State& st = State::Get();
+  auto allowed = [&](int id) { Space* sp = st.FindSpace(id); return sp && sp->agents; };
+  if (allowed(agent_space_)) return agent_space_;
+  if (allowed(st.active_space)) return st.active_space;
+  for (const auto& sp : st.spaces)
+    if (sp.agents) return sp.id;
+  return -1;
+}
+
+bool Controller::AgentMayReach(int browser_id) {
+  if (browser_id == 0) return true;  // Not a Roar browser (a native Chrome window).
+  auto it = browsers_.find(browser_id);
+  // Not announced yet: OpenTargetTab's own tab, which is in an agent space.
+  if (it == browsers_.end()) return true;
+  auto browser = it->second;
+  if (IsUiBrowser(browser)) return true;  // roar-mcp.mjs drives the sidebar.
+  int space = -1;
+  if (Tab* t = FindTabByBrowser(browser)) {
+    if (t->ghost) return false;
+    space = t->space;
+  } else {
+    // A popup or stray page: its space is its profile.
+    auto ctx = browser->GetHost()->GetRequestContext();
+    if (ctx && ctx->IsSharingWith(CefRequestContext::GetGlobalContext())) space = 0;
+    for (const auto& [id, c] : contexts_)
+      if (id != kGhostContext && c && ctx && ctx->IsSharingWith(c)) space = id;
+  }
+  Space* sp = State::Get().FindSpace(space);
+  return sp && sp->agents;
 }
 
 int Controller::NewTabFrom(CefRefPtr<CefBrowser> opener, const std::string& url, bool activate) {

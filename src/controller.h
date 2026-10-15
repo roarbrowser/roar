@@ -98,6 +98,11 @@ class Controller {
              int space = -1, bool ghost = false, int opener = 0);
   // Opens a CDP Target.createTarget page as a tab; returns its browser id, or 0.
   int OpenTargetTab(const std::string& url);
+  // Whether remote CDP clients may see this browser (Roar's DevTools filter).
+  bool AgentMayReach(int browser_id);
+  // Where agent pages open: the chosen agent space, else the active one, else
+  // the first that allows agents; -1 when none does.
+  int AgentSpace();
   // A link opened in a new tab: beside its opener, in the opener's space and group.
   int NewTabFrom(CefRefPtr<CefBrowser> opener, const std::string& url, bool activate);
   bool AdoptPopup(CefRefPtr<CefBrowser> opener, CefRefPtr<CefBrowserView> popup);
@@ -300,6 +305,7 @@ class Controller {
   int next_alert_id_ = 1;
   void ResolveAlert(int id, const std::string& result);
   void SyncAlertBadge();
+  int agent_space_ = -1;  // Last answer to "which profile should the agent use?".
   bool cdp_on_ = false;                 // Whether the CDP HTTP port is listening now.
   void (*cdp_http_)(int port) = nullptr;  // Roar's CEF patch: opens (port) or closes (0) it live.
   void SetCdp(bool on);

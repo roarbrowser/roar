@@ -14,7 +14,7 @@ States: `todo`, `in progress`, `done`, `blocked (maintainer)`.
 | 5 | One-page site | done, not published | Maintainer enables GitHub Pages from /docs; drop docs/media/roar-demo.mp4 + .jpg in when the demo exists |
 | 6 | Auto-update | done, unreleased | Sparkle 2.10.0 wired (feed: appcast.xml on main; EdDSA private key in the login keychain item "Private key for signing Sparkle updates"). Verified against a local test feed (ROAR_SPARKLE_TEST=1 + ROAR_SPARKLE_FEED). First real release will exercise sign_update; consider signing Sparkle's XPC helpers individually once Developer ID signing is live |
 | 8 | Agents per profile | in progress | Per-space "Allow agents" switch; Chromium filter hides off spaces from remote DevTools; MCP asks which profile when several are on; use_profile tool. Needs a Chromium rebuild |
-| 7 | Brand accounts | in progress | Done: Gmail, GitHub org, X @roarbrowser (see docs/brand/ACCOUNTS.md). Next: Product Hunt, Reddit u/roarbrowser, Hacker News roarbrowser |
+| 7 | Brand accounts | in progress | Done: Gmail, GitHub org, X @roarbrowser, Product Hunt @roarbrowser (X login) (see docs/brand/ACCOUNTS.md). Next: Reddit u/roarbrowser, Hacker News roarbrowser |
 
 ## Maintainer steps outstanding
 
