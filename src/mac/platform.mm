@@ -5,7 +5,9 @@
 #include <Security/Security.h>
 
 #include <algorithm>
+#include <set>
 #include <fcntl.h>
+#include <libproc.h>
 #include <netinet/in.h>
 #include <sys/file.h>
 #include <sys/socket.h>
@@ -371,6 +373,47 @@ bool CdpEnabled() {
     return on ? [on boolValue] : YES;
   }();
   return on;
+}
+
+namespace {
+// Calls |fn| with each TCP socket of |pid|.
+template <typename Fn>
+void ForEachTcp(pid_t pid, Fn fn) {
+  int bytes = proc_pidinfo(pid, PROC_PIDLISTFDS, 0, nullptr, 0);
+  if (bytes <= 0) return;
+  std::vector<proc_fdinfo> fds(bytes / sizeof(proc_fdinfo) + 16);
+  bytes = proc_pidinfo(pid, PROC_PIDLISTFDS, 0, fds.data(), static_cast<int>(fds.size() * sizeof(proc_fdinfo)));
+  for (int i = 0; i < bytes / static_cast<int>(sizeof(proc_fdinfo)); ++i) {
+    if (fds[i].proc_fdtype != PROX_FDTYPE_SOCKET) continue;
+    socket_fdinfo si;
+    if (proc_pidfdinfo(pid, fds[i].proc_fd, PROC_PIDFDSOCKETINFO, &si, sizeof si) != sizeof si) continue;
+    if (si.psi.soi_kind == SOCKINFO_TCP) fn(si.psi.soi_proto.pri_tcp);
+  }
+}
+}  // namespace
+
+// Counts the processes on the other end of this Roar's CDP connections: one
+// client (an MCP server) often holds several sockets.
+int CdpClientCount() {
+  int port = CdpPort();
+  std::set<int> peers;  // Client-side ports of established CDP connections.
+  ForEachTcp(getpid(), [&](const tcp_sockinfo& tcp) {
+    if (tcp.tcpsi_state == TSI_S_ESTABLISHED && ntohs(tcp.tcpsi_ini.insi_lport) == port)
+      peers.insert(ntohs(tcp.tcpsi_ini.insi_fport));
+  });
+  if (peers.empty()) return 0;
+  std::vector<pid_t> pids(proc_listallpids(nullptr, 0) + 64);
+  int n = proc_listallpids(pids.data(), static_cast<int>(pids.size() * sizeof(pid_t)));
+  std::set<pid_t> clients;
+  for (int i = 0; i < n && !peers.empty(); ++i) {
+    if (pids[i] == getpid() || pids[i] <= 0) continue;
+    ForEachTcp(pids[i], [&](const tcp_sockinfo& tcp) {
+      if (ntohs(tcp.tcpsi_ini.insi_fport) == port && peers.erase(ntohs(tcp.tcpsi_ini.insi_lport)))
+        clients.insert(pids[i]);
+    });
+  }
+  // Sockets whose owner could not be read (another user's process) count one each.
+  return static_cast<int>(clients.size() + peers.size());
 }
 
 void RelaunchAfterExit() {

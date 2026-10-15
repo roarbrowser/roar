@@ -20,6 +20,8 @@ int CdpPort();
 bool CdpEnabled();
 // Reopens this app bundle once this process has exited; call before quitting.
 void RelaunchAfterExit();
+// Open TCP connections to this process's CDP port: one per connected agent/CDP client.
+int CdpClientCount();
 // Locks |dir| for this process and writes the CDP port to <dir>/cdp-port.
 // False when another Roar already runs from |dir|.
 bool ClaimInstance(const std::string& dir);

@@ -732,6 +732,13 @@ $('ext-pins').oncontextmenu = (e) => {
   if (b) { e.preventDefault(); e.stopPropagation(); ask({ cmd: 'run', id: 'extensionPin:' + b.dataset.extPin }); }
 };
 $('settings').onclick = () => ask({ cmd: 'run', id: 'settings' });
+// The agent count is looked up as the pointer arrives, before the tooltip shows.
+$('cdp').onmouseenter = () => ask({ cmd: 'cdp.clients' }).then((n) => {
+  if (!state) return;
+  n = +n || 0;
+  $('cdp').title = `CDP: ${state.settings.cdpPort} ${state.settings.cdpOn ? 'open' : 'closed'}` +
+    (state.settings.cdpOn ? ` · ${n} agent${n === 1 ? '' : 's'} connected` : '');
+});
 $('cdp').onclick = () => ask({ cmd: 'settings.set', settings: { cdpEnabled: !state.settings.cdpOn } }).then(() => ask({ cmd: 'state' })).then(roar.render);
 // GitHub PRs and Unread mail open as popovers from their footer icons.
 function syncFeeds() {

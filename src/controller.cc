@@ -3283,6 +3283,8 @@ bool Controller::HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> 
     std::erase_if(downloads_, [](const Download& d) { return d.done || d.canceled || d.failed; });
     PushSidebar();
     callback->Success("");
+  } else if (cmd == "cdp.clients") {
+    callback->Success(std::to_string(cdp_on_ ? platform::CdpClientCount() : 0));
   } else if (cmd == "history.list") {
     // The page asks for more as it shows older days.
     int limit = msg->HasKey("limit") ? msg->GetInt("limit") : 500;
