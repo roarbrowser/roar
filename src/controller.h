@@ -33,6 +33,7 @@ struct Tab {
   int id = 0;
   CefRefPtr<CefBrowserView> view;
   CefRefPtr<CefWindow> window;  // Created on first activation.
+  CefRefPtr<CefOverlayController> nav;  // Back/forward over the page while split (SyncPaneNav).
   bool floating = false;        // Detached into an always-on-top mini window.
   std::string url;
   std::string title;
@@ -314,11 +315,13 @@ class Controller {
   void ResolveAlert(int id, const std::string& result);
  public:
   static bool UiCdpForTests();
+  void PaneNav(int tab, bool forward);
   bool ForeignUiNavigation(CefRefPtr<CefBrowser> browser, const std::string& url);
  private:
   double split_ratio_ = 0.5;  // First pane's share of the width (or height when stacked).
   void Unsplit();
   void SyncDivider();
+  void SyncPaneNav(Tab* tab);
   void AskDefaultBrowser();
   void SyncAlertBadge();
   int agent_space_ = -1;  // Last answer to "which profile should the agent use?".

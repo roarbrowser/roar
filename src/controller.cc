@@ -26,6 +26,9 @@
 #include "include/cef_urlrequest.h"
 #include "include/cef_xml_reader.h"
 #include "include/views/cef_box_layout.h"
+#include "include/views/cef_label_button.h"
+#include "include/views/cef_overlay_controller.h"
+#include "include/views/cef_panel.h"
 #include "include/views/cef_display.h"
 #include "include/views/cef_fill_layout.h"
 #include "include/wrapper/cef_closure_task.h"
@@ -378,6 +381,17 @@ class ShellDelegate : public CefWindowDelegate {
 };
 
 // A frameless Chrome-style window that holds exactly one tab.
+// A split pane's own back or forward button: the sidebar's act on the focused pane only.
+class PaneNavDelegate : public CefButtonDelegate {
+ public:
+  PaneNavDelegate(int tab, bool forward) : tab_(tab), forward_(forward) {}
+  void OnButtonPressed(CefRefPtr<CefButton>) override { Controller::Get()->PaneNav(tab_, forward_); }
+ private:
+  int tab_;
+  bool forward_;
+  IMPLEMENT_REFCOUNTING(PaneNavDelegate);
+};
+
 class TabWindowDelegate : public CefWindowDelegate {
  public:
   TabWindowDelegate(CefRefPtr<CefBrowserView> view, CefRect bounds)
@@ -1048,8 +1062,45 @@ void Controller::SyncWindows() {
     if (t.floating) continue;
     if (IsVisible(t.id)) ShowTabWindow(&t);
     else HideTabWindow(&t);
+    SyncPaneNav(&t);
   }
   SyncDivider();
+}
+
+// ‹ › in a pane's top-left corner while it shares the screen in split view.
+void Controller::SyncPaneNav(Tab* t) {
+  bool want = t->window && !t->floating && IsVisible(t->id) && VisibleIds().size() == 2;
+  if (!want) {
+    if (t->nav) t->nav->SetVisible(false);
+    return;
+  }
+  if (!t->nav) {
+    auto panel = CefPanel::CreatePanel(nullptr);
+    CefBoxLayoutSettings box;
+    box.horizontal = true;
+    box.between_child_spacing = 2;
+    box.inside_border_insets = {3, 4, 3, 4};
+    panel->SetToBoxLayout(box);
+    panel->SetBackgroundColor(CefColorSetARGB(0xd8, 0x2a, 0x1d, 0x12));
+    for (bool fwd : {false, true}) {
+      auto b = CefLabelButton::CreateLabelButton(new PaneNavDelegate(t->id, fwd), fwd ? "›" : "‹");
+      b->SetTooltipText(fwd ? "Forward" : "Back");
+      b->SetTextColor(CEF_BUTTON_STATE_NORMAL, CefColorSetARGB(0xff, 0xfb, 0xee, 0xdd));
+      b->SetTextColor(CEF_BUTTON_STATE_HOVERED, CefColorSetARGB(0xff, 0xff, 0x9a, 0x2e));
+      b->SetFontList("SF Pro Rounded, Bold 15px");
+      panel->AddChildView(b);
+    }
+    t->nav = t->window->AddOverlayView(panel, CEF_DOCKING_MODE_TOP_LEFT, false);
+    t->nav->SetInsets(CefInsets(6, 6, 0, 0));
+  }
+  t->nav->SizeToPreferredSize();
+  t->nav->SetVisible(true);
+}
+
+void Controller::PaneNav(int id, bool forward) {
+  Tab* t = FindTab(id);
+  auto b = t && t->view ? t->view->GetBrowser() : nullptr;
+  if (b) forward ? b->GoForward() : b->GoBack();
 }
 
 void Controller::Unsplit() {
@@ -1157,6 +1208,7 @@ void Controller::OnTabWindowCreated(CefRefPtr<CefWindow> window) {
   window->SetBounds(RectFor(tab->id));
   window->Show();
   platform::AttachChild(shell_->GetWindowHandle(), window->GetWindowHandle());
+  SyncPaneNav(tab);
   if (tab->id == active_id_) FocusTab(tab);
 }
 
