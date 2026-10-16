@@ -81,5 +81,7 @@ gh release create "$TAG" "$DMG" --title "Roar $VERSION" --notes "$BODY"
 # The tap (roarbrowser/homebrew-roar, Casks/roar.rb) is what `brew install` reads.
 TAP_SHA="$(gh api repos/roarbrowser/homebrew-roar/contents/Casks/roar.rb -q .sha)"
 gh api -X PUT repos/roarbrowser/homebrew-roar/contents/Casks/roar.rb -f message="roar $VERSION" \
-  -f content="$(base64 < packaging/homebrew/roar.rb)" -f sha="$TAP_SHA" >/dev/null
+  -f content="$(base64 < packaging/homebrew/roar.rb)" -f sha="$TAP_SHA" \
+  -f 'author[name]=Roar' -f 'author[email]=roarbrowser@gmail.com' \
+  -f 'committer[name]=Roar' -f 'committer[email]=roarbrowser@gmail.com' >/dev/null
 echo "released $TAG (sha256 $SHA)"
