@@ -54,7 +54,7 @@ IDS="$(security find-identity -v -p codesigning)"
 SIGN_ID="${ROAR_SIGN_IDENTITY:-$(awk -F'"' '/Developer ID Application/{print $2; exit}' <<<"$IDS")}"
 SIGN_ID="${SIGN_ID:-$(awk -F'"' '/Apple Development/{print $2; exit}' <<<"$IDS")}"
 # Sign by hash: the same certificate in two keychains makes its name ambiguous to codesign.
-SIGN_HASH="$(grep -F "\"$SIGN_ID\"" <<<"$IDS" | awk '{print $2; exit}')"
+SIGN_HASH="$(grep -F "\"$SIGN_ID\"" <<<"$IDS" | awk '{print $2; exit}' || true)"  # no match for ad-hoc "-"
 SIGN_HASH="${SIGN_HASH:-$SIGN_ID}"
 if [[ "$SIGN_ID" == "Developer ID Application"* || "${ROAR_HARDENED:-}" == 1 ]]; then
   # --deep skips executables in Resources; roar-mcp (bun) needs the JIT entitlements too.
