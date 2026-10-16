@@ -432,12 +432,13 @@ window.roar = {
     const clRow = (c) => `<div class="row pr cl${clFull[c.id]?.active ? ' active' : ''}" data-clid="${esc(c.id)}" data-cllive="${c.live ? 1 : ''}" data-cltab="${clFull[c.id]?.id || ''}" title="${esc((c.prompt || c.cwd || '') + (c.live ? '\nClick to watch and reply' : '\nClick to open its window'))}"><span class="dot ${esc(c.state || 'idle')}"></span><span class="label">${esc(c.project)}<small>${esc(c.doing || '')} · ${clAgo(c.updated)}</small></span>${c.live ? (clFull[c.id] ? `<button data-clfull="${esc(c.id)}" class="on" title="Collapse back into the sidebar">⤡</button>` : `<button data-clfull="${esc(c.id)}" title="Open in full view">⤢</button>`) : ''}<button data-clfocus="${esc(c.id)}" title="Open its terminal window">↗</button><button data-cldismiss="${esc(c.id)}" title="Hide this session">×</button></div>`;
     const clPinned = (() => { try { return localStorage.getItem('claudePinned') === '1'; } catch { return false; } })();
     const clNeeds = cl.filter((c) => c.state === 'needs_you').length;
-    $('cl-btn').hidden = !(cl.length || s.claude?.hooks) || clPinned;
+    const clOn = s.settings?.claudeSidebar !== false;
+    $('cl-btn').hidden = !clOn || !(cl.length || s.claude?.hooks) || clPinned;
     $('cl-count').textContent = clNeeds || cl.length || '';
     $('cl-count').classList.toggle('urgent', clNeeds > 0);
     $('cl-btn').title = cl.length + ' Claude Code session' + (cl.length === 1 ? '' : 's') + (clNeeds ? `, ${clNeeds} waiting for you` : '');
     setHtml($('cl'), cl.map(clRow).join(''));
-    $('cl-pinned').hidden = !clPinned || !(cl.length || s.claude?.hooks);
+    $('cl-pinned').hidden = !clOn || !clPinned || !(cl.length || s.claude?.hooks);
     $('cl-pcount').textContent = cl.length || '';
     setHtml($('cl-prows'), cl.map(clRow).join(''));
     clDirs = [...new Set([...cl.map((c) => c.cwd).filter(Boolean), ...clDirs])].slice(0, 8);

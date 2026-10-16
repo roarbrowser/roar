@@ -876,6 +876,19 @@ void Controller::Start() {
   platform::RoarMcp({"claude-hooks", "status"}, [this](const std::string& out) {
     claude_hooks_ = out.rfind("installed", 0) == 0;
     PushSidebar();
+    // On by default: the first launch that finds Claude Code installs the hooks, once (turning the
+    // switch off later is respected). Headless/test instances never touch ~/.claude.
+    auto& s = State::Get().settings;
+    std::error_code ec;
+    if (claude_hooks_ || !s.claude_sidebar || s.claude_hooks_offered || platform::Headless() ||
+        !std::filesystem::exists(std::filesystem::path(platform::HomeDir()) / ".claude", ec))
+      return;
+    s.claude_hooks_offered = true;
+    State::Get().Save();
+    platform::RoarMcp({"claude-hooks", "install"}, [this](const std::string& out) {
+      claude_hooks_ = out.rfind("installed", 0) == 0;
+      PushSidebar();
+    });
   });
 }
 
@@ -3019,6 +3032,7 @@ std::string Controller::StateJson() {
   settings->SetBool("pinnedCentered", state.settings.pinned_centered);
   settings->SetBool("cleanLinks", state.settings.clean_links);
   settings->SetBool("askDefault", state.settings.ask_default);
+  settings->SetBool("claudeSidebar", state.settings.claude_sidebar);
   settings->SetBool("isDefaultBrowser", platform::IsDefaultBrowser());
   settings->SetBool("cdpEnabled", state.settings.cdp_enabled);
   settings->SetBool("cdpOn", cdp_on_);
@@ -3200,6 +3214,7 @@ void Controller::ApplySettings(CefRefPtr<CefDictionaryValue> d) {
   if (d->HasKey("pinnedCentered")) s.pinned_centered = d->GetBool("pinnedCentered");
   if (d->HasKey("cleanLinks")) s.clean_links = d->GetBool("cleanLinks");
   if (d->HasKey("askDefault")) s.ask_default = d->GetBool("askDefault");
+  if (d->HasKey("claudeSidebar")) s.claude_sidebar = d->GetBool("claudeSidebar");
   if (d->HasKey("agentHeadless")) s.agent_headless = d->GetBool("agentHeadless");
   if (d->HasKey("cdpEnabled")) {
     s.cdp_enabled = d->GetBool("cdpEnabled");

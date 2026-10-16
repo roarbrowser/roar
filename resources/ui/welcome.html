@@ -190,7 +190,7 @@ function apply(s) {
   $('pin-center').checked = s.settings.pinnedCentered;
   $('clean-links').checked = s.settings.cleanLinks;
   $('ask-default').checked = s.settings.askDefault;
-  $('claude-hooks').checked = !!s.claude?.hooks;
+  $('claude-hooks').checked = s.settings.claudeSidebar !== false && !!s.claude?.hooks;
   $('make-default').hidden = s.settings.isDefaultBrowser;
   $('default-status').textContent = s.settings.isDefaultBrowser ? 'Roar is your default browser.' : '';
   $('cdp-on').checked = s.settings.cdpEnabled;
@@ -290,7 +290,7 @@ $('agent-clients').addEventListener('click', (e) => {
 loadAgents();
 $('cdp-relaunch').onclick = () => ask({ cmd: 'run', id: 'relaunch' });
 $('clean-links').onchange = () => set({ cleanLinks: $('clean-links').checked });
-$('claude-hooks').onchange = () => ask({ cmd: 'claude.hooks', on: $('claude-hooks').checked }).then(() => ask({ cmd: 'state' })).then(apply);
+$('claude-hooks').onchange = () => { const on = $('claude-hooks').checked; set({ claudeSidebar: on }); ask({ cmd: 'claude.hooks', on }).then(() => ask({ cmd: 'state' })).then(apply); };
 $('ask-default').onchange = () => set({ askDefault: $('ask-default').checked });
 $('make-default').onclick = () => ask({ cmd: 'browser.makeDefault' }).then(() => ask({ cmd: 'state' })).then(apply);
 $('forget').onclick = () => ask({ cmd: 'run', id: 'forgetPages' }).then(() => ask({ cmd: 'state' })).then(apply);
