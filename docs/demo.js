@@ -24,7 +24,7 @@
     c.tab = function (name, on) {
       if (on) [].forEach.call(tabs.children, function (x) { x.classList.remove('on'); });
       var el = [].filter.call(tabs.children, function (x) { return x.dataset.n === name; })[0] || tabs.appendChild(h('<div class="tab"><b></b></div>'));
-      if (!el.dataset.n) { el.dataset.n = name; el.appendChild(document.createTextNode(name)); }
+      if (!el.dataset.n) { el.dataset.n = name; el.appendChild(document.createTextNode(name)); el.appendChild(document.createElement('i')).textContent = '×'; }
       if (on) el.classList.add('on');
     };
     // Terminal lines: what you typed, the agent's tool calls (Roar's MCP tools), and its replies.
@@ -182,12 +182,13 @@
 
   // Hero: the agent moves between real tabs and asks about each one.
   var card = document.querySelector('.hero .card'), htabs = document.querySelectorAll('.hero .tab');
+  var addr = document.querySelector('.hero .addr'), sites = ['mail.example', 'git.example/acme/app/pull/212', 'flights.example', 'docs.example/q4-launch'];
   var asks = [[2, 'Two fares match. Book the 9:40 nonstop?', 'Book it'], [0, 'Archive 14 newsletters and keep the 2 from people?', 'Archive'], [1, 'Tests pass. Approve and merge #212?', 'Merge'], [3, 'The launch plan is drafted. Share it with the team?', 'Share']];
   var n = 0;
   if (card && !reduced) setInterval(function () {
     var x = asks[++n % asks.length];
     [].forEach.call(htabs, function (t, i) { t.classList.toggle('on', i === x[0]); });
-    card.querySelector('.q').textContent = x[1]; card.querySelector('.yes').textContent = x[2];
+    addr.textContent = sites[x[0]]; card.querySelector('.q').textContent = x[1]; card.querySelector('.yes').textContent = x[2];
     card.classList.remove('swap'); void card.offsetWidth; card.classList.add('swap');
   }, 4500);
 })();
