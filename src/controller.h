@@ -258,6 +258,11 @@ class Controller {
   void AutoArchiveTick();
   void GitHubTick();
   void GmailOpenTick();
+  // Claude Code sessions reported by the roar-mcp claude-hook (<data>/claude-sessions/*.json).
+  void ClaudeTick();
+  CefRefPtr<CefListValue> claude_ = CefListValue::Create();
+  std::string claude_sig_;
+  bool claude_hooks_ = false;
   void MaybeQuit();
 
   CefRefPtr<Client> client_;

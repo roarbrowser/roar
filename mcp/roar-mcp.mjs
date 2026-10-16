@@ -21,6 +21,11 @@ import { spawn, execFileSync } from 'node:child_process';
 import { createInterface } from 'node:readline';
 import { mkdirSync, readFileSync, existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
+import { run as claudeHooks } from './claude-hook.mjs';
+
+// `roar-mcp claude-hook` / `roar-mcp claude-hooks <action>`: Claude Code sessions in the sidebar.
+const mode = process.argv.slice(2)[0];
+if (mode === 'claude-hook' || mode === 'claude-hooks') { claudeHooks(process.argv.slice(2), process.execPath); process.exit(); }
 
 // Contents/Resources/roar-mcp -> Roar.app
 const APP = process.env.ROAR_APP || join(dirname(process.execPath), '..', '..');

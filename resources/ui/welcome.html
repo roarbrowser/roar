@@ -68,6 +68,10 @@ pre { margin: 0; font: 12px/1.6 var(--mono); background: var(--ground); border-r
       <p class="status">Profiles agents may use. Agents never see a profile that's off; with several on, Roar asks which one to use.</p>
       <div class="controls" id="agent-spaces"></div>
       <p class="status">The dot under the settings icon shows whether agents can connect; click it to switch. Close it before a site that flags automated browsers.</p>
+      <div class="controls">
+        <label class="switch"><input type="checkbox" id="claude-hooks"> Show my Claude Code sessions in the sidebar</label>
+      </div>
+      <p class="status">Adds a small hook to <kbd>~/.claude/settings.json</kbd> (a copy of the original is kept). Each session reports its project, what it's doing and whether it needs you; never the conversation. A Claude icon shows at the bottom of the sidebar while sessions run; pin its list to keep it in view.</p>
     </li>
     <li>
       <h2>Everything starts at ⌘T</h2>
@@ -174,6 +178,7 @@ function apply(s) {
   $('pin-center').checked = s.settings.pinnedCentered;
   $('clean-links').checked = s.settings.cleanLinks;
   $('ask-default').checked = s.settings.askDefault;
+  $('claude-hooks').checked = !!s.claude?.hooks;
   $('make-default').hidden = s.settings.isDefaultBrowser;
   $('default-status').textContent = s.settings.isDefaultBrowser ? 'Roar is your default browser.' : '';
   $('cdp-on').checked = s.settings.cdpEnabled;
@@ -264,6 +269,7 @@ $('agent-clients').addEventListener('click', (e) => {
 loadAgents();
 $('cdp-relaunch').onclick = () => ask({ cmd: 'run', id: 'relaunch' });
 $('clean-links').onchange = () => set({ cleanLinks: $('clean-links').checked });
+$('claude-hooks').onchange = () => ask({ cmd: 'claude.hooks', on: $('claude-hooks').checked }).then(() => ask({ cmd: 'state' })).then(apply);
 $('ask-default').onchange = () => set({ askDefault: $('ask-default').checked });
 $('make-default').onclick = () => ask({ cmd: 'browser.makeDefault' }).then(() => ask({ cmd: 'state' })).then(apply);
 $('forget').onclick = () => ask({ cmd: 'run', id: 'forgetPages' }).then(() => ask({ cmd: 'state' })).then(apply);

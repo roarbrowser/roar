@@ -1063,6 +1063,18 @@ std::string HomeDir() {
   return h && *h ? h : NSHomeDirectory().UTF8String;
 }
 
+void RoarMcp(std::vector<std::string> args, std::function<void(const std::string& out)> done) {
+  NSMutableArray<NSString*>* a = [NSMutableArray array];
+  for (const auto& s : args) [a addObject:NS(s)];
+  NSString* exe = NS(ResourcePath("roar-mcp"));
+  dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
+    NSString *out = nil, *err = nil;
+    RunTool(exe, a, &out, &err);
+    std::string o = out ? std::string(out.UTF8String) : "";
+    OnUi(base::BindOnce([](std::function<void(const std::string&)> cb, std::string o) { cb(o); }, done, o));
+  });
+}
+
 void ClaudeMcpAdd(const std::string& server, std::function<void(bool ok)> done) {
   NSString* home = NS(HomeDir());
   NSString* claude = nil;

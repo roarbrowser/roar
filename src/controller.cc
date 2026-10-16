@@ -858,6 +858,11 @@ void Controller::Start() {
   AutoArchiveTick();
   GitHubTick();
   GmailOpenTick();
+  ClaudeTick();
+  platform::RoarMcp({"claude-hooks", "status"}, [this](const std::string& out) {
+    claude_hooks_ = out.rfind("installed", 0) == 0;
+    PushSidebar();
+  });
 }
 
 void Controller::PaintPreview() {
@@ -1762,6 +1767,32 @@ void Controller::GmailOpenTick() {
   if (++ticks % 3 == 0) spaces.insert(State::Get().active_space);
   for (int space : spaces) RefreshGmail(space);
   CefPostDelayedTask(TID_UI, base::BindOnce([] { Controller::Get()->GmailOpenTick(); }), 20 * 1000);
+}
+
+void Controller::ClaudeTick() {
+  namespace fs = std::filesystem;
+  auto list = CefListValue::Create();
+  std::error_code ec;
+  fs::path dir = fs::path(State::Get().Dir()) / "claude-sessions";
+  double now = NowSeconds();
+  for (const auto& e : fs::directory_iterator(dir, ec)) {
+    if (e.path().extension() != ".json") continue;
+    std::ifstream in(e.path());
+    std::string text((std::istreambuf_iterator<char>(in)), {});
+    auto v = CefParseJSON(text, JSON_PARSER_RFC);
+    if (!v || v->GetType() != VTYPE_DICTIONARY) continue;
+    auto d = v->GetDictionary();
+    // A session that crashed never sends SessionEnd; forget it after 6 idle hours.
+    if (now - d->GetDouble("updated") / 1000 > 6 * 3600) { fs::remove(e.path(), ec); continue; }
+    list->SetDictionary(list->GetSize(), d->Copy(false));
+  }
+  std::string sig = ToJson([&] { auto x = CefValue::Create(); x->SetList(list); return x; }());
+  if (sig != claude_sig_) {
+    claude_sig_ = sig;
+    claude_ = list;
+    PushSidebar();
+  }
+  CefPostDelayedTask(TID_UI, base::BindOnce([] { Controller::Get()->ClaudeTick(); }), 2000);
 }
 
 void Controller::SwitchSpace(int id) {
@@ -2871,6 +2902,10 @@ std::string Controller::StateJson() {
   }
   gm->SetList("items", mail);
   root->SetDictionary("gmail", gm);
+  auto cl = CefDictionaryValue::Create();
+  cl->SetBool("hooks", claude_hooks_);
+  cl->SetList("items", claude_->Copy());
+  root->SetDictionary("claude", cl);
   auto settings = CefDictionaryValue::Create();
   settings->SetDouble("archiveAfterHours", state.settings.archive_after_hours);
   settings->SetBool("onboarded", state.settings.onboarded);
@@ -3587,6 +3622,22 @@ bool Controller::HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> 
       }
     SyncAlertBadge();
     PushSidebar();
+    callback->Success("");
+  } else if (cmd == "claude.hooks") {
+    // Adds or removes the roar-mcp claude-hook in ~/.claude/settings.json; replies its status.
+    bool on = msg->GetBool("on");
+    platform::RoarMcp({"claude-hooks", on ? "install" : "uninstall"}, [this, callback](const std::string& out) {
+      claude_hooks_ = out.rfind("installed", 0) == 0;
+      PushSidebar();
+      callback->Success(out);
+    });
+  } else if (cmd == "claude.dismiss") {
+    std::string id = msg->GetString("id").ToString();
+    if (!id.empty() && id.find_first_not_of("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_") == std::string::npos) {
+      std::error_code ec;
+      std::filesystem::remove(std::filesystem::path(State::Get().Dir()) / "claude-sessions" / (id + ".json"), ec);
+      claude_sig_.clear();
+    }
     callback->Success("");
   } else if (cmd == "browser.makeDefault") {
     platform::MakeDefaultBrowser([callback] { callback->Success(platform::IsDefaultBrowser() ? "yes" : "no"); });

@@ -103,5 +103,7 @@ void GitHubAuthStatus(std::function<void(std::string status)> done);
 // $HOME when set and non-empty, else the account home.
 std::string HomeDir();
 void ClaudeMcpAdd(const std::string& server, std::function<void(bool ok)> done);
+// Runs the bundled roar-mcp with args off the UI thread; done(stdout) on the UI thread.
+void RoarMcp(std::vector<std::string> args, std::function<void(const std::string& out)> done);
 
 }  // namespace roar::platform
