@@ -6,6 +6,7 @@ set(ROAR_SHARED_SRCS shared.cc shared.h)
 set(ROAR_SRCS
   ${ROAR_SHARED_SRCS}
   action_watch.cc action_watch.h
+  agent_connect.cc agent_connect.h
   arc_import.cc arc_import.h
   browser_app.cc browser_app.h
   client.cc client.h
@@ -43,7 +44,6 @@ add_custom_command(TARGET ${CEF_TARGET} POST_BUILD
   COMMAND ${CMAKE_COMMAND} -E copy_directory "${ROAR_RES}/ui" "${CEF_APP}/Contents/Resources/ui"
   COMMAND ${CMAKE_COMMAND} -E copy "${ROAR_RES}/Roar.sdef" "${CEF_APP}/Contents/Resources/Roar.sdef"
   COMMAND ${CMAKE_COMMAND} -E copy "${ROAR_RES}/roar-mcp.sh" "${CEF_APP}/Contents/Resources/roar-mcp.sh"
-  COMMAND ${CMAKE_COMMAND} -E copy "${ROAR_RES}/roar-mcp.mjs" "${CEF_APP}/Contents/Resources/roar-mcp.mjs"
   COMMAND ${CMAKE_COMMAND} -E copy "${ROAR_RES}/roar.icns" "${CEF_APP}/Contents/Resources/roar.icns"
   VERBATIM)
 

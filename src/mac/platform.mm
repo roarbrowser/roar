@@ -222,10 +222,10 @@ NSString* GhPath() {
   return nil;
 }
 
-// Runs gh with |args| and returns stdout, stderr text and the exit status.
-int RunGh(NSArray<NSString*>* args, NSString** out, NSString** err) {
+// Runs |tool| with |args| and returns stdout, stderr text and the exit status.
+int RunTool(NSString* tool, NSArray<NSString*>* args, NSString** out, NSString** err) {
   NSTask* task = [[NSTask alloc] init];
-  task.executableURL = [NSURL fileURLWithPath:GhPath()];
+  task.executableURL = [NSURL fileURLWithPath:tool];
   task.arguments = args;
   NSPipe* outPipe = [NSPipe pipe];
   NSPipe* errPipe = [NSPipe pipe];
@@ -243,6 +243,8 @@ int RunGh(NSArray<NSString*>* args, NSString** out, NSString** err) {
   *err = [[NSString alloc] initWithData:errData encoding:NSUTF8StringEncoding] ?: @"";
   return task.terminationStatus;
 }
+
+int RunGh(NSArray<NSString*>* args, NSString** out, NSString** err) { return RunTool(GhPath(), args, out, err); }
 
 void OnUi(base::OnceClosure closure) { CefPostTask(TID_UI, std::move(closure)); }
 
@@ -1037,6 +1039,32 @@ void GitHubAuthStatus(std::function<void(std::string status)> done) {
     std::string result = status == 0 ? "ok" : "signed-out";
     OnUi(base::BindOnce([](std::function<void(std::string)> cb, std::string r) { cb(r); }, done,
                         result));
+  });
+}
+
+std::string HomeDir() {
+  const char* h = getenv("HOME");
+  return h && *h ? h : NSHomeDirectory().UTF8String;
+}
+
+void ClaudeMcpAdd(const std::string& server, std::function<void(bool ok)> done) {
+  NSString* home = NS(HomeDir());
+  NSString* claude = nil;
+  for (NSString* p in @[ [home stringByAppendingString:@"/.local/bin/claude"],
+                         [home stringByAppendingString:@"/.claude/local/claude"], @"/opt/homebrew/bin/claude",
+                         @"/usr/local/bin/claude" ])
+    if ([[NSFileManager defaultManager] isExecutableFileAtPath:p]) { claude = p; break; }
+  if (!claude) {
+    done(false);
+    return;
+  }
+  NSString* path = NS(server);
+  dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
+    NSString *out = nil, *err = nil;
+    // `add` refuses an existing name, so drop a stale entry first.
+    RunTool(claude, @[ @"mcp", @"remove", @"--scope", @"user", @"roar" ], &out, &err);
+    int status = RunTool(claude, @[ @"mcp", @"add", @"--scope", @"user", @"roar", @"--", path ], &out, &err);
+    OnUi(base::BindOnce([](std::function<void(bool)> cb, bool ok) { cb(ok); }, done, status == 0));
   });
 }
 

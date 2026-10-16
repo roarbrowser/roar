@@ -4,12 +4,16 @@
 # Chromium refuses proprietary_codecs without ffmpeg_branding=Chrome, so this
 # bundles FFmpeg's H.264/AAC decoders like Chrome does: patent-encumbered, so
 # check the licensing before distributing a Roar built this way.
+# ROAR_CEF_ARCH=x64 cross-compiles an Intel build from the same checkout and patches
+# into out/Release_GN_x64 and installs it at third_party/cef-x64 (for universal builds).
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 CEF_SRC="${CEF_SRC:-$HOME/cef-src}"
 NAME=$(grep -o "cef_binary_[^']*" "$ROOT/scripts/fetch-cef.sh")
 CEF_COMMIT=$(sed -E 's/.*\+g([0-9a-f]+)\+.*/\1/' <<<"$NAME")
 CHROMIUM=$(sed -E 's/.*chromium-([0-9.]+)_.*/\1/' <<<"$NAME")
+ARCH="${ROAR_CEF_ARCH:-arm64}"
+[[ "$ARCH" == arm64 || "$ARCH" == x64 ]] || { echo "ROAR_CEF_ARCH must be arm64 or x64"; exit 1; }
 mkdir -p "$CEF_SRC"
 
 # automate-git wants the CEF release branch; find the one holding the commit.
@@ -25,10 +29,12 @@ curl -sfL -o "$CEF_SRC/automate-git.py" \
 
 export GN_DEFINES="is_official_build=true proprietary_codecs=true ffmpeg_branding=Chrome chrome_pgo_phase=0"
 export CEF_ARCHIVE_FORMAT=tar.bz2
+# CEF only generates the host arch out dir unless told otherwise.
+[[ "$ARCH" == x64 ]] && export CEF_ENABLE_AMD64=1
 AUTOMATE=(python3 "$CEF_SRC/automate-git.py"
   --download-dir="$CEF_SRC" --branch="$BRANCH" --checkout="$CEF_COMMIT"
   --chromium-checkout="refs/tags/$CHROMIUM"
-  --arm64-build --minimal-distrib-only --no-distrib-docs --no-distrib-symbols
+  "--$ARCH-build" --minimal-distrib-only --no-distrib-docs --no-distrib-symbols
   --no-debug-build --no-chromium-history)
 # Check out, add Roar's patches, then build without updating (an update would
 # discard them). Chromium-side patches join CEF's own patch list, because CEF
@@ -61,6 +67,13 @@ for p in "$ROOT"/scripts/cef-patches/cef/*.patch; do
 done
 "${AUTOMATE[@]}" --no-update --force-build
 
+if [[ "$ARCH" == x64 ]]; then
+  DIST=$(ls -d "$CEF_SRC"/chromium/src/cef/binary_distrib/cef_binary_*_macosx64_minimal | head -1)
+  rm -rf "$ROOT/third_party/cef-x64"
+  cp -R "$DIST" "$ROOT/third_party/cef-x64"
+  echo "Codec-enabled x64 CEF installed at third_party/cef-x64; scripts/build.sh now builds universal"
+  exit 0
+fi
 DIST=$(ls -d "$CEF_SRC"/chromium/src/cef/binary_distrib/cef_binary_*_macosarm64_minimal | head -1)
 # Keep the stock prebuilt only the first time; later runs replace an earlier codec build.
 if [[ -d "$ROOT/third_party/cef.prebuilt" ]]; then

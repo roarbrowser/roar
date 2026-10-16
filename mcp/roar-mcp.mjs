@@ -6,12 +6,62 @@
 // Before the first browser tool runs, it picks a profile that allows agents,
 // asking the person when several do (Roar hides the others from CDP).
 // Alerts go through the sidebar page over CDP (ask({cmd:'agent.notify'})), the same
-// port the browser tools use. Started by roar-mcp.sh; needs Node 22+ (WebSocket).
-import { spawn } from 'node:child_process';
+// port the browser tools use.
+//
+// Ships compiled (bun build --compile, see scripts/build.sh) as Roar.app/Contents/Resources/
+// roar-mcp: one self-contained executable, no Node.js needed. chrome-devtools-mcp
+// (pinned in package.json) is bundled in and runs as a child of this same executable
+// (`roar-mcp --devtools ...`). Register it once:
+//   claude mcp add roar -- /Applications/Roar.app/Contents/Resources/roar-mcp
+//
+// Which Roar: Settings > "Agents use" (agentHeadless in state.json). Headed (default)
+// drives your Roar on 9222; headless starts a hidden Roar with its own profile
+// (~/.roar-headless) on 9444. ROAR_CDP_PORT overrides both.
+import { spawn, execFileSync } from 'node:child_process';
 import { createInterface } from 'node:readline';
+import { mkdirSync, readFileSync, existsSync } from 'node:fs';
+import { dirname, join } from 'node:path';
 
-const port = process.argv[2];
-const mcpPkg = process.argv[3];
+// Contents/Resources/roar-mcp -> Roar.app
+const APP = process.env.ROAR_APP || join(dirname(process.execPath), '..', '..');
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const get = async (port, path) => {
+  try { const r = await fetch(`http://127.0.0.1:${port}${path}`, { signal: AbortSignal.timeout(2000) }); return r.ok ? await r.text() : null; }
+  catch { return null; }
+};
+const up = async (port) => (await get(port, '/json/version')) !== null;
+const waitFor = async (check) => { for (let i = 0; i < 40 && !(await check()); i++) await sleep(500); };
+
+async function pickPort() {
+  const stateFile = join(process.env.ROAR_DATA_DIR || join(process.env.HOME, 'Library/Application Support/Roar'), 'state.json');
+  let headless = false;
+  try { headless = JSON.parse(readFileSync(stateFile, 'utf8')).settings?.agentHeadless === true; } catch {}
+  const fixed = process.env.ROAR_CDP_PORT;
+  const port = fixed || (headless ? '9444' : '9222');
+  const bin = join(APP, 'Contents/MacOS/Roar');
+  if (!fixed && headless && !(await up(port))) {
+    const data = join(process.env.HOME, '.roar-headless');
+    mkdirSync(data, { recursive: true });
+    spawn(bin, ['--headless=new'], { env: { ...process.env, ROAR_DATA_DIR: data, ROAR_CDP_PORT: port }, stdio: 'ignore', detached: true }).unref();
+    await waitFor(() => up(port));
+    // CDP answers before Roar's UI exists; an agent attaching then sees no pages.
+    await waitFor(async () => (await get(port, '/json/list'))?.includes('roar://ui/sidebar'));
+    await fetch(`http://127.0.0.1:${port}/json/new?about:blank`, { method: 'PUT' }).catch(() => {});
+  } else if (!(await up(port))) {
+    // Anchored: a headless Roar runs the same binary, with arguments.
+    let running = true;
+    try { execFileSync('pgrep', ['-f', `${bin}$`], { stdio: 'ignore' }); } catch { running = false; }
+    if (!running && existsSync(bin)) spawn('open', ['-a', APP], { stdio: 'ignore' });
+    await waitFor(() => up(port));
+  }
+  if (!(await up(port))) {
+    process.stderr.write(`roar-mcp: Roar's CDP port ${port} is closed. Click the dot under the settings icon at the bottom right of Roar's sidebar to open it.\n`);
+    process.exit(1);
+  }
+  return port;
+}
+
+const port = await pickPort();
 let agent = '';
 const listIds = new Set();
 const pending = new Set();  // ask_user keys still waiting, expired in Roar on timeout or exit.
@@ -166,7 +216,11 @@ async function shutdown(code) {
 }
 for (const sig of ['SIGTERM', 'SIGINT', 'SIGHUP']) process.on(sig, () => shutdown(0));
 
-const child = spawn('npx', ['-y', mcpPkg, '--browserUrl', `http://127.0.0.1:${port}`], { stdio: ['pipe', 'pipe', 'inherit'] });
+// Compiled: modules sit beside the executable. From source (bun/node roar-mcp.mjs): mcp/node_modules.
+const compiled = process.argv[1]?.startsWith('/$bunfs/');
+const modules = compiled ? join(dirname(process.execPath), 'roar-mcp-modules') : join(import.meta.dirname, 'node_modules');
+const child = spawn(process.execPath, [join(modules, 'chrome-devtools-mcp/build/src/bin/chrome-devtools-mcp.js'), '--browserUrl', `http://127.0.0.1:${port}`],
+  { stdio: ['pipe', 'pipe', 'inherit'], env: { ...process.env, BUN_BE_BUN: '1' } });
 child.on('exit', (code) => shutdown(code ?? 0));
 
 createInterface({ input: child.stdout }).on('line', (line) => {

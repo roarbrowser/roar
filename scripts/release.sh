@@ -25,9 +25,16 @@ STAGE="$(mktemp -d)"
 trap 'rm -rf "$STAGE"' EXIT
 DMG="$ROOT/build/Roar-$VERSION.dmg"
 rm -f "$DMG"
-ditto "$APP" "$STAGE/Roar.app"
-ln -s /Applications "$STAGE/Applications"
-hdiutil create -quiet -volname "Roar $VERSION" -srcfolder "$STAGE" -ov -format UDZO "$DMG"
+# dmgbuild writes the window layout (background arrow, icon spots) straight into
+# .DS_Store, so no Finder window opens. Without uv, a plain DMG with the same two items.
+if command -v uvx >/dev/null; then
+  uvx --from dmgbuild dmgbuild -s packaging/dmg/settings.py -D app="$APP" -D dmgdir="$ROOT/packaging/dmg" "Roar $VERSION" "$DMG"
+else
+  echo "uvx not found: building a DMG without the background" >&2
+  ditto "$APP" "$STAGE/Roar.app"
+  ln -s /Applications "$STAGE/Applications"
+  hdiutil create -quiet -volname "Roar $VERSION" -srcfolder "$STAGE" -ov -format UDZO "$DMG"
+fi
 
 # Notarize when the app carries a Developer ID signature and a notarytool keychain
 # profile is named (xcrun notarytool store-credentials <name>; ROAR_NOTARY_PROFILE=<name>).
@@ -66,9 +73,13 @@ git push -q origin HEAD "$TAG"
 BODY="macOS (Apple Silicon) build of Roar. Open the DMG and drag Roar to Applications."
 [[ $NOTARIZED == 1 ]] || BODY="$BODY
 
-The app is not notarized. On first launch, right-click Roar → Open, or run \`xattr -dr com.apple.quarantine /Applications/Roar.app\`."
+The app is not notarized. On first launch, open System Settings › Privacy & Security and click Open Anyway, or run \`xattr -dr com.apple.quarantine /Applications/Roar.app\`."
 [[ -n "$NOTES" ]] && BODY="$NOTES
 
 $BODY"
 gh release create "$TAG" "$DMG" --title "Roar $VERSION" --notes "$BODY"
+# The tap (roarbrowser/homebrew-roar, Casks/roar.rb) is what `brew install` reads.
+TAP_SHA="$(gh api repos/roarbrowser/homebrew-roar/contents/Casks/roar.rb -q .sha)"
+gh api -X PUT repos/roarbrowser/homebrew-roar/contents/Casks/roar.rb -f message="roar $VERSION" \
+  -f content="$(base64 < packaging/homebrew/roar.rb)" -f sha="$TAP_SHA" >/dev/null
 echo "released $TAG (sha256 $SHA)"

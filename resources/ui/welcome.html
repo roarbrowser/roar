@@ -36,6 +36,9 @@ input[type=text] { width: 100%; max-width: 420px; font: 12.5px var(--mono); padd
 .space-row input { flex: 1; font-family: var(--ui); font-size: 13px; }
 .space-row .meta { color: var(--ink-3); font-size: 12px; min-width: 52px; text-align: right; font-variant-numeric: tabular-nums; }
 .space-row .btn { padding: 5px 10px; font-size: 12px; }
+.agent-row { display: flex; gap: 8px; align-items: center; font-size: 13px; }
+.agent-row .name { flex: 1; color: var(--ink); }
+.agent-row .btn { padding: 5px 10px; font-size: 12px; }
 .auto { border-top: 1px solid var(--rule); padding-top: 28px; display: grid; gap: 10px; }
 .auto h2 { font-size: 15px; }
 pre { margin: 0; font: 12px/1.6 var(--mono); background: var(--ground); border-radius: 8px; padding: 12px 14px; overflow-x: auto; color: var(--ink-2); }
@@ -54,10 +57,9 @@ pre { margin: 0; font: 12px/1.6 var(--mono); background: var(--ground); border-r
   <ol>
     <li>
       <h2>Your AI agent drives Roar</h2>
-      <p>Roar ships an MCP server, so Claude and other agents can open tabs, read pages, click, fill forms and take screenshots in the browser you're using. Pages an agent opens show up as real tabs in your sidebar. Add it to Claude Code once:</p>
-      <pre id="mcp-cmd">claude mcp add roar -- /Applications/Roar.app/Contents/Resources/roar-mcp.sh</pre>
+      <p>Roar ships an MCP server, so Claude and other agents can open tabs, read pages, click, fill forms and take screenshots in the browser you're using. Pages an agent opens show up as real tabs in your sidebar. Connect the agents you use; Roar adds itself to their MCP config and keeps a .bak of the original:</p>
+      <div class="space-list" id="agent-clients"></div>
       <div class="controls">
-        <button class="btn" id="mcp-copy">Copy command</button>
         <label class="switch"><input type="checkbox" id="cdp-on"> Allow agents to connect</label>
         <label class="switch"><input type="radio" name="agent-mode" id="agent-headed"> Agents use this Roar (you see what they do)</label>
         <label class="switch"><input type="radio" name="agent-mode" id="agent-headless"> Agents use a hidden Roar with its own profile</label>
@@ -217,7 +219,38 @@ $('agent-spaces').addEventListener('change', (e) => {
   if (id !== undefined) ask({ cmd: 'space.agents', id: +id, on: e.target.checked }).then(apply);
 });
 $('cdp-on').onchange = () => set({ cdpEnabled: $('cdp-on').checked });
-$('mcp-copy').onclick = () => navigator.clipboard.writeText($('mcp-cmd').textContent).then(() => { $('mcp-copy').textContent = 'Copied'; setTimeout(() => { $('mcp-copy').textContent = 'Copy command'; }, 1500); });
+let agentClients = [];
+const agentErrors = {};  // Connect failures, shown on the row.
+function renderAgents(list) {
+  agentClients = list || [];
+  // Installed clients first; ones Roar can't write get a snippet to paste.
+  const rows = [...agentClients].sort((a, b) => b.detected - a.detected);
+  $('agent-clients').innerHTML = rows.map((c) => {
+    const status = c.error ? `<span class="status" title="${esc(c.error)}">Can't read its config</span>`
+      : agentErrors[c.id] ? `<span class="status" title="${esc(agentErrors[c.id])}">Couldn't connect</span>`
+      : c.connected ? '<span class="status ok">Connected</span>' : '';
+    const button = c.detected && c.file && !c.error
+      ? (c.connected ? '' : `<button class="btn" data-connect="${esc(c.id)}">Connect</button>`)
+      : `<button class="btn" data-copy="${esc(c.id)}" title="${esc(c.snippet)}">Copy config</button>`;
+    return `<div class="agent-row"><span class="name">${esc(c.name)}</span>${status}${button}</div>`;
+  }).join('');
+}
+const loadAgents = () => ask({ cmd: 'agents.list' }).then(renderAgents);
+$('agent-clients').addEventListener('click', (e) => {
+  const connect = e.target.closest('[data-connect]');
+  if (connect) {
+    connect.disabled = true;
+    connect.textContent = 'Connecting…';
+    const id = connect.dataset.connect;
+    ask({ cmd: 'agents.connect', id }).then((err) => { agentErrors[id] = err || ''; return loadAgents(); });
+  }
+  const copy = e.target.closest('[data-copy]');
+  if (copy) {
+    const c = agentClients.find((x) => x.id === copy.dataset.copy);
+    navigator.clipboard.writeText(c.snippet).then(() => { copy.textContent = 'Copied'; setTimeout(() => { copy.textContent = 'Copy config'; }, 1500); });
+  }
+});
+loadAgents();
 $('cdp-relaunch').onclick = () => ask({ cmd: 'run', id: 'relaunch' });
 $('clean-links').onchange = () => set({ cleanLinks: $('clean-links').checked });
 $('forget').onclick = () => ask({ cmd: 'run', id: 'forgetPages' }).then(() => ask({ cmd: 'state' })).then(apply);

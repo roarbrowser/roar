@@ -89,7 +89,16 @@ section { padding: 64px 0; border-top: 2px solid var(--rule); }
 .steps > *, .cols > *, .hero > * { min-width: 0; }
 .steps { display: grid; grid-template-columns: 1fr 1fr; gap: 32px; }
 pre { background: var(--panel); border-radius: 12px; padding: 14px 16px; overflow-x: auto; margin: 8px 0 12px; white-space: pre; }
-.soon { display: inline-block; font: 600 13px var(--round); color: var(--mane-ink); background: var(--mane-soft); border-radius: 999px; padding: 2px 10px; margin-left: 6px; vertical-align: 2px; }
+.time { display: inline-block; font: 600 13px var(--round); color: var(--mane-ink); background: var(--mane-soft); border-radius: 999px; padding: 2px 10px; margin-left: 6px; vertical-align: 2px; }
+.install { list-style: none; counter-reset: step; padding: 0; margin: 16px 0 0; display: grid; gap: 28px; }
+.install > li { counter-increment: step; position: relative; padding-left: 52px; min-width: 0; }
+.install > li::before { content: counter(step); position: absolute; left: 0; top: 0; width: 36px; height: 36px; border-radius: 50%; background: var(--mane); color: #fff; font: 700 18px/36px var(--round); text-align: center; }
+.install h3 { margin-top: 4px; }
+.install p code { overflow-wrap: anywhere; }
+.gk { margin: 12px 0 0; max-width: 420px; }
+.gk svg { width: 100%; height: auto; display: block; }
+.manual summary { cursor: pointer; color: var(--mane-ink); font-weight: 600; }
+.manual h4 { margin: 16px 0 4px; font: 600 15px var(--round); }
 .note { color: var(--ink-2); font-size: 15px; }
 
 .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 48px; }
@@ -177,20 +186,61 @@ footer .wrap { display: flex; flex-wrap: wrap; gap: 8px 28px; align-items: cente
 </section>
 
 <section aria-labelledby="install-h">
-  <div class="wrap steps">
-    <div>
-      <h2 id="install-h">Install</h2>
-      <h3>Download the app</h3>
-      <p>Get the latest DMG from <a href="https://github.com/roarbrowser/roar/releases/latest">GitHub Releases</a> and drag Roar to Applications.</p>
-      <h3>Homebrew <span class="soon">Coming soon</span></h3>
-      <pre><code>brew install --cask roarbrowser/roar/roar</code></pre>
-    </div>
-    <div id="agents">
-      <h2>Connect your agent</h2>
-      <h3>Claude Code</h3>
-      <pre><code>claude mcp add roar -- /Applications/Roar.app/Contents/Resources/roar-mcp.sh</code></pre>
-      <p class="note">Any MCP client takes the same command as a stdio server. It needs Node.js 22 or later, and starts Roar if it isn't running.</p>
-    </div>
+  <div class="wrap">
+    <h2 id="install-h">Install</h2>
+    <p class="note">About five minutes, start to finish. Needs a Mac on macOS 13 or later; no Node.js.</p>
+    <ol class="install">
+      <li>
+        <h3>Download <span class="time">1 min</span></h3>
+        <p>Get <a href="https://github.com/roarbrowser/roar/releases/latest">the latest DMG</a>, open it and drag Roar onto Applications. Or use Homebrew:</p>
+        <pre><code>brew install --cask roarbrowser/roar/roar</code></pre>
+      </li>
+      <li>
+        <h3>First open <span class="time">1 min</span></h3>
+        <p>Releases aren't notarized yet, so the first launch says Apple can't check Roar. Click <strong>Done</strong>, then open System Settings › Privacy &amp; Security, scroll to Security and click <strong>Open Anyway</strong>. You do this once. (macOS 15 removed the old right-click › Open shortcut.)</p>
+        <figure class="gk" aria-label="Illustration: System Settings, Privacy and Security, with an Open Anyway button next to a note that Roar was blocked">
+          <svg viewBox="0 0 360 132" role="img" aria-hidden="true">
+            <rect style="fill:var(--panel);stroke:var(--rule)" x="1" y="1" width="358" height="130" rx="12" stroke-width="2"/>
+            <circle cx="18" cy="16" r="4.5" fill="#ff5f57"/><circle cx="32" cy="16" r="4.5" fill="#febc2e"/><circle cx="46" cy="16" r="4.5" fill="#28c840"/>
+            <rect style="fill:var(--rule)" x="1" y="30" width="112" height="101" opacity=".5"/>
+            <text style="fill:var(--ink-3);font-family:var(--ui)" x="12" y="52" font-size="10">General</text>
+            <rect style="fill:var(--mane)" x="6" y="60" width="102" height="18" rx="5"/>
+            <text style="font-family:var(--ui)" x="12" y="73" font-size="10" fill="#fff">Privacy &amp; Security</text>
+            <text style="fill:var(--ink-3);font-family:var(--ui)" x="12" y="96" font-size="10">Desktop &amp; Dock</text>
+            <text style="fill:var(--ink);font-family:var(--ui)" x="126" y="50" font-size="12" font-weight="600">Security</text>
+            <text style="fill:var(--ink-2);font-family:var(--ui)" x="126" y="74" font-size="10">“Roar” was blocked to</text>
+            <text style="fill:var(--ink-2);font-family:var(--ui)" x="126" y="88" font-size="10">protect your Mac.</text>
+            <rect style="fill:var(--ground);stroke:var(--mane)" x="262" y="66" width="84" height="24" rx="6" stroke-width="2.5"/>
+            <text style="fill:var(--ink);font-family:var(--ui)" x="304" y="82" font-size="10.5" font-weight="600" text-anchor="middle">Open Anyway</text>
+            <path style="stroke:var(--mane)" d="M300 122 L300 98 M293 105 L300 97 L307 105" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+          </svg>
+          <figcaption class="note">An illustration, not a screenshot.</figcaption>
+        </figure>
+      </li>
+      <li id="agents">
+        <h3>Connect your agent <span class="time">1 min</span></h3>
+        <p>Roar's welcome page has a <strong>Connect</strong> button for Claude Code, Claude Desktop, Cursor, VS Code, Windsurf, Codex, Gemini CLI and others. Click yours, then restart that app. The server ships inside Roar and launches Roar if it isn't running (keep Allow agents to connect on).</p>
+        <details class="manual">
+          <summary>Set it up by hand</summary>
+          <p>The server is <code>/Applications/Roar.app/Contents/Resources/roar-mcp</code>, a stdio MCP server.</p>
+          <h4>Claude Code</h4>
+          <pre><code>claude mcp add --scope user roar -- /Applications/Roar.app/Contents/Resources/roar-mcp</code></pre>
+          <h4>Codex</h4>
+          <pre><code>codex mcp add roar -- /Applications/Roar.app/Contents/Resources/roar-mcp</code></pre>
+          <h4>Gemini CLI</h4>
+          <pre><code>gemini mcp add roar /Applications/Roar.app/Contents/Resources/roar-mcp</code></pre>
+          <h4>VS Code</h4>
+          <pre><code>code --add-mcp '{"name":"roar","command":"/Applications/Roar.app/Contents/Resources/roar-mcp"}'</code></pre>
+          <h4>Claude Desktop, Cursor, Windsurf and most others</h4>
+          <p>Add this to the client's MCP config: <code>~/Library/Application Support/Claude/claude_desktop_config.json</code>, <code>~/.cursor/mcp.json</code> or <code>~/.codeium/windsurf/mcp_config.json</code>.</p>
+          <pre><code>{
+  "mcpServers": {
+    "roar": { "command": "/Applications/Roar.app/Contents/Resources/roar-mcp" }
+  }
+}</code></pre>
+        </details>
+      </li>
+    </ol>
   </div>
 </section>
 

@@ -28,17 +28,38 @@
 
 ## Install
 
-1. Download the latest `Roar-<version>.dmg` from [Releases](https://github.com/roarbrowser/roar/releases/latest) and drag Roar to Applications.
-2. Releases aren't notarized yet. If macOS blocks the first launch, open System Settings › Privacy & Security and click **Open Anyway**.
-3. On first launch Roar offers to bring over your Arc spaces and pinned tabs. Updates arrive through Roar › **Check for Updates…**
+About five minutes. Needs macOS 13 or later; no Node.js.
 
-Connect your agent (needs Node.js 22+):
+**1. Download (1 min).** Get the latest `Roar-<version>.dmg` from [Releases](https://github.com/roarbrowser/roar/releases/latest), open it and drag Roar onto Applications. Or:
 
 ```bash
-claude mcp add roar -- /Applications/Roar.app/Contents/Resources/roar-mcp.sh
+brew install --cask roarbrowser/roar/roar
 ```
 
-Other MCP clients take the same command as a stdio server.
+**2. First open (1 min).** Releases aren't notarized yet, so the first launch says Apple can't check Roar. Click **Done**, open System Settings › Privacy & Security, scroll to Security and click **Open Anyway**. You do this once. macOS 15 removed the old right-click › Open shortcut.
+
+**3. Connect your agent (1 min).** Roar's welcome page has a **Connect** button for Claude Code, Claude Desktop, Cursor, VS Code, Windsurf, Codex, Gemini CLI and others. Click yours and restart that app. The MCP server ships inside Roar and launches Roar if it isn't running (keep Allow agents to connect on).
+
+<details>
+<summary>Set it up by hand</summary>
+
+The server is `/Applications/Roar.app/Contents/Resources/roar-mcp`, a stdio MCP server.
+
+```bash
+claude mcp add --scope user roar -- /Applications/Roar.app/Contents/Resources/roar-mcp     # Claude Code
+codex mcp add roar -- /Applications/Roar.app/Contents/Resources/roar-mcp      # Codex
+gemini mcp add roar /Applications/Roar.app/Contents/Resources/roar-mcp        # Gemini CLI
+code --add-mcp '{"name":"roar","command":"/Applications/Roar.app/Contents/Resources/roar-mcp"}'  # VS Code
+```
+
+Claude Desktop (`~/Library/Application Support/Claude/claude_desktop_config.json`), Cursor (`~/.cursor/mcp.json`), Windsurf (`~/.codeium/windsurf/mcp_config.json`) and most other clients:
+
+```json
+{ "mcpServers": { "roar": { "command": "/Applications/Roar.app/Contents/Resources/roar-mcp" } } }
+```
+</details>
+
+On first launch Roar offers to bring over your Arc spaces and pinned tabs. Updates arrive through Roar › **Check for Updates…**
 
 ## Coming from Dia or legacy Arc?
 
@@ -63,7 +84,7 @@ over on first launch.
 
 ## Built for agents
 
-Your agent, not ours. The MCP server (`roar-mcp.sh`, a launcher for
+Your agent, not ours. The bundled MCP server (`roar-mcp`, built on
 [chrome-devtools-mcp](https://github.com/ChromeDevTools/chrome-devtools-mcp)) lets it open
 pages, read them, click, fill forms, run scripts and take screenshots, and starts Roar if
 needed. Settings > "Your AI agent drives Roar" picks where it works: this window, so you

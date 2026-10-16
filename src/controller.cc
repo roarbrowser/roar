@@ -2,6 +2,7 @@
 
 #include "action_watch.h"
 #include "arc_import.h"
+#include "agent_connect.h"
 #include "link_clean.h"
 
 #include <algorithm>
@@ -3570,6 +3571,36 @@ bool Controller::HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> 
     for (const auto& a : agent_alerts_) ids.push_back(a.id);
     for (int id : ids) ResolveAlert(id, "");
     callback->Success("");
+  } else if (cmd == "agents.list") {
+    auto list = CefListValue::Create();
+    auto clients = agents::List(platform::HomeDir(), platform::ResourcePath("roar-mcp"));
+    for (size_t i = 0; i < clients.size(); ++i) {
+      auto d = CefDictionaryValue::Create();
+      d->SetString("id", clients[i].id);
+      d->SetString("name", clients[i].name);
+      d->SetString("file", clients[i].file);
+      d->SetString("snippet", clients[i].snippet);
+      d->SetString("error", clients[i].error);
+      d->SetBool("detected", clients[i].detected);
+      d->SetBool("connected", clients[i].connected);
+      list->SetDictionary(i, d);
+    }
+    auto v = CefValue::Create();
+    v->SetList(list);
+    callback->Success(ToJson(v));
+  } else if (cmd == "agents.connect") {
+    // Replies "" or an error message.
+    std::string id = msg->GetString("id").ToString(), server = platform::ResourcePath("roar-mcp");
+    std::string home = platform::HomeDir();
+    auto write = [id, home, server, callback] { callback->Success(agents::Connect(id, home, server)); };
+    if (id == "claude-code") {
+      // The CLI rewrites ~/.claude.json wholesale; back it up and refuse a file it would mangle.
+      std::string err = agents::PrepareClaudeCli(home);
+      if (!err.empty()) return callback->Success(err), true;
+      platform::ClaudeMcpAdd(server, [write, callback](bool ok) { ok ? callback->Success("") : write(); });
+    } else {
+      write();
+    }
   } else if (cmd == "cdp.clients") {
     callback->Success(std::to_string(cdp_on_ ? platform::CdpClientCount() : 0));
   } else if (cmd == "history.list") {

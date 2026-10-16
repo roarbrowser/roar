@@ -95,5 +95,10 @@ void SearchGitHub(const std::string& query,
                   std::function<void(std::string json, std::string error)> done);
 // Reports "ok", "missing" (gh not installed) or "signed-out".
 void GitHubAuthStatus(std::function<void(std::string status)> done);
+// Runs `claude mcp add --scope user roar -- <server>` off the UI thread; false
+// when the Claude Code CLI is missing or the command failed.
+// $HOME when set and non-empty, else the account home.
+std::string HomeDir();
+void ClaudeMcpAdd(const std::string& server, std::function<void(bool ok)> done);
 
 }  // namespace roar::platform
