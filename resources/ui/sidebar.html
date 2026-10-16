@@ -154,6 +154,12 @@ body.drag-active .pinned:empty::before { content: 'Drop to pin'; color: var(--in
 .clkeys { display: flex; flex-wrap: wrap; gap: 3px; margin-top: 5px; }
 .clkeys button { padding: 2px 7px; border-radius: 5px; background: var(--ground); color: var(--ink-2); font: 11px var(--mono); }
 .clkeys button:hover { color: var(--ink); } .clkeys .sp { flex: 1; }
+.cln { display: grid; gap: 5px; margin: 0 0 8px; padding: 8px; border-radius: 8px; background: var(--hover); font-size: 12px; }
+.cln select, .cln textarea { width: 100%; box-sizing: border-box; padding: 5px 8px; border: 0; border-radius: 6px; background: var(--ground); color: var(--ink); font: 12px var(--ui); box-shadow: inset 0 0 0 1px var(--rule); }
+.cln textarea { resize: none; height: 46px; }
+.cln .acts { display: flex; gap: 5px; justify-content: flex-end; align-items: center; }
+.cln .acts span { flex: 1; color: var(--ink-3); }
+.cln .acts button { padding: 4px 10px; border-radius: 6px; } .cln .go { background: var(--mane, #d9822b); color: #2a1604; font-weight: 600; }
 .feed .badge.urgent { background: #d9822b; box-shadow: 0 0 0 2px var(--ground); }
 .mailrow { position: relative; }
 .macts { position: absolute; right: 4px; top: 50%; transform: translateY(-50%); display: none; gap: 2px; padding: 2px; border-radius: 7px; background: var(--ground); box-shadow: 0 0 0 1px var(--rule); }
@@ -271,7 +277,7 @@ body.drag-active .pinned:empty::before { content: 'Drop to pin'; color: var(--in
     <div class="rows" id="ghost-tabs"></div>
   </section>
   <section id="cl-pinned" hidden>
-    <div class="group-head"><span>Claude Code</span><span class="count" id="cl-pcount"></span><span class="spacer"></span><button id="cl-unpin" title="Move back to the icon at the bottom">Unpin</button></div>
+    <div class="group-head"><span>Claude Code</span><span class="count" id="cl-pcount"></span><span class="spacer"></span><button class="cl-new" title="Start a new Claude Code session">New</button><button id="cl-unpin" title="Move back to the icon at the bottom">Unpin</button></div>
     <div class="rows" id="cl-prows"></div>
   </section>
   <div id="groups"></div>
@@ -281,7 +287,7 @@ body.drag-active .pinned:empty::before { content: 'Drop to pin'; color: var(--in
   </section>
 </div>
 <section class="feed-pop" id="cl-group">
-  <div class="group-head"><span>Claude Code</span><span class="spacer"></span><button id="cl-pin" title="Keep this list in the sidebar">Pin</button></div>
+  <div class="group-head"><span>Claude Code</span><span class="spacer"></span><button class="cl-new" title="Start a new Claude Code session">New</button><button id="cl-pin" title="Keep this list in the sidebar">Pin</button></div>
   <div class="rows" id="cl"></div>
 </section>
 <section class="feed-pop" id="gh-group">
@@ -419,15 +425,22 @@ window.roar = {
     const clRow = (c) => `<div class="row pr cl" data-clid="${esc(c.id)}" data-cllive="${c.live ? 1 : ''}" title="${esc((c.prompt || c.cwd || '') + (c.live ? '\nClick to watch and reply' : '\nClick to open its window'))}"><span class="dot ${esc(c.state || 'idle')}"></span><span class="label">${esc(c.project)}<small>${esc(c.doing || '')} · ${clAgo(c.updated)}</small></span><button data-clfocus="${esc(c.id)}" title="Open its terminal window">↗</button><button data-cldismiss="${esc(c.id)}" title="Hide this session">×</button></div>`;
     const clPinned = (() => { try { return localStorage.getItem('claudePinned') === '1'; } catch { return false; } })();
     const clNeeds = cl.filter((c) => c.state === 'needs_you').length;
-    $('cl-btn').hidden = !cl.length || clPinned;
+    $('cl-btn').hidden = !(cl.length || s.claude?.hooks) || clPinned;
     $('cl-count').textContent = clNeeds || cl.length || '';
     $('cl-count').classList.toggle('urgent', clNeeds > 0);
     $('cl-btn').title = cl.length + ' Claude Code session' + (cl.length === 1 ? '' : 's') + (clNeeds ? `, ${clNeeds} waiting for you` : '');
     setHtml($('cl'), cl.map(clRow).join(''));
-    $('cl-pinned').hidden = !clPinned || !cl.length;
+    $('cl-pinned').hidden = !clPinned || !(cl.length || s.claude?.hooks);
     $('cl-pcount').textContent = cl.length || '';
     setHtml($('cl-prows'), cl.map(clRow).join(''));
-    if (clOpen && !cl.some((c) => c.id === clOpen && c.live)) clOpen = '';
+    clDirs = [...new Set([...cl.map((c) => c.cwd).filter(Boolean), ...clDirs])].slice(0, 8);
+    // A new session opens as soon as it shows up; when its stand-in gives way to the real one, follow it.
+    const born = clWant && cl.find((c) => c.cwd === clWant.dir && c.started >= clWant.since && c.live);
+    if (born) { clOpen = born.id; clOpenCwd = born.cwd; clWant = null; }
+    if (clOpen && !cl.some((c) => c.id === clOpen && c.live)) {
+      const next = clOpen.startsWith('new-') && cl.find((c) => c.cwd === clOpenCwd && c.live);
+      clOpen = next ? next.id : '';
+    }
     clPlace();
     const gm = s.gmail;
     const mailRow = (m) => {
@@ -855,6 +868,44 @@ clPanel.querySelector('.clkeys').onclick = (e) => {
   clSend(b.dataset.k);
 };
 clPanel.addEventListener('keydown', (e) => e.stopPropagation());  // Typing here isn't a sidebar shortcut.
+// New session: a folder (recent ones, or a chooser) and an optional first prompt. Once its hook
+// reports in, it opens under its row.
+let clWant = null, clDirs = [], clOpenCwd = '';
+const clNew = document.createElement('form');
+clNew.className = 'cln';
+clNew.innerHTML = `<select aria-label="Folder"></select><textarea placeholder="First prompt (optional)" aria-label="First prompt"></textarea>
+  <div class="acts"><span></span><button type="button" class="no">Cancel</button><button class="go">Start</button></div>`;
+const clNewSel = clNew.querySelector('select'), clNewNote = clNew.querySelector('.acts span');
+function clNewOpen(head) {
+  if (clNew.isConnected && clNew.previousElementSibling === head) return clNew.remove();
+  clNewSel.innerHTML = clDirs.map((d) => `<option value="${esc(d)}">${esc(d.split('/').pop())}  ${esc(d.replace(/^\/Users\/[^/]+/, '~'))}</option>`).join('') + '<option value="?">Choose a folder…</option>';
+  clNewNote.textContent = '';
+  head.after(clNew);
+  if (!clDirs.length) clNewSel.value = '?';
+  clNew.querySelector('textarea').focus();
+}
+clNewSel.onchange = async () => {
+  if (clNewSel.value !== '?') return;
+  const dir = await ask({ cmd: 'claude.pickFolder' });
+  if (!dir) return;
+  if (!clDirs.includes(dir)) clDirs.unshift(dir);
+  clNewSel.insertAdjacentHTML('afterbegin', `<option value="${esc(dir)}">${esc(dir.split('/').pop())}</option>`);
+  clNewSel.value = dir;
+};
+clNew.onsubmit = async (e) => {
+  e.preventDefault();
+  const dir = clNewSel.value === '?' ? '' : clNewSel.value, prompt = clNew.querySelector('textarea').value.trim();
+  if (!dir) return void (clNewNote.textContent = 'Pick a folder first.');
+  clNewNote.textContent = 'Starting…';
+  const out = await ask({ cmd: 'claude.ctl', action: 'new', id: dir, text: prompt });
+  if (out.startsWith('error: ')) return void (clNewNote.textContent = out.slice(7));
+  clWant = { dir, since: Date.now() - 2000 };
+  clNew.querySelector('textarea').value = '';
+  clNew.remove();
+};
+clNew.querySelector('.no').onclick = () => clNew.remove();
+clNew.addEventListener('keydown', (e) => e.stopPropagation());
+for (const b of document.querySelectorAll('.cl-new')) b.onclick = (e) => { e.stopPropagation(); clNewOpen(b.closest('.group-head')); };
 const clPin = (on) => { try { localStorage.setItem('claudePinned', on ? '1' : '0'); } catch {} $('cl-group').classList.remove('open'); ask({ cmd: 'state' }).then(roar.render); };
 $('cl-pin').onclick = () => clPin(true);
 $('cl-unpin').onclick = () => clPin(false);
@@ -868,6 +919,7 @@ document.addEventListener('click', (e) => {
   e.stopPropagation();
   if (!r.dataset.cllive) return ask({ cmd: 'claude.ctl', action: 'focus', id: r.dataset.clid });
   clOpen = clOpen === r.dataset.clid ? '' : r.dataset.clid;
+  clOpenCwd = (state?.claude?.items || []).find((c) => c.id === clOpen)?.cwd || '';
   clPre.textContent = '';
   clPlace();
   clScreen();

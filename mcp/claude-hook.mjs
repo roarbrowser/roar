@@ -2,12 +2,13 @@
 //   roar-mcp claude-hook                       Claude Code hook: reads the event JSON on stdin and
 //                                              writes <Roar data>/claude-sessions/<session>.json
 //   roar-mcp claude-hooks install|uninstall|status   adds/removes those hooks in ~/.claude/settings.json
+//   roar-mcp claude-ctl new <folder> [first prompt]   starts `claude` there (cmux, else tmux, else Terminal)
 //   roar-mcp claude-ctl focus|screen|send <session> [text|key:<name>]
 //                                              brings the session's terminal forward, prints its screen,
 //                                              or types into it (tmux and cmux only)
 // Roar reads the folder every few seconds (Controller::ClaudeTick). Only the latest prompt,
 // the current tool and the session state are kept; never the conversation.
-import { readFileSync, writeFileSync, mkdirSync, rmSync, renameSync, existsSync, copyFileSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync, rmSync, renameSync, existsSync, copyFileSync, readdirSync } from 'node:fs';
 import { basename, join } from 'node:path';
 import { execFileSync } from 'node:child_process';
 
@@ -75,6 +76,9 @@ function hook() {
   next.term ||= where();
   next.live = !!(next.term.tmux?.pane || next.term.cmux);
   writeFileSync(file + '.tmp', JSON.stringify(next));
+  try {
+    for (const f of readdirSync(DIR)) if (f.startsWith('new-') && JSON.parse(readFileSync(join(DIR, f), 'utf8')).cwd === next.cwd) rmSync(join(DIR, f), { force: true });
+  } catch {}
   renameSync(file + '.tmp', file);  // Roar never reads half a file.
 }
 
@@ -112,24 +116,55 @@ const run1 = (bin, args) => execFileSync(bin, args, { encoding: 'utf8', timeout:
 const osa = (script) => run1('osascript', ['-e', script]);
 const KEYS = { enter: ['Enter', 'enter'], escape: ['Escape', 'escape'], up: ['Up', 'up'], down: ['Down', 'down'], tab: ['Tab', 'tab'], 'ctrl-c': ['C-c', 'ctrl+c'] };
 
+const sq = (v) => `'${String(v).replace(/'/g, `'\\''`)}'`;  // One shell word.
+const CLAUDE = [join(HOME, '.local/bin/claude'), join(HOME, '.claude/local/claude'), '/opt/homebrew/bin/claude', '/usr/local/bin/claude'].find((p) => existsSync(p));
+
+// A new Claude Code session in `dir`, in the background: the hooks report it once it starts.
+function start(dir, prompt) {
+  if (!ok(dir, /^\/[^\0\n]*$/) || !existsSync(dir)) throw new Error('pick a folder that exists');
+  if (!CLAUDE) throw new Error('Claude Code is not installed (no claude command found)');
+  const cmd = [CLAUDE, ...(prompt ? [prompt.slice(0, 2000)] : [])].map(sq).join(' ');
+  const name = basename(dir) || 'claude';
+  // Until Claude's own hook runs (after it asks whether to trust the folder), a stand-in entry
+  // lets Roar show the new terminal; the first real event for this folder replaces it.
+  const now = Date.now(), stub = { id: `new-${now}`, cwd: dir, project: name, state: 'needs_you', doing: 'Starting…', started: now, updated: now, live: true, term: {} };
+  if (existsSync(CMUX)) {
+    const out = run1(CMUX, ['new-workspace', '--name', name, '--cwd', dir, '--command', cmd, '--focus', 'false']);
+    const ws = /workspace:\d+/.exec(out)?.[0];
+    if (ws) stub.term.cmux = { workspace: ws, surface: '' };
+  } else if (TMUX) {
+    const pane = run1(TMUX, ['new-session', '-d', '-P', '-F', '#{pane_id} #{socket_path}', '-s', `claude-${name.replace(/[^\w-]/g, '-')}-${now % 100000}`, '-c', dir, cmd]).trim().split(' ');
+    stub.term.tmux = { pane: pane[0], socket: pane[1] };
+  } else {
+    osa(`tell application "Terminal" to do script ${JSON.stringify(`cd ${sq(dir)} && ${cmd}`)}`);
+    return 'terminal';
+  }
+  if (!stub.term.cmux && !stub.term.tmux) return 'started';
+  mkdirSync(DIR, { recursive: true });
+  writeFileSync(join(DIR, stub.id + '.json'), JSON.stringify(stub));
+  return stub.id;
+}
+
 function ctl(action, id, arg) {
+  if (action === 'new') return start(id, arg);
   if (!/^[\w-]+$/.test(id || '')) throw new Error('bad session id');
   const s = JSON.parse(readFileSync(join(DIR, id + '.json'), 'utf8')), t = s.term || {};
   const tm = TMUX && ok(t.tmux?.socket, /^\/[\w./-]+$/) && ok(t.tmux?.pane, /^%\d+$/) && { ...t.tmux, bin: TMUX };
   if (tm && !ok(tm.session || 'x', /^[\w.-]+$/)) delete tm.session;
-  const cx = existsSync(CMUX) && ok(t.cmux?.workspace, /^[\w-]+$/) && ok(t.cmux?.surface, /^[\w-]+$/) && { ...t.cmux, bin: CMUX };
+  const cx = existsSync(CMUX) && ok(t.cmux?.workspace, /^[\w:-]+$/) && ok(t.cmux?.surface ?? '', /^[\w:-]*$/) && { ...t.cmux, bin: CMUX };
+  const sf = cx && cx.surface ? ['--surface', cx.surface] : [];
   const tx = tm ? ['-S', tm.socket] : [];
   const tty = ok(t.tty, /^ttys?\d+$/) ? t.tty : '', app = ok(t.app, /^[\w.-]+$/) ? t.app : '';
   if (action === 'screen') {
     if (tm) return run1(tm.bin, [...tx, 'capture-pane', '-p', '-J', '-t', tm.pane, '-S', '-80']);
-    if (cx) return run1(cx.bin, ['read-screen', '--workspace', cx.workspace, '--surface', cx.surface, '--lines', '80']);
+    if (cx) return run1(cx.bin, ['read-screen', '--workspace', cx.workspace, ...sf, '--lines', '80']);
     throw new Error('no live view for this terminal');
   }
   if (action === 'send') {
     const key = /^key:(.+)$/.exec(arg || '')?.[1];
     if (key && !KEYS[key]) throw new Error('unknown key');
     if (tm) return run1(tm.bin, key ? [...tx, 'send-keys', '-t', tm.pane, KEYS[key][0]] : [...tx, 'send-keys', '-t', tm.pane, '-l', arg]);
-    if (cx) return run1(cx.bin, key ? ['send-key', '--workspace', cx.workspace, '--surface', cx.surface, KEYS[key][1]] : ['send', '--workspace', cx.workspace, '--surface', cx.surface, '--', arg]);
+    if (cx) return run1(cx.bin, key ? ['send-key', '--workspace', cx.workspace, ...sf, KEYS[key][1]] : ['send', '--workspace', cx.workspace, ...sf, '--', arg]);
     throw new Error('this terminal does not take input from Roar');
   }
   // focus: the exact tab where we can, else the app. A tmux pane's cmux ids come from whichever
@@ -147,7 +182,7 @@ function ctl(action, id, arg) {
   }
   if (cx) {
     run1(cx.bin, ['select-workspace', '--workspace', cx.workspace]);
-    run1(cx.bin, ['focus-panel', '--panel', cx.surface, '--workspace', cx.workspace]);
+    if (cx.surface) run1(cx.bin, ['focus-panel', '--panel', cx.surface, '--workspace', cx.workspace]);
     return run1('open', ['-b', 'com.cmuxterm.app']), 'focused';
   }
   if (tty && /^com\.apple\.Terminal$/.test(app))

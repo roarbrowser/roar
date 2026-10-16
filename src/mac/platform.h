@@ -104,6 +104,8 @@ void GitHubAuthStatus(std::function<void(std::string status)> done);
 std::string HomeDir();
 void ClaudeMcpAdd(const std::string& server, std::function<void(bool ok)> done);
 // Runs the bundled roar-mcp with args off the UI thread; done(stdout) on the UI thread.
+// A macOS folder chooser; done("") when cancelled.
+void ChooseFolder(std::function<void(const std::string& path)> done);
 void RoarMcp(std::vector<std::string> args, std::function<void(const std::string& out)> done);
 
 }  // namespace roar::platform

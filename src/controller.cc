@@ -1783,7 +1783,9 @@ void Controller::ClaudeTick() {
     if (!v || v->GetType() != VTYPE_DICTIONARY) continue;
     auto d = v->GetDictionary();
     // A session that crashed never sends SessionEnd; forget it after 6 idle hours.
-    if (now - d->GetDouble("updated") / 1000 > 6 * 3600) { fs::remove(e.path(), ec); continue; }
+    // A session Roar started but Claude never confirmed (cancelled at the trust question) after 15 minutes.
+    double idle = now - d->GetDouble("updated") / 1000;
+    if (idle > 6 * 3600 || (e.path().filename().string().rfind("new-", 0) == 0 && idle > 15 * 60)) { fs::remove(e.path(), ec); continue; }
     list->SetDictionary(list->GetSize(), d->Copy(false));
   }
   std::string sig = ToJson([&] { auto x = CefValue::Create(); x->SetList(list); return x; }());
@@ -3634,10 +3636,12 @@ bool Controller::HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> 
   } else if (cmd == "claude.ctl") {
     // focus | screen | send for one Claude Code session (roar-mcp claude-ctl); replies its output.
     std::string action = msg->GetString("action").ToString();
-    if (action != "focus" && action != "screen" && action != "send") return callback->Failure(0, "bad action"), true;
+    if (action != "focus" && action != "screen" && action != "send" && action != "new") return callback->Failure(0, "bad action"), true;
     std::vector<std::string> args = {"claude-ctl", action, msg->GetString("id").ToString()};
-    if (action == "send") args.push_back(msg->GetString("text").ToString());
+    if (action == "send" || action == "new") args.push_back(msg->GetString("text").ToString());
     platform::RoarMcp(args, [callback](const std::string& out) { callback->Success(out); });
+  } else if (cmd == "claude.pickFolder") {
+    platform::ChooseFolder([callback](const std::string& path) { callback->Success(path); });
   } else if (cmd == "claude.dismiss") {
     std::string id = msg->GetString("id").ToString();
     if (!id.empty() && id.find_first_not_of("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_") == std::string::npos) {

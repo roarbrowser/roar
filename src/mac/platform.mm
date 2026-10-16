@@ -1063,6 +1063,18 @@ std::string HomeDir() {
   return h && *h ? h : NSHomeDirectory().UTF8String;
 }
 
+void ChooseFolder(std::function<void(const std::string& path)> done) {
+  NSOpenPanel* p = [NSOpenPanel openPanel];
+  p.canChooseFiles = NO;
+  p.canChooseDirectories = YES;
+  p.allowsMultipleSelection = NO;
+  p.prompt = @"Start Claude here";
+  [NSApp activateIgnoringOtherApps:YES];
+  [p beginWithCompletionHandler:^(NSModalResponse r) {
+    done(r == NSModalResponseOK && p.URL ? std::string(p.URL.path.UTF8String) : "");
+  }];
+}
+
 void RoarMcp(std::vector<std::string> args, std::function<void(const std::string& out)> done) {
   NSMutableArray<NSString*>* a = [NSMutableArray array];
   for (const auto& s : args) [a addObject:NS(s)];
