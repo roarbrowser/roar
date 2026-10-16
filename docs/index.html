@@ -268,6 +268,26 @@ footer .wrap { display: flex; flex-wrap: wrap; gap: 8px 28px; align-items: cente
   </div>
 </div>
 
+<section aria-labelledby="film-h">
+  <div class="wrap">
+    <h2 id="film-h">See it in a minute</h2>
+    <p class="note" id="film-label"></p>
+    <div class="video"><video id="film" controls playsinline preload="none"></video></div>
+  </div>
+</section>
+<script>
+// One of two cuts, picked at random on each visit; only the chosen one loads.
+(() => {
+  const cuts = [
+    { src: 'media/roar-everyday.mp4', poster: 'media/roar-everyday.jpg', label: 'For everyone: Claude plans a rainy Saturday in tabs you can watch, and asks before it does more.', aria: 'Roar demo for everyone: an AI assistant opens museum tabs, reports their hours, asks before opening more, and can’t see a personal space or a private tab' },
+    { src: 'media/roar-demo.mp4', poster: 'media/roar-demo.jpg', label: 'For developers: agent tabs, a ghost tab agents can’t see, and a live Claude Code session fixing code from the page you’re on.', aria: 'Roar demo for developers: agent tabs, alert cards, ghost tabs hidden from agents, and Claude Code sessions in the sidebar' },
+  ];
+  const c = cuts[Math.floor(Math.random() * cuts.length)], v = document.getElementById('film');
+  v.src = c.src; v.poster = c.poster; v.setAttribute('aria-label', c.aria);
+  document.getElementById('film-label').textContent = c.label;
+})();
+</script>
+
 <section aria-labelledby="demo-h">
   <div class="wrap">
     <h2 id="demo-h">Watch an agent work</h2>

@@ -18,6 +18,11 @@
 
 <br>
 
+<p align="center">
+  <a href="https://roarbrowser.github.io/roar/media/roar-demo.mp4"><img src="docs/media/roar-demo.jpg" alt="Watch the one-minute Roar demo" width="720"></a>
+  <br><sub>▶ Watch the one-minute demo</sub>
+</p>
+
 | You get | Your agent gets |
 |---|---|
 | A vertical sidebar with spaces, each with its own logins | One command to connect: `claude mcp add roar …` |
