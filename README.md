@@ -33,7 +33,7 @@ About five minutes. Needs macOS 13 or later; no Node.js.
 **1. Download (1 min).** Get the latest `Roar-<version>.dmg` from [Releases](https://github.com/roarbrowser/roar/releases/latest), open it and drag Roar onto Applications. Or:
 
 ```bash
-brew install --cask roarbrowser/roar/roar
+brew install --cask roarbrowser/tap/roar
 ```
 
 **2. First open (1 min).** Releases aren't notarized yet, so the first launch says Apple can't check Roar. Click **Done**, open System Settings › Privacy & Security, scroll to Security and click **Open Anyway**. You do this once. macOS 15 removed the old right-click › Open shortcut.

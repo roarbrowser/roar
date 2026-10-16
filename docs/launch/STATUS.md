@@ -20,7 +20,7 @@ States: `todo`, `in progress`, `done`, `blocked (maintainer)`.
 
 - Developer ID Application certificate in the login keychain (Apple Developer Program).
 - `xcrun notarytool store-credentials` profile; name it in `ROAR_NOTARY_PROFILE`.
-- Approve creating the `homebrew-roar` tap repo.
+- Approve creating the `homebrew-tap` tap repo.
 - Solve CAPTCHAs and phone/email verification during account signups.
 
 ## Log

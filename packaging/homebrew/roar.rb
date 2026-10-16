@@ -1,4 +1,4 @@
-# Homebrew cask for Roar. Lives in the roarbrowser/homebrew-roar tap as Casks/roar.rb;
+# Homebrew cask for Roar. Lives in the roarbrowser/homebrew-tap tap as Casks/roar.rb;
 # scripts/release.sh updates version and sha256 here on each release.
 cask "roar" do
   version "0.9.1"
@@ -10,7 +10,7 @@ cask "roar" do
   homepage "https://github.com/roarbrowser/roar"
 
   depends_on arch: :arm64
-  depends_on macos: ">= :ventura"
+  depends_on macos: :ventura
 
   app "Roar.app"
 

@@ -20,7 +20,7 @@ never here.
   the entitlements CEF needs (JIT, unsigned executable memory, library validation off for
   the framework); notarize and staple the DMG with `notarytool` using a keychain profile
   named by `ROAR_NOTARY_PROFILE`. Fall back to today's signing with a clear message when
-  either is missing. A cask in a tap repo (`homebrew-roar`) points at the release DMG.
+  either is missing. A cask in a tap repo (`homebrew-tap`) points at the release DMG.
 - **Files:** `scripts/build.sh`, `scripts/release.sh`, `resources/Roar.entitlements`,
   `packaging/homebrew/roar.rb`.
 - **Done when:** `spctl -a -vv` accepts the app and `xcrun stapler validate` passes on the

@@ -17,8 +17,10 @@ git rev-parse -q --verify "refs/tags/$TAG" >/dev/null && { echo "$TAG already ex
 # Version lives in Info.plist.in; the build number stays in step with it.
 sed -i '' -E "s|(<key>CFBundleShortVersionString</key><string>)[^<]*|\1$VERSION|" "$PLIST"
 
-# Public builds are ad-hoc signed: an Apple Development identity embeds the developer's real name.
-ROAR_SIGN_IDENTITY="${ROAR_SIGN_IDENTITY:--}" bash scripts/build.sh
+# Public builds use the company Developer ID when it is in the keychain, else ad-hoc:
+# an Apple Development identity embeds the developer's real name.
+DEVID="$(security find-identity -v -p codesigning | awk -F'"' '/Developer ID Application/{print $2; exit}')"
+ROAR_SIGN_IDENTITY="${ROAR_SIGN_IDENTITY:-${DEVID:--}}" bash scripts/build.sh
 
 APP="$ROOT/build/src/Release/Roar.app"
 STAGE="$(mktemp -d)"
@@ -78,9 +80,9 @@ The app is not notarized. On first launch, open System Settings › Privacy & Se
 
 $BODY"
 gh release create "$TAG" "$DMG" --title "Roar $VERSION" --notes "$BODY"
-# The tap (roarbrowser/homebrew-roar, Casks/roar.rb) is what `brew install` reads.
-TAP_SHA="$(gh api repos/roarbrowser/homebrew-roar/contents/Casks/roar.rb -q .sha)"
-gh api -X PUT repos/roarbrowser/homebrew-roar/contents/Casks/roar.rb -f message="roar $VERSION" \
+# The tap (roarbrowser/homebrew-tap, Casks/roar.rb) is what `brew install` reads.
+TAP_SHA="$(gh api repos/roarbrowser/homebrew-tap/contents/Casks/roar.rb -q .sha)"
+gh api -X PUT repos/roarbrowser/homebrew-tap/contents/Casks/roar.rb -f message="roar $VERSION" \
   -f content="$(base64 < packaging/homebrew/roar.rb)" -f sha="$TAP_SHA" \
   -f 'author[name]=Roar' -f 'author[email]=roarbrowser@gmail.com' \
   -f 'committer[name]=Roar' -f 'committer[email]=roarbrowser@gmail.com' >/dev/null
