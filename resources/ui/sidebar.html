@@ -144,6 +144,16 @@ body.drag-active .pinned:empty::before { content: 'Drop to pin'; color: var(--in
 @keyframes clpulse { 50% { opacity: .35; } }
 .cl [data-cldismiss], .cl [data-clfocus] { color: var(--ink-3); padding: 0 4px; visibility: hidden; } .cl:hover [data-cldismiss], .cl:hover [data-clfocus] { visibility: visible; }
 .cl { cursor: pointer; }
+.cl.open { background: var(--hover); }
+/* The open session, right under its row: its live screen, a reply box and keys. */
+.clp { margin: 2px 0 8px; padding: 6px; border-radius: 8px; background: var(--hover); }
+.clp pre { margin: 0; max-height: 260px; overflow: auto; padding: 6px 8px; border-radius: 6px; background: #15100c; color: #eadfd2; font: 10px/1.35 var(--mono); white-space: pre-wrap; overflow-wrap: anywhere; }
+.clp form { display: flex; gap: 4px; margin-top: 6px; }
+.clp input { flex: 1; min-width: 0; padding: 5px 8px; border: 0; border-radius: 6px; background: var(--ground); color: var(--ink); font: 12px var(--ui); box-shadow: inset 0 0 0 1px var(--rule); }
+.clp form button { padding: 0 10px; border-radius: 6px; background: var(--mane, #d9822b); color: #2a1604; font-weight: 600; font-size: 12px; }
+.clkeys { display: flex; flex-wrap: wrap; gap: 3px; margin-top: 5px; }
+.clkeys button { padding: 2px 7px; border-radius: 5px; background: var(--ground); color: var(--ink-2); font: 11px var(--mono); }
+.clkeys button:hover { color: var(--ink); } .clkeys .sp { flex: 1; }
 .feed .badge.urgent { background: #d9822b; box-shadow: 0 0 0 2px var(--ground); }
 .mailrow { position: relative; }
 .macts { position: absolute; right: 4px; top: 50%; transform: translateY(-50%); display: none; gap: 2px; padding: 2px; border-radius: 7px; background: var(--ground); box-shadow: 0 0 0 1px var(--rule); }
@@ -417,6 +427,8 @@ window.roar = {
     $('cl-pinned').hidden = !clPinned || !cl.length;
     $('cl-pcount').textContent = cl.length || '';
     setHtml($('cl-prows'), cl.map(clRow).join(''));
+    if (clOpen && !cl.some((c) => c.id === clOpen && c.live)) clOpen = '';
+    clPlace();
     const gm = s.gmail;
     const mailRow = (m) => {
       const ft = folderTab('mail');
@@ -801,6 +813,48 @@ $('back').onclick = () => ask({ cmd: 'run', id: 'back' });
 $('forward').onclick = () => ask({ cmd: 'run', id: 'forward' });
 $('reload').onclick = () => ask({ cmd: 'run', id: 'reload' });
 $('gh-refresh').onclick = () => ask({ cmd: 'run', id: 'github' });
+// One session open at a time, shown under its row. The panel is a single element moved between
+// renders, so a half-typed reply survives the sidebar refreshing.
+let clOpen = '', clBusy = false;
+const clPanel = document.createElement('div');
+clPanel.className = 'clp';
+clPanel.innerHTML = `<pre aria-live="off"></pre><form><input placeholder="Reply to Claude…" autocomplete="off" spellcheck="false" aria-label="Reply"><button>Send</button></form>
+  <div class="clkeys"><button data-k="key:enter">⏎</button><button data-k="key:escape">Esc</button><button data-k="key:up">↑</button><button data-k="key:down">↓</button><button data-k="1">1</button><button data-k="2">2</button><button data-k="3">3</button><button data-k="key:ctrl-c" title="Interrupt">⌃C</button><span class="sp"></span><button data-full title="Open in a tab">⤢</button></div>`;
+const clPre = clPanel.querySelector('pre');
+function clPlace() {
+  for (const r of document.querySelectorAll('.cl.open')) r.classList.remove('open');
+  const box = $('cl-pinned').hidden ? $('cl') : $('cl-prows');
+  const row = clOpen && box.querySelector(`[data-clid="${CSS.escape(clOpen)}"]`);
+  if (!row) return clPanel.remove();
+  row.classList.add('open');
+  if (row.nextSibling !== clPanel) row.after(clPanel);
+}
+async function clScreen() {
+  if (!clOpen || clBusy || !clPanel.isConnected || document.hidden) return;
+  clBusy = true;
+  try {
+    const out = await ask({ cmd: 'claude.ctl', action: 'screen', id: clOpen });
+    // The sidebar is narrower than the terminal: lines wrap, and full-width rules are dropped.
+    const text = out.startsWith('error: ') ? out.slice(7) : out.split('\n').filter((l) => !/^[\s─━═│┃╭╮╰╯-]+$/.test(l) || !l.trim()).join('\n').replace(/\n{3,}/g, '\n\n').replace(/\s+$/, '');
+    if (clPre.textContent !== text) { clPre.textContent = text; clPre.scrollTop = clPre.scrollHeight; }
+  } finally { clBusy = false; }
+}
+setInterval(clScreen, 500);
+const clSend = async (text) => { if (clOpen) { await ask({ cmd: 'claude.ctl', action: 'send', id: clOpen, text }); clScreen(); } };
+clPanel.querySelector('form').onsubmit = async (e) => {
+  e.preventDefault();
+  const input = clPanel.querySelector('input'), t = input.value;
+  input.value = '';
+  if (t) await ask({ cmd: 'claude.ctl', action: 'send', id: clOpen, text: t });
+  clSend('key:enter');
+};
+clPanel.querySelector('.clkeys').onclick = (e) => {
+  const b = e.target.closest('button');
+  if (!b) return;
+  if (b.hasAttribute('data-full')) return ask({ cmd: 'open', text: 'roar://ui/claude.html?id=' + encodeURIComponent(clOpen), newTab: true });
+  clSend(b.dataset.k);
+};
+clPanel.addEventListener('keydown', (e) => e.stopPropagation());  // Typing here isn't a sidebar shortcut.
 const clPin = (on) => { try { localStorage.setItem('claudePinned', on ? '1' : '0'); } catch {} $('cl-group').classList.remove('open'); ask({ cmd: 'state' }).then(roar.render); };
 $('cl-pin').onclick = () => clPin(true);
 $('cl-unpin').onclick = () => clPin(false);
@@ -812,9 +866,12 @@ document.addEventListener('click', (e) => {
   const r = e.target.closest('[data-clid]');
   if (!r) return;
   e.stopPropagation();
-  $('cl-group').classList.remove('open');
-  if (r.dataset.cllive) ask({ cmd: 'open', text: 'roar://ui/claude.html?id=' + encodeURIComponent(r.dataset.clid), newTab: true });
-  else ask({ cmd: 'claude.ctl', action: 'focus', id: r.dataset.clid });
+  if (!r.dataset.cllive) return ask({ cmd: 'claude.ctl', action: 'focus', id: r.dataset.clid });
+  clOpen = clOpen === r.dataset.clid ? '' : r.dataset.clid;
+  clPre.textContent = '';
+  clPlace();
+  clScreen();
+  if (clOpen) clPanel.querySelector('input').focus();
 }, true);
 $('gm-refresh').onclick = () => ask({ cmd: 'run', id: 'gmail' });
 // Multi-select delete: ticked messages go to Gmail in one Delete per account.
