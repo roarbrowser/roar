@@ -86,6 +86,7 @@ body.drag-active .pinned:empty::before { content: 'Drop to pin'; color: var(--in
 .row:hover .x { opacity: 1; }
 .row .x:hover { background: var(--rule); color: var(--ink); }
 .row.cool .label { color: var(--ink-3); }
+.row .badge.unsplit { cursor: pointer; } .row .badge.unsplit:hover { color: var(--ink); }
 .row .badge { font-size: 10px; color: var(--mane-ink); background: var(--mane-soft); border-radius: 4px; padding: 0 5px; }
 /* Cooling bar: what's left before Clean Tabs archives this tab. */
 .row .life { position: absolute; left: 34px; right: 10px; bottom: 3px; height: 2px; border-radius: 1px; background: transparent; }
@@ -342,7 +343,7 @@ function tabRow(t, limit) {
   return `<div class="row${t.active ? ' active' : ''}${cool ? ' cool' : ''}" data-id="${t.id}" draggable="true" title="${esc(t.title)}\n${esc(t.url)}${remaining && !t.active ? '\n' + remaining : ''}">
     ${t.loading ? '<span class="spin"></span>' : t.url.startsWith('roar:') ? '<span class="lion" style="width:16px;height:16px"></span>' : iconHtml(t.favicon, t.url)}
     <span class="label">${esc(t.title || hostOf(t.url))}</span>
-    ${t.floating ? '<span class="badge">floating</span>' : ''}${t.split ? '<span class="badge">split</span>' : ''}
+    ${t.floating ? '<span class="badge">floating</span>' : ''}${t.split ? '<button class="badge unsplit" data-unsplit title="Unsplit">split ×</button>' : ''}
     ${sndButton(t, '')}
     <button class="x" data-close="${t.id}" aria-label="Close tab">${x}</button>
     ${limit > 0 && !t.active ? `<span class="life"><i style="width:${(left * 100).toFixed(1)}%"></i></span>` : ''}
@@ -643,10 +644,11 @@ function tabMenu(t, e) {
     ${groups.filter((g) => g.id !== t.group).map((g) => `<button data-act="move" data-g="${g.id}">${dot(g.color)}${esc(g.name)}</button>`).join('')}
     ${t.group ? '<button data-act="ungroup">Remove from group</button>' : ''}
     ${!t.ghost && state.spaces.length > 1 ? `<hr><div class="head">Move to space</div>${state.spaces.filter((sp) => sp.id !== state.activeSpace).map((sp) => `<button data-act="space" data-s="${sp.id}">${dot(sp.color)}${esc(sp.name)}</button>`).join('')}` : ''}
-    <hr>${t.floating ? '' : '<button data-act="float">Open in floating window</button>'}
+    <hr>${t.split ? '<button data-act="unsplit">Unsplit</button>' : ''}${t.floating ? '' : '<button data-act="float">Open in floating window</button>'}
     <button data-act="close">Close tab</button>`, e, (act, d) => {
     if (act === 'space') ask({ cmd: 'tab.space', id: t.id, space: +d.s });
     else if (act === 'float') ask({ cmd: 'tab.float', id: t.id });
+    else if (act === 'unsplit') ask({ cmd: 'tab.unsplit' });
     else if (act === 'pin' || act === 'unpin') ask({ cmd: 'tab.pin', id: t.id, pinned: act === 'pin' });
     else if (act === 'icon') return iconMenu(t, e);
     else if (act === 'move') ask({ cmd: 'tab.group', id: t.id, group: +d.g });
@@ -712,9 +714,13 @@ document.addEventListener('dragstart', (e) => {
   // Deferred: changing layout during dragstart moves the source row and Chromium cancels the drag.
   setTimeout(() => dragId && document.body.classList.add('drag-active'));
   e.dataTransfer.effectAllowed = 'move';
-  e.dataTransfer.setData('text/plain', String(dragId));
+  // A Roar-only type: a page the tab is dropped on ignores it instead of pasting the id.
+  e.dataTransfer.setData('application/x-roar-tab', String(dragId));
 });
-document.addEventListener('dragend', () => {
+document.addEventListener('dragend', (e) => {
+  // Dropped outside the sidebar (on the page, or off the window): Roar splits or unsplits.
+  if (dragId && e.dataTransfer.dropEffect === 'none' && (e.clientX < 0 || e.clientX > innerWidth || e.clientY < 0 || e.clientY > innerHeight))
+    ask({ cmd: 'tab.dropAt', id: dragId, x: e.screenX, y: e.screenY });
   dragId = 0;
   clearSplitMarks();
   document.body.classList.remove('drag-active');
@@ -906,6 +912,11 @@ clNew.onsubmit = async (e) => {
 clNew.querySelector('.no').onclick = () => clNew.remove();
 clNew.addEventListener('keydown', (e) => e.stopPropagation());
 for (const b of document.querySelectorAll('.cl-new')) b.onclick = (e) => { e.stopPropagation(); clNewOpen(b.closest('.group-head')); };
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('[data-unsplit]')) return;
+  e.stopPropagation();
+  ask({ cmd: 'tab.unsplit' });
+}, true);
 const clPin = (on) => { try { localStorage.setItem('claudePinned', on ? '1' : '0'); } catch {} $('cl-group').classList.remove('open'); ask({ cmd: 'state' }).then(roar.render); };
 $('cl-pin').onclick = () => clPin(true);
 $('cl-unpin').onclick = () => clPin(false);

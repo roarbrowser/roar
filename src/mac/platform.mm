@@ -775,6 +775,64 @@ void TrackHorizontalDrag(void* window, std::function<void(int x)> on_move) {
   }];
 }
 
+}  // namespace roar::platform
+
+@interface RoarDivider : NSView
+@property(nonatomic) BOOL stacked;
+@property(nonatomic, copy) void (^onDrag)(NSPoint screen);
+@property(nonatomic, copy) void (^onReset)(void);
+@end
+
+@implementation RoarDivider {
+  id _monitor;
+}
+- (void)resetCursorRects {
+  [self addCursorRect:self.bounds cursor:self.stacked ? NSCursor.resizeUpDownCursor : NSCursor.resizeLeftRightCursor];
+}
+- (void)drawRect:(NSRect)r {
+  // A short grip in the middle of the gap.
+  NSRect b = self.bounds;
+  NSRect g = self.stacked ? NSMakeRect(NSMidX(b) - 18, NSMidY(b) - 1.5, 36, 3) : NSMakeRect(NSMidX(b) - 1.5, NSMidY(b) - 18, 3, 36);
+  [[NSColor colorWithWhite:0.5 alpha:0.45] setFill];
+  [[NSBezierPath bezierPathWithRoundedRect:g xRadius:1.5 yRadius:1.5] fill];
+}
+- (BOOL)acceptsFirstMouse:(NSEvent*)e { return YES; }
+- (void)mouseDown:(NSEvent*)e {
+  if (e.clickCount == 2) { if (self.onReset) self.onReset(); return; }
+  // A local monitor keeps tracking while the pointer is over the tab windows.
+  RoarDivider* me = self;  // The one divider lives for the whole run.
+  _monitor = [NSEvent addLocalMonitorForEventsMatchingMask:NSEventMaskLeftMouseDragged | NSEventMaskLeftMouseUp
+                                                   handler:^NSEvent*(NSEvent* ev) {
+    RoarDivider* d = me;
+    if (d && d.onDrag) d.onDrag(NSEvent.mouseLocation);
+    if (d && ev.type == NSEventTypeLeftMouseUp) { [NSEvent removeMonitor:d->_monitor]; d->_monitor = nil; }
+    return ev;
+  }];
+}
+@end
+
+namespace roar::platform {
+
+void SetSplitDivider(void* window, int x, int y, int w, int h, bool stacked,
+                     std::function<void(int sx, int sy)> on_drag, std::function<void()> reset) {
+  NSWindow* win = Win(window);
+  if (!win) return;
+  static RoarDivider* divider = nil;
+  if (w <= 0 || h <= 0) { [divider removeFromSuperview]; return; }
+  if (!divider) divider = [[RoarDivider alloc] initWithFrame:NSZeroRect];
+  CGFloat top = NSScreen.screens.firstObject.frame.size.height;
+  NSRect screen = NSMakeRect(x, top - y - h, w, h);
+  NSRect inWin = [win convertRectFromScreen:screen];
+  NSView* content = win.contentView;
+  divider.frame = [content convertRect:inWin fromView:nil];
+  divider.stacked = stacked;
+  divider.onDrag = ^(NSPoint p) { on_drag(static_cast<int>(p.x), static_cast<int>(top - p.y)); };
+  divider.onReset = ^{ reset(); };
+  if (divider.superview != content) [content addSubview:divider positioned:NSWindowAbove relativeTo:nil];
+  [win invalidateCursorRectsForView:divider];
+  divider.needsDisplay = YES;
+}
+
 void SetFloating(void* window, bool floating, const std::string& title) {
   NSWindow* w = Win(window);
   if (!w) return;

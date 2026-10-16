@@ -1008,11 +1008,11 @@ CefRect Controller::RectFor(int id) {
   auto v = VisibleIds();
   if (v.size() < 2) return r;
   if (split_stacked_) {
-    int half = (r.height - kGutter) / 2;
+    int half = static_cast<int>((r.height - kGutter) * split_ratio_);
     if (id == v[0]) return CefRect(r.x, r.y, r.width, half);
     return CefRect(r.x, r.y + half + kGutter, r.width, r.height - half - kGutter);
   }
-  int half = (r.width - kGutter) / 2;
+  int half = static_cast<int>((r.width - kGutter) * split_ratio_);
   if (id == v[0]) return CefRect(r.x, r.y, half, r.height);
   return CefRect(r.x + half + kGutter, r.y, r.width - half - kGutter, r.height);
 }
@@ -1025,6 +1025,31 @@ void Controller::SyncWindows() {
     if (IsVisible(t.id)) ShowTabWindow(&t);
     else HideTabWindow(&t);
   }
+  SyncDivider();
+}
+
+void Controller::Unsplit() {
+  split_a_ = split_b_ = 0;
+  split_ratio_ = 0.5;
+  SyncWindows();
+  PushSidebar();
+}
+
+// The draggable divider in the gap between the panes; hidden unless a split is on screen.
+void Controller::SyncDivider() {
+  if (!shell_) return;
+  auto v = VisibleIds();
+  if (v.size() < 2) return platform::SetSplitDivider(shell_->GetWindowHandle(), 0, 0, 0, 0, false, nullptr, nullptr);
+  CefRect a = RectFor(v[0]), r = ContentRect();
+  CefRect gap = split_stacked_ ? CefRect(r.x, a.y + a.height, r.width, kGutter) : CefRect(a.x + a.width, r.y, kGutter, r.height);
+  platform::SetSplitDivider(shell_->GetWindowHandle(), gap.x, gap.y, gap.width, gap.height, split_stacked_,
+      [this](int sx, int sy) {
+        CefRect c = ContentRect();
+        double f = split_stacked_ ? double(sy - c.y) / std::max(1, c.height) : double(sx - c.x) / std::max(1, c.width);
+        split_ratio_ = std::clamp(f, 0.15, 0.85);
+        SyncWindows();
+      },
+      [this] { split_ratio_ = 0.5; SyncWindows(); });
 }
 
 CefRefPtr<CefRequestContext> Controller::ContextFor(int space) {
@@ -3397,9 +3422,50 @@ bool Controller::HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> 
       split_a_ = a->id;
       split_b_ = b->id;
       split_stacked_ = msg->GetBool("stacked");
+      split_ratio_ = 0.5;
       ActivateTab(b->id);
       SyncWindows();
       PushSidebar();
+    }
+    callback->Success("");
+  } else if (cmd == "tab.unsplit") {
+    Unsplit();
+    callback->Success("");
+  } else if (cmd == "tab.dropAt") {
+    // A sidebar tab dropped outside the sidebar (screen x, y). On the page: split it with the tab
+    // there, on the side it landed. Off the window: a split tab leaves its split.
+    Tab* t = FindTab(int_arg("id"));
+    int x = int_arg("x"), y = int_arg("y");
+    CefRect shell = shell_ ? shell_->GetBounds() : CefRect(), c = ContentRect();
+    bool on_page = x >= c.x && x < c.x + c.width && y >= c.y && y < c.y + c.height;
+    bool off_window = !(x >= shell.x && x < shell.x + shell.width && y >= shell.y && y < shell.y + shell.height);
+    if (t && off_window && (t->id == split_a_ || t->id == split_b_)) {
+      Unsplit();
+    } else if (t && on_page && !t->floating) {
+      // The pane under the drop, or the active tab when there's no split on screen.
+      int under = active_id_;
+      for (int id : VisibleIds()) {
+        CefRect r = RectFor(id);
+        if (x >= r.x && x < r.x + r.width && y >= r.y && y < r.y + r.height) under = id;
+      }
+      auto v = VisibleIds();
+      int other = v.size() == 2 ? (under == v[0] ? v[1] : v[0]) : under;
+      if (v.size() == 2 && (t->id == v[0] || t->id == v[1])) other = t->id == v[0] ? v[1] : v[0];
+      Tab* keep = FindTab(other == t->id ? under : other);
+      if (keep == t) {  // The tab on screen was dropped on its own page: pair it with the last one used.
+        keep = nullptr;
+        for (auto& o : tabs_)
+          if (o.id != t->id && o.space == t->space && !o.floating && (!keep || o.last_active > keep->last_active)) keep = &o;
+      }
+      if (keep && keep != t && keep->space == t->space && !keep->floating) {
+        bool first = x < c.x + c.width / 2;  // Dropped on the left half: it takes the left pane.
+        split_stacked_ = false;
+        split_a_ = first ? t->id : keep->id;
+        split_b_ = first ? keep->id : t->id;
+        ActivateTab(t->id);
+        SyncWindows();
+        PushSidebar();
+      }
     }
     callback->Success("");
   } else if (cmd == "tab.move") {

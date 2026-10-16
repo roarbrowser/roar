@@ -312,6 +312,9 @@ class Controller {
   std::vector<AgentAlert> agent_alerts_;
   int next_alert_id_ = 1;
   void ResolveAlert(int id, const std::string& result);
+  double split_ratio_ = 0.5;  // First pane's share of the width (or height when stacked).
+  void Unsplit();
+  void SyncDivider();
   void AskDefaultBrowser();
   void SyncAlertBadge();
   int agent_space_ = -1;  // Last answer to "which profile should the agent use?".

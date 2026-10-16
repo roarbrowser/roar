@@ -63,6 +63,11 @@ bool IsLeftMouseDown();
 // Follows the left mouse button across all of Roar's windows until it is
 // released, calling on_move with the cursor's x in the window's coordinates.
 void TrackHorizontalDrag(void* window, std::function<void(int x)> on_move);
+// The split view's divider: a strip of the shell window (screen rect, top-left origin, like CefRect)
+// that shows a resize cursor and reports drags in screen coordinates. reset fires on a double-click.
+// An empty rect hides it.
+void SetSplitDivider(void* window, int x, int y, int w, int h, bool stacked,
+                     std::function<void(int sx, int sy)> on_drag, std::function<void()> reset);
 // Turns a tab window into a titled, always-on-top mini window, or back.
 void SetFloating(void* window, bool floating, const std::string& title);
 void CopyText(const std::string& text);
