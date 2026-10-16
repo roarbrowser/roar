@@ -17,7 +17,7 @@ Why I built it: I kept pointing agents at a separate automation Chrome, then log
 How it works:
 
 - CEF binds a Chrome-style window to the first BrowserView it hosts, so Roar runs one frameless Chrome-style window per tab, attached as a macOS child window over the content area. The sidebar is an Alloy-style shell window rendering HTML from `roar://ui/`. Chrome style on the tabs is what keeps extensions, DevTools and CDP working.
-- The MCP server is `Roar.app/Contents/Resources/roar-mcp.sh`, a launcher for chrome-devtools-mcp pointed at Roar's CDP port. Setup: `claude mcp add roar -- /Applications/Roar.app/Contents/Resources/roar-mcp.sh` (needs Node 22+).
+- The MCP server is `Roar.app/Contents/Resources/roar-mcp.sh`, a launcher for chrome-devtools-mcp pointed at Roar's CDP port. Setup: `claude mcp add roar -- /Applications/Roar.app/Contents/Resources/roar-mcp.sh` (self-contained, no Node.js needed).
 - I patch Chromium's `Target.createTarget` handler so `new_page` opens a real sidebar tab in the active space instead of a stray window. You can watch the agent, take over, or close the tab.
 - Two extra tools: `notify_user` puts a card in the sidebar, and `ask_user` shows buttons and returns your click to the agent.
 - Agents are allowed per space. Blocked spaces and ghost tabs are hidden from CDP entirely (I patch Chromium's target discovery and `/json/list` with a per-profile filter). A dot in the sidebar shows whether agents can reach the current space; one click blocks them. A setting closes the CDP port entirely, without restarting.

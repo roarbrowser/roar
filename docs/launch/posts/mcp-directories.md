@@ -6,7 +6,7 @@
 **Repo:** https://github.com/roarbrowser/roar
 **Transport:** stdio (local)
 **Command:** `/Applications/Roar.app/Contents/Resources/roar-mcp.sh`
-**Requirements:** macOS, Roar installed in /Applications, Node.js 22+
+**Requirements:** macOS, Roar installed in /Applications; no Node.js needed
 
 **Description:**
 Roar is an open-source macOS browser (Chromium 154) with a built-in MCP server. The server launches chrome-devtools-mcp against Roar, so an agent can open pages, read them, click, fill forms, run scripts and take screenshots in the user's own browser, with their logins. Pages the agent opens become tabs in Roar's sidebar. Two extra tools: `notify_user` posts a card in the sidebar, and `ask_user` shows buttons and returns the user's click. Agents reach only the spaces the user allows (one click blocks the current space), or run agents in a separate headless profile. Starts Roar if it isn't running. MIT licensed.
@@ -24,7 +24,7 @@ Roar is an open-source macOS browser (Chromium 154) with a built-in MCP server. 
 claude mcp add roar -- /Applications/Roar.app/Contents/Resources/roar-mcp.sh
 ```
 
-Other clients: add the same path as a stdio server command. Needs Node.js 22+.
+Other clients: add the same path as a stdio server command. No Node.js needed.
 
 ## awesome-mcp-servers (punkpeye) — Browser Automation
 

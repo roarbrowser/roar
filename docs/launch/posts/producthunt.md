@@ -2,7 +2,7 @@
 
 **Name:** Roar
 
-**Tagline (≤60):** The AI-native, open-source browser your agent can drive (55)
+**Tagline (≤60):** The open-source browser your AI agent can drive (48)
 
 **Description (≤260):**
 An open-source sidebar browser for macOS with a built-in MCP server. Arc's best ideas, no company that can shelve it, and your own agent instead of a built-in one: Claude or Cursor opens real tabs and asks you in the sidebar. (225)

@@ -4,11 +4,11 @@
 
 <h1 align="center">Roar</h1>
 
-<p align="center"><strong>The AI-native, open-source browser your agent can drive.</strong></p>
+<p align="center"><strong>The open-source browser your AI agent can drive.</strong></p>
 
 <p align="center">
   A Chromium sidebar browser for macOS with a built-in MCP server. Claude, Cursor or any
-  MCP client browses in the same window you do, logins and all. Open source. Yours.
+  MCP client browses in the same window you do, logins and all, in spaces you allow. Open source. Yours.
 </p>
 
 <p align="center">
@@ -99,7 +99,8 @@ port 9444) started on demand.
   sessions in the sidebar" (it adds a hook to `~/.claude/settings.json`). Every session shows its
   project, what it's doing and whether it needs you; click one running in tmux or cmux to watch
   its terminal right under the row and reply, answer a prompt with 1/2/3, or press Esc or ⌃C.
-  Others jump to their window. **New** starts a session in any folder. The hook reports the
+  Others jump to their window. **+ This tab** in that panel sends the page you're on to the
+  session's prompt (never ghost tabs). **New** starts a session in any folder. The hook reports the
   prompt, tool and state, never the conversation.
 - **Agent pages are real tabs.** `new_page` opens a tab in your active space's sidebar,
   not a stray window, so you can watch, take over, or close what the agent is doing.
@@ -114,7 +115,7 @@ port 9444) started on demand.
 - **Looks like Chrome to sites.** Roar reports the Google Chrome brand and a real window
   frame, and doesn't run polling scripts in pages, so it trips fewer bot checks.
 - **Also scriptable:** AppleScript (`open url`, `execute javascript`, `get URL of every tab`)
-  and raw CDP on `127.0.0.1:9222`.
+  and raw CDP on `127.0.0.1:9222` (extra instances start at 9333).
 
 ## For browsing
 

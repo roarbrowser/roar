@@ -3,7 +3,7 @@
 1/
 The Browser Company shelved Arc in May 2025 to build Dia. Closed source, with the AI they picked for you.
 
-Roar is the other answer: an open-source sidebar browser for macOS with a built-in MCP server. Your agent, not theirs.
+Roar is the other answer: an open-source sidebar browser for macOS, built on Chromium (CEF), with a built-in MCP server. Your agent, not theirs.
 
 [VIDEO]
 

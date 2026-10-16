@@ -105,7 +105,7 @@
   var jobs = [
     async function flight(c) {
       c.reset('Flight search', 'flights.example/search');
-      await c.me('Find a flight JFK to Kilimanjaro on Nov 14 under $400. Ask me before booking.');
+      await c.me('Compare flights JFK to Kilimanjaro on Nov 14 under $400. List the fares you find.');
       c.say('new_page', 'flights.example/search');
       var v = c.show('<div>' + c.field('From') + c.field('To') + c.field('Date') + '<span class="go">Search</span></div>');
       var f = v.querySelectorAll('.field'), vals = ['JFK  New York', 'JRO  Kilimanjaro', 'Fri, Nov 14'];
@@ -119,19 +119,17 @@
       for (i = 0; i < 3; i++) { v.insertAdjacentHTML('beforeend', '<div class="row2"><span><b>' + fares[i][0] + '</b> <em>' + fares[i][1] + '</em></span><b>' + fares[i][2] + '</b></div>'); await c.w(250); }
       c.say('take_snapshot', '', '3 fares, cheapest $386 at 8:05 AM');
       await c.move(v.firstChild); v.firstChild.classList.add('pick'); await c.w(500);
-      var a = await c.ask('Book the 8:05 AM flight for $386?', 'JFK → JRO, one stop, seat 14A.', ['Book it', 'Not yet']);
-      if (a === 'Book it') {
-        c.say('click', 'Book'); c.say('fill_form', 'passenger, seat 14A');
-        c.show('<div class="done"><b>Booked ✓</b>JFK → JRO · Fri, Nov 14 · 8:05 AM · seat 14A</div>');
-        await c.w(600); c.notify('Booked. Confirmation sent to your email.', 'Fri Nov 14 · 8:05 AM · $386');
-        c.ai('Booked the 8:05 AM for $386. Confirmation is in your email.');
-      } else { c.ai('Okay, not booked. The 8:05 AM fare is still open in Roar.'); }
+      var a = await c.ask('Open the cheapest ($386, 8:05 AM) in a tab?', '3 fares read from the results page.', ['Open it', 'Not yet']);
+      if (a === 'Open it') {
+        c.say('new_page', 'flights.example/fare/0805');
+        c.ai('Opened the 8:05 AM fare in a tab. Nothing is booked; the rest is up to you.');
+      } else { c.ai('Okay. The results are still open in Roar.'); }
       await c.w(3600);
     },
     async function inbox(c) {
       c.reset('Inbox', 'mail.example/inbox');
       await c.me('Clean up my inbox. Archive the junk and tell me what needs me.');
-      c.say('select_page', 'Inbox');
+      c.say('select_page', 'Inbox (your logged-in tab, shown in Roar)');
       var mail = [['Weekly deals', 'Shop', 1], ['Sam Rivera', 'Lunch Thursday?', 0], ['Your receipt', 'Order #4471', 2], ['Newsletter', 'Top 10 this week', 1], ['Dev digest', '42 new posts', 1], ['Priya', 'Contract v2 attached', 0]];
       var v = c.show('<div>' + mail.map(function (m) { return '<div class="row2"><span><b>' + m[0] + '</b> <em>' + m[1] + '</em></span></div>'; }).join('') + '</div>').firstChild;
       c.say('take_snapshot', '', '6 unread'); await c.w(700);
@@ -140,8 +138,8 @@
         if (mail[i][2] === 1) { await c.move(row); await c.click(row); c.say('click', 'Archive "' + mail[i][0] + '"'); row.classList.add('gone'); await c.w(350); }
         if (mail[i][2] === 2) { await c.move(row); row.firstChild.insertAdjacentHTML('beforeend', ' <span class="tag">Receipts</span>'); c.say('click', 'Label "Receipts"'); await c.w(400); }
       }
-      var a = await c.ask('Sam asked about lunch Thursday. Say yes?', 'Inbox is down from 6 to 3.', ['Reply yes', 'Leave it']);
-      if (a === 'Reply yes') {
+      var a = await c.ask('Archive 3 and label 1? Sam asked about lunch Thursday; reply yes?', 'Nothing is sent or deleted until you click.', ['Do it', 'Leave it']);
+      if (a === 'Do it') {
         c.show('<div>' + c.field('To', 'Sam Rivera') + '<div class="field"><label>Msg</label><span></span></div></div>');
         var f = view.querySelectorAll('.field')[1]; await c.move(f); c.say('type_text', 'reply to Sam');
         await c.type(f, 'Thursday works. 12:30 at the usual place?');
@@ -158,11 +156,11 @@
       lines.forEach(function (l, i) { v.children[i].textContent = l[1]; });
       c.say('take_snapshot', '', '1 file, +4 −1'); await c.w(600);
       await c.move(v.children[2]); v.children[2].style.boxShadow = 'inset 3px 0 0 var(--mane)';
-      c.say('evaluate_script', 'nextPage([], 0)', 'TypeError: items[i] is undefined');
+      c.say('take_snapshot', 'diff', 'loop now runs to i == items.length');
       await c.w(500);
       var b = h('<div class="bubble field" style="display:block"><span></span></div>'); v.children[2].after(b);
       c.say('type_text', 'review comment');
-      await c.type(b, '<= reads past the end: nextPage([], 0) throws. Use < here.');
+      await c.type(b, '<= reads one past the end, so items[i] is undefined there. Use < here.');
       var a = await c.ask('Request changes on #212?', 'Off-by-one: the loop reads past the end of the list.', ['Send review', 'Edit first']);
       if (a === 'Send review') { c.say('click', 'Request changes'); c.ai('Not safe yet. I requested changes on the off-by-one.'); }
       else c.ai('Left the comment as a draft for you to edit.');
@@ -232,8 +230,8 @@
 
   // Hero: the agent moves between real tabs and asks about each one.
   var card = document.querySelector('.hero .card'), htabs = document.querySelectorAll('.hero .tab');
-  var addr = document.querySelector('.hero .addr'), sites = ['mail.example', 'git.example/acme/app/pull/212', 'flights.example', 'docs.example/q4-launch'];
-  var asks = [[2, 'Two fares match. Book the 9:40 nonstop?', 'Book it'], [0, 'Archive 14 newsletters and keep the 2 from people?', 'Archive'], [1, 'Tests pass. Approve and merge #212?', 'Merge'], [3, 'The launch plan is drafted. Share it with the team?', 'Share']];
+  var addr = document.querySelector('.hero .addr'), sites = ['mail.example', 'git.example/acme/app/pull/212', 'docs.example/release-notes', 'docs.example/q4-launch'];
+  var asks = [[3, 'Claude Code wants to open 3 tabs. Allow?', 'Allow'], [2, 'Read 3 pages. Summary is in your terminal.', 'OK'], [1, 'Read the diff for #212. Notes are in your terminal.', 'OK'], [0, 'Use this tab for the next step?', 'Use it']];
   var n = 0;
   if (card && !reduced) setInterval(function () {
     var x = asks[++n % asks.length];
