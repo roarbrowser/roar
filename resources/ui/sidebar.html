@@ -143,7 +143,8 @@ body.drag-active .pinned:empty::before { content: 'Drop to pin'; color: var(--in
 .cl .dot.idle { background: var(--ink-3); } .cl .dot.needs_you { background: var(--mane, #d9822b); }
 .cl .dot.working { background: #2f9e5b; animation: clpulse 1.4s ease-in-out infinite; }
 @keyframes clpulse { 50% { opacity: .35; } }
-.cl [data-cldismiss], .cl [data-clfocus] { color: var(--ink-3); padding: 0 4px; visibility: hidden; } .cl:hover [data-cldismiss], .cl:hover [data-clfocus] { visibility: visible; }
+.cl [data-clfull].on { visibility: visible; color: var(--mane-ink, #d9822b); }
+.cl [data-cldismiss], .cl [data-clfocus], .cl [data-clfull] { color: var(--ink-3); padding: 0 4px; visibility: hidden; } .cl:hover [data-cldismiss], .cl:hover [data-clfocus], .cl:hover [data-clfull] { visibility: visible; }
 .cl { cursor: pointer; }
 .cl.open { background: var(--hover); }
 /* The open session, right under its row: its live screen, a reply box and keys. */
@@ -156,9 +157,6 @@ body.drag-active .pinned:empty::before { content: 'Drop to pin'; color: var(--in
 .clkeys button { padding: 2px 7px; border-radius: 5px; background: var(--ground); color: var(--ink-2); font: 11px var(--mono); }
 .clkeys button:hover { color: var(--ink); } .clkeys .sp { flex: 1; }
 .clp { position: relative; }
-.clp .full { position: absolute; top: 10px; right: 16px; z-index: 1; padding: 3px 8px; border-radius: 6px; box-shadow: 0 1px 4px rgba(0,0,0,.4); }
-.clp .full { font: 600 11px var(--ui); color: var(--mane-ink, #d9822b); background: var(--mane-soft, rgba(217,130,43,.15)); }
-.clp .full:hover { background: var(--mane, #d9822b); color: #2a1604; }
 .cln { display: grid; gap: 5px; margin: 0 0 8px; padding: 8px; border-radius: 8px; background: var(--hover); font-size: 12px; }
 .cln select, .cln textarea { width: 100%; box-sizing: border-box; padding: 5px 8px; border: 0; border-radius: 6px; background: var(--ground); color: var(--ink); font: 12px var(--ui); box-shadow: inset 0 0 0 1px var(--rule); }
 .cln textarea { resize: none; height: 46px; }
@@ -359,7 +357,10 @@ window.roar = {
     state = s;
     const limit = s.settings.archiveAfterHours * 3600;
     const ghosts = s.tabs.filter((t) => t.ghost);
-    s = { ...s, tabs: s.tabs.filter((t) => !t.ghost) };
+    // A Claude session in full view is shown by its session row, not as a tab.
+    const clFull = {};
+    for (const t of s.tabs) { const m = /^roar:\/\/ui\/claude\.html\?id=([\w-]+)/.exec(t.url || ''); if (m) clFull[m[1]] = t; }
+    s = { ...s, tabs: s.tabs.filter((t) => !t.ghost && !/^roar:\/\/ui\/claude\.html/.test(t.url || '')) };
     const pinned = s.tabs.filter((t) => t.pinned);
     const open = s.tabs.filter((t) => !t.pinned && !t.group);  // Mail/PR tabs too: everything opened is a real tab.
     $('ghost-group').hidden = !ghosts.length;
@@ -427,7 +428,7 @@ window.roar = {
     // Claude Code sessions (hooked in from Settings): an icon with a list, or pinned into the sidebar.
     const cl = (s.claude?.items || []).slice().sort((a, b) => b.updated - a.updated);
     const clAgo = (ms) => { const m = Math.round((Date.now() - ms) / 60000); return m < 1 ? 'now' : m < 60 ? m + ' min' : Math.round(m / 60) + ' h'; };
-    const clRow = (c) => `<div class="row pr cl" data-clid="${esc(c.id)}" data-cllive="${c.live ? 1 : ''}" title="${esc((c.prompt || c.cwd || '') + (c.live ? '\nClick to watch and reply' : '\nClick to open its window'))}"><span class="dot ${esc(c.state || 'idle')}"></span><span class="label">${esc(c.project)}<small>${esc(c.doing || '')} · ${clAgo(c.updated)}</small></span><button data-clfocus="${esc(c.id)}" title="Open its terminal window">↗</button><button data-cldismiss="${esc(c.id)}" title="Hide this session">×</button></div>`;
+    const clRow = (c) => `<div class="row pr cl${clFull[c.id]?.active ? ' active' : ''}" data-clid="${esc(c.id)}" data-cllive="${c.live ? 1 : ''}" data-cltab="${clFull[c.id]?.id || ''}" title="${esc((c.prompt || c.cwd || '') + (c.live ? '\nClick to watch and reply' : '\nClick to open its window'))}"><span class="dot ${esc(c.state || 'idle')}"></span><span class="label">${esc(c.project)}<small>${esc(c.doing || '')} · ${clAgo(c.updated)}</small></span>${c.live ? (clFull[c.id] ? `<button data-clfull="${esc(c.id)}" class="on" title="Collapse back into the sidebar">⤡</button>` : `<button data-clfull="${esc(c.id)}" title="Open in full view">⤢</button>`) : ''}<button data-clfocus="${esc(c.id)}" title="Open its terminal window">↗</button><button data-cldismiss="${esc(c.id)}" title="Hide this session">×</button></div>`;
     const clPinned = (() => { try { return localStorage.getItem('claudePinned') === '1'; } catch { return false; } })();
     const clNeeds = cl.filter((c) => c.state === 'needs_you').length;
     $('cl-btn').hidden = !(cl.length || s.claude?.hooks) || clPinned;
@@ -442,6 +443,8 @@ window.roar = {
     // A new session opens as soon as it shows up; when its stand-in gives way to the real one, follow it.
     const born = clWant && cl.find((c) => c.cwd === clWant.dir && c.started >= clWant.since && c.live);
     if (born) { clOpen = born.id; clOpenCwd = born.cwd; clWant = null; }
+    if (clFull[clOpen]) clOpen = '';  // Full view replaces the inline one until it's collapsed.
+    clFullTabs = clFull;
     if (clOpen && !cl.some((c) => c.id === clOpen && c.live)) {
       const next = clOpen.startsWith('new-') && cl.find((c) => c.cwd === clOpenCwd && c.live);
       clOpen = next ? next.id : '';
@@ -841,7 +844,7 @@ $('gh-refresh').onclick = () => ask({ cmd: 'run', id: 'github' });
 let clOpen = '', clBusy = false;
 const clPanel = document.createElement('div');
 clPanel.className = 'clp';
-clPanel.innerHTML = `<button data-full class="full" title="Open this session in a full tab">⤢ Full view</button><pre aria-live="off"></pre><form><input placeholder="Reply to Claude…" autocomplete="off" spellcheck="false" aria-label="Reply"><button>Send</button></form>
+clPanel.innerHTML = `<pre aria-live="off"></pre><form><input placeholder="Reply to Claude…" autocomplete="off" spellcheck="false" aria-label="Reply"><button>Send</button></form>
   <div class="clkeys"><button data-k="key:enter">⏎</button><button data-k="key:escape">Esc</button><button data-k="key:up">↑</button><button data-k="key:down">↓</button><button data-k="1">1</button><button data-k="2">2</button><button data-k="3">3</button><button data-k="key:ctrl-c" title="Interrupt">⌃C</button></div>`;
 const clPre = clPanel.querySelector('pre');
 function clPlace() {
@@ -876,11 +879,10 @@ clPanel.querySelector('.clkeys').onclick = (e) => {
   if (!b) return;
   clSend(b.dataset.k);
 };
-clPanel.querySelector('.full').onclick = () => ask({ cmd: 'open', text: 'roar://ui/claude.html?id=' + encodeURIComponent(clOpen), newTab: true });
 clPanel.addEventListener('keydown', (e) => e.stopPropagation());  // Typing here isn't a sidebar shortcut.
 // New session: a folder (recent ones, or a chooser) and an optional first prompt. Once its hook
 // reports in, it opens under its row.
-let clWant = null, clDirs = [], clOpenCwd = '';
+let clWant = null, clDirs = [], clOpenCwd = '', clFullTabs = {};
 const clNew = document.createElement('form');
 clNew.className = 'cln';
 clNew.innerHTML = `<select aria-label="Folder"></select><textarea placeholder="First prompt (optional)" aria-label="First prompt"></textarea>
@@ -927,11 +929,21 @@ $('cl-unpin').onclick = () => clPin(false);
 document.addEventListener('click', (e) => {
   const x = e.target.closest('[data-cldismiss]');
   if (x) { e.stopPropagation(); return ask({ cmd: 'claude.dismiss', id: x.dataset.cldismiss }); }
+  const full = e.target.closest('[data-clfull]');
+  if (full) {
+    e.stopPropagation();
+    const id = full.dataset.clfull, tab = clFullTabs[id];
+    if (tab) { ask({ cmd: 'tab.close', id: tab.id }); clOpen = id; return; }  // Collapse: back inline.
+    clOpen = '';
+    clPlace();
+    return ask({ cmd: 'open', text: 'roar://ui/claude.html?id=' + encodeURIComponent(id), newTab: true });
+  }
   const f = e.target.closest('[data-clfocus]');
   if (f) { e.stopPropagation(); return ask({ cmd: 'claude.ctl', action: 'focus', id: f.dataset.clfocus }); }
   const r = e.target.closest('[data-clid]');
   if (!r) return;
   e.stopPropagation();
+  if (r.dataset.cltab) return ask({ cmd: 'tab.activate', id: +r.dataset.cltab });  // In full view: its tab.
   if (!r.dataset.cllive) return ask({ cmd: 'claude.ctl', action: 'focus', id: r.dataset.clid });
   clOpen = clOpen === r.dataset.clid ? '' : r.dataset.clid;
   clOpenCwd = (state?.claude?.items || []).find((c) => c.id === clOpen)?.cwd || '';
