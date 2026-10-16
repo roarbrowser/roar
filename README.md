@@ -95,6 +95,12 @@ port 9444) started on demand.
   done, or needs-you, with an optional Open link) and `ask_user`, which shows buttons and hands
   your click back to the agent. Needs-you cards also raise a macOS notification and a Dock
   badge while Roar is in the background. Cards last for the session.
+- **Your Claude Code sessions, live in the sidebar.** Turn on Settings > "Show my Claude Code
+  sessions in the sidebar" (it adds a hook to `~/.claude/settings.json`). Every session shows its
+  project, what it's doing and whether it needs you; click one running in tmux or cmux to watch
+  its terminal right under the row and reply, answer a prompt with 1/2/3, or press Esc or ⌃C.
+  Others jump to their window. **New** starts a session in any folder. The hook reports the
+  prompt, tool and state, never the conversation.
 - **Agent pages are real tabs.** `new_page` opens a tab in your active space's sidebar,
   not a stray window, so you can watch, take over, or close what the agent is doing.
 - **Agents per profile.** Right-click a space (or use Settings) to allow or block agents in

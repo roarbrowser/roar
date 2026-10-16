@@ -161,6 +161,19 @@ th, td { text-align: left; padding: 13px 14px; border-bottom: 1px solid var(--ru
 .stage .sb { display: flex; flex-direction: column; padding: 14px; border-right: 1px solid var(--rule); min-width: 0; }
 .stage .slot { margin-top: auto; } .stage .slot .card { animation: arrive .5s cubic-bezier(.2,.9,.3,1.3) both; }
 .sfoot { display: flex; align-items: center; gap: 8px; margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--rule); } .sfoot img { width: 18px; } .sfoot b { font: 700 14px var(--round); } .sfoot span { flex: 1; } .sfoot .dot { width: 7px; height: 7px; border-radius: 50%; background: #7aa898; }
+.clg { margin-bottom: 12px; }
+.clr { display: flex; align-items: center; gap: 9px; padding: 6px 10px; border-radius: 10px; cursor: default; }
+.clr.open { background: var(--ground); }
+.clr i { width: 8px; height: 8px; border-radius: 50%; flex: none; background: var(--ink-3); }
+.clr i.working { background: #2f9e5b; animation: pulse 1.4s ease-in-out infinite; } .clr i.needs { background: var(--mane); }
+@keyframes pulse { 50% { opacity: .35; } }
+.clr span { min-width: 0; display: flex; flex-direction: column; line-height: 1.25; }
+.clr small { color: var(--ink-3); font-size: 11.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.clp { margin: 2px 0 6px; padding: 6px; border-radius: 9px; background: var(--ground); animation: arrive .35s both; }
+.clp pre { margin: 0; padding: 7px 8px; border-radius: 6px; background: #15100c; color: #eadfd2; font: 10.5px/1.4 var(--mono); white-space: pre-wrap; }
+.clp .in { margin-top: 6px; padding: 6px 8px; border-radius: 6px; box-shadow: inset 0 0 0 1px var(--rule); color: var(--ink-3); font-size: 12px; min-height: 1.4em; }
+.clp .in.typing { color: var(--ink); }
+.clp .keys { display: flex; gap: 3px; margin-top: 5px; } .clp .keys b { padding: 1px 7px; border-radius: 5px; background: var(--panel); font: 400 11px var(--mono); color: var(--ink-2); }
 .stage .tabs .tab i { margin-left: auto; font-style: normal; color: var(--ink-3); opacity: .7; }
 .stage .tabs .tab { animation: arrive .5s cubic-bezier(.2,.9,.3,1.3) both; }
 .stage .pg { background: var(--ground); display: flex; flex-direction: column; min-width: 0; }
@@ -262,11 +275,12 @@ footer .wrap { display: flex; flex-wrap: wrap; gap: 8px 28px; align-items: cente
       <button type="button" aria-pressed="true">Book a flight</button>
       <button type="button" aria-pressed="false">Clear my inbox</button>
       <button type="button" aria-pressed="false">Review a pull request</button>
+      <button type="button" aria-pressed="false">Steer your sessions</button>
     </div>
     <div class="duo">
       <div class="term" aria-label="Your agent's terminal"><div class="bar"><i></i><i></i><i></i><span>Claude Code</span></div><div class="out" aria-live="polite"></div></div>
       <div class="stage" aria-label="Roar, driven by the agent">
-        <div class="sb"><div class="dots" style="display:flex;gap:6px;padding:2px 4px 12px"><i style="width:11px;height:11px;border-radius:50%;background:var(--rule)"></i><i style="width:11px;height:11px;border-radius:50%;background:var(--rule)"></i><i style="width:11px;height:11px;border-radius:50%;background:var(--rule)"></i></div><div class="ghead" style="font-size:12.5px;color:var(--ink-3);padding:0 10px 4px">Tabs</div><div class="tabs"></div><div class="slot"></div><div class="sfoot"><img src="media/lion.svg" alt=""><b>Roar</b><span></span><i class="dot"></i></div></div>
+        <div class="sb"><div class="dots" style="display:flex;gap:6px;padding:2px 4px 12px"><i style="width:11px;height:11px;border-radius:50%;background:var(--rule)"></i><i style="width:11px;height:11px;border-radius:50%;background:var(--rule)"></i><i style="width:11px;height:11px;border-radius:50%;background:var(--rule)"></i></div><div class="clg" hidden><div class="ghead" style="font-size:12.5px;color:var(--ink-3);padding:0 10px 4px;display:flex">Claude Code<span style="flex:1"></span>New</div><div class="clrows"></div></div><div class="ghead" style="font-size:12.5px;color:var(--ink-3);padding:0 10px 4px">Tabs</div><div class="tabs"></div><div class="slot"></div><div class="sfoot"><img src="media/lion.svg" alt=""><b>Roar</b><span></span><i class="dot"></i></div></div>
         <div class="pg"><div class="url"></div><div class="view"></div></div>
         <div class="cursor" aria-hidden="true"></div>
       </div>
@@ -340,6 +354,7 @@ footer .wrap { display: flex; flex-wrap: wrap; gap: 8px 28px; align-items: cente
       <div>
         <h3>What your agent gets</h3>
         <ul class="list">
+          <li><strong>Your sessions, steerable from the sidebar.</strong> Every Claude Code session shows its project, its current step and whether it needs you. Open one to watch its terminal live and reply, or start a new one in any folder.</li>
           <li><strong>Real tabs.</strong> Pages the agent opens land in your sidebar, so you can watch, take over or close them.</li>
           <li><strong>A way to reach you.</strong> <code>notify_user</code> and <code>ask_user</code> put cards in the sidebar; <code>ask_user</code> waits for your click.</li>
           <li><strong>One-click cut-off.</strong> Click the dot in the sidebar to block agents from the space you're in. A setting closes the CDP port entirely, without a restart.</li>

@@ -123,7 +123,8 @@ const CLAUDE = [join(HOME, '.local/bin/claude'), join(HOME, '.claude/local/claud
 function start(dir, prompt) {
   if (!ok(dir, /^\/[^\0\n]*$/) || !existsSync(dir)) throw new Error('pick a folder that exists');
   if (!CLAUDE) throw new Error('Claude Code is not installed (no claude command found)');
-  const cmd = [CLAUDE, ...(prompt ? [prompt.slice(0, 2000)] : [])].map(sq).join(' ');
+  // `--` ends claude's options, so a prompt starting with - is never read as a flag.
+  const cmd = [CLAUDE, ...(prompt ? ['--', prompt.slice(0, 2000)] : [])].map(sq).join(' ');
   const name = basename(dir) || 'claude';
   // Until Claude's own hook runs (after it asks whether to trust the folder), a stand-in entry
   // lets Roar show the new terminal; the first real event for this folder replaces it.
@@ -163,7 +164,7 @@ function ctl(action, id, arg) {
   if (action === 'send') {
     const key = /^key:(.+)$/.exec(arg || '')?.[1];
     if (key && !KEYS[key]) throw new Error('unknown key');
-    if (tm) return run1(tm.bin, key ? [...tx, 'send-keys', '-t', tm.pane, KEYS[key][0]] : [...tx, 'send-keys', '-t', tm.pane, '-l', arg]);
+    if (tm) return run1(tm.bin, key ? [...tx, 'send-keys', '-t', tm.pane, KEYS[key][0]] : [...tx, 'send-keys', '-t', tm.pane, '-l', '--', arg]);
     if (cx) return run1(cx.bin, key ? ['send-key', '--workspace', cx.workspace, ...sf, KEYS[key][1]] : ['send', '--workspace', cx.workspace, ...sf, '--', arg]);
     throw new Error('this terminal does not take input from Roar');
   }

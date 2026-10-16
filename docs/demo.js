@@ -5,6 +5,7 @@
   var stage = document.querySelector('.stage'), out = document.querySelector('.term .out');
   var tabs = stage.querySelector('.tabs'), slot = stage.querySelector('.slot'), url = stage.querySelector('.url');
   var view = stage.querySelector('.view'), cursor = stage.querySelector('.cursor');
+  var clg = stage.querySelector('.clg'), clrows = stage.querySelector('.clrows');
   var picks = [].slice.call(document.querySelectorAll('.picks button'));
   var run = 0, visible = false, wake = null;
 
@@ -18,6 +19,7 @@
     c.reset = function (tab, href) {
       tabs.innerHTML = slot.innerHTML = view.innerHTML = out.innerHTML = '';
       cursor.classList.remove('on');
+      clg.hidden = true; clrows.innerHTML = '';
       c.tab('Inbox'); c.tab('Docs'); c.tab(tab, true);
       url.textContent = href;
     };
@@ -34,6 +36,19 @@
       var d = line('tool'); d.appendChild(document.createElement('b')).textContent = 'roar · ' + name;
       d.appendChild(document.createTextNode(args ? ' (' + args + ')' : ''));
       if (result) d.appendChild(document.createElement('small')).textContent = result;
+    };
+    // Claude Code's own tool lines (no roar prefix), for the session-steering job.
+    c.cc = function (name, args, result) {
+      var d = line('tool'); d.appendChild(document.createElement('b')).textContent = name;
+      d.appendChild(document.createTextNode(args ? ' (' + args + ')' : ''));
+      if (result) d.appendChild(document.createElement('small')).textContent = result;
+    };
+    // A row in the sidebar's Claude Code list: [project, state, step].
+    c.session = function (name, st, step) {
+      var r = [].filter.call(clrows.children, function (x) { return x.dataset.n === name; })[0];
+      if (!r) { r = clrows.appendChild(h('<div class="clr"><i></i><span><b></b><small></small></span></div>')); r.dataset.n = name; r.querySelector('b').textContent = name; }
+      r.querySelector('i').className = st; r.querySelector('small').textContent = step + ' · now';
+      return r;
     };
     c.show = function (html) { view.innerHTML = html; return view; };
     c.move = function (el) {
@@ -154,6 +169,41 @@
       await c.w(3600);
     }
   ];
+
+  jobs.push(async function steer(c) {
+    c.reset('Docs', 'docs.example/q4-launch');
+    c.show('<div><div class="field"><label>Doc</label><span>Q4 launch plan</span></div><div class="field"><label>Owner</label><span>You</span></div></div>');
+    clg.hidden = false;
+    var api = c.session('api', 'working', 'Reading auth.ts');
+    c.session('site', '', 'Done, waiting for you');
+    c.session('roar', 'working', 'Running the tests');
+    await c.me('Move the auth module to the new token store.');
+    c.cc('Read', 'src/auth.ts'); await c.w(700);
+    c.session('api', 'working', 'Editing auth.ts');
+    c.cc('Update', 'src/auth.ts'); await c.w(500);
+    c.ai('Do you want to make this edit to auth.ts?  1. Yes  2. No');
+    c.session('api', 'needs', 'Claude needs your permission');
+    await c.w(900);
+    await c.move(api); await c.click(api); api.classList.add('open');
+    var p = h('<div class="clp"><pre></pre><div class="in">Reply to Claude…</div><div class="keys"><b>⏎</b><b>Esc</b><b>1</b><b>2</b><b>3</b><b>⌃C</b></div></div>');
+    p.querySelector('pre').textContent = '⏺ Update(src/auth.ts)\n  - const t = session.token\n  + const t = tokens.get(user)\n\nDo you want to make this edit?\n❯ 1. Yes\n  2. No';
+    api.after(p); await c.w(1100);
+    var one = p.querySelectorAll('.keys b')[2]; await c.move(one); await c.click(one);
+    p.querySelector('pre').textContent = '⏺ Update(src/auth.ts)\n  ⎿ Updated src/auth.ts\n\n⏺ Bash(npm test)\n  ⎿ 5 passed';
+    c.cc('Update', 'src/auth.ts', 'Updated 2 lines'); c.cc('Bash', 'npm test', '5 passed');
+    c.session('api', 'working', 'Running npm test');
+    await c.w(800);
+    var inp = p.querySelector('.in'); await c.move(inp);
+    inp.innerHTML = '<span></span>'; await c.type(inp, 'Also cover token expiry');
+    await c.me('Also cover token expiry');
+    p.querySelector('pre').textContent += '\n\n> Also cover token expiry';
+    inp.textContent = 'Reply to Claude…';
+    c.cc('Write', 'src/auth.test.ts'); c.session('api', 'working', 'Writing auth.test.ts'); await c.w(1000);
+    c.cc('Bash', 'npm test', '6 passed');
+    c.ai('Done. auth.ts reads from the token store; 6 tests pass, including expiry.');
+    c.session('api', '', 'Done, waiting for you');
+    await c.w(3600);
+  });
 
   function until() { return visible ? Promise.resolve() : new Promise(function (ok) { wake = ok; }); }
   async function loop(i) {
