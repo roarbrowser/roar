@@ -20,5 +20,14 @@
       <description><![CDATA[New tagline: the AI-native, open-source browser your agent can drive (welcome page). README corrected and now lists Arc import, ghost tabs, new windows, pinned groups, link cleaning and auto-update.]]></description>
       <enclosure url="https://github.com/roarbrowser/roar/releases/download/v0.9.1/Roar-0.9.1.dmg" type="application/octet-stream" sparkle:edSignature="BNNcDCHN0iohaPbmWPw+QNygModKqA7V1rv4n/7Zcb/PmMusll9/FfPzmBRHNHjw9qkKoxrHk2AyfhDf4diXAg==" length="183678263"/>
     </item>
+    <item>
+      <title>0.10.0</title>
+      <pubDate>Fri, 16 Oct 2026 11:13:58 +0000</pubDate>
+      <sparkle:version>0.10.0</sparkle:version>
+      <sparkle:shortVersionString>0.10.0</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[Split view with per-pane back buttons; Claude Code sessions: full view, '+ This tab' sends the current page to a session (never ghost tabs), and a setting to show or hide sessions in the sidebar; new CLAUDE.md browser lists every CLAUDE.md, AGENTS.md, GEMINI.md and similar file in your home folder.]]></description>
+      <enclosure url="https://github.com/roarbrowser/roar/releases/download/v0.10.0/Roar-0.10.0.dmg" type="application/octet-stream" sparkle:edSignature="uJd/pnbBQVj9WvQzlNw/oVcYYFVA1/+1wE4MtGDR5PTpEDxDlHqHw1NWOpeN8wji0ZCt+AoVIcYEqeyo0s4cBQ==" length="234882711"/>
+    </item>
   </channel>
 </rss>
