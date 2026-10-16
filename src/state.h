@@ -112,6 +112,7 @@ struct Settings {
   bool ask_default = true;  // Offers to become the default browser at launch until dismissed.
   // Claude Code sessions in the sidebar; when on, launch installs the hooks once if Claude Code is set up.
   bool claude_sidebar = true;
+  bool claude_alert_done = true, claude_alert_needs = true, claude_alert_system = true;  // ClaudeAlert cards and macOS notice.
   bool claude_hooks_offered = false;
   bool clean_links = true;  // Unwraps Safe Links and strips .mcas.ms from copied links (CleanLink).
 };

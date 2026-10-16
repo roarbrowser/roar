@@ -83,6 +83,11 @@ pre { margin: 0; font: 12px/1.6 var(--mono); background: var(--ground); border-r
       <div class="controls">
         <label class="switch"><input type="checkbox" id="claude-hooks"> Show my Claude Code sessions in the sidebar</label>
       </div>
+      <div class="controls" id="claude-alerts">
+        <label class="switch"><input type="checkbox" data-set="claudeAlertDone"> Alert me when a session finishes</label>
+        <label class="switch"><input type="checkbox" data-set="claudeAlertNeeds"> Alert me when a session needs me</label>
+        <label class="switch"><input type="checkbox" data-set="claudeAlertSystem"> Also send a macOS notification when Roar is in the background</label>
+      </div>
       <p class="status">Adds a small hook to <kbd>~/.claude/settings.json</kbd> (a copy of the original is kept). Each session reports its project, what it's doing and whether it needs you; never the conversation. A Claude icon shows at the bottom of the sidebar while sessions run; pin its list to keep it in view.</p>
     </li>
     <li>
@@ -189,6 +194,7 @@ function apply(s) {
   $('pin-cols').value = String(s.settings.pinnedColumns || 0);
   $('pin-center').checked = s.settings.pinnedCentered;
   $('clean-links').checked = s.settings.cleanLinks;
+  document.querySelectorAll('#claude-alerts input').forEach((i) => { i.checked = s.settings[i.dataset.set] !== false; i.disabled = s.settings.claudeSidebar === false || !s.claude?.hooks; });
   $('ask-default').checked = s.settings.askDefault;
   $('claude-hooks').checked = s.settings.claudeSidebar !== false && !!s.claude?.hooks;
   $('make-default').hidden = s.settings.isDefaultBrowser;
@@ -290,6 +296,7 @@ $('agent-clients').addEventListener('click', (e) => {
 loadAgents();
 $('cdp-relaunch').onclick = () => ask({ cmd: 'run', id: 'relaunch' });
 $('clean-links').onchange = () => set({ cleanLinks: $('clean-links').checked });
+document.querySelectorAll('#claude-alerts input').forEach((i) => i.onchange = () => set({ [i.dataset.set]: i.checked }));
 $('claude-hooks').onchange = () => { const on = $('claude-hooks').checked; set({ claudeSidebar: on }); ask({ cmd: 'claude.hooks', on }).then(() => ask({ cmd: 'state' })).then(apply); };
 $('ask-default').onchange = () => set({ askDefault: $('ask-default').checked });
 $('make-default').onclick = () => ask({ cmd: 'browser.makeDefault' }).then(() => ask({ cmd: 'state' })).then(apply);

@@ -187,6 +187,9 @@ void State::Load() {
     settings.clean_links = Bool(s, "cleanLinks", true);
     settings.ask_default = Bool(s, "askDefault", true);
     settings.claude_sidebar = Bool(s, "claudeSidebar", true);
+    settings.claude_alert_done = Bool(s, "claudeAlertDone", true);
+    settings.claude_alert_needs = Bool(s, "claudeAlertNeeds", true);
+    settings.claude_alert_system = Bool(s, "claudeAlertSystem", true);
     settings.claude_hooks_offered = Bool(s, "claudeHooksOffered", false);
     // "cdpOpen", not 0.5.0's "cdpEnabled": that release saved false for everyone.
     settings.cdp_enabled = Bool(s, "cdpOpen", true);
@@ -302,6 +305,9 @@ void State::Save() {
   s->SetBool("cleanLinks", settings.clean_links);
   s->SetBool("askDefault", settings.ask_default);
   s->SetBool("claudeSidebar", settings.claude_sidebar);
+  s->SetBool("claudeAlertDone", settings.claude_alert_done);
+  s->SetBool("claudeAlertNeeds", settings.claude_alert_needs);
+  s->SetBool("claudeAlertSystem", settings.claude_alert_system);
   s->SetBool("claudeHooksOffered", settings.claude_hooks_offered);
   s->SetBool("cdpOpen", settings.cdp_enabled);
   s->SetBool("agentHeadless", settings.agent_headless);

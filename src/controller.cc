@@ -1931,7 +1931,8 @@ void Controller::ClaudeAlert(CefRefPtr<CefDictionaryValue> d) {
   auto [it, fresh] = claude_states_.try_emplace(id, state);
   if (fresh || it->second == state) return;
   it->second = state;
-  if (!State::Get().settings.claude_sidebar || (state != "idle" && state != "needs_you")) return;
+  const auto& set = State::Get().settings;
+  if (!set.claude_sidebar || !(state == "idle" ? set.claude_alert_done : state == "needs_you" && set.claude_alert_needs)) return;
   std::string key = "claude:" + id;
   std::erase_if(agent_alerts_, [&](const AgentAlert& a) { return a.key == key; });
   AgentAlert a;
@@ -1942,7 +1943,7 @@ void Controller::ClaudeAlert(CefRefPtr<CefDictionaryValue> d) {
   a.title = d->GetString("project").ToString() + (state == "idle" ? " is done" : " needs you");
   a.body = state == "idle" ? d->GetString("prompt").ToString() : d->GetString("doing").ToString();
   a.time = NowSeconds();
-  if (a.level == "needs_you" && !platform::AppActive()) platform::Notify("Claude Code: " + a.title, a.body);
+  if (a.level == "needs_you" && set.claude_alert_system && !platform::AppActive()) platform::Notify("Claude Code: " + a.title, a.body);
   agent_alerts_.push_back(a);
   SyncAlertBadge();
 }
@@ -3099,6 +3100,9 @@ std::string Controller::StateJson() {
   settings->SetBool("cleanLinks", state.settings.clean_links);
   settings->SetBool("askDefault", state.settings.ask_default);
   settings->SetBool("claudeSidebar", state.settings.claude_sidebar);
+  settings->SetBool("claudeAlertDone", state.settings.claude_alert_done);
+  settings->SetBool("claudeAlertNeeds", state.settings.claude_alert_needs);
+  settings->SetBool("claudeAlertSystem", state.settings.claude_alert_system);
   settings->SetBool("isDefaultBrowser", platform::IsDefaultBrowser());
   settings->SetBool("cdpEnabled", state.settings.cdp_enabled);
   settings->SetBool("cdpOn", cdp_on_);
@@ -3281,6 +3285,9 @@ void Controller::ApplySettings(CefRefPtr<CefDictionaryValue> d) {
   if (d->HasKey("cleanLinks")) s.clean_links = d->GetBool("cleanLinks");
   if (d->HasKey("askDefault")) s.ask_default = d->GetBool("askDefault");
   if (d->HasKey("claudeSidebar")) s.claude_sidebar = d->GetBool("claudeSidebar");
+  if (d->HasKey("claudeAlertDone")) s.claude_alert_done = d->GetBool("claudeAlertDone");
+  if (d->HasKey("claudeAlertNeeds")) s.claude_alert_needs = d->GetBool("claudeAlertNeeds");
+  if (d->HasKey("claudeAlertSystem")) s.claude_alert_system = d->GetBool("claudeAlertSystem");
   if (d->HasKey("agentHeadless")) s.agent_headless = d->GetBool("agentHeadless");
   if (d->HasKey("cdpEnabled")) {
     s.cdp_enabled = d->GetBool("cdpEnabled");
