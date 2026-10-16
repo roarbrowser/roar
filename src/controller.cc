@@ -1924,6 +1924,29 @@ std::string AgentMdList() {
   return CefWriteJSON(v, JSON_WRITER_DEFAULT).ToString();
 }
 
+// A sidebar card when a Claude Code session finishes a turn or needs the user; one card per
+// session, replaced by its next one. States seen at launch only set the baseline.
+void Controller::ClaudeAlert(CefRefPtr<CefDictionaryValue> d) {
+  std::string id = d->GetString("id"), state = d->GetString("state");
+  auto [it, fresh] = claude_states_.try_emplace(id, state);
+  if (fresh || it->second == state) return;
+  it->second = state;
+  if (!State::Get().settings.claude_sidebar || (state != "idle" && state != "needs_you")) return;
+  std::string key = "claude:" + id;
+  std::erase_if(agent_alerts_, [&](const AgentAlert& a) { return a.key == key; });
+  AgentAlert a;
+  a.id = next_alert_id_++;
+  a.key = key;
+  a.agent = "Claude Code";
+  a.level = state == "idle" ? "done" : "needs_you";
+  a.title = d->GetString("project").ToString() + (state == "idle" ? " is done" : " needs you");
+  a.body = state == "idle" ? d->GetString("prompt").ToString() : d->GetString("doing").ToString();
+  a.time = NowSeconds();
+  if (a.level == "needs_you" && !platform::AppActive()) platform::Notify("Claude Code: " + a.title, a.body);
+  agent_alerts_.push_back(a);
+  SyncAlertBadge();
+}
+
 void Controller::ClaudeTick() {
   namespace fs = std::filesystem;
   auto list = CefListValue::Create();
@@ -1942,6 +1965,7 @@ void Controller::ClaudeTick() {
     double idle = now - d->GetDouble("updated") / 1000;
     if (idle > 6 * 3600 || (e.path().filename().string().rfind("new-", 0) == 0 && idle > 15 * 60)) { fs::remove(e.path(), ec); continue; }
     list->SetDictionary(list->GetSize(), d->Copy(false));
+    ClaudeAlert(d);
   }
   std::string sig = ToJson([&] { auto x = CefValue::Create(); x->SetList(list); return x; }());
   if (sig != claude_sig_) {

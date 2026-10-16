@@ -263,6 +263,7 @@ class Controller {
   void ClaudeTick();
   CefRefPtr<CefListValue> claude_ = CefListValue::Create();
   std::string claude_sig_;
+  std::map<std::string, std::string> claude_states_;  // Session id -> last state, for completion cards.
   bool claude_hooks_ = false;
   void MaybeQuit();
 
@@ -324,6 +325,7 @@ class Controller {
   void SyncPaneNav(Tab* tab);
   void AskDefaultBrowser();
   void SyncAlertBadge();
+  void ClaudeAlert(CefRefPtr<CefDictionaryValue> d);
   int agent_space_ = -1;  // Last answer to "which profile should the agent use?".
   bool cdp_on_ = false;                 // Whether the CDP HTTP port is listening now.
   void (*cdp_http_)(int port) = nullptr;  // Roar's CEF patch: opens (port) or closes (0) it live.
