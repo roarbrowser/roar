@@ -41,6 +41,7 @@ fi
 # Notarize when the app carries a Developer ID signature and a notarytool keychain
 # profile is named (xcrun notarytool store-credentials <name>; ROAR_NOTARY_PROFILE=<name>).
 NOTARIZED=0
+ROAR_NOTARY_PROFILE="${ROAR_NOTARY_PROFILE:-roar}"
 if codesign -dvv "$APP" 2>&1 | grep -q "Authority=Developer ID Application" && [[ -n "${ROAR_NOTARY_PROFILE:-}" ]]; then
   SIGN_ID="$(codesign -dvv "$APP" 2>&1 | sed -n 's/^Authority=\(Developer ID Application.*\)/\1/p' | head -1)"
   codesign --force --timestamp --sign "$SIGN_ID" "$DMG"
