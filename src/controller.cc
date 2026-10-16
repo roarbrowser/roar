@@ -3631,6 +3631,13 @@ bool Controller::HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> 
       PushSidebar();
       callback->Success(out);
     });
+  } else if (cmd == "claude.ctl") {
+    // focus | screen | send for one Claude Code session (roar-mcp claude-ctl); replies its output.
+    std::string action = msg->GetString("action").ToString();
+    if (action != "focus" && action != "screen" && action != "send") return callback->Failure(0, "bad action"), true;
+    std::vector<std::string> args = {"claude-ctl", action, msg->GetString("id").ToString()};
+    if (action == "send") args.push_back(msg->GetString("text").ToString());
+    platform::RoarMcp(args, [callback](const std::string& out) { callback->Success(out); });
   } else if (cmd == "claude.dismiss") {
     std::string id = msg->GetString("id").ToString();
     if (!id.empty() && id.find_first_not_of("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_") == std::string::npos) {

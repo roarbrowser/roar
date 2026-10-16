@@ -2,10 +2,14 @@
 //   roar-mcp claude-hook                       Claude Code hook: reads the event JSON on stdin and
 //                                              writes <Roar data>/claude-sessions/<session>.json
 //   roar-mcp claude-hooks install|uninstall|status   adds/removes those hooks in ~/.claude/settings.json
+//   roar-mcp claude-ctl focus|screen|send <session> [text|key:<name>]
+//                                              brings the session's terminal forward, prints its screen,
+//                                              or types into it (tmux and cmux only)
 // Roar reads the folder every few seconds (Controller::ClaudeTick). Only the latest prompt,
 // the current tool and the session state are kept; never the conversation.
 import { readFileSync, writeFileSync, mkdirSync, rmSync, renameSync, existsSync, copyFileSync } from 'node:fs';
 import { basename, join } from 'node:path';
+import { execFileSync } from 'node:child_process';
 
 const HOME = process.env.HOME;
 const DIR = join(process.env.ROAR_DATA_DIR || join(HOME, 'Library/Application Support/Roar'), 'claude-sessions');
@@ -42,6 +46,22 @@ export function update(prev, ev, now) {
   }
 }
 
+const which = (bin) => (process.env.PATH || '').split(':').map((d) => join(d, bin)).find((p) => existsSync(p));
+
+// Where the session runs, found once from the hook's environment (inherited from Claude Code).
+export function where(env = process.env) {
+  const t = {};
+  if (env.TMUX && env.TMUX_PANE) {
+    t.tmux = { bin: which('tmux'), socket: env.TMUX.split(',')[0], pane: env.TMUX_PANE };
+    try { t.tmux.session = execFileSync(t.tmux.bin, ['-S', t.tmux.socket, 'display', '-p', '-t', env.TMUX_PANE, '#{session_name}'], { encoding: 'utf8', timeout: 2000 }).trim(); } catch {}
+  }
+  if (env.CMUX_WORKSPACE_ID && env.CMUX_SURFACE_ID)
+    t.cmux = { bin: env.CMUX_BUNDLED_CLI_PATH || '/Applications/cmux.app/Contents/Resources/bin/cmux', workspace: env.CMUX_WORKSPACE_ID, surface: env.CMUX_SURFACE_ID };
+  t.app = env.__CFBundleIdentifier || '';
+  try { t.tty = execFileSync('ps', ['-o', 'tty=', '-p', String(process.ppid)], { encoding: 'utf8', timeout: 2000 }).trim(); } catch {}
+  return t;
+}
+
 function hook() {
   let ev;
   try { ev = JSON.parse(readFileSync(0, 'utf8')); } catch { return; }
@@ -51,7 +71,10 @@ function hook() {
   let prev = {};
   try { prev = JSON.parse(readFileSync(file, 'utf8')); } catch {}
   mkdirSync(DIR, { recursive: true });
-  writeFileSync(file + '.tmp', JSON.stringify(update(prev, ev, Date.now())));
+  const next = update(prev, ev, Date.now());
+  next.term ||= where();
+  next.live = !!(next.term.tmux?.bin || next.term.cmux);
+  writeFileSync(file + '.tmp', JSON.stringify(next));
   renameSync(file + '.tmp', file);  // Roar never reads half a file.
 }
 
@@ -79,7 +102,60 @@ function hooks(action, exe) {
   console.log(action === 'install' ? 'installed' : 'not installed');
 }
 
+const run1 = (bin, args) => execFileSync(bin, args, { encoding: 'utf8', timeout: 5000 });
+const osa = (script) => run1('osascript', ['-e', script]);
+const KEYS = { enter: ['Enter', 'enter'], escape: ['Escape', 'escape'], up: ['Up', 'up'], down: ['Down', 'down'], tab: ['Tab', 'tab'], 'ctrl-c': ['C-c', 'ctrl+c'] };
+
+function ctl(action, id, arg) {
+  if (!/^[\w-]+$/.test(id || '')) throw new Error('bad session id');
+  const s = JSON.parse(readFileSync(join(DIR, id + '.json'), 'utf8')), t = s.term || {};
+  const tm = t.tmux?.bin && t.tmux, cx = t.cmux, tx = tm ? ['-S', tm.socket] : [];
+  if (action === 'screen') {
+    if (tm) return run1(tm.bin, [...tx, 'capture-pane', '-p', '-J', '-t', tm.pane, '-S', '-80']);
+    if (cx) return run1(cx.bin, ['read-screen', '--workspace', cx.workspace, '--surface', cx.surface, '--lines', '80']);
+    throw new Error('no live view for this terminal');
+  }
+  if (action === 'send') {
+    const key = /^key:(.+)$/.exec(arg || '')?.[1];
+    if (key && !KEYS[key]) throw new Error('unknown key');
+    if (tm) return run1(tm.bin, key ? [...tx, 'send-keys', '-t', tm.pane, KEYS[key][0]] : [...tx, 'send-keys', '-t', tm.pane, '-l', arg]);
+    if (cx) return run1(cx.bin, key ? ['send-key', '--workspace', cx.workspace, '--surface', cx.surface, KEYS[key][1]] : ['send', '--workspace', cx.workspace, '--surface', cx.surface, '--', arg]);
+    throw new Error('this terminal does not take input from Roar');
+  }
+  // focus: the exact tab where we can, else the app. A tmux pane's cmux ids come from whichever
+  // shell started the tmux server, so they only count while that session is attached somewhere.
+  if (tm) {
+    run1(tm.bin, [...tx, 'select-window', '-t', tm.pane]); run1(tm.bin, [...tx, 'select-pane', '-t', tm.pane]);
+    const attached = run1(tm.bin, [...tx, 'display', '-p', '-t', tm.pane, '#{session_attached}']).trim() !== '0';
+    if (!attached) {
+      // Detached: open a terminal on it. cmux when it's installed, else Terminal.
+      const cmd = `${tm.bin} -S ${tm.socket} attach -t ${JSON.stringify(tm.session || tm.pane)}`;
+      const cmuxBin = '/Applications/cmux.app/Contents/Resources/bin/cmux';
+      if (existsSync(cmuxBin)) run1(cmuxBin, ['new-workspace', '--name', s.project, '--command', cmd, '--focus', 'true']), run1('open', ['-b', 'com.cmuxterm.app']);
+      else osa(`tell application "Terminal" to do script ${JSON.stringify(cmd)}`), osa('tell application "Terminal" to activate');
+      return 'attached';
+    }
+  }
+  if (cx) {
+    run1(cx.bin, ['select-workspace', '--workspace', cx.workspace]);
+    run1(cx.bin, ['focus-panel', '--panel', cx.surface, '--workspace', cx.workspace]);
+    return run1('open', ['-b', 'com.cmuxterm.app']), 'focused';
+  }
+  if (t.tty && /Apple_Terminal|com\.apple\.Terminal/.test(t.app))
+    return osa(`tell application "Terminal"\nrepeat with w in windows\nrepeat with x in tabs of w\nif tty of x is "/dev/${t.tty}" then\nset selected of x to true\nset index of w to 1\nend if\nend repeat\nend repeat\nactivate\nend tell`), 'focused';
+  if (t.tty && /iterm/i.test(t.app))
+    return osa(`tell application "iTerm2"\nrepeat with w in windows\nrepeat with x in tabs of w\nrepeat with p in sessions of x\nif tty of p is "/dev/${t.tty}" then\nselect w\nselect x\nselect p\nend if\nend repeat\nend repeat\nend repeat\nactivate\nend tell`), 'focused';
+  if (/^com\.(microsoft\.VSCode|todesktop\.230313mzl4w4u92|exafunction\.windsurf)/.test(t.app) && s.cwd) return run1('open', ['-b', t.app, s.cwd]), 'focused';
+  if (t.app) return run1('open', ['-b', t.app]), 'focused';
+  throw new Error('no window known for this session');
+}
+
 export function run(args, exe) {
+  if (args[0] === 'claude-ctl') {
+    try { process.stdout.write(String(ctl(args[1], args[2], args[3]) ?? '')); }
+    catch (e) { process.stdout.write('error: ' + (e.stderr?.toString().trim() || e.message)); process.exitCode = 1; }
+    return;
+  }
   if (args[0] === 'claude-hook') hook();
   else hooks(args[1] || 'status', exe);
 }

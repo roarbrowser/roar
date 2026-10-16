@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Claude Code</title>
+<link rel="stylesheet" href="roar.css">
+<style>
+/* One Claude Code session, live: its terminal screen (tmux or cmux) and a reply box. */
+body { background: var(--panel); margin: 0; height: 100vh; display: flex; flex-direction: column; }
+header { display: flex; align-items: center; gap: 10px; padding: 14px 20px 10px; }
+h1 { margin: 0; font: 800 22px/1.1 var(--round); letter-spacing: -.01em; }
+.state { font-size: 12px; color: var(--ink-3); flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dot { width: 9px; height: 9px; border-radius: 50%; background: var(--ink-3); flex: none; }
+.dot.working { background: #2f9e5b; } .dot.needs_you { background: var(--mane); }
+.btn { background: var(--ground); border-radius: 8px; padding: 6px 12px; font-weight: 500; }
+.btn:hover { background: var(--hover); }
+pre { flex: 1; margin: 0 20px; padding: 14px 16px; overflow: auto; border-radius: 10px; background: #15100c; color: #eadfd2; font: 12.5px/1.45 var(--mono); white-space: pre; }
+.err { color: var(--ink-3); font: 13px var(--ui); white-space: normal; }
+form { display: flex; gap: 8px; padding: 10px 20px 4px; }
+form input { flex: 1; min-width: 0; padding: 9px 12px; border-radius: 9px; border: 0; background: var(--ground); color: var(--ink); font: 14px var(--ui); box-shadow: inset 0 0 0 1px var(--rule); }
+form button { background: var(--mane); color: #2a1604; font-weight: 600; border-radius: 9px; padding: 0 16px; }
+.keys { display: flex; flex-wrap: wrap; gap: 6px; padding: 6px 20px 16px; }
+.keys button { background: var(--ground); border-radius: 7px; padding: 4px 10px; font: 12px var(--mono); color: var(--ink-2); }
+.keys button:hover { background: var(--hover); color: var(--ink); }
+</style>
+</head>
+<body>
+<header><span class="dot" id="dot"></span><h1 id="name">Claude Code</h1><span class="state" id="state"></span><button class="btn" id="focus" title="Bring its terminal window to the front">Open in terminal</button></header>
+<pre id="screen" aria-live="off"></pre>
+<form id="reply"><input id="text" placeholder="Reply to Claude…" autocomplete="off" spellcheck="false" aria-label="Reply"><button>Send</button></form>
+<div class="keys" aria-label="Keys">
+  <button data-k="key:enter">Enter</button><button data-k="key:escape">Esc</button><button data-k="key:up">↑</button><button data-k="key:down">↓</button><button data-k="key:tab">Tab</button><button data-k="1">1</button><button data-k="2">2</button><button data-k="3">3</button><button data-k="key:ctrl-c" title="Interrupt">⌃C</button>
+</div>
+<script src="bridge.js"></script>
+<script>
+const $ = (id) => document.getElementById(id);
+const id = new URLSearchParams(location.search).get('id') || '';
+const ctl = (action, text) => ask({ cmd: 'claude.ctl', action, id, text });
+
+async function meta() {
+  const s = await ask({ cmd: 'state' }).then((x) => typeof x === 'string' ? JSON.parse(x) : x);
+  const c = (s.claude?.items || []).find((x) => x.id === id);
+  if (!c) { $('state').textContent = 'This session has ended.'; return; }
+  document.title = `${c.project} · Claude Code`;
+  $('name').textContent = c.project;
+  $('state').textContent = c.doing || '';
+  $('dot').className = 'dot ' + (c.state || 'idle');
+  $('reply').hidden = $('screen').hidden = document.querySelector('.keys').hidden = !c.live;
+}
+
+let busy = false;
+async function screen() {
+  if (busy || document.hidden || $('screen').hidden) return;
+  busy = true;
+  try {
+    const out = await ctl('screen');
+    const pre = $('screen'), atBottom = pre.scrollTop + pre.clientHeight >= pre.scrollHeight - 8;
+    if (out.startsWith('error: ')) { pre.innerHTML = ''; pre.appendChild(Object.assign(document.createElement('div'), { className: 'err', textContent: out.slice(7) })); }
+    else if (pre.textContent !== out) { pre.textContent = out.replace(/\s+$/, ''); if (atBottom) pre.scrollTop = pre.scrollHeight; }
+  } finally { busy = false; }
+}
+
+$('reply').onsubmit = async (e) => {
+  e.preventDefault();
+  const t = $('text').value;
+  if (!t) return;
+  $('text').value = '';
+  await ctl('send', t);
+  await ctl('send', 'key:enter');
+  screen();
+};
+document.querySelector('.keys').onclick = async (e) => {
+  const b = e.target.closest('[data-k]');
+  if (b) { await ctl('send', b.dataset.k); screen(); }
+};
+$('focus').onclick = () => ctl('focus');
+
+meta().then(screen);
+setInterval(screen, 1000);
+setInterval(meta, 3000);
+</script>
+</body>
+</html>

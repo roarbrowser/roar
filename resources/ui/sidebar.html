@@ -142,7 +142,8 @@ body.drag-active .pinned:empty::before { content: 'Drop to pin'; color: var(--in
 .cl .dot.idle { background: var(--ink-3); } .cl .dot.needs_you { background: var(--mane, #d9822b); }
 .cl .dot.working { background: #2f9e5b; animation: clpulse 1.4s ease-in-out infinite; }
 @keyframes clpulse { 50% { opacity: .35; } }
-.cl [data-cldismiss] { color: var(--ink-3); padding: 0 4px; visibility: hidden; } .cl:hover [data-cldismiss] { visibility: visible; }
+.cl [data-cldismiss], .cl [data-clfocus] { color: var(--ink-3); padding: 0 4px; visibility: hidden; } .cl:hover [data-cldismiss], .cl:hover [data-clfocus] { visibility: visible; }
+.cl { cursor: pointer; }
 .feed .badge.urgent { background: #d9822b; box-shadow: 0 0 0 2px var(--ground); }
 .mailrow { position: relative; }
 .macts { position: absolute; right: 4px; top: 50%; transform: translateY(-50%); display: none; gap: 2px; padding: 2px; border-radius: 7px; background: var(--ground); box-shadow: 0 0 0 1px var(--rule); }
@@ -405,7 +406,7 @@ window.roar = {
     // Claude Code sessions (hooked in from Settings): an icon with a list, or pinned into the sidebar.
     const cl = (s.claude?.items || []).slice().sort((a, b) => b.updated - a.updated);
     const clAgo = (ms) => { const m = Math.round((Date.now() - ms) / 60000); return m < 1 ? 'now' : m < 60 ? m + ' min' : Math.round(m / 60) + ' h'; };
-    const clRow = (c) => `<div class="row pr cl" title="${esc(c.prompt || c.cwd || '')}"><span class="dot ${esc(c.state || 'idle')}"></span><span class="label">${esc(c.project)}<small>${esc(c.doing || '')} · ${clAgo(c.updated)}</small></span><button data-cldismiss="${esc(c.id)}" title="Hide this session">×</button></div>`;
+    const clRow = (c) => `<div class="row pr cl" data-clid="${esc(c.id)}" data-cllive="${c.live ? 1 : ''}" title="${esc((c.prompt || c.cwd || '') + (c.live ? '\nClick to watch and reply' : '\nClick to open its window'))}"><span class="dot ${esc(c.state || 'idle')}"></span><span class="label">${esc(c.project)}<small>${esc(c.doing || '')} · ${clAgo(c.updated)}</small></span><button data-clfocus="${esc(c.id)}" title="Open its terminal window">↗</button><button data-cldismiss="${esc(c.id)}" title="Hide this session">×</button></div>`;
     const clPinned = (() => { try { return localStorage.getItem('claudePinned') === '1'; } catch { return false; } })();
     const clNeeds = cl.filter((c) => c.state === 'needs_you').length;
     $('cl-btn').hidden = !cl.length || clPinned;
@@ -805,7 +806,15 @@ $('cl-pin').onclick = () => clPin(true);
 $('cl-unpin').onclick = () => clPin(false);
 document.addEventListener('click', (e) => {
   const x = e.target.closest('[data-cldismiss]');
-  if (x) { e.stopPropagation(); ask({ cmd: 'claude.dismiss', id: x.dataset.cldismiss }); }
+  if (x) { e.stopPropagation(); return ask({ cmd: 'claude.dismiss', id: x.dataset.cldismiss }); }
+  const f = e.target.closest('[data-clfocus]');
+  if (f) { e.stopPropagation(); return ask({ cmd: 'claude.ctl', action: 'focus', id: f.dataset.clfocus }); }
+  const r = e.target.closest('[data-clid]');
+  if (!r) return;
+  e.stopPropagation();
+  $('cl-group').classList.remove('open');
+  if (r.dataset.cllive) ask({ cmd: 'open', text: 'roar://ui/claude.html?id=' + encodeURIComponent(r.dataset.clid), newTab: true });
+  else ask({ cmd: 'claude.ctl', action: 'focus', id: r.dataset.clid });
 }, true);
 $('gm-refresh').onclick = () => ask({ cmd: 'run', id: 'gmail' });
 // Multi-select delete: ticked messages go to Gmail in one Delete per account.
