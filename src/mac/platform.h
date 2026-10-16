@@ -27,6 +27,9 @@ void Notify(const std::string& title, const std::string& body);
 // The Dock icon's badge; 0 clears it.
 void SetDockBadge(int count);
 bool AppActive();
+// Whether Roar opens http(s) links from other apps; MakeDefaultBrowser asks macOS to switch (it confirms with the user).
+bool IsDefaultBrowser();
+void MakeDefaultBrowser(std::function<void()> done);
 // Locks |dir| for this process and writes the CDP port to <dir>/cdp-port.
 // False when another Roar already runs from |dir|.
 bool ClaimInstance(const std::string& dir);

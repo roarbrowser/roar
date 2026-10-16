@@ -851,6 +851,8 @@ void Controller::Start() {
   } else {
     ActivateTab(NewTab(kNewTabUrl, false));
   }
+  if (state.settings.onboarded && state.settings.ask_default && !platform::Headless() && !platform::IsDefaultBrowser())
+    AskDefaultBrowser();
 
   if (platform::Headless()) platform::HideApp();
   AutoArchiveTick();
@@ -1579,8 +1581,28 @@ void Controller::ResolveAlert(int id, const std::string& result) {
   auto it = std::find_if(agent_alerts_.begin(), agent_alerts_.end(), [&](const AgentAlert& a) { return a.id == id; });
   if (it == agent_alerts_.end()) return;
   if (it->answer) it->answer->Success(result.empty() ? "dismissed" : result);
+  auto on_answer = it->on_answer;
   agent_alerts_.erase(it);
+  if (on_answer) on_answer(result);
   SyncAlertBadge();
+  PushSidebar();
+}
+
+// A sidebar card at launch while Roar isn't the default browser; "Don't ask again" turns it off.
+void Controller::AskDefaultBrowser() {
+  AgentAlert a;
+  a.id = next_alert_id_++;
+  a.agent = "Roar";
+  a.title = "Make Roar your default browser?";
+  a.body = "Links you click in other apps will open here.";
+  a.level = "info";
+  a.choices = {"Make default", "Not now", "Don't ask again"};
+  a.time = NowSeconds();
+  a.on_answer = [this](const std::string& r) {
+    if (r == "Make default") platform::MakeDefaultBrowser([this] { PushSidebar(); });
+    if (r == "Don't ask again") { State::Get().settings.ask_default = false; State::Get().Save(); }
+  };
+  agent_alerts_.push_back(a);
   PushSidebar();
 }
 
@@ -2858,6 +2880,8 @@ std::string Controller::StateJson() {
   settings->SetInt("pinnedColumns", state.settings.pinned_columns);
   settings->SetBool("pinnedCentered", state.settings.pinned_centered);
   settings->SetBool("cleanLinks", state.settings.clean_links);
+  settings->SetBool("askDefault", state.settings.ask_default);
+  settings->SetBool("isDefaultBrowser", platform::IsDefaultBrowser());
   settings->SetBool("cdpEnabled", state.settings.cdp_enabled);
   settings->SetBool("cdpOn", cdp_on_);
   settings->SetBool("cdpLive", cdp_http_ != nullptr);
@@ -3037,6 +3061,7 @@ void Controller::ApplySettings(CefRefPtr<CefDictionaryValue> d) {
   if (d->HasKey("pinnedColumns")) s.pinned_columns = std::clamp(d->GetInt("pinnedColumns"), 0, 8);
   if (d->HasKey("pinnedCentered")) s.pinned_centered = d->GetBool("pinnedCentered");
   if (d->HasKey("cleanLinks")) s.clean_links = d->GetBool("cleanLinks");
+  if (d->HasKey("askDefault")) s.ask_default = d->GetBool("askDefault");
   if (d->HasKey("agentHeadless")) s.agent_headless = d->GetBool("agentHeadless");
   if (d->HasKey("cdpEnabled")) {
     s.cdp_enabled = d->GetBool("cdpEnabled");
@@ -3563,6 +3588,8 @@ bool Controller::HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> 
     SyncAlertBadge();
     PushSidebar();
     callback->Success("");
+  } else if (cmd == "browser.makeDefault") {
+    platform::MakeDefaultBrowser([callback] { callback->Success(platform::IsDefaultBrowser() ? "yes" : "no"); });
   } else if (cmd == "agent.answer") {
     ResolveAlert(int_arg("id"), msg->GetString("choice").ToString());
     callback->Success("");

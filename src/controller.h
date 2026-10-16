@@ -302,10 +302,12 @@ class Controller {
     std::vector<std::string> choices;
     double time = 0;
     CefRefPtr<Callback> answer;  // ask_user waits on this until the user picks.
+    std::function<void(const std::string&)> on_answer;  // Roar's own cards (default browser).
   };
   std::vector<AgentAlert> agent_alerts_;
   int next_alert_id_ = 1;
   void ResolveAlert(int id, const std::string& result);
+  void AskDefaultBrowser();
   void SyncAlertBadge();
   int agent_space_ = -1;  // Last answer to "which profile should the agent use?".
   bool cdp_on_ = false;                 // Whether the CDP HTTP port is listening now.

@@ -65,6 +65,16 @@ code, pre { font-family: var(--mono); font-size: 14px; }
 .tab b { width: 16px; height: 16px; border-radius: 5px; background: var(--rule); flex: none; }
 .tab.on { background: var(--ground); color: var(--ink); font-weight: 600; }
 .tab.on b { background: var(--mane); }
+.side .tab { transition: background .35s, color .35s; }
+.side .tab b, .pins span { display: grid; place-items: center; background: var(--f); color: #fff; font: 700 10px var(--ui); }
+.side .tab span { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.side .tab em { font-style: normal; font-size: 11px; color: var(--ink-3); }
+.side .dots { align-items: center; }
+.spaces { margin-left: auto; display: flex; gap: 6px; } .spaces b { width: 8px; height: 8px; border-radius: 50%; background: var(--c); opacity: .45; } .spaces b:first-child { opacity: 1; box-shadow: 0 0 0 2px var(--panel), 0 0 0 3.5px var(--c); }
+.pins { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-bottom: 10px; }
+.pins span { height: 34px; border-radius: 9px; font-size: 15px; background: var(--ground); color: var(--f); }
+.side .tab.on b { background: var(--f); }
+.today { font: 600 11px var(--ui); color: var(--ink-3); text-transform: uppercase; letter-spacing: .06em; padding: 4px 10px; }
 .card { --edge: var(--mane); position: relative; margin-top: 14px; background: var(--ground); border-radius: 10px; padding: 9px 30px 10px 12px; box-shadow: inset 3px 0 0 var(--edge), 0 0 0 1px var(--rule); font-size: 13px; }
 .card.done { --edge: #2f9e5b; }
 .card .who { display: flex; gap: 6px; color: var(--ink-3); font-size: 11.5px; }
@@ -222,18 +232,20 @@ footer .wrap { display: flex; flex-wrap: wrap; gap: 8px 28px; align-items: cente
       <a class="btn ghost" href="#agents">Connect your agent</a>
     </div>
   </div>
-  <div class="side" aria-label="Illustration: an agent asks a question in Roar's sidebar" role="img">
-    <div class="dots"><i></i><i></i><i></i></div>
-    <div class="tab"><b></b>Inbox</div>
-    <div class="tab"><b></b>Pull requests</div>
-    <div class="tab on"><b></b>Flight search</div>
-    <div class="tab"><b></b>Docs</div>
+  <div class="side" aria-label="Illustration: Roar's sidebar while an agent works and asks you a question" role="img">
+    <div class="dots"><i></i><i></i><i></i><span class="spaces"><b style="--c:#ff7a00"></b><b style="--c:#7aa898"></b><b style="--c:#8a7cf0"></b></span></div>
+    <div class="pins"><span style="--f:#d93025">M</span><span style="--f:#6e7681">G</span><span style="--f:#4a8af4">C</span><span style="--f:#e8a400">N</span></div>
+    <div class="today">Today</div>
+    <div class="tab" data-i="0"><b style="--f:#d93025">M</b><span>Inbox (3)</span><em>mail</em></div>
+    <div class="tab" data-i="1"><b style="--f:#6e7681">G</b><span>Fix pagination #212</span><em>github</em></div>
+    <div class="tab on" data-i="2"><b style="--f:#0b8a6f">✈</b><span>JFK → JRO, Nov 14</span><em>flights</em></div>
+    <div class="tab" data-i="3"><b style="--f:#4a8af4">D</b><span>Q4 launch plan</span><em>docs</em></div>
     <div class="card">
       <div class="who"><span>Claude Code</span><span>now</span></div><span class="x">×</span>
       <div class="q">Two fares match. Book the 9:40 nonstop?</div>
       <div class="row"><span class="yes">Book it</span><span>Not yet</span></div>
     </div>
-    <div class="cdp"><i></i>CDP open</div>
+    <div class="cdp"><i></i>CDP open · 1 agent</div>
   </div>
 </div>
 
@@ -340,6 +352,8 @@ footer .wrap { display: flex; flex-wrap: wrap; gap: 8px 28px; align-items: cente
           <li><strong>Command bar.</strong> ⌘T to open, search tabs, history and page text.</li>
           <li><strong>Reader mode and page to Markdown.</strong> Clean articles, or copy any page as Markdown.</li>
           <li><strong>Chrome extensions.</strong> uBlock Origin Lite comes bundled.</li>
+          <li><strong>Gmail and GitHub at a glance.</strong> Unread mail and your open pull requests sit in the sidebar; read, archive or open them without switching tabs.</li>
+          <li><strong>Your default browser, if you like.</strong> One click in Settings, or say yes to the reminder at launch. Dismiss it for good if you'd rather not.</li>
           <li><strong>Leave Arc or Dia in one step.</strong> Your Arc spaces and pinned tabs come over on first launch; Chrome, Safari, Firefox, Edge and Dia import too.</li>
         </ul>
       </div>

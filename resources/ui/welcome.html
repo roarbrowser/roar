@@ -79,6 +79,14 @@ pre { margin: 0; font: 12px/1.6 var(--mono); background: var(--ground); border-r
       <div class="controls"><span class="status" id="index-status"></span><button class="btn" id="forget" hidden>Forget saved text</button></div>
     </li>
     <li>
+      <h2>Make Roar your default browser</h2>
+      <p>Links you click in Mail, Slack or any other app open in Roar. macOS asks you to confirm.</p>
+      <div class="controls"><span class="status" id="default-status"></span><button class="btn" id="make-default">Make Roar the default</button></div>
+      <div class="controls">
+        <label class="switch"><input type="checkbox" id="ask-default"> Remind me at launch when Roar isn't the default</label>
+      </div>
+    </li>
+    <li>
       <h2>Links you copy are clean</h2>
       <p>Copy Link Address unwraps Safe Links and drops <kbd>.mcas.ms</kbd> from the address, so what you send someone is the real page. Links you open are left alone.</p>
       <div class="controls">
@@ -165,6 +173,9 @@ function apply(s) {
   $('pin-cols').value = String(s.settings.pinnedColumns || 0);
   $('pin-center').checked = s.settings.pinnedCentered;
   $('clean-links').checked = s.settings.cleanLinks;
+  $('ask-default').checked = s.settings.askDefault;
+  $('make-default').hidden = s.settings.isDefaultBrowser;
+  $('default-status').textContent = s.settings.isDefaultBrowser ? 'Roar is your default browser.' : '';
   $('cdp-on').checked = s.settings.cdpEnabled;
   $('agent-headless').checked = s.settings.agentHeadless;
   $('agent-headed').checked = !s.settings.agentHeadless;
@@ -253,6 +264,8 @@ $('agent-clients').addEventListener('click', (e) => {
 loadAgents();
 $('cdp-relaunch').onclick = () => ask({ cmd: 'run', id: 'relaunch' });
 $('clean-links').onchange = () => set({ cleanLinks: $('clean-links').checked });
+$('ask-default').onchange = () => set({ askDefault: $('ask-default').checked });
+$('make-default').onclick = () => ask({ cmd: 'browser.makeDefault' }).then(() => ask({ cmd: 'state' })).then(apply);
 $('forget').onclick = () => ask({ cmd: 'run', id: 'forgetPages' }).then(() => ask({ cmd: 'state' })).then(apply);
 
 ask({ cmd: 'state' }).then(apply);

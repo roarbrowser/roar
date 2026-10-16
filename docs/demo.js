@@ -180,14 +180,14 @@
   }, { threshold: .12 });
   document.querySelectorAll('main section .wrap').forEach(function (el) { el.classList.add('reveal'); io.observe(el); });
 
-  // Hero card cycles through the kinds of things an agent asks.
-  var q = document.querySelector('.hero .card .q'), tab = document.querySelector('.hero .tab.on');
-  var asks = [['Flight search', 'Two fares match. Book the 9:40 nonstop?', 'Book it'], ['Inbox', 'Archive 14 newsletters and keep the 2 from people?', 'Archive'], ['Pull requests', 'Tests pass. Approve and merge #212?', 'Merge'], ['Docs', 'Draft is ready. Share it with the team?', 'Share']];
+  // Hero: the agent moves between real tabs and asks about each one.
+  var card = document.querySelector('.hero .card'), htabs = document.querySelectorAll('.hero .tab');
+  var asks = [[2, 'Two fares match. Book the 9:40 nonstop?', 'Book it'], [0, 'Archive 14 newsletters and keep the 2 from people?', 'Archive'], [1, 'Tests pass. Approve and merge #212?', 'Merge'], [3, 'The launch plan is drafted. Share it with the team?', 'Share']];
   var n = 0;
-  if (q && !reduced) setInterval(function () {
+  if (card && !reduced) setInterval(function () {
     var x = asks[++n % asks.length];
-    tab.childNodes[1].textContent = x[0]; q.textContent = x[1];
-    q.parentNode.querySelector('.yes').textContent = x[2];
-    q.parentNode.classList.remove('swap'); void q.offsetWidth; q.parentNode.classList.add('swap');
+    [].forEach.call(htabs, function (t, i) { t.classList.toggle('on', i === x[0]); });
+    card.querySelector('.q').textContent = x[1]; card.querySelector('.yes').textContent = x[2];
+    card.classList.remove('swap'); void card.offsetWidth; card.classList.add('swap');
   }, 4500);
 })();

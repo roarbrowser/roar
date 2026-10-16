@@ -53,14 +53,17 @@ ditto "$ROOT/third_party/Sparkle/Sparkle.framework" "$RES/../Frameworks/Sparkle.
 IDS="$(security find-identity -v -p codesigning)"
 SIGN_ID="${ROAR_SIGN_IDENTITY:-$(awk -F'"' '/Developer ID Application/{print $2; exit}' <<<"$IDS")}"
 SIGN_ID="${SIGN_ID:-$(awk -F'"' '/Apple Development/{print $2; exit}' <<<"$IDS")}"
+# Sign by hash: the same certificate in two keychains makes its name ambiguous to codesign.
+SIGN_HASH="$(grep -F "\"$SIGN_ID\"" <<<"$IDS" | awk '{print $2; exit}')"
+SIGN_HASH="${SIGN_HASH:-$SIGN_ID}"
 if [[ "$SIGN_ID" == "Developer ID Application"* || "${ROAR_HARDENED:-}" == 1 ]]; then
   # --deep skips executables in Resources; roar-mcp (bun) needs the JIT entitlements too.
   for t in "$RES/roar-mcp" "$BUILD/src/Release/Roar.app"; do
     codesign --force --deep --options runtime --timestamp --entitlements "$ROOT/resources/Roar.entitlements" \
-      --sign "$SIGN_ID" "$t"
+      --sign "$SIGN_HASH" "$t"
   done
 else
-  codesign --force --sign "${SIGN_ID:--}" "$RES/roar-mcp"  # --deep skips Resources
-  codesign --force --deep --sign "${SIGN_ID:--}" "$BUILD/src/Release/Roar.app"
+  codesign --force --sign "${SIGN_HASH:--}" "$RES/roar-mcp"  # --deep skips Resources
+  codesign --force --deep --sign "${SIGN_HASH:--}" "$BUILD/src/Release/Roar.app"
 fi
 echo "$BUILD/src/Release/Roar.app"

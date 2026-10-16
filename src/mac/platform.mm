@@ -457,6 +457,22 @@ void SetDockBadge(int count) {
 
 bool AppActive() { return NSApp.isActive; }
 
+bool IsDefaultBrowser() {
+  NSURL* app = [NSWorkspace.sharedWorkspace URLForApplicationToOpenURL:[NSURL URLWithString:@"https://example.com"]];
+  // By bundle id, so a build outside /Applications still counts.
+  return app && [[NSBundle bundleWithURL:app].bundleIdentifier isEqualToString:NSBundle.mainBundle.bundleIdentifier];
+}
+
+void MakeDefaultBrowser(std::function<void()> done) {
+  NSURL* me = NSBundle.mainBundle.bundleURL;
+  NSWorkspace* ws = NSWorkspace.sharedWorkspace;
+  [ws setDefaultApplicationAtURL:me toOpenURLsWithScheme:@"http" completionHandler:^(NSError*) {
+    [ws setDefaultApplicationAtURL:me toOpenURLsWithScheme:@"https" completionHandler:^(NSError*) {
+      dispatch_async(dispatch_get_main_queue(), ^{ if (done) done(); });
+    }];
+  }];
+}
+
 void RelaunchAfterExit() {
   // Instances and scratch runs come back as themselves.
   NSMutableString* env = [NSMutableString string];

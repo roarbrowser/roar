@@ -109,6 +109,7 @@ struct Settings {
   bool cdp_enabled = true;
   // Which Roar the bundled MCP server (roar-mcp.sh) drives: this one, or a hidden one on 9444.
   bool agent_headless = false;
+  bool ask_default = true;  // Offers to become the default browser at launch until dismissed.
   bool clean_links = true;  // Unwraps Safe Links and strips .mcas.ms from copied links (CleanLink).
 };
 
