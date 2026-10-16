@@ -65,13 +65,15 @@ code, pre { font-family: var(--mono); font-size: 14px; }
 .tab b { width: 16px; height: 16px; border-radius: 5px; background: var(--rule); flex: none; }
 .tab.on { background: var(--ground); color: var(--ink); font-weight: 600; }
 .tab.on b { background: var(--mane); }
-.tab small { margin-left: auto; color: var(--mane-ink); font-weight: 600; }
-.card { margin-top: 14px; background: var(--mane-soft); border-radius: 14px; padding: 14px; }
-.card .who { font: 700 13px var(--round); color: var(--mane-ink); margin-bottom: 4px; }
-.card .q { color: var(--ink); margin-bottom: 12px; line-height: 1.4; }
-.card .row { display: flex; gap: 8px; }
-.card span { flex: 1; text-align: center; padding: 7px 0; border-radius: 999px; font-weight: 600; background: var(--panel); }
-.card span.yes { background: var(--mane); color: #2b1606; }
+.card { --edge: var(--mane); position: relative; margin-top: 14px; background: var(--ground); border-radius: 10px; padding: 9px 30px 10px 12px; box-shadow: inset 3px 0 0 var(--edge), 0 0 0 1px var(--rule); font-size: 13px; }
+.card.done { --edge: #2f9e5b; }
+.card .who { display: flex; gap: 6px; color: var(--ink-3); font-size: 11.5px; }
+.card .q { color: var(--ink); font-weight: 650; margin-top: 2px; line-height: 1.35; }
+.card .b { color: var(--ink-2); margin-top: 3px; line-height: 1.4; }
+.card .row { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 8px; }
+.card .row > * { padding: 4px 10px; border: 0; border-radius: 6px; background: var(--rule); color: var(--ink); font: 500 12.5px var(--ui); }
+.card .row > :first-child { background: var(--mane); color: #2a1604; font-weight: 600; }
+.card .x { position: absolute; top: 6px; right: 8px; color: var(--ink-3); font-size: 14px; line-height: 1; }
 .cdp { display: flex; align-items: center; gap: 8px; margin-top: 14px; padding: 0 6px; color: var(--ink-3); font-size: 12px; }
 .cdp i { width: 9px; height: 9px; border-radius: 50%; background: #3fa34d; }
 @media (prefers-reduced-motion: no-preference) {
@@ -131,8 +133,21 @@ th, td { text-align: left; padding: 13px 14px; border-bottom: 1px solid var(--ru
 .picks { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 18px; }
 .picks button { font: 600 15px var(--round); color: var(--ink-2); background: none; border: 0; box-shadow: inset 0 0 0 2px var(--rule); border-radius: 999px; padding: 8px 16px; cursor: pointer; }
 .picks button[aria-pressed=true] { background: var(--mane); color: #2b1606; box-shadow: none; }
+.duo { display: grid; grid-template-columns: minmax(0, 330px) minmax(0, 1fr); gap: 20px; align-items: stretch; }
+.term { display: flex; flex-direction: column; background: #1b1410; color: #e9dccb; border-radius: 16px; overflow: hidden; box-shadow: 0 24px 60px rgba(74,46,24,.18); }
+.term .bar { display: flex; align-items: center; gap: 6px; padding: 10px 14px; background: #2a1f17; color: #a5876c; font: 600 12px var(--ui); }
+.term .bar i { width: 10px; height: 10px; border-radius: 50%; background: #4a3a2c; }
+.term .bar span { margin-left: 8px; }
+.term .out { flex: 1; display: flex; flex-direction: column; justify-content: flex-end; gap: 6px; padding: 12px 14px 16px; font: 12.5px/1.5 var(--mono); overflow: hidden; min-height: 200px; max-height: 470px; }
+.term .out div { animation: arrive .3s both; overflow-wrap: anywhere; }
+.term .me { color: #fff; } .term .me::before { content: "> "; color: #a5876c; }
+.term .tool::before { content: "⏺ "; color: #3fa34d; } .term .tool b { color: #ffc72c; font-weight: 600; }
+.term .tool small { display: block; padding-left: 18px; color: #8a7360; font-size: 12px; } .term .tool small::before { content: "⎿ "; }
+.term .ai::before { content: "⏺ "; color: #e9dccb; }
 .stage { position: relative; display: grid; grid-template-columns: 210px 1fr; background: var(--panel); border-radius: 22px; overflow: hidden; font-size: 14px; box-shadow: 0 1px 2px rgba(74,46,24,.08), 0 24px 60px rgba(74,46,24,.18); }
-.stage .sb { padding: 14px; border-right: 1px solid var(--rule); min-width: 0; }
+.stage .sb { display: flex; flex-direction: column; padding: 14px; border-right: 1px solid var(--rule); min-width: 0; }
+.stage .slot { margin-top: auto; } .stage .slot .card { animation: arrive .5s cubic-bezier(.2,.9,.3,1.3) both; }
+.stage .cdp { padding: 0 2px; }
 .stage .tabs .tab { animation: arrive .5s cubic-bezier(.2,.9,.3,1.3) both; }
 .stage .pg { background: var(--ground); display: flex; flex-direction: column; min-width: 0; }
 .url { margin: 12px; padding: 7px 14px; border-radius: 999px; background: var(--panel); color: var(--ink-2); font: 13px var(--mono); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -154,26 +169,24 @@ th, td { text-align: left; padding: 13px 14px; border-bottom: 1px solid var(--ru
 .bubble { margin: 8px 0 0 24px; background: var(--panel); border-radius: 12px; padding: 10px 12px; box-shadow: inset 3px 0 0 var(--mane); }
 .done { text-align: center; padding-top: 48px; }
 .done b { display: block; font: 800 30px var(--round); margin-bottom: 6px; }
-.stage .card button { flex: 1; padding: 7px 0; border: 0; border-radius: 999px; font: 600 14px var(--ui); background: var(--panel); color: var(--ink); cursor: pointer; transition: transform .15s; }
-.stage .card button:first-child { background: var(--mane); color: #2b1606; }
+.stage .card button { cursor: pointer; transition: transform .15s; }
 .press { transform: scale(.93); }
-.toast { margin-top: 14px; padding: 10px 12px; border-radius: 12px; background: rgba(63,163,77,.16); color: var(--ink); font-weight: 600; animation: arrive .5s cubic-bezier(.2,.9,.3,1.3) both; }
-.log { grid-column: 1 / -1; border-top: 1px solid var(--rule); padding: 10px 16px; height: 72px; overflow: hidden; font: 12.5px/1.75 var(--mono); color: var(--ink-3); }
-.log div { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; animation: arrive .3s both; }
-.log div:last-child { color: var(--ink); } .log div::before { content: "agent › "; color: var(--mane-ink); }
-.cursor { position: absolute; left: 0; top: 0; width: 22px; z-index: 5; pointer-events: none; transform: translate(60%, 40%); transition: transform .75s cubic-bezier(.45,.05,.2,1); filter: drop-shadow(0 2px 3px rgba(0,0,0,.25)); }
-.cursor.click::after { content: ""; position: absolute; left: -10px; top: -10px; width: 22px; height: 22px; border-radius: 50%; border: 2px solid var(--mane); animation: ripple .5s ease-out; }
+.cursor { position: absolute; left: -15px; top: -15px; width: 30px; height: 30px; border-radius: 50%; z-index: 5; pointer-events: none; background: rgba(255,122,0,.18); box-shadow: 0 0 0 2px rgba(255,122,0,.55); opacity: 0; transition: transform .75s cubic-bezier(.45,.05,.2,1), opacity .3s; }
+.cursor.on { opacity: 1; }
+.cursor.click::after { content: ""; position: absolute; inset: 0; border-radius: 50%; border: 2px solid var(--mane); animation: ripple .5s ease-out; }
 @keyframes ripple { from { transform: scale(.3); opacity: 1; } to { transform: scale(1.6); opacity: 0; } }
 @keyframes blink { 50% { opacity: 0; } }
 .reveal { opacity: 0; transform: translateY(24px); transition: opacity .7s, transform .7s cubic-bezier(.2,.8,.2,1); }
 .reveal.in { opacity: 1; transform: none; }
 .card.swap { animation: arrive .5s both; }
 @media (prefers-reduced-motion: reduce) { .reveal { opacity: 1; transform: none; } .cursor { transition: none; } .stage *, .stage *::after { animation: none !important; } }
+@media (max-width: 820px) { .duo { grid-template-columns: 1fr; } .term .out { min-height: 0; height: 190px; } }
 @media (max-width: 640px) {
   .stage { grid-template-columns: 1fr; }
+  .stage .slot { margin-top: 10px; } .stage .cdp { display: none; }
   .stage .sb { border-right: 0; border-bottom: 1px solid var(--rule); }
   .stage .tabs { display: flex; gap: 4px; overflow: hidden; }
-  .stage .tabs .tab { flex: none; padding: 6px 8px; } .stage .tabs .tab small { display: none; }
+  .stage .tabs .tab { flex: none; padding: 6px 8px; }
   .view { min-height: 280px; padding: 4px 12px 14px; }
 }
 
@@ -213,10 +226,10 @@ footer .wrap { display: flex; flex-wrap: wrap; gap: 8px 28px; align-items: cente
     <div class="dots"><i></i><i></i><i></i></div>
     <div class="tab"><b></b>Inbox</div>
     <div class="tab"><b></b>Pull requests</div>
-    <div class="tab on"><b></b>Flight search<small>agent</small></div>
+    <div class="tab on"><b></b>Flight search</div>
     <div class="tab"><b></b>Docs</div>
     <div class="card">
-      <div class="who">Your agent asks</div>
+      <div class="who"><span>Claude Code</span><span>now</span></div><span class="x">×</span>
       <div class="q">Two fares match. Book the 9:40 nonstop?</div>
       <div class="row"><span class="yes">Book it</span><span>Not yet</span></div>
     </div>
@@ -227,17 +240,19 @@ footer .wrap { display: flex; flex-wrap: wrap; gap: 8px 28px; align-items: cente
 <section aria-labelledby="demo-h">
   <div class="wrap">
     <h2 id="demo-h">Watch an agent work</h2>
-    <p class="note">This plays live in the page. Pick a job, or answer the agent yourself when it asks.</p>
+    <p class="note">Left: your agent (here Claude Code). Right: Roar, where it works. Pick a job, or answer its question yourself in Roar’s sidebar.</p>
     <div class="picks" role="group" aria-label="Demo">
       <button type="button" aria-pressed="true">Book a flight</button>
       <button type="button" aria-pressed="false">Clear my inbox</button>
       <button type="button" aria-pressed="false">Review a pull request</button>
     </div>
-    <div class="stage" aria-label="Animated demo: an AI agent drives Roar while you watch">
-      <div class="sb"><div class="dots" style="display:flex;gap:6px;padding:2px 4px 12px"><i style="width:11px;height:11px;border-radius:50%;background:var(--rule)"></i><i style="width:11px;height:11px;border-radius:50%;background:var(--rule)"></i><i style="width:11px;height:11px;border-radius:50%;background:var(--rule)"></i></div><div class="tabs"></div><div class="slot" aria-live="polite"></div></div>
-      <div class="pg"><div class="url"></div><div class="view"></div></div>
-      <div class="log" aria-hidden="true"></div>
-      <svg class="cursor" viewBox="0 0 22 26" aria-hidden="true"><path d="M2 2v19l5-5 3.5 8 3-1.4-3.4-7.8H17z" fill="#fff" stroke="#2b1606" stroke-width="1.6" stroke-linejoin="round"/></svg>
+    <div class="duo">
+      <div class="term" aria-label="Your agent's terminal"><div class="bar"><i></i><i></i><i></i><span>Claude Code</span></div><div class="out" aria-live="polite"></div></div>
+      <div class="stage" aria-label="Roar, driven by the agent">
+        <div class="sb"><div class="dots" style="display:flex;gap:6px;padding:2px 4px 12px"><i style="width:11px;height:11px;border-radius:50%;background:var(--rule)"></i><i style="width:11px;height:11px;border-radius:50%;background:var(--rule)"></i><i style="width:11px;height:11px;border-radius:50%;background:var(--rule)"></i></div><div class="tabs"></div><div class="slot"></div><div class="cdp"><i></i>CDP open · 1 agent</div></div>
+        <div class="pg"><div class="url"></div><div class="view"></div></div>
+        <div class="cursor" aria-hidden="true"></div>
+      </div>
     </div>
   </div>
 </section>
