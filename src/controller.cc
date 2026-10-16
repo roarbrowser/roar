@@ -964,9 +964,33 @@ int Controller::AgentSpace() {
   return -1;
 }
 
+bool Controller::UiCdpForTests() {
+  static const bool on = getenv("ROAR_UI_CDP") && std::string(getenv("ROAR_UI_CDP")) == "1";
+  return on;
+}
+
+// A tab sent to a Roar page by anything but Roar itself (CDP Page.navigate, a script): Roar
+// records the address on the tab before it loads one of its own pages (Navigate, NewTab).
+bool Controller::ForeignUiNavigation(CefRefPtr<CefBrowser> browser, const std::string& url) {
+  if (!StartsWith(url, kUiOrigin) || IsUiBrowser(browser) || UiCdpForTests()) return false;
+  Tab* t = FindTabByBrowser(browser);
+  return !t || t->url != url;
+}
+
 bool Controller::AgentMayReach(int browser_id, const std::string& profile_path) {
   auto it = browsers_.find(browser_id);
-  if (it != browsers_.end() && IsUiBrowser(it->second)) return true;  // roar-mcp.mjs drives the sidebar.
+  // Of Roar's own pages, agents reach only the hint overlay, their bridge for alerts (roar-mcp):
+  // the sidebar and the rest hold every tab, ghost ones and agent-blocked spaces included.
+  // ROAR_UI_CDP=1 (test runs only) opens them all, for driving the UI in tests.
+  if (it != browsers_.end() && IsUiBrowser(it->second)) {
+    return UiCdpForTests() || (hint_ && hint_->GetBrowser() && hint_->GetBrowser()->IsSame(it->second));
+  }
+  // Roar pages opened as tabs (Settings, history, a Claude session...) run privileged commands too.
+  if (it != browsers_.end() && !UiCdpForTests()) {
+    Tab* t = FindTabByBrowser(it->second);
+    if ((t && StartsWith(t->url, "roar://")) || StartsWith(it->second->GetMainFrame()->GetURL().ToString(), "roar://"))
+      return false;
+  }
   // Decide by profile, which covers popups and pages Roar has not seen yet.
   // Ghost-<n> and anything unknown match no space and stay hidden.
   State& st = State::Get();
@@ -3167,6 +3191,12 @@ bool Controller::HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> 
   // be the main frame and the browser's main frame must itself be roar://ui/.
   bool trusted = frame->IsMain() && StartsWith(frame->GetURL().ToString(), kUiOrigin) &&
                  StartsWith(browser->GetMainFrame()->GetURL().ToString(), kUiOrigin);
+  // The bridge page runs only what roar-mcp needs, none of which lists tabs.
+  if (trusted && hint_ && hint_->GetBrowser() && hint_->GetBrowser()->IsSame(browser) && cmd != "agent.notify" &&
+      cmd != "agent.expire" && cmd != "agent.spaces" && cmd != "agent.space") {
+    callback->Failure(403, "not available to agents");
+    return true;
+  }
   if (!trusted) {
     if (cmd == "index.result") {
       auto it = indexes_.find(msg->GetString("nonce").ToString());
@@ -3577,6 +3607,7 @@ bool Controller::HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> 
     auto d = CefDictionaryValue::Create();
     auto list = CefListValue::Create();
     for (const auto& sp : State::Get().spaces) {
+      if (!sp.agents) continue;  // Agents don't learn about spaces closed to them.
       auto e = CefDictionaryValue::Create();
       e->SetInt("id", sp.id);
       e->SetString("name", sp.name);

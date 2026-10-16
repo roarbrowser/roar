@@ -312,6 +312,10 @@ class Controller {
   std::vector<AgentAlert> agent_alerts_;
   int next_alert_id_ = 1;
   void ResolveAlert(int id, const std::string& result);
+ public:
+  static bool UiCdpForTests();
+  bool ForeignUiNavigation(CefRefPtr<CefBrowser> browser, const std::string& url);
+ private:
   double split_ratio_ = 0.5;  // First pane's share of the width (or height when stacked).
   void Unsplit();
   void SyncDivider();

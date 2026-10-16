@@ -5,7 +5,7 @@
 //   use_profile: picks the Roar profile (space) new pages open in
 // Before the first browser tool runs, it picks a profile that allows agents,
 // asking the person when several do (Roar hides the others from CDP).
-// Alerts go through the sidebar page over CDP (ask({cmd:'agent.notify'})), the same
+// Alerts go through Roar's bridge page over CDP (ask({cmd:'agent.notify'})), the same
 // port the browser tools use.
 //
 // Ships compiled (bun build --compile, see scripts/build.sh) as Roar.app/Contents/Resources/
@@ -50,7 +50,7 @@ async function pickPort() {
     spawn(bin, ['--headless=new'], { env: { ...process.env, ROAR_DATA_DIR: data, ROAR_CDP_PORT: port }, stdio: 'ignore', detached: true }).unref();
     await waitFor(() => up(port));
     // CDP answers before Roar's UI exists; an agent attaching then sees no pages.
-    await waitFor(async () => (await get(port, '/json/list'))?.includes('roar://ui/sidebar'));
+    await waitFor(async () => (await get(port, '/json/list'))?.includes('roar://ui/hint'));
     await fetch(`http://127.0.0.1:${port}/json/new?about:blank`, { method: 'PUT' }).catch(() => {});
   } else if (!(await up(port))) {
     // Anchored: a headless Roar runs the same binary, with arguments.
@@ -115,11 +115,12 @@ const TOOLS = [
 
 const out = (msg) => process.stdout.write(JSON.stringify(msg) + '\n');
 
-// Runs ask(payload) in Roar's sidebar and returns its result.
+// Runs ask(payload) in Roar's agent bridge (the hint overlay, the only Roar page agents can reach;
+// it runs just agent.notify/expire/spaces/space) and returns its result.
 async function sidebarAsk(payload, timeoutMs) {
   const targets = await (await fetch(`http://127.0.0.1:${port}/json/list`)).json();
-  const sidebar = targets.find((t) => t.url.startsWith('roar://ui/sidebar.html'));
-  if (!sidebar) throw new Error('Roar\'s sidebar is not reachable on port ' + port);
+  const sidebar = targets.find((t) => t.url.startsWith('roar://ui/hint.html'));
+  if (!sidebar) throw new Error('Roar is not reachable on port ' + port);
   const ws = new WebSocket(sidebar.webSocketDebuggerUrl);
   await new Promise((ok, fail) => { ws.onopen = ok; ws.onerror = () => fail(new Error('could not connect to Roar')); });
   try {

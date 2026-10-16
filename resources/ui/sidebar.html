@@ -155,6 +155,10 @@ body.drag-active .pinned:empty::before { content: 'Drop to pin'; color: var(--in
 .clkeys { display: flex; flex-wrap: wrap; gap: 3px; margin-top: 5px; }
 .clkeys button { padding: 2px 7px; border-radius: 5px; background: var(--ground); color: var(--ink-2); font: 11px var(--mono); }
 .clkeys button:hover { color: var(--ink); } .clkeys .sp { flex: 1; }
+.clp { position: relative; }
+.clp .full { position: absolute; top: 10px; right: 16px; z-index: 1; padding: 3px 8px; border-radius: 6px; box-shadow: 0 1px 4px rgba(0,0,0,.4); }
+.clp .full { font: 600 11px var(--ui); color: var(--mane-ink, #d9822b); background: var(--mane-soft, rgba(217,130,43,.15)); }
+.clp .full:hover { background: var(--mane, #d9822b); color: #2a1604; }
 .cln { display: grid; gap: 5px; margin: 0 0 8px; padding: 8px; border-radius: 8px; background: var(--hover); font-size: 12px; }
 .cln select, .cln textarea { width: 100%; box-sizing: border-box; padding: 5px 8px; border: 0; border-radius: 6px; background: var(--ground); color: var(--ink); font: 12px var(--ui); box-shadow: inset 0 0 0 1px var(--rule); }
 .cln textarea { resize: none; height: 46px; }
@@ -837,8 +841,8 @@ $('gh-refresh').onclick = () => ask({ cmd: 'run', id: 'github' });
 let clOpen = '', clBusy = false;
 const clPanel = document.createElement('div');
 clPanel.className = 'clp';
-clPanel.innerHTML = `<pre aria-live="off"></pre><form><input placeholder="Reply to Claude…" autocomplete="off" spellcheck="false" aria-label="Reply"><button>Send</button></form>
-  <div class="clkeys"><button data-k="key:enter">⏎</button><button data-k="key:escape">Esc</button><button data-k="key:up">↑</button><button data-k="key:down">↓</button><button data-k="1">1</button><button data-k="2">2</button><button data-k="3">3</button><button data-k="key:ctrl-c" title="Interrupt">⌃C</button><span class="sp"></span><button data-full title="Open in a tab">⤢</button></div>`;
+clPanel.innerHTML = `<button data-full class="full" title="Open this session in a full tab">⤢ Full view</button><pre aria-live="off"></pre><form><input placeholder="Reply to Claude…" autocomplete="off" spellcheck="false" aria-label="Reply"><button>Send</button></form>
+  <div class="clkeys"><button data-k="key:enter">⏎</button><button data-k="key:escape">Esc</button><button data-k="key:up">↑</button><button data-k="key:down">↓</button><button data-k="1">1</button><button data-k="2">2</button><button data-k="3">3</button><button data-k="key:ctrl-c" title="Interrupt">⌃C</button></div>`;
 const clPre = clPanel.querySelector('pre');
 function clPlace() {
   for (const r of document.querySelectorAll('.cl.open')) r.classList.remove('open');
@@ -870,9 +874,9 @@ clPanel.querySelector('form').onsubmit = async (e) => {
 clPanel.querySelector('.clkeys').onclick = (e) => {
   const b = e.target.closest('button');
   if (!b) return;
-  if (b.hasAttribute('data-full')) return ask({ cmd: 'open', text: 'roar://ui/claude.html?id=' + encodeURIComponent(clOpen), newTab: true });
   clSend(b.dataset.k);
 };
+clPanel.querySelector('.full').onclick = () => ask({ cmd: 'open', text: 'roar://ui/claude.html?id=' + encodeURIComponent(clOpen), newTab: true });
 clPanel.addEventListener('keydown', (e) => e.stopPropagation());  // Typing here isn't a sidebar shortcut.
 // New session: a folder (recent ones, or a chooser) and an optional first prompt. Once its hook
 // reports in, it opens under its row.

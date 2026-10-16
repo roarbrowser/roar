@@ -172,6 +172,8 @@ bool Client::OnBeforeBrowse(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> f
   router_->OnBeforeBrowse(browser, frame);
   CefURLParts parts;
   std::string url = request->GetURL();
+  // Only Roar opens its own pages in a tab; an agent can't steer a tab it drives into Settings.
+  if (frame->IsMain() && Controller::Get()->ForeignUiNavigation(browser, url)) return true;
   if (CefParseURL(url, parts)) {
     static const std::set<std::string> kBrowserSchemes = {
         "http", "https", "file", "about", "data", "blob", "javascript", "chrome",

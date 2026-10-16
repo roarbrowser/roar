@@ -24,7 +24,7 @@ const t0 = Date.now();
 const log = (...a) => console.log(`[${((Date.now() - t0) / 1000).toFixed(1)}s]`, ...a);
 
 const roar = spawn(join(APP, 'Contents/MacOS/Roar'), HEADLESS ? ['--headless=new'] : [], {
-  env: { ...process.env, ROAR_DATA_DIR: DATA, ROAR_CDP_PORT: String(PORT) }, stdio: 'ignore',
+  env: { ...process.env, ROAR_DATA_DIR: DATA, ROAR_CDP_PORT: String(PORT), ROAR_UI_CDP: '1' }, stdio: 'ignore',
 });
 
 // Runs JS in the sidebar target over CDP.

@@ -15,6 +15,8 @@ body { display: grid; place-items: center; padding: 0 18px; }
 </head>
 <body>
 <div class="pill" id="pill" role="status" aria-live="polite"></div>
+<!-- bridge.js: this page is also the agents' bridge for alerts (Controller::AgentMayReach). -->
+<script src="bridge.js"></script>
 <script>
 const pill = document.getElementById('pill');
 window.roar = {
