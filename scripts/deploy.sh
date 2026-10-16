@@ -13,3 +13,6 @@ ditto "$ROOT/build/src/Release/Roar.app" "$APP"
 # A replaced bundle can keep a blank cached Dock icon; re-register it.
 touch "$APP"; /System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -f "$APP"
 open -n "$APP"
+# A launch right after re-registering can silently not happen; try once more.
+for _ in 1 2 3 4 5 6 7 8; do pgrep -f "$APP/Contents/MacOS/Roar" >/dev/null && exit 0; sleep 1; done
+open -n "$APP"
