@@ -637,6 +637,7 @@ void InstallMenu() {
   addCommand(tabs, @"Pin or Unpin Tab", @"pin", @"⌘D");
   addCommand(tabs, @"Mute or Unmute Tab", @"mute", @"");
   addCommand(tabs, @"Show Downloads", @"downloads", @"⇧⌘J");
+  addCommand(tabs, @"CLAUDE.md Browser", @"agentmd", @"");
   addCommand(tabs, @"Refresh Pull Requests", @"github", @"");
   addCommand(tabs, @"Refresh Mail", @"gmail", @"");
 

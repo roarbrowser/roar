@@ -64,6 +64,7 @@ constexpr char kWelcomeUrl[] = "roar://ui/welcome.html";
 constexpr char kBookmarksUrl[] = "roar://ui/bookmarks.html";
 constexpr char kHistoryUrl[] = "roar://ui/history.html";
 constexpr char kDownloadsUrl[] = "roar://ui/downloads.html";
+constexpr char kAgentMdUrl[] = "roar://ui/agentmd.html";
 constexpr char kReaderUrl[] = "roar://ui/reader.html";
 constexpr int kFindWidth = 400;
 constexpr int kFindHeight = 46;
@@ -1883,6 +1884,46 @@ void Controller::GmailOpenTick() {
   CefPostDelayedTask(TID_UI, base::BindOnce([] { Controller::Get()->GmailOpenTick(); }), 20 * 1000);
 }
 
+// Agent instruction files (CLAUDE.md and friends), matched case-insensitively.
+bool IsAgentMdName(std::string n) {
+  for (auto& c : n) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+  static const std::set<std::string> names = {"claude.md", "claude.local.md", "claude.md.local", "agents.md", "agent.md",
+      "gemini.md", "copilot-instructions.md", ".cursorrules", ".windsurfrules", ".clinerules", "conventions.md"};
+  return names.count(n) > 0;
+}
+
+// Every agent instructions file under the home folder, as JSON [{path, size, mtime}].
+// Skips Library, caches, dependency and build folders, and dot-folders other than agent configs.
+std::string AgentMdList() {
+  namespace fs = std::filesystem;
+  static const std::set<std::string> skip = {"Library", "node_modules", ".git", "Pictures", "Movies", "Music", "build",
+      "dist", "out", "target", "third_party", "vendor", "venv", ".venv", "__pycache__", "Pods", "DerivedData", "cef-src", "cache", "Caches"};
+  static const std::set<std::string> dots = {".claude", ".codex", ".gemini", ".cursor", ".config", ".github", ".windsurf"};
+  const char* home = getenv("HOME");
+  auto list = CefListValue::Create();
+  std::error_code ec;
+  fs::recursive_directory_iterator it(home ? home : "/", fs::directory_options::skip_permission_denied, ec), end;
+  int seen = 0;
+  for (; !ec && it != end && seen < 400000; it.increment(ec), ++seen) {
+    const auto& e = *it;
+    std::string n = e.path().filename().string();
+    std::error_code ec2;
+    if (e.is_directory(ec2) && !e.is_symlink(ec2)) {
+      if (it.depth() >= 8 || skip.count(n) || (n[0] == '.' && !dots.count(n))) it.disable_recursion_pending();
+      continue;
+    }
+    if (!IsAgentMdName(n) || !e.is_regular_file(ec2)) continue;
+    auto d = CefDictionaryValue::Create();
+    d->SetString("path", e.path().string());
+    d->SetInt("size", static_cast<int>(e.file_size(ec2)));
+    d->SetDouble("mtime", static_cast<double>(std::chrono::duration_cast<std::chrono::seconds>(
+        e.last_write_time(ec2).time_since_epoch()).count()));
+    list->SetDictionary(list->GetSize(), d);
+  }
+  auto v = CefValue::Create(); v->SetList(list);
+  return CefWriteJSON(v, JSON_WRITER_DEFAULT).ToString();
+}
+
 void Controller::ClaudeTick() {
   namespace fs = std::filesystem;
   auto list = CefListValue::Create();
@@ -2276,6 +2317,7 @@ void Controller::RunCommand(const std::string& id) {
   else if (id == "mute") ToggleMute(active_id_);
   else if (id == "downloads") OpenUiPage(kDownloadsUrl);
   else if (id == "history") OpenUiPage(kHistoryUrl);
+  else if (id == "agentmd") OpenUiPage(kAgentMdUrl);
   else if (id == "pip") PictureInPicture();
   else if (id == "float") FloatActiveTab();
   else if (id == "back") Back();
@@ -3890,6 +3932,20 @@ bool Controller::HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> 
     state.history.erase(SpaceKey(state.active_space, msg->GetString("url")));
     SaveSoon();
     callback->Success("");
+  } else if (cmd == "agentmd.list") {
+    // Walks the home folder off the UI thread; answers on the UI thread.
+    CefPostTask(TID_FILE_USER_BLOCKING, base::BindOnce([](CefRefPtr<Callback> cb) {
+      std::string json = AgentMdList();
+      CefPostTask(TID_UI, base::BindOnce([](CefRefPtr<Callback> cb, std::string j) { cb->Success(j); }, cb, json));
+    }, callback));
+  } else if (cmd == "agentmd.read") {
+    namespace fs = std::filesystem;
+    std::error_code ec;
+    fs::path p = fs::weakly_canonical(msg->GetString("path").ToString(), ec);
+    if (ec || !IsAgentMdName(p.filename().string()) || !fs::is_regular_file(p, ec) || fs::file_size(p, ec) > (1 << 20))
+      return callback->Failure(0, "Not an agent instructions file"), true;
+    std::ifstream in(p);
+    callback->Success(std::string((std::istreambuf_iterator<char>(in)), {}));
   } else if (cmd == "reader.get") {
     // The Reader page asks for the article its own tab extracted.
     Tab* t = FindTabByBrowser(browser);
