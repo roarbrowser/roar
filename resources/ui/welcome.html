@@ -36,9 +36,20 @@ input[type=text] { width: 100%; max-width: 420px; font: 12.5px var(--mono); padd
 .space-row input { flex: 1; font-family: var(--ui); font-size: 13px; }
 .space-row .meta { color: var(--ink-3); font-size: 12px; min-width: 52px; text-align: right; font-variant-numeric: tabular-nums; }
 .space-row .btn { padding: 5px 10px; font-size: 12px; }
-.agent-row { display: flex; gap: 8px; align-items: center; font-size: 13px; }
-.agent-row .name { flex: 1; color: var(--ink); }
-.agent-row .btn { padding: 5px 10px; font-size: 12px; }
+.agents { max-width: 560px; margin-top: 10px; }
+.agents h3 { margin: 14px 0 6px; font: 600 12px var(--ui); color: var(--ink-3); }
+.agents h3:first-child { margin-top: 0; }
+/* Clients on this Mac: a two-column grid, connected ones first. */
+.agent-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 4px 16px; }
+.agent-row { display: flex; gap: 8px; align-items: center; min-height: 34px; padding: 0 2px; font-size: 13px; border-bottom: 1px solid var(--rule); }
+.agent-row .name { flex: 1; min-width: 0; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.agent-row .btn { padding: 4px 10px; font-size: 12px; }
+.agent-row.on .name::before { content: "✓"; color: #2f9e5b; font-weight: 700; margin-right: 6px; }
+/* Everything else: one line of chips; a click copies that client's config. */
+.agent-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.agent-chips button { padding: 4px 10px; border-radius: 999px; font-size: 12px; color: var(--ink-2); box-shadow: inset 0 0 0 1px var(--rule); }
+.agent-chips button:hover, .agent-chips button:focus-visible { color: var(--ink); background: var(--hover); }
+.agent-chips button.copied { color: #2f9e5b; box-shadow: inset 0 0 0 1px #2f9e5b; }
 .auto { border-top: 1px solid var(--rule); padding-top: 28px; display: grid; gap: 10px; }
 .auto h2 { font-size: 15px; }
 pre { margin: 0; font: 12px/1.6 var(--mono); background: var(--ground); border-radius: 8px; padding: 12px 14px; overflow-x: auto; color: var(--ink-2); }
@@ -57,8 +68,9 @@ pre { margin: 0; font: 12px/1.6 var(--mono); background: var(--ground); border-r
   <ol>
     <li>
       <h2>Your AI agent drives Roar</h2>
-      <p>Roar ships an MCP server, so Claude and other agents can open tabs, read pages, click, fill forms and take screenshots in the browser you're using. Pages an agent opens show up as real tabs in your sidebar. Connect the agents you use; Roar adds itself to their MCP config and keeps a .bak of the original:</p>
-      <div class="space-list" id="agent-clients"></div>
+      <p>Roar ships an MCP server, so Claude and other agents can open tabs, read pages, click, fill forms and take screenshots in the browser you're using. Pages an agent opens show up as real tabs in your sidebar. Connect adds Roar to that app's MCP config and keeps a .bak of the original.</p>
+      <p class="status">Running open models with Ollama, llama.cpp or LM Studio? Connect one of the apps that drive them, such as Goose, opencode, Continue, Cline, Jan or Open WebUI.</p>
+      <div class="agents" id="agent-clients"></div>
       <div class="controls">
         <label class="switch"><input type="checkbox" id="cdp-on"> Allow agents to connect</label>
         <label class="switch"><input type="radio" name="agent-mode" id="agent-headed"> Agents use this Roar (you see what they do)</label>
@@ -239,17 +251,22 @@ let agentClients = [];
 const agentErrors = {};  // Connect failures, shown on the row.
 function renderAgents(list) {
   agentClients = list || [];
-  // Installed clients first; ones Roar can't write get a snippet to paste.
-  const rows = [...agentClients].sort((a, b) => b.detected - a.detected);
-  $('agent-clients').innerHTML = rows.map((c) => {
+  // On this Mac: rows with Connect, connected first. Not found: chips that copy a config to paste.
+  const here = agentClients.filter((c) => c.detected).sort((a, b) => b.connected - a.connected);
+  const away = agentClients.filter((c) => !c.detected);
+  const row = (c) => {
     const status = c.error ? `<span class="status" title="${esc(c.error)}">Can't read its config</span>`
       : agentErrors[c.id] ? `<span class="status" title="${esc(agentErrors[c.id])}">Couldn't connect</span>`
       : c.connected ? '<span class="status ok">Connected</span>' : '';
-    const button = c.detected && c.file && !c.error
+    const button = c.file && !c.error
       ? (c.connected ? '' : `<button class="btn" data-connect="${esc(c.id)}">Connect</button>`)
       : `<button class="btn" data-copy="${esc(c.id)}" title="${esc(c.snippet)}">Copy config</button>`;
-    return `<div class="agent-row"><span class="name">${esc(c.name)}</span>${status}${button}</div>`;
-  }).join('');
+    return `<div class="agent-row${c.connected ? ' on' : ''}"><span class="name">${esc(c.name)}</span>${status}${button}</div>`;
+  };
+  $('agent-clients').innerHTML =
+    (here.length ? `<h3>On this Mac</h3><div class="agent-grid">${here.map(row).join('')}</div>` : '') +
+    (away.length ? `<h3>${here.length ? 'Others' : 'Agent apps'}, click one to copy its config</h3><div class="agent-chips">${away.map((c) =>
+      `<button data-copy="${esc(c.id)}" title="${esc(c.snippet)}">${esc(c.name)}</button>`).join('')}</div>` : '');
 }
 const loadAgents = () => ask({ cmd: 'agents.list' }).then(renderAgents);
 $('agent-clients').addEventListener('click', (e) => {
@@ -263,7 +280,11 @@ $('agent-clients').addEventListener('click', (e) => {
   const copy = e.target.closest('[data-copy]');
   if (copy) {
     const c = agentClients.find((x) => x.id === copy.dataset.copy);
-    navigator.clipboard.writeText(c.snippet).then(() => { copy.textContent = 'Copied'; setTimeout(() => { copy.textContent = 'Copy config'; }, 1500); });
+    const label = copy.textContent;
+    navigator.clipboard.writeText(c.snippet).then(() => {
+      copy.textContent = 'Copied'; copy.classList.add('copied');
+      setTimeout(() => { copy.textContent = label; copy.classList.remove('copied'); }, 1500);
+    });
   }
 });
 loadAgents();

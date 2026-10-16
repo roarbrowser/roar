@@ -151,6 +151,9 @@ int main() {
     if (c.id == "jetbrains") Expect(!c.detected, "jetbrains not detected");
     if (c.id == "claude-code") Expect(c.detected, "claude-code detected by ~/.claude.json alone");
     if (c.id == "continue") Expect(Has(c.snippet, "mcpServers/roar.yaml") && Has(c.snippet, "schema: v1"), "continue snippet");
+    if (c.id == "jan") Expect(c.file.empty() && Has(c.snippet, "\"command\": \"" + kServer + "\""), "jan snippet");
+    if (c.id == "openwebui") Expect(Has(c.snippet, "uvx mcpo --port 8000 -- " + kServer), "open webui via mcpo");
+    if (c.id == "librechat") Expect(Has(c.snippet, "mcpServers:\n  roar:"), "librechat yaml");
   }
 
   fs::remove_all(home);

@@ -73,7 +73,7 @@ function hook() {
   mkdirSync(DIR, { recursive: true });
   const next = update(prev, ev, Date.now());
   next.term ||= where();
-  next.live = !!(next.term.tmux?.bin || next.term.cmux);
+  next.live = !!(next.term.tmux?.pane || next.term.cmux);
   writeFileSync(file + '.tmp', JSON.stringify(next));
   renameSync(file + '.tmp', file);  // Roar never reads half a file.
 }
@@ -102,6 +102,12 @@ function hooks(action, exe) {
   console.log(action === 'install' ? 'installed' : 'not installed');
 }
 
+// Session files are plain JSON anyone with this user's access could write, so nothing in them
+// names a program or reaches a shell or AppleScript unchecked: binaries come from fixed paths,
+// and every other field must match a strict pattern.
+const TMUX = ['/opt/homebrew/bin/tmux', '/usr/local/bin/tmux', '/usr/bin/tmux'].find((p) => existsSync(p));
+const CMUX = '/Applications/cmux.app/Contents/Resources/bin/cmux';
+const ok = (v, re) => typeof v === 'string' && re.test(v);
 const run1 = (bin, args) => execFileSync(bin, args, { encoding: 'utf8', timeout: 5000 });
 const osa = (script) => run1('osascript', ['-e', script]);
 const KEYS = { enter: ['Enter', 'enter'], escape: ['Escape', 'escape'], up: ['Up', 'up'], down: ['Down', 'down'], tab: ['Tab', 'tab'], 'ctrl-c': ['C-c', 'ctrl+c'] };
@@ -109,7 +115,11 @@ const KEYS = { enter: ['Enter', 'enter'], escape: ['Escape', 'escape'], up: ['Up
 function ctl(action, id, arg) {
   if (!/^[\w-]+$/.test(id || '')) throw new Error('bad session id');
   const s = JSON.parse(readFileSync(join(DIR, id + '.json'), 'utf8')), t = s.term || {};
-  const tm = t.tmux?.bin && t.tmux, cx = t.cmux, tx = tm ? ['-S', tm.socket] : [];
+  const tm = TMUX && ok(t.tmux?.socket, /^\/[\w./-]+$/) && ok(t.tmux?.pane, /^%\d+$/) && { ...t.tmux, bin: TMUX };
+  if (tm && !ok(tm.session || 'x', /^[\w.-]+$/)) delete tm.session;
+  const cx = existsSync(CMUX) && ok(t.cmux?.workspace, /^[\w-]+$/) && ok(t.cmux?.surface, /^[\w-]+$/) && { ...t.cmux, bin: CMUX };
+  const tx = tm ? ['-S', tm.socket] : [];
+  const tty = ok(t.tty, /^ttys?\d+$/) ? t.tty : '', app = ok(t.app, /^[\w.-]+$/) ? t.app : '';
   if (action === 'screen') {
     if (tm) return run1(tm.bin, [...tx, 'capture-pane', '-p', '-J', '-t', tm.pane, '-S', '-80']);
     if (cx) return run1(cx.bin, ['read-screen', '--workspace', cx.workspace, '--surface', cx.surface, '--lines', '80']);
@@ -130,8 +140,7 @@ function ctl(action, id, arg) {
     if (!attached) {
       // Detached: open a terminal on it. cmux when it's installed, else Terminal.
       const cmd = `${tm.bin} -S ${tm.socket} attach -t ${JSON.stringify(tm.session || tm.pane)}`;
-      const cmuxBin = '/Applications/cmux.app/Contents/Resources/bin/cmux';
-      if (existsSync(cmuxBin)) run1(cmuxBin, ['new-workspace', '--name', s.project, '--command', cmd, '--focus', 'true']), run1('open', ['-b', 'com.cmuxterm.app']);
+      if (existsSync(CMUX)) run1(CMUX, ['new-workspace', '--name', s.project, '--command', cmd, '--focus', 'true']), run1('open', ['-b', 'com.cmuxterm.app']);
       else osa(`tell application "Terminal" to do script ${JSON.stringify(cmd)}`), osa('tell application "Terminal" to activate');
       return 'attached';
     }
@@ -141,12 +150,12 @@ function ctl(action, id, arg) {
     run1(cx.bin, ['focus-panel', '--panel', cx.surface, '--workspace', cx.workspace]);
     return run1('open', ['-b', 'com.cmuxterm.app']), 'focused';
   }
-  if (t.tty && /Apple_Terminal|com\.apple\.Terminal/.test(t.app))
-    return osa(`tell application "Terminal"\nrepeat with w in windows\nrepeat with x in tabs of w\nif tty of x is "/dev/${t.tty}" then\nset selected of x to true\nset index of w to 1\nend if\nend repeat\nend repeat\nactivate\nend tell`), 'focused';
-  if (t.tty && /iterm/i.test(t.app))
-    return osa(`tell application "iTerm2"\nrepeat with w in windows\nrepeat with x in tabs of w\nrepeat with p in sessions of x\nif tty of p is "/dev/${t.tty}" then\nselect w\nselect x\nselect p\nend if\nend repeat\nend repeat\nend repeat\nactivate\nend tell`), 'focused';
-  if (/^com\.(microsoft\.VSCode|todesktop\.230313mzl4w4u92|exafunction\.windsurf)/.test(t.app) && s.cwd) return run1('open', ['-b', t.app, s.cwd]), 'focused';
-  if (t.app) return run1('open', ['-b', t.app]), 'focused';
+  if (tty && /^com\.apple\.Terminal$/.test(app))
+    return osa(`tell application "Terminal"\nrepeat with w in windows\nrepeat with x in tabs of w\nif tty of x is "/dev/${tty}" then\nset selected of x to true\nset index of w to 1\nend if\nend repeat\nend repeat\nactivate\nend tell`), 'focused';
+  if (tty && /^com\.googlecode\.iterm2$/.test(app))
+    return osa(`tell application "iTerm2"\nrepeat with w in windows\nrepeat with x in tabs of w\nrepeat with p in sessions of x\nif tty of p is "/dev/${tty}" then\nselect w\nselect x\nselect p\nend if\nend repeat\nend repeat\nend repeat\nactivate\nend tell`), 'focused';
+  if (/^com\.(microsoft\.VSCode|todesktop\.230313mzl4w4u92|exafunction\.windsurf)/.test(app) && ok(s.cwd, /^\/[^\0]*$/)) return run1('open', ['-b', app, s.cwd]), 'focused';
+  if (app) return run1('open', ['-b', app]), 'focused';
   throw new Error('no window known for this session');
 }
 

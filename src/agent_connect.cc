@@ -89,6 +89,16 @@ const std::vector<Spec>& Specs() {
       {"continue", "Continue", Format::kCopyOnly, "", ".continue", {}, nullptr},
       {"jetbrains", "JetBrains AI Assistant", Format::kCopyOnly, "", "Library/Application Support/JetBrains", {},
        nullptr},
+      // Apps for open-weight and local models (Ollama, llama.cpp, LM Studio's server...). Their MCP
+      // settings live in the app, so they get a snippet; Open WebUI and LibreChat need no install here.
+      {"jan", "Jan", Format::kCopyOnly, "", "Library/Application Support/Jan", {}, nullptr},
+      {"anythingllm", "AnythingLLM", Format::kCopyOnly, "", "Library/Application Support/anythingllm-desktop", {},
+       nullptr},
+      {"msty", "Msty", Format::kCopyOnly, "", "Library/Application Support/Msty", {}, nullptr},
+      {"cherry", "Cherry Studio", Format::kCopyOnly, "", "Library/Application Support/CherryStudio", {}, nullptr},
+      {"oterm", "oterm (Ollama)", Format::kCopyOnly, "", ".local/share/oterm", {}, nullptr},
+      {"openwebui", "Open WebUI", Format::kCopyOnly, "", ".open-webui", {}, nullptr},
+      {"librechat", "LibreChat", Format::kCopyOnly, "", ".librechat", {}, nullptr},
   };
   return specs;
 }
@@ -519,6 +529,21 @@ std::string Snippet(const Spec& spec, const std::string& server) {
     return "// Settings > Tools > AI Assistant > Model Context Protocol (MCP) > Add, as JSON\n"
            "{\n  \"mcpServers\": {\n    \"roar\": {\n      \"command\": " + Quote(server) +
            ",\n      \"args\": []\n    }\n  }\n}\n";
+  std::string id = spec.id;
+  std::string json = "{\n  \"mcpServers\": {\n    \"roar\": {\n      \"command\": " + Quote(server) +
+                     ",\n      \"args\": []\n    }\n  }\n}\n";
+  if (id == "jan") return "// Jan: Settings > MCP Servers > + (turn on Experimental features first), as JSON\n" + json;
+  if (id == "anythingllm")
+    return "// AnythingLLM: Agent Skills > MCP Servers, or this file:\n"
+           "// ~/Library/Application Support/anythingllm-desktop/storage/plugins/anythingllm_mcp_servers.json\n" + json;
+  if (id == "msty") return "// Msty: Toolbox > Add New Tool > paste JSON\n" + json;
+  if (id == "cherry") return "// Cherry Studio: Settings > MCP Servers > Add Server > Import from JSON\n" + json;
+  if (id == "oterm") return "// oterm: merge into ~/.local/share/oterm/config.json\n" + json;
+  if (id == "openwebui")
+    return "# Open WebUI talks to MCP through mcpo. Run this, then add http://localhost:8000 under\n"
+           "# Settings > Tools > Add tool server:\nuvx mcpo --port 8000 -- " + server + "\n";
+  if (id == "librechat")
+    return "# librechat.yaml\nmcpServers:\n  roar:\n    command: " + Quote(server) + "\n    args: []\n";
   std::string s;
   Merge(spec, s, server, nullptr);
   return "# " + std::string(spec.file).insert(0, "~/") + "\n" + s;
