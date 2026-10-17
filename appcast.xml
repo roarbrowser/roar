@@ -110,5 +110,14 @@
       <description><![CDATA[Agent files now opens from the { } button in the Agent sessions header instead of its own footer icon. The header's Send tab is a paperclip, so everything fits on one line.]]></description>
       <enclosure url="https://github.com/roarbrowser/roar/releases/download/v0.15.3/Roar-0.15.3.dmg" type="application/octet-stream" sparkle:edSignature="10DH8brSKaNEu0KlrdfyWiOnCnNOc8QlR08Djr2DTEfLtwuZR8dw3mWGIH4nOoxhqLJ6+lHCdetezsNIs+sVCg==" length="234992268"/>
     </item>
+    <item>
+      <title>0.16.0</title>
+      <pubDate>Sat, 17 Oct 2026 02:33:40 +0000</pubDate>
+      <sparkle:version>0.16.0</sparkle:version>
+      <sparkle:shortVersionString>0.16.0</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[Settings has one Agents section: coding agents in your terminal, then agents that browse with Roar, with a plain choice of where agents browse and a switch for each space they can see. Clean links I copy now lets you choose what it removes: Safe Links, the .mcas.ms proxy, tracking parameters (utm_*, fbclid, gclid…) and your own list. Agent files is a row in Agent sessions.]]></description>
+      <enclosure url="https://github.com/roarbrowser/roar/releases/download/v0.16.0/Roar-0.16.0.dmg" type="application/octet-stream" sparkle:edSignature="i0nolHofkFdjVzK+oGkq2kieM/UIJZ2ksIF8HOlNoGsKTUNG+xrKWMPgXN8Lbr7sjTc1BgILMwkus10T/QWqDw==" length="234995152"/>
+    </item>
   </channel>
 </rss>
