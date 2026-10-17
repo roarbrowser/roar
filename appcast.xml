@@ -137,5 +137,14 @@
       <description><![CDATA[Agent files groups files by project, so it's clear which repo each one belongs to (files in ~/.claude and similar show as Global). Filter by project, agent, and by when a file was changed, created or last opened, including stale files over 3 months or a year old. Tick files and move them to the Trash in one go; Finder's Put Back undoes it.]]></description>
       <enclosure url="https://github.com/roarbrowser/roar/releases/download/v0.18.0/Roar-0.18.0.dmg" type="application/octet-stream" sparkle:edSignature="7s4kn9Ccuty3HjTKkl6MEJj589zxQN5ok7KKS9ncJchkRbYxbLCXhnPyX6snVHWZ2hDbiMY4bcF0XtP7UjuSCQ==" length="234996767"/>
     </item>
+    <item>
+      <title>0.18.1</title>
+      <pubDate>Sat, 17 Oct 2026 02:49:58 +0000</pubDate>
+      <sparkle:version>1801</sparkle:version>
+      <sparkle:shortVersionString>0.18.1</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[Roar is now notarized by Apple: it opens on the first launch without a trip to Privacy & Security.]]></description>
+      <enclosure url="https://github.com/roarbrowser/roar/releases/download/v0.18.1/Roar-0.18.1.dmg" type="application/octet-stream" sparkle:edSignature="MAhft6ESkyYxNRAGbw62W/220mrtY/P+i3hGX0f+AfsPWQLYna5YVcakkJHTz39vV0BUs4DzUI3WH0G8X66bAw==" length="234996536"/>
+    </item>
   </channel>
 </rss>
