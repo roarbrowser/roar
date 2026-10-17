@@ -182,5 +182,14 @@
       <description><![CDATA[Fix: closing a tab with a "Leave site?" prompt left an orphaned window and could take Roar down. Agents connected through the Roar MCP server now know to use Roar for web tasks without being told.]]></description>
       <enclosure url="https://github.com/roarbrowser/roar/releases/download/v0.20.1/Roar-0.20.1.dmg" type="application/octet-stream" sparkle:edSignature="dm4mRs5omKdXCDUBWniRvHl0hCrQRBtOnONyLOZiN4Q+kAVt2ojREbBVnT2QTA3WY6kNsYZw6Yr/WHATWGicDQ==" length="234952801"/>
     </item>
+    <item>
+      <title>0.20.2</title>
+      <pubDate>Sat, 17 Oct 2026 03:23:40 +0000</pubDate>
+      <sparkle:version>2002</sparkle:version>
+      <sparkle:shortVersionString>0.20.2</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[Done cards from agents clear themselves after 30 seconds. Agent notifications are cleaned up: no code blocks, markdown or long encoded strings. A session's terminal view now scales to fit, so it reads properly side by side.]]></description>
+      <enclosure url="https://github.com/roarbrowser/roar/releases/download/v0.20.2/Roar-0.20.2.dmg" type="application/octet-stream" sparkle:edSignature="Fu3J8PqYFRc1SOoWSwtEfpuulQyE/2JPUKgYtaam2bVKOeQnlc0X3HicekduJ2jZ/bVNOIYQhx2FWBXZEf8ACg==" length="234953522"/>
+    </item>
   </channel>
 </rss>
