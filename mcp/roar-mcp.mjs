@@ -38,11 +38,15 @@ const up = async (port) => (await get(port, '/json/version')) !== null;
 const waitFor = async (check) => { for (let i = 0; i < 40 && !(await check()); i++) await sleep(500); };
 
 async function pickPort() {
-  const stateFile = join(process.env.ROAR_DATA_DIR || join(process.env.HOME, 'Library/Application Support/Roar'), 'state.json');
+  const dataDir = process.env.ROAR_DATA_DIR || join(process.env.HOME, 'Library/Application Support/Roar');
+  const stateFile = join(dataDir, 'state.json');
   let headless = false;
   try { headless = JSON.parse(readFileSync(stateFile, 'utf8')).settings?.agentHeadless === true; } catch {}
   const fixed = process.env.ROAR_CDP_PORT;
-  const port = fixed || (headless ? '9444' : '9222');
+  // Roar writes its live port to <data>/cdp-port (ClaimInstance); point ROAR_DATA_DIR at Roar-<name> for another instance.
+  let written = '';
+  try { written = readFileSync(join(dataDir, 'cdp-port'), 'utf8').trim(); } catch {}
+  const port = fixed || (headless ? '9444' : (/^\d+$/.test(written) ? written : '9222'));
   const bin = join(APP, 'Contents/MacOS/Roar');
   if (!fixed && headless && !(await up(port))) {
     const data = join(process.env.HOME, '.roar-headless');
@@ -60,7 +64,7 @@ async function pickPort() {
     await waitFor(() => up(port));
   }
   if (!(await up(port))) {
-    process.stderr.write(`roar-mcp: Roar's CDP port ${port} is closed. Click the dot under the settings icon at the bottom right of Roar's sidebar to open it.\n`);
+    process.stderr.write(`roar-mcp: Roar's CDP port ${port} is closed. Click the dot under the settings icon at the bottom right of Roar's sidebar to open it. (Other Roar instances: set ROAR_DATA_DIR or ROAR_CDP_PORT.)\n`);
     process.exit(1);
   }
   return port;
@@ -122,8 +126,10 @@ const TOOLS = [
     description: 'Choose which Roar profile (space) the pages you open go to. Only profiles the person allows agents in are accepted; the error lists them.',
     inputSchema: {
       type: 'object',
-      properties: { name: { type: 'string', description: 'The profile\'s name, as shown in Roar.' } },
-      required: ['name'],
+      properties: {
+        name: { type: 'string', description: 'The profile\'s name, as shown in Roar.' },
+        id: { type: 'number', description: 'Optional profile id, from the error when names repeat.' },
+      },
     },
   },
 ];
@@ -133,14 +139,15 @@ const out = (msg) => process.stdout.write(JSON.stringify(msg) + '\n');
 // Runs ask(payload) in Roar's agent bridge (the hint overlay, the only Roar page agents can reach;
 // it runs just agent.notify/expire/spaces/space) and returns its result.
 async function sidebarAsk(payload, timeoutMs) {
-  const targets = await (await fetch(`http://127.0.0.1:${port}/json/list`)).json();
+  const targets = await (await fetch(`http://127.0.0.1:${port}/json/list`, { signal: AbortSignal.timeout(2000) })).json();
   const sidebar = targets.find((t) => t.url.startsWith('roar://ui/hint.html'));
   if (!sidebar) throw new Error('Roar is not reachable on port ' + port);
   const ws = new WebSocket(sidebar.webSocketDebuggerUrl);
   await new Promise((ok, fail) => { ws.onopen = ok; ws.onerror = () => fail(new Error('could not connect to Roar')); });
   try {
     return await new Promise((ok, fail) => {
-      const timer = setTimeout(() => ok('timed out'), timeoutMs);
+      // Only a wait:true ask treats the timeout as an answer; any other call failed.
+      const timer = setTimeout(() => payload.wait ? ok('timed out') : fail(new Error('Roar did not answer in time')), timeoutMs);
       ws.onmessage = (ev) => {
         const r = JSON.parse(ev.data);
         if (r.id !== 1) return;
@@ -149,6 +156,7 @@ async function sidebarAsk(payload, timeoutMs) {
         else ok(r.result?.result?.value);
       };
       ws.onclose = () => { clearTimeout(timer); fail(new Error('Roar closed the connection')); };
+      ws.onerror = () => { clearTimeout(timer); fail(new Error('lost the connection to Roar')); };
       ws.send(JSON.stringify({ id: 1, method: 'Runtime.evaluate', params: { expression: `ask(${JSON.stringify(payload)})`, awaitPromise: true, returnByValue: true } }));
     });
   } finally {
@@ -163,6 +171,8 @@ const agentSpaces = async () => {
   if (typeof r === 'string') r = JSON.parse(r);
   return r;
 };
+// A click comes back as {"choice","index"}; "dismissed" / "timed out" / "opened" stay plain strings.
+const reply = (r) => { const s = String(r); if (s.startsWith('{')) try { return JSON.parse(s); } catch {} return { choice: s }; };
 const useSpace = (id) => sidebarAsk({ cmd: 'agent.space', id }, 10000);
 
 // The profile is settled once per session; a failed or unanswered ask settles nothing.
@@ -172,19 +182,20 @@ async function pickProfile() {
   const allowed = spaces.filter((s) => s.agents);
   if (!allowed.length) throw new Error(NO_PROFILE);
   if (allowed.length === 1) return useSpace(allowed[0].id);
-  const names = allowed.map((s) => s.name);
   // The active space, when allowed, is the suggested (first) choice.
   const first = allowed.find((s) => s.id === active);
-  if (first) names.unshift(...names.splice(names.indexOf(first.name), 1));
+  if (first) allowed.unshift(...allowed.splice(allowed.indexOf(first), 1));
+  const names = allowed.map((s) => s.name);
+  if (allowed.length > 6) throw new Error(`Several Roar profiles allow agents; call use_profile with one of: ${names.join(', ')}.`);
   const key = crypto.randomUUID();
   pending.add(key);
-  let choice;
+  let choice, index;
   try {
-    choice = String(await sidebarAsk({ cmd: 'agent.notify', agent, wait: true, key, title: `Which profile should ${agent || 'the agent'} use?`, body: '', url: '', choices: names.slice(0, 6) }, 600000));
+    ({ choice, index } = reply(await sidebarAsk({ cmd: 'agent.notify', agent, wait: true, key, title: `Which profile should ${agent || 'the agent'} use?`, body: '', url: '', choices: names }, 600000)));
   } finally {
     pending.delete(key);
   }
-  const pick = allowed.find((s) => s.name === choice);
+  const pick = Number.isInteger(index) ? allowed[index] : undefined;
   if (!pick) {
     if (choice === 'timed out') await expire(key);
     throw new Error('The person did not pick a Roar profile (' + choice + '); call use_profile or try again.');
@@ -204,8 +215,10 @@ async function callOwn(id, name, args) {
       const { spaces } = await agentSpaces();
       const allowed = spaces.filter((s) => s.agents);
       const want = String(args.name || '').trim().toLowerCase();
-      const pick = allowed.find((s) => s.name.toLowerCase() === want);
       if (!allowed.length) throw new Error(NO_PROFILE);
+      const named = args.id !== undefined ? allowed.filter((s) => String(s.id) === String(args.id)) : allowed.filter((s) => s.name.toLowerCase() === want);
+      if (named.length > 1) throw new Error(`Several profiles are named "${args.name}"; call use_profile with an id: ${named.map((s) => `${s.name} (id ${s.id})`).join(', ')}.`);
+      const pick = named[0];
       if (!pick) throw new Error(`"${args.name}" is not a profile that allows agents. Allowed: ${allowed.map((s) => s.name).join(', ')}.`);
       await useSpace(pick.id);
       profileReady = Promise.resolve();
@@ -214,15 +227,21 @@ async function callOwn(id, name, args) {
       await sidebarAsk({ cmd: 'agent.notify', agent, title: plain(args.title, 120), body: plain(args.body), level: args.level || 'info', url: args.url || '' }, 15000);
       text = 'Shown in Roar\'s sidebar.';
     } else {
+      const choices = (args.choices || []).map(String);
+      if (choices.length < 1 || choices.length > 6) throw new Error('ask_user needs 1 to 6 choices.');
       const secs = Math.min(Math.max(Number(args.timeout_seconds) || 600, 5), 3600);
       const key = crypto.randomUUID();
       pending.add(key);
       try {
-        text = String(await sidebarAsk({ cmd: 'agent.notify', agent, wait: true, key, title: plain(args.question, 200), body: plain(args.body, 600), url: args.url || '', choices: (args.choices || []).map(String) }, secs * 1000));
+        const r = reply(await sidebarAsk({ cmd: 'agent.notify', agent, wait: true, key, title: plain(args.question, 200), body: plain(args.body, 600), url: args.url || '', choices }, secs * 1000));
+        text = Number.isInteger(r.index) && choices[r.index] !== undefined ? choices[r.index] : r.choice;
+        if (!Number.isInteger(r.index) && text !== 'opened') {
+          if (text === 'timed out') await expire(key);
+          throw new Error(`The person did not answer (${text}).`);
+        }
       } finally {
         pending.delete(key);
       }
-      if (text === 'timed out') await expire(key);
     }
     out({ jsonrpc: '2.0', id, result: { content: [{ type: 'text', text }] } });
   } catch (e) {
@@ -266,4 +285,4 @@ createInterface({ input: process.stdin }).on('line', (line) => {
   if (msg.method === 'tools/call')
     return void ensureProfile().then(() => child.stdin.write(line + '\n'), (e) => fail(msg.id, e));
   child.stdin.write(line + '\n');
-}).on('close', () => { child.stdin.end(); shutdown(0); });
+}).on('close', () => { child.stdin.end(); setTimeout(() => shutdown(0), 2000).unref(); });  // child 'exit' normally shuts down first

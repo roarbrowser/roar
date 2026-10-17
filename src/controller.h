@@ -325,6 +325,7 @@ class Controller {
   struct AgentAlert {
     int id = 0;
     std::string title, body, level, url, agent;
+    int space = -1;        // The agent's space at the time; Open puts the URL there.
     std::string key;       // ask_user's id from the MCP server, for agent.expire.
     bool expired = false;  // The agent stopped waiting; the card stays as a note.
     std::vector<std::string> choices;
@@ -340,8 +341,12 @@ class Controller {
   void PaneNav(int tab, bool forward);
   bool ForeignUiNavigation(CefRefPtr<CefBrowser> browser, const std::string& url);
  private:
-  double split_ratio_ = 0.5;  // First pane's share of the width (or height when stacked).
-  void Unsplit();
+  // Split view pairs: each pair of tabs shows side by side whenever either is active.
+  struct SplitPair { int a = 0, b = 0; bool stacked = false; double ratio = 0.5; };
+  std::vector<SplitPair> splits_;
+  SplitPair* SplitOf(int id);
+  void Pair(int a, int b, bool stacked);  // Takes both tabs out of any other pair first.
+  void Unsplit(int id);  // Separates the pair holding |id|; 0 = the pair on screen.
   void SyncDivider();
   void SyncPaneNav(Tab* tab);
   void AskDefaultBrowser();
@@ -353,9 +358,6 @@ class Controller {
   void (*cdp_http_)(int port) = nullptr;  // Roar's CEF patch: opens (port) or closes (0) it live.
   void SetCdp(bool on);
   int gmail_refresh_gen_ = 0;  // Debounces refreshes while the mail tab navigates.
-  int split_a_ = 0;  // Split view pair, left and right; 0 when not split.
-  int split_b_ = 0;
-  bool split_stacked_ = false;  // Split panes top and bottom instead of left and right.
   int command_height_ = 0;
   bool command_new_tab_ = true;
   bool command_ghost_ = false;  // The command bar opens a ghost tab.

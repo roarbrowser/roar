@@ -2,13 +2,13 @@
 // (|id| is a comma-separated list; only delete takes several), checks that only
 // they are selected, presses Gmail's own toolbar button
 // (delete, mark read, move to) and reports the outcome to Roar's hint.
-window.__roarMailAct = (action, id) => {
+window.__roarMailAct = (action, id, nonce) => {
   const trace = (window.__roarActTrace = ['start ' + action + ' ' + id]);
   // Gmail ignores scripted clicks, so ask Roar for a real one at the element's centre.
   const press = (el) => {
     const r = el.getBoundingClientRect();
     trace.push('click ' + (el.getAttribute('aria-label') || el.getAttribute('role')));
-    console.debug('__roar_click__ ' + (r.left + r.width / 2) + ' ' + (r.top + r.height / 2));
+    console.debug('__roar_click__ ' + nonce + ' ' + (r.left + r.width / 2) + ' ' + (r.top + r.height / 2));
   };
   const report = (text) => { trace.push(text); console.debug('__roar_result__ ' + text); };
   const button = (label, act) => [...document.querySelectorAll('[gh="mtb"] [role="button"], [gh="tm"] [role="button"]')]

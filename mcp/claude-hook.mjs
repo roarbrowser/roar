@@ -91,14 +91,17 @@ export function normalize(tool, ev, argEvent) {
 
 export const keyOf = (tool, sid) => (tool === 'claude' ? sid : `${tool}-${sid}`);
 
+// Harness-injected turns (<task-notification>, <system-reminder> ...) arrive as prompts; show only the person's words.
+const userText = (p) => String(p || '').replace(/<([a-z][\w-]*)[^>]*>[\s\S]*?<\/\1>/gi, '').trim();
+
 export function update(prev, ev, now, tool = 'claude') {
   const s = { ...prev, id: keyOf(tool, ev.session_id), sid: ev.session_id, tool, cwd: ev.cwd || prev.cwd || '', updated: now };
-  if (ev.hook_event_name === 'UserPromptSubmit') s.first ||= short(ev.prompt, 60);
+  if (ev.hook_event_name === 'UserPromptSubmit') s.first ||= short(userText(ev.prompt), 60);
   s.project = isScratch(s.cwd) ? scratchName(s.first) : basename(s.cwd || '') || TOOLS[tool]?.name || tool;
   s.started ||= now;
   switch (ev.hook_event_name) {
     case 'SessionStart': return { ...s, state: 'idle', doing: 'Started' };
-    case 'UserPromptSubmit': return { ...s, state: 'working', prompt: short(ev.prompt, 120), doing: 'Thinking' };
+    case 'UserPromptSubmit': return { ...s, state: 'working', prompt: short(userText(ev.prompt), 120) || prev.prompt, doing: 'Thinking' };
     case 'PreToolUse': return { ...s, state: 'working', doing: describe(ev.tool_name, ev.tool_input) };
     case 'Notification': return { ...s, state: 'needs_you', doing: short(ev.message || 'Needs your input', 90) };
     case 'Stop': return { ...s, state: 'idle', doing: 'Done, waiting for you' };
@@ -153,11 +156,15 @@ function hook(tool, argEvent) {
   if (!next.term || ev.hook_event_name === 'SessionStart') next.term = where();
   next.live = !!(next.term.tmux?.pane || next.term.cmux);
   const tmp = `${file}.${process.pid}.tmp`;  // One per hook process, so concurrent hooks never share it.
-  writeFileSync(tmp, JSON.stringify(next));
   try {
-    for (const f of readdirSync(DIR)) if (f.startsWith('new-') && JSON.parse(readFileSync(join(DIR, f), 'utf8')).cwd === next.cwd) rmSync(join(DIR, f), { force: true });
-  } catch {}
-  renameSync(tmp, file);  // Roar never reads half a file.
+    writeFileSync(tmp, JSON.stringify(next));
+    try {
+      for (const f of readdirSync(DIR)) if (f.startsWith('new-') && JSON.parse(readFileSync(join(DIR, f), 'utf8')).cwd === next.cwd) rmSync(join(DIR, f), { force: true });
+    } catch {}
+    renameSync(tmp, file);  // Roar never reads half a file.
+  } catch {} finally {
+    rmSync(tmp, { force: true });  // no-op after a successful rename
+  }
 }
 
 // Ours: "<roar-mcp>" claude-hook | agent-hook <tool> [event], whatever path Roar was installed at.

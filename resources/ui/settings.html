@@ -92,7 +92,7 @@ pre { margin: 6px 0; font: 12px/1.6 var(--mono); background: var(--ground); bord
 
 
     <section id="agents"><h2>Agents</h2>
-      <div class="row"><span class="name" id="llm-label">Your AI<small>One pick for both: “Ask about this page” (⌘T, or the button by Tabs) opens its chat site with the page filled in, and if it has a terminal CLI (Claude Code, Codex, Gemini CLI, Copilot CLI) Roar connects that one to Agent sessions.</small></span><span class="end" id="llms" role="radiogroup" aria-labelledby="llm-label"></span></div>
+      <div class="row"><span class="name" id="llm-label">Your AI<small>One pick for both: “Ask about this page” (⌘T, or the button by Tabs) opens its chat site with the page filled in, and if it has a terminal CLI (Claude Code, Codex, Gemini CLI, Copilot CLI) Roar connects that one to Agent sessions.</small></span><span class="end" id="llms" role="group" aria-labelledby="llm-label"></span></div>
       <h3>Coding agents in your terminal</h3>
       <div class="module" data-module="claude">
         <div class="row head"><label class="name" for="claude-on"><span data-icon="claude"></span>Agent sessions<small>Your Claude Code, Codex, Gemini, Qwen and Copilot CLI sessions, what they're doing and whether they need you; never the conversation.</small></label><input type="checkbox" class="switch" id="claude-on"></div>
@@ -193,7 +193,7 @@ function apply(s) {
       stt === 'installed' || stt === 'absent' || stt === 'error' ? '' : `<button class="btn" data-tool="${cli}" data-on="true">${stt === 'outdated' ? 'Reconnect' : 'Connect'}</button>`}</div>`;
   const chosen = (st.askLlms || '').split(',')[0];
   if (!$('llms').contains(document.activeElement))
-    $('llms').innerHTML = LLMS.map(([id, name]) => `<button class="chip" role="radio" data-llm="${id}" aria-checked="${chosen === id}" aria-pressed="${chosen === id}">${name}</button>`).join('');
+    $('llms').innerHTML = LLMS.map(([id, name]) => `<button class="chip" data-llm="${id}" aria-pressed="${chosen === id}">${name}</button>`).join('');
   // Agent sessions is on only while some CLI's hooks are installed too.
   const clOn = st.claudeSidebar !== false && !!s.claude?.hooks;
   $('claude-on').checked = clOn;

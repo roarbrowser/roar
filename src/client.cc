@@ -36,8 +36,10 @@ bool Client::OnProcessMessageReceived(CefRefPtr<CefBrowser> browser, CefRefPtr<C
   return router_->OnProcessMessageReceived(browser, frame, source_process, message);
 }
 
+bool MailClickAllowed(CefRefPtr<CefBrowser> browser, const std::string& nonce);  // controller.cc
+
 // A Gmail tab running mail-act.js asks for a real click (Gmail ignores scripted
-// ones): "__roar_click__ <x> <y>" in CSS pixels.
+// ones): "__roar_click__ <nonce> <x> <y>" in CSS pixels, with the nonce Roar gave that run.
 bool Client::OnConsoleMessage(CefRefPtr<CefBrowser> browser, cef_log_severity_t level, const CefString& message,
                               const CefString& source, int line) {
   static const std::string kPrefix = "__roar_click__ ", kResult = "__roar_result__ ";
@@ -48,7 +50,9 @@ bool Client::OnConsoleMessage(CefRefPtr<CefBrowser> browser, cef_log_severity_t 
   }
   if (text.rfind(kPrefix, 0) != 0) return false;
   double x = 0, y = 0;
-  if (sscanf(text.c_str() + kPrefix.size(), "%lf %lf", &x, &y) == 2) Controller::Get()->OnMailClick(browser, x, y);
+  char nonce[65] = {0};
+  if (sscanf(text.c_str() + kPrefix.size(), "%64s %lf %lf", nonce, &x, &y) == 3 && MailClickAllowed(browser, nonce))
+    Controller::Get()->OnMailClick(browser, x, y);
   return true;
 }
 

@@ -2,6 +2,7 @@
 #import <Cocoa/Cocoa.h>
 
 #include "controller.h"
+#include "state.h"
 
 using roar::Controller;
 
@@ -20,19 +21,30 @@ using roar::Controller;
     if (t.id == self.tabId) return &t;
   return nullptr;
 }
+// Ghost tabs and tabs in spaces closed to agents stay hidden from scripts, as in ExecuteScriptFromApp.
+- (const roar::Tab*)visibleTab {
+  auto* t = [self tab];
+  if (!t || t->ghost) return nullptr;
+  roar::Space* sp = roar::State::Get().FindSpace(t->space);
+  return sp && !sp->agents ? nullptr : t;
+}
 - (NSNumber*)uniqueID {
   return @(self.tabId);
 }
 - (NSString*)URL {
-  auto* t = [self tab];
+  auto* t = [self visibleTab];
   return t ? [NSString stringWithUTF8String:t->url.c_str()] : @"";
 }
 - (void)setURL:(NSString*)url {
-  if ([[url stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceCharacterSet].lowercaseString hasPrefix:@"roar:"]) return;
+  NSString* lower = [url stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceCharacterSet].lowercaseString;
+  for (NSString* scheme in @[ @"roar:", @"javascript:", @"file:" ])
+    if ([lower hasPrefix:scheme]) return;
+  auto* t = [self visibleTab];
+  if (!t || t->url.rfind("roar:", 0) == 0) return;  // Same rules as ExecuteScriptFromApp.
   Controller::Get()->Navigate(self.tabId, url.UTF8String);
 }
 - (NSString*)title {
-  auto* t = [self tab];
+  auto* t = [self visibleTab];
   return t ? [NSString stringWithUTF8String:t->title.c_str()] : @"";
 }
 - (BOOL)pinned {

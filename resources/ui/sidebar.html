@@ -121,6 +121,7 @@ body.drag-active .pinned:empty::before { content: 'Drop to pin'; color: var(--in
 /* Dropping a tab on another tab splits them; the half under the pointer picks the layout. */
 .row.split-drop { position: relative; background: var(--hover); box-shadow: inset 0 0 0 1.5px var(--mane); }
 .row.split-drop::after { content: attr(data-split-label); position: absolute; right: 8px; top: 50%; transform: translateY(-50%); padding: 2px 7px; border-radius: 6px; background: var(--mane); color: #2a1604; font: 600 11px var(--ui); pointer-events: none; }
+.pin.split-drop { background: var(--hover); box-shadow: inset 0 0 0 1.5px var(--mane); }
 .ctx { position: fixed; z-index: 20; min-width: 180px; max-width: 240px; padding: 4px; border-radius: 9px; background: var(--ground); box-shadow: 0 0 0 1px var(--rule), 0 8px 24px rgba(0,0,0,.35); display: flex; flex-direction: column; }
 .ctx[hidden] { display: none; }
 .ctx button { text-align: left; padding: 5px 8px; border-radius: 6px; color: var(--ink); font-size: 12.5px; display: flex; align-items: center; gap: 7px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -350,7 +351,7 @@ body.drag-active .pinned:empty::before { content: 'Drop to pin'; color: var(--in
   <div class="rows" id="gh"></div>
 </section>
 <section class="feed-pop" id="gm-group" aria-label="Unread mail">
-  <div class="group-head"><span>Unread mail</span><span class="spacer"></span><button id="gm-selall" title="Select every message">Select all</button><button id="gm-delsel" title="Delete the selected messages" hidden></button><button id="gm-refresh" title="Refresh mail">Refresh</button></div>
+  <div class="group-head"><span>Unread mail</span><span class="spacer"></span><button id="gm-selall" title="Select every message">Select all</button><button id="gm-delsel" title="Delete the selected messages" hidden>Delete selected</button><button id="gm-refresh" title="Refresh mail">Refresh</button></div>
   <div class="rows" id="gm"></div>
 </section>
 <dialog class="cld" id="cl-dlg" aria-labelledby="cl-dlg-h">
@@ -410,7 +411,7 @@ function tabRow(t, limit) {
   return `<div class="row${t.active ? ' active' : ''}${cool ? ' cool' : ''}" data-id="${t.id}" draggable="true" title="${esc(t.title)}\n${esc(t.url)}${remaining && !t.active ? '\n' + remaining : ''}">
     ${t.loading ? '<span class="spin"></span>' : t.url.startsWith('roar:') ? '<span class="lion" style="width:16px;height:16px"></span>' : iconHtml(t.favicon, t.url)}
     <span class="label">${esc(t.title || hostOf(t.url))}</span>
-    ${t.floating ? '<span class="badge">floating</span>' : ''}${t.split ? '<button class="badge unsplit" data-unsplit title="Unsplit">split ×</button>' : ''}
+    ${t.floating ? '<span class="badge">floating</span>' : ''}${t.split ? `<button class="badge unsplit" data-unsplit="${t.id}" title="Separate tabs">split ×</button>` : ''}
     ${sndButton(t, '')}
     <button class="x" data-close="${t.id}" aria-label="Close tab">${x}</button>
     ${limit > 0 && !t.active ? `<span class="life"><i style="width:${(left * 100).toFixed(1)}%"></i></span>` : ''}
@@ -484,7 +485,7 @@ window.roar = {
       const html = `<div class="who"><span>${esc(a.agent || 'Agent')}</span><span>${ago(a.time)}</span></div>
         <div class="t">${esc(a.title)}</div>${a.body ? `<div class="b">${esc(a.body)}</div>` : ''}${a.body && (a.body.length > 220 || a.body.split('\n').length > 4) ? '<button class="more" data-alert-more aria-expanded="false">more</button>' : ''}
         ${a.expired ? `<div class="gone">${esc(a.agent || 'The agent')} stopped waiting for an answer.</div>` : ''}
-        <div class="acts">${a.choices.map((c, i) => `<button class="${i === 0 ? 'primary' : ''}" data-alert-choice="${esc(c)}">${esc(c)}</button>`).join('')}${a.url ? `<button data-alert-open="${esc(a.url)}">Open</button>` : ''}</div>
+        <div class="acts">${a.choices.map((c, i) => `<button class="${i === 0 ? 'primary' : ''}" data-alert-choice="${esc(c)}">${esc(c)}</button>`).join('')}${a.url ? `<button data-alert-open="${esc(a.url)}" data-alert-space="${a.space ?? -1}">Open</button>` : ''}</div>
         <button class="dismiss" data-alert-dismiss aria-label="Dismiss" title="${a.waiting ? 'Dismiss without answering' : 'Dismiss'}"><svg viewBox="0 0 12 12" width="9" height="9" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="m3 3 6 6M9 3l-6 6"/></svg></button>`;
       let el = box.querySelector(`[data-alert="${a.id}"]`);
       if (!el) { el = Object.assign(document.createElement('div'), { className: 'alert' }); el.dataset.alert = a.id; box.append(el); }
@@ -530,7 +531,7 @@ window.roar = {
       return `<div class="row pr cl${needs(c) ? ' needs' : ''}${c.state === 'starting' ? ' starting' : ''}${clFull[c.id]?.active ? ' active' : ''}" data-clid="${esc(c.id)}" data-cltab="${clFull[c.id]?.id || ''}" title="${esc(c.prompt || c.cwd || '')}">` +
         `<button class="clmain" aria-label="${esc(agentName(c))}: ${esc(c.project)}, ${clStates[st] || st}${sub ? ': ' + esc(sub) : ''}. Open"><span class="cl-ic">${agentIcon(c, 16)}<span class="dot ${esc(st)}" aria-hidden="true"></span></span>` +
         `<span class="label"><span class="cl-name"><b>${esc(c.project)}</b><time>${clAgo(c.updated)}</time></span><small><span class="vh">${clStates[st] || st}: </span>${esc(sub)}</small>` +
-        (c.live && needs(c) && !open ? `<span class="cl-reply" data-clreply="${esc(c.id)}" role="button" tabindex="-1">Reply</span>` : '') + `</span></button>` +
+        (c.live && needs(c) && !open ? `<span class="cl-reply" data-clreply="${esc(c.id)}" aria-hidden="true">Reply</span>` : '') + `</span></button>` +
         `<span class="cl-acts">${needs(c) && c.live ? `<button data-clreply="${esc(c.id)}" aria-pressed="${open}" aria-label="Reply to ${esc(c.project)}" title="Reply here">${ico.reply}</button>` : ''}` +
         `${c.live ? `<button data-clsend="${esc(c.id)}" aria-pressed="${sending}" aria-label="Send this tab to ${esc(c.project)}" ${attachAttrs}>${ico.attach}</button>` : ''}` +
         `<button data-clbeside="${esc(c.id)}" aria-label="Show ${esc(c.project)} side by side with the page you're on" title="Side by side with this page">${ico.beside}</button>` +
@@ -609,7 +610,7 @@ document.addEventListener('click', (e) => {
   if (alert) {
     const id = +alert.dataset.alert, b = e.target.closest('button');
     if (b?.dataset.alertChoice !== undefined) return ask({ cmd: 'agent.answer', id, choice: b.dataset.alertChoice });
-    if (b?.dataset.alertOpen) { ask({ cmd: 'open', text: b.dataset.alertOpen, newTab: true }); return ask({ cmd: 'agent.answer', id, choice: 'opened' }); }
+    if (b?.dataset.alertOpen) { ask({ cmd: 'open', text: b.dataset.alertOpen, newTab: true, ...(+b.dataset.alertSpace >= 0 ? { space: +b.dataset.alertSpace } : {}) }); return ask({ cmd: 'agent.answer', id, choice: 'opened' }); }
     if (b?.hasAttribute('data-alert-dismiss')) return ask({ cmd: 'agent.answer', id, choice: '' });
     if (b?.hasAttribute('data-alert-more')) { const full = alert.classList.toggle('full'); b.textContent = full ? 'less' : 'more'; b.setAttribute('aria-expanded', full); }
     return;
@@ -721,6 +722,8 @@ const setHtml = (el, html) => { if (el.__html !== html) el.innerHTML = el.__html
 const hideCtx = () => { ctx.hidden = true; ctx.innerHTML = ''; };
 function showCtx(html, e, bind) {
   ctx.innerHTML = html;
+  ctx.setAttribute('role', 'menu');
+  ctx.querySelectorAll('button').forEach((b) => b.setAttribute('role', 'menuitem'));
   ctx.hidden = false;
   const r = ctx.getBoundingClientRect();
   ctx.style.left = Math.max(4, Math.min(e.clientX, innerWidth - r.width - 4)) + 'px';
@@ -794,11 +797,11 @@ function tabMenu(t, e) {
     ${groups.filter((g) => g.id !== t.group).map((g) => `<button data-act="move" data-g="${g.id}">${dot(g.color)}${esc(g.name)}</button>`).join('')}
     ${t.group ? '<button data-act="ungroup">Remove from group</button>' : ''}
     ${!t.ghost && state.spaces.length > 1 ? `<hr><div class="head">Move to space</div>${state.spaces.filter((sp) => sp.id !== state.activeSpace).map((sp) => `<button data-act="space" data-s="${sp.id}">${dot(sp.color)}${esc(sp.name)}</button>`).join('')}` : ''}
-    <hr>${t.split ? '<button data-act="unsplit">Unsplit</button>' : ''}${t.floating ? '' : '<button data-act="float">Open in floating window</button>'}
+    <hr>${t.split ? '<button data-act="unsplit">Separate tabs</button>' : ''}${t.floating ? '' : '<button data-act="float">Open in floating window</button>'}
     <button data-act="close">Close tab</button>`, e, (act, d) => {
     if (act === 'space') ask({ cmd: 'tab.space', id: t.id, space: +d.s });
     else if (act === 'float') ask({ cmd: 'tab.float', id: t.id });
-    else if (act === 'unsplit') ask({ cmd: 'tab.unsplit' });
+    else if (act === 'unsplit') ask({ cmd: 'tab.unsplit', id: t.id });
     else if (act === 'pin' || act === 'unpin') ask({ cmd: 'tab.pin', id: t.id, pinned: act === 'pin' });
     else if (act === 'icon') return iconMenu(t, e);
     else if (act === 'move') ask({ cmd: 'tab.group', id: t.id, group: +d.g });
@@ -836,7 +839,7 @@ function groupMenu(id, e) {
   const g = state.groups.find((g) => g.id === id);
   if (!g) return;
   showCtx(`<button data-act="rename">Rename…</button>
-    <div class="swatches">${COLORS.slice(1).map((c) => `<button data-act="color" data-c="${c}" aria-pressed="${g.color === c}" style="background:${c}" title="${c}"></button>`).join('')}</div>
+    <div class="swatches">${COLORS.slice(1).map((c) => `<button data-act="color" data-c="${c}" aria-pressed="${g.color === c}" style="background:${c}" title="${c}" aria-label="${COLOR_NAMES[c]}"></button>`).join('')}</div>
     <button data-act="pin">${g.pinned ? 'Unpin group' : 'Pin group'}</button>
     <hr><button data-act="ungroup">Ungroup tabs</button>
     <button data-act="close">Close group</button>`, e, (act, d) => {
@@ -882,17 +885,20 @@ const pinSpot = (e) => {
   const pin = e.target.closest?.('#pinned .pin[data-id]');
   const t = state.tabs.find((t) => t.id === dragId);
   if (!pin || !t?.pinned || +pin.dataset.id === dragId) return null;
-  const r = pin.getBoundingClientRect();
-  return { pin, after: e.clientX > r.left + r.width / 2 };
+  const r = pin.getBoundingClientRect(), f = (e.clientX - r.left) / r.width;
+  if (f > 0.25 && f < 0.75) return null;  // The middle of a tile splits (splitSpot).
+  return { pin, after: f >= 0.5 };
 };
-// A tab row under the dragged tab (not itself, not a ghost/floating mismatch): split target.
+// A tab row or pinned tile under the dragged tab (not itself, not floating): split target.
+// Rows: left half side by side, right half stacked. Tiles: only their middle, and always side by side.
 const splitSpot = (e) => {
-  const row = e.target.closest?.('.row[data-id]');
+  const row = e.target.closest?.('.row[data-id], .pin[data-id]');
   if (!row || +row.dataset.id === dragId) return null;
   const a = state.tabs.find((t) => t.id === dragId), b = state.tabs.find((t) => t.id === +row.dataset.id);
   if (!a || !b || a.floating || b.floating) return null;
-  const r = row.getBoundingClientRect();
-  return { row, stacked: e.clientX > r.left + r.width / 2 };
+  const r = row.getBoundingClientRect(), f = (e.clientX - r.left) / r.width;
+  if (row.classList.contains('pin')) return f > 0.25 && f < 0.75 ? { row, stacked: false } : null;
+  return { row, stacked: f > 0.5 };
 };
 const clearSplitMarks = () => document.querySelectorAll('.split-drop').forEach((el) => el.classList.remove('split-drop'));
 const clearPinMarks = () => document.querySelectorAll('#pinned .drop-before, #pinned .drop-after')
@@ -938,6 +944,8 @@ document.addEventListener('drop', (e) => {
   else if (zone.dataset.group) ask({ cmd: 'tab.group', id: dragId, group: +zone.dataset.group });
   else if (t.pinned) ask({ cmd: 'tab.pin', id: dragId, pinned: false });
   else if (t.group) ask({ cmd: 'tab.group', id: dragId, group: 0 });
+  // Dropped on a list rather than a tab: it leaves its split too.
+  if (t.split && !spot) ask({ cmd: 'tab.unsplit', id: dragId });
 });
 // Drag a space's dot along the footer to reorder spaces.
 let spaceDrag = null;  // A space id; space 0 is valid.
@@ -1119,9 +1127,10 @@ $('cl-btn').onclick = (e) => {
   ask({ cmd: 'settings.set', settings: { agentSection: state?.settings?.agentSection === false } });
 };
 document.addEventListener('click', (e) => {
-  if (!e.target.closest('[data-unsplit]')) return;
+  const b = e.target.closest('[data-unsplit]');
+  if (!b) return;
   e.stopPropagation();
-  ask({ cmd: 'tab.unsplit' });
+  ask({ cmd: 'tab.unsplit', id: +b.dataset.unsplit || 0 });
 }, true);
 document.addEventListener('click', (e) => {
   const rp = e.target.closest('[data-clreply]');
@@ -1298,6 +1307,7 @@ addEventListener('keydown', (e) => {
   if (open) document.querySelector(`[data-feed="${open.id}"]`)?.focus();
 });
 const COLORS = ['', '#e5484d', '#f76b15', '#ffc53d', '#46a758', '#12a594', '#0090ff', '#8e4ec6', '#d6409f'];
+const COLOR_NAMES = { '#e5484d': 'Red', '#f76b15': 'Orange', '#ffc53d': 'Yellow', '#46a758': 'Green', '#12a594': 'Teal', '#0090ff': 'Blue', '#8e4ec6': 'Purple', '#d6409f': 'Pink' };
 function renderSwatches() {
   const sp = state?.spaces.find((x) => x.id === menuSpace);
   $('swatches').innerHTML = COLORS.map((c) => `<button data-color="${c}" aria-pressed="${(sp?.color || '') === c}" title="${c || 'Default'}" style="background:${c || 'var(--ink-3)'}"></button>`).join('');

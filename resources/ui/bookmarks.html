@@ -84,8 +84,8 @@ function tree(list, prefix, q) {
     if (!matches(n, q)) return '';
     const tools = `<span class="tools">
       <button data-act="rename" data-path="${path}" title="Rename">Rename</button>
-      <button data-act="up" data-path="${path}" title="Move up">↑</button>
-      <button data-act="down" data-path="${path}" title="Move down">↓</button>
+      <button data-act="up" data-path="${path}" title="Move up" aria-label="Move ${esc(n.title)} up">↑</button>
+      <button data-act="down" data-path="${path}" title="Move down" aria-label="Move ${esc(n.title)} down">↓</button>
       <select data-act="move" data-path="${path}" aria-label="Move to folder"><option value="">Move to…</option>${
         dests.filter((f) => f.path !== path && !f.path.startsWith(path + '.')).map((f) => `<option value="${f.path}">${esc(f.label)}</option>`).join('')}</select>
       <button data-act="delete" data-path="${path}" title="Delete">Delete</button></span>`;

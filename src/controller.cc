@@ -105,6 +105,11 @@ std::string HttpHost(const std::string& url) {
 
 std::string ToJson(CefRefPtr<CefValue> v) { return CefWriteJSON(v, JSON_WRITER_DEFAULT); }
 
+// Browser id -> {nonce, expiry} of the mail-act.js run Roar started there; only its clicks are honoured.
+std::map<int, std::pair<std::string, double>> g_mail_nonces;
+// Each run waits ~33 s for a fresh page plus several ~20 s polls; 5 minutes covers it.
+constexpr double kMailNonceSecs = 300;
+
 CefRefPtr<CefValue> Wrap(CefRefPtr<CefDictionaryValue> d) {
   auto v = CefValue::Create();
   v->SetDictionary(d);
@@ -121,6 +126,15 @@ std::string JsString(const std::string& s) {
   auto v = CefValue::Create();
   v->SetString(s);
   return ToJson(v);
+}
+
+// Runs mail-act.js for one action with a fresh nonce its click requests must carry.
+void RunMailAct(CefRefPtr<CefBrowser> browser, int tab_id, const std::string& action, const std::string& mid) {
+  if (!browser) return;
+  std::string nonce = platform::RandomToken();
+  g_mail_nonces[browser->GetIdentifier()] = {nonce, NowSeconds() + kMailNonceSecs};
+  Controller::Get()->ExecuteScript(tab_id, platform::ReadResource("ui/mail-act.js") + "\n;window.__roarMailAct(" +
+                                               JsString(action) + "," + JsString(mid) + "," + JsString(nonce) + ");");
 }
 
 // Delegate for the sidebar, command bar and hint views (Alloy style).
@@ -1115,8 +1129,7 @@ CefRect Controller::ContentRect() {
 }
 
 std::vector<int> Controller::VisibleIds() {
-  if (split_a_ && split_b_ && (active_id_ == split_a_ || active_id_ == split_b_))
-    return {split_a_, split_b_};
+  if (SplitPair* p = SplitOf(active_id_)) return {p->a, p->b};
   if (active_id_) return {active_id_};
   return {};
 }
@@ -1131,12 +1144,13 @@ CefRect Controller::RectFor(int id) {
   CefRect r = ContentRect();
   auto v = VisibleIds();
   if (v.size() < 2) return r;
-  if (split_stacked_) {
-    int half = static_cast<int>((r.height - kGutter) * split_ratio_);
+  SplitPair* p = SplitOf(v[0]);
+  if (p->stacked) {
+    int half = static_cast<int>((r.height - kGutter) * p->ratio);
     if (id == v[0]) return CefRect(r.x, r.y, r.width, half);
     return CefRect(r.x, r.y + half + kGutter, r.width, r.height - half - kGutter);
   }
-  int half = static_cast<int>((r.width - kGutter) * split_ratio_);
+  int half = static_cast<int>((r.width - kGutter) * p->ratio);
   if (id == v[0]) return CefRect(r.x, r.y, half, r.height);
   return CefRect(r.x + half + kGutter, r.y, r.width - half - kGutter, r.height);
 }
@@ -1189,9 +1203,20 @@ void Controller::PaneNav(int id, bool forward) {
   if (b) forward ? b->GoForward() : b->GoBack();
 }
 
-void Controller::Unsplit() {
-  split_a_ = split_b_ = 0;
-  split_ratio_ = 0.5;
+Controller::SplitPair* Controller::SplitOf(int id) {
+  for (auto& p : splits_)
+    if (id && (p.a == id || p.b == id)) return &p;
+  return nullptr;
+}
+
+void Controller::Pair(int a, int b, bool stacked) {
+  std::erase_if(splits_, [&](const SplitPair& p) { return p.a == a || p.b == a || p.a == b || p.b == b; });
+  splits_.push_back({a, b, stacked, 0.5});
+}
+
+void Controller::Unsplit(int id) {
+  int key = id ? id : active_id_;
+  std::erase_if(splits_, [&](const SplitPair& p) { return p.a == key || p.b == key; });
   SyncWindows();
   PushSidebar();
 }
@@ -1202,15 +1227,18 @@ void Controller::SyncDivider() {
   auto v = VisibleIds();
   if (v.size() < 2) return platform::SetSplitDivider(shell_->GetWindowHandle(), 0, 0, 0, 0, false, nullptr, nullptr);
   CefRect a = RectFor(v[0]), r = ContentRect();
-  CefRect gap = split_stacked_ ? CefRect(r.x, a.y + a.height, r.width, kGutter) : CefRect(a.x + a.width, r.y, kGutter, r.height);
-  platform::SetSplitDivider(shell_->GetWindowHandle(), gap.x, gap.y, gap.width, gap.height, split_stacked_,
+  bool stacked = SplitOf(v[0])->stacked;
+  CefRect gap = stacked ? CefRect(r.x, a.y + a.height, r.width, kGutter) : CefRect(a.x + a.width, r.y, kGutter, r.height);
+  platform::SetSplitDivider(shell_->GetWindowHandle(), gap.x, gap.y, gap.width, gap.height, stacked,
       [this](int sx, int sy) {
+        SplitPair* p = SplitOf(active_id_);
+        if (!p) return;
         CefRect c = ContentRect();
-        double f = split_stacked_ ? double(sy - c.y) / std::max(1, c.height) : double(sx - c.x) / std::max(1, c.width);
-        split_ratio_ = std::clamp(f, 0.15, 0.85);
+        double f = p->stacked ? double(sy - c.y) / std::max(1, c.height) : double(sx - c.x) / std::max(1, c.width);
+        p->ratio = std::clamp(f, 0.15, 0.85);
         SyncWindows();
       },
-      [this] { split_ratio_ = 0.5; SyncWindows(); });
+      [this] { if (SplitPair* p = SplitOf(active_id_)) p->ratio = 0.5; SyncWindows(); });
 }
 
 CefRefPtr<CefRequestContext> Controller::ContextFor(int space) {
@@ -1375,7 +1403,7 @@ void Controller::CloseTab(int id) {
   size_t index = it - tabs_.begin();
   tabs_.erase(it);
   if (find_visible_ && find_tab_ == id) HideFind(false);
-  if (id == split_a_ || id == split_b_) split_a_ = split_b_ = 0;
+  std::erase_if(splits_, [&](const SplitPair& p) { return p.a == id || p.b == id; });
   if (tab.group) DropGroupIfEmpty(tab.group);
   if (tab.ghost && std::none_of(tabs_.begin(), tabs_.end(), [](const Tab& t) { return t.ghost; }))
     EndGhostSession();
@@ -1792,7 +1820,7 @@ void Controller::FloatActiveTab() {
   int id = tab->id;
   platform::DetachChild(shell_->GetWindowHandle(), tab->window->GetWindowHandle());
   tab->floating = true;
-  if (id == split_a_ || id == split_b_) split_a_ = split_b_ = 0;
+  std::erase_if(splits_, [&](const SplitPair& p) { return p.a == id || p.b == id; });
   CefRect work = CefDisplay::GetDisplayMatchingBounds(shell_->GetBounds(), false)->GetWorkArea();
   tab->window->SetBounds(CefRect(work.x + work.width - 504, work.y + work.height - 344, 480, 320));
   platform::SetFloating(tab->window->GetWindowHandle(), true, tab->title);
@@ -2471,9 +2499,8 @@ void Controller::ToggleSplit() {
   Tab* tab = ActiveTab();
   if (!tab) return;
   int id = tab->id;
-  if (split_a_ && (id == split_a_ || id == split_b_)) {
-    split_a_ = split_b_ = 0;
-    SyncWindows();
+  if (SplitOf(id)) {
+    Unsplit(id);
     FocusTab(ActiveTab());
     PushSidebar();
     return;
@@ -2485,9 +2512,7 @@ void Controller::ToggleSplit() {
         (!other || t.last_active > other->last_active))
       other = &t;
   int other_id = other ? other->id : NewTab(kNewTabUrl, false, false, 0, tab->space);
-  split_a_ = id;
-  split_b_ = other_id;
-  split_stacked_ = false;
+  Pair(id, other_id, false);
   SyncWindows();
   FocusTab(ActiveTab());
   PushSidebar();
@@ -3151,15 +3176,13 @@ bool Controller::OnContextMenuCommand(CefRefPtr<CefBrowser> browser, CefRefPtr<C
 void Controller::OpenInSplit(const std::string& url, bool ghost) {
   Tab* cur = ActiveTab();
   if (!cur) return;
-  if (split_a_ && (cur->id == split_a_ || cur->id == split_b_)) {
+  if (SplitOf(cur->id)) {
     NewTab(url, true, false, 0, cur->space, ghost);
     return;
   }
   int first = cur->id;
   int second = NewTab(url, false, false, 0, cur->space, ghost);
-  split_a_ = first;
-  split_b_ = second;
-  split_stacked_ = false;
+  Pair(first, second, false);
   ActivateTab(second);
 }
 
@@ -3192,7 +3215,7 @@ std::string Controller::StateJson() {
     d->SetBool("kept", IsKept(t));
     d->SetBool("audible", t.audible);
     d->SetBool("muted", t.muted);
-    d->SetBool("split", split_a_ && (t.id == split_a_ || t.id == split_b_));
+    d->SetBool("split", SplitOf(t.id) != nullptr);
     d->SetDouble("idleSeconds", t.id == active_id_ ? 0 : std::max(0.0, now - t.last_active));
     tabs->SetDictionary(shown++, d);
   }
@@ -3206,6 +3229,7 @@ std::string Controller::StateJson() {
     d->SetString("level", a.level);
     d->SetString("url", a.url);
     d->SetString("agent", a.agent);
+    d->SetInt("space", a.space);
     d->SetDouble("time", a.time);
     auto choices = CefListValue::Create();
     for (size_t i = 0; i < a.choices.size(); ++i) choices->SetString(i, a.choices[i]);
@@ -3240,7 +3264,7 @@ std::string Controller::StateJson() {
   }
   root->SetList("groups", groups);
   root->SetInt("activeSpace", state.active_space);
-  root->SetBool("split", split_a_ && IsVisible(split_a_));
+  root->SetBool("split", VisibleIds().size() == 2);
   auto archive = CefListValue::Create();
   size_t archived = 0, archive_count = 0;
   for (size_t i = 0; i < state.archive.size(); ++i) {
@@ -3612,7 +3636,11 @@ bool Controller::HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> 
       // Send to an agent session: the page goes in a file and the session gets an @-mention of it in its
       // prompt. With a prompt from the sender, that follows and Enter sends both; without, no Enter.
       std::string body = markdown.size() > kLlmMaxChars ? markdown.substr(0, kLlmMaxChars) : markdown;
-      while (!body.empty() && body.size() < markdown.size() && (static_cast<unsigned char>(body.back()) & 0x80)) body.pop_back();
+      if (body.size() < markdown.size()) {
+        // Don't leave a split UTF-8 sequence at the cut.
+        while (!body.empty() && (static_cast<unsigned char>(body.back()) & 0xC0) == 0x80) body.pop_back();
+        if (!body.empty() && static_cast<unsigned char>(body.back()) >= 0xC0) body.pop_back();
+      }
       // Per-user temp (no spaces, unlike Application Support): an @-mention stops at a space.
       std::filesystem::path dir = std::filesystem::temp_directory_path() / "roar-claude-pages";
       std::error_code ec;
@@ -3663,7 +3691,10 @@ bool Controller::HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> 
     Tab* tab = ActiveTab();
     // A blank new tab page is reused rather than left behind.
     if (tab && tab->url == kNewTabUrl && tab->ghost == ghost) new_tab = false;
-    if (new_tab || !tab) NewTab(url, true, false, 0, -1, ghost);
+    // An agent card's Open names the agent's space; anything else opens in the active one.
+    int space = msg->HasKey("space") && State::Get().FindSpace(int_arg("space")) ? int_arg("space") : -1;
+    if (space >= 0 && space != State::Get().active_space) new_tab = true;
+    if (new_tab || !tab) NewTab(url, true, false, 0, space, ghost);
     else Navigate(tab->id, url);
     callback->Success("");
   } else if (cmd == "folder.open") {
@@ -3716,8 +3747,7 @@ bool Controller::HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> 
       if (it != tabs_.end() && loaded) {
         id = it->id;
         it->folder_item = url;
-        ExecuteScript(id, platform::ReadResource("ui/mail-act.js") + "\n;window.__roarMailAct(" +
-                              JsString(action) + "," + JsString(mid) + ");");
+        RunMailAct(it->view ? it->view->GetBrowser() : nullptr, id, action, mid);
       } else if (it != tabs_.end()) {
         id = it->id;
         it->folder_item = url;
@@ -3836,10 +3866,7 @@ bool Controller::HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> 
     Tab* a = FindTab(int_arg("with"));
     Tab* b = FindTab(int_arg("id"));
     if (a && b && a != b && a->space == b->space && !a->floating && !b->floating) {
-      split_a_ = a->id;
-      split_b_ = b->id;
-      split_stacked_ = msg->GetBool("stacked");
-      split_ratio_ = 0.5;
+      Pair(a->id, b->id, msg->GetBool("stacked"));
       ActivateTab(b->id);
       SyncWindows();
       PushSidebar();
@@ -3865,17 +3892,14 @@ bool Controller::HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> 
       if (t.space == space && !t.floating && t.url == view) view_id = t.id;
     if (!view_id) view_id = NewTab(view, true);
     if (Tab* a = FindTab(web_id); a && FindTab(view_id)) {
-      split_a_ = web_id;
-      split_b_ = view_id;
-      split_stacked_ = false;
-      split_ratio_ = 0.5;
+      Pair(web_id, view_id, false);
       ActivateTab(view_id);
       SyncWindows();
       PushSidebar();
     }
     callback->Success("");
   } else if (cmd == "tab.unsplit") {
-    Unsplit();
+    Unsplit(int_arg("id"));
     callback->Success("");
   } else if (cmd == "tab.dropAt") {
     // A sidebar tab dropped outside the sidebar (screen x, y). On the page: split it with the tab
@@ -3885,8 +3909,8 @@ bool Controller::HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> 
     CefRect shell = shell_ ? shell_->GetBounds() : CefRect(), c = ContentRect();
     bool on_page = x >= c.x && x < c.x + c.width && y >= c.y && y < c.y + c.height;
     bool off_window = !(x >= shell.x && x < shell.x + shell.width && y >= shell.y && y < shell.y + shell.height);
-    if (t && off_window && (t->id == split_a_ || t->id == split_b_)) {
-      Unsplit();
+    if (t && off_window && SplitOf(t->id)) {
+      Unsplit(t->id);
     } else if (t && on_page && !t->floating) {
       // The pane under the drop, or the active tab when there's no split on screen.
       int under = active_id_;
@@ -3905,9 +3929,7 @@ bool Controller::HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> 
       }
       if (keep && keep != t && keep->space == t->space && !keep->floating) {
         bool first = x < c.x + c.width / 2;  // Dropped on the left half: it takes the left pane.
-        split_stacked_ = false;
-        split_a_ = first ? t->id : keep->id;
-        split_b_ = first ? keep->id : t->id;
+        Pair(first ? t->id : keep->id, first ? keep->id : t->id, false);
         ActivateTab(t->id);
         SyncWindows();
         PushSidebar();
@@ -4108,7 +4130,9 @@ bool Controller::HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> 
     a.level = msg->GetString("level").ToString();
     if (a.level != "done" && a.level != "needs_you") a.level = "info";
     a.url = msg->GetString("url").ToString();
+    if (!StartsWith(a.url, "http://") && !StartsWith(a.url, "https://")) a.url.clear();  // Open hands it to trusted open.
     a.agent = msg->GetString("agent").ToString().substr(0, 60);
+    a.space = msg->HasKey("space") ? int_arg("space") : AgentSpace();
     if (auto list = msg->GetList("choices"))
       for (size_t i = 0; i < list->GetSize() && i < 6; ++i) a.choices.push_back(list->GetString(i).ToString().substr(0, 60));
     bool wait = msg->HasKey("wait") && msg->GetBool("wait");
@@ -4222,7 +4246,20 @@ bool Controller::HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> 
   } else if (cmd == "browser.makeDefault") {
     platform::MakeDefaultBrowser([callback] { callback->Success(platform::IsDefaultBrowser() ? "yes" : "no"); });
   } else if (cmd == "agent.answer") {
-    ResolveAlert(int_arg("id"), msg->GetString("choice").ToString());
+    std::string choice = msg->GetString("choice").ToString();
+    int id = int_arg("id");
+    // A clicked choice answers an ask_user as {"choice":label,"index":n}: labels are cut to 60 chars, so match by index.
+    for (const auto& a : agent_alerts_) {
+      if (a.id != id || !a.answer || choice.empty()) continue;
+      auto at = std::find(a.choices.begin(), a.choices.end(), choice);
+      if (at == a.choices.end()) break;
+      auto d = CefDictionaryValue::Create();
+      d->SetString("choice", choice);
+      d->SetInt("index", int(at - a.choices.begin()));
+      choice = ToJson(Wrap(d));
+      break;
+    }
+    ResolveAlert(id, choice);
     callback->Success("");
   } else if (cmd == "agent.clear") {
     std::vector<int> ids;
@@ -4451,6 +4488,14 @@ void Controller::OnMailResult(CefRefPtr<CefBrowser> browser, const std::string& 
   ShowHint(text.substr(0, 120));
 }
 
+// Called by Client::OnConsoleMessage: true only for the nonce of the action pending in |browser|.
+bool MailClickAllowed(CefRefPtr<CefBrowser> browser, const std::string& nonce) {
+  auto it = browser ? g_mail_nonces.find(browser->GetIdentifier()) : g_mail_nonces.end();
+  if (it == g_mail_nonces.end()) return false;
+  if (NowSeconds() > it->second.second) { g_mail_nonces.erase(it); return false; }
+  return !nonce.empty() && it->second.first == nonce;
+}
+
 void Controller::OnMailClick(CefRefPtr<CefBrowser> browser, double x, double y) {
   Tab* tab = FindTabByBrowser(browser);
   // Only the Gmail folder tab, while it shows Gmail, takes scripted clicks: any other
@@ -4491,9 +4536,7 @@ void Controller::OnLoading(CefRefPtr<CefBrowser> browser, bool loading, bool can
   if (!loading) {
     ApplyZoom(browser, tab->url);
     if (auto act = mail_acts_.find(tab->id); act != mail_acts_.end()) {
-      ExecuteScript(tab->id, platform::ReadResource("ui/mail-act.js") +
-                                 "\n;window.__roarMailAct(" + JsString(act->second.substr(0, act->second.find(' '))) + "," +
-                                 JsString(act->second.substr(act->second.find(' ') + 1)) + ");");
+      RunMailAct(browser, tab->id, act->second.substr(0, act->second.find(' ')), act->second.substr(act->second.find(' ') + 1));
       mail_acts_.erase(act);
     }
     if (auto fill = llm_fills_.find(tab->id); fill != llm_fills_.end()) {
