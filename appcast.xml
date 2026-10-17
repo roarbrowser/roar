@@ -236,5 +236,14 @@
       <description><![CDATA[Split view: keep several splits at once, drag any tab onto any tab (rows and pinned tiles) to split, drop on the list to separate, and Separate tabs acts on that pair. Security and reliability fixes for AppleScript, Gmail actions and agent tools; accessibility labels; agent session cards no longer show internal tags.]]></description>
       <enclosure url="https://github.com/roarbrowser/roar/releases/download/v0.23.0/Roar-0.23.0.dmg" type="application/octet-stream" sparkle:edSignature="9xS3pKgd4t6z9U3qH6Jx9DPJMlVnJK6IvQiPY5Ip0JtMiBPngDjI5OPnmNhgk38TilU+qZgx68mByzQ2VLrEDA==" length="203760761"/>
     </item>
+    <item>
+      <title>0.23.1</title>
+      <pubDate>Sat, 17 Oct 2026 04:10:39 +0000</pubDate>
+      <sparkle:version>2301</sparkle:version>
+      <sparkle:shortVersionString>0.23.1</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[The agent session's Send button now names the page it will send. Agent alert links always open in the agent's own space.]]></description>
+      <enclosure url="https://github.com/roarbrowser/roar/releases/download/v0.23.1/Roar-0.23.1.dmg" type="application/octet-stream" sparkle:edSignature="w9hKXDc+2AvUrUEv1jW6sSLocIQWrd5ZLrudQniaTOlarFV7hEmkG3cMakRpqvp9o3ySmnEVR4GklbzxysyLAw==" length="203761270"/>
+    </item>
   </channel>
 </rss>
