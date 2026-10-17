@@ -104,6 +104,8 @@ void ConfirmDownload(void* window, const std::string& name, const std::string& h
 // Adds com.apple.quarantine to a finished download unless Chromium already did.
 void QuarantineDownload(const std::string& path, const std::string& url);
 void RevealInFinder(const std::string& path);
+// Opens System Settings at Privacy & Security > Full Disk Access.
+void OpenFullDiskAccessSettings();
 // Asks whether to open `url` (a non-web scheme) in the app registered for it, then
 // opens it. Returns false, without asking, when no app handles the scheme.
 bool OpenInApp(void* window, const std::string& url);

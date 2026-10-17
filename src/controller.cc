@@ -2210,6 +2210,8 @@ void Controller::ImportBrowser(const std::string& browser) {
   std::string error;
   std::string label = library::BrowserName(browser);
   auto profiles = library::ReadBrowser(browser, &error);
+  // Safari's files are readable only with Full Disk Access, which only the user can grant.
+  if (profiles.empty() && error.find("Full Disk Access") != std::string::npos) platform::OpenFullDiskAccessSettings();
   if (profiles.empty()) return ShowHint(label + ": " + (error.empty() ? "nothing found" : error));
 
   State& state = State::Get();

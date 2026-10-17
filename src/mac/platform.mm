@@ -1117,6 +1117,11 @@ void RevealInFinder(const std::string& path) {
     [NSWorkspace.sharedWorkspace activateFileViewerSelectingURLs:@[ url ]];
 }
 
+void OpenFullDiskAccessSettings() {
+  [NSWorkspace.sharedWorkspace
+      openURL:[NSURL URLWithString:@"x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles"]];
+}
+
 bool OpenInApp(void* window, const std::string& url) {
   NSURL* u = [NSURL URLWithString:NS(url)];
   NSURL* app = u ? [NSWorkspace.sharedWorkspace URLForApplicationToOpenURL:u] : nil;
