@@ -246,8 +246,9 @@ function startWindows(dir, bin, args, name) {
   // A .cmd shim runs through cmd.exe, which re-parses its arguments: keep such a prompt out of it.
   if (/\.cmd$/i.test(bin) && args.some((a) => /["%^&|<>!\r\n]/.test(a))) throw new Error('this prompt has characters cmd.exe would run; start without it');
   const wt = which('wt');
-  // wt splits its command line on ';', so escape it inside arguments.
-  const [exe, argv] = wt ? [wt, ['-w', 'new', 'new-tab', '--title', name, '-d', dir, '--', bin, ...args.map((a) => a.replace(/;/g, '\\;'))]]
+  // wt splits its whole command line on ';' (title, folder and prompt alike), so escape it in every value.
+  const e = (v) => v.replace(/;/g, '\\;');
+  const [exe, argv] = wt ? [wt, ['-w', 'new', 'new-tab', '--title', e(name), '-d', e(dir), '--', e(bin), ...args.map(e)]]
     : /\.cmd$/i.test(bin) ? [process.env.ComSpec || 'cmd.exe', ['/d', '/c', bin, ...args]] : [bin, args];
   spawn(exe, argv, { cwd: dir, detached: true, stdio: 'ignore', windowsHide: false }).unref();
   return 'terminal';
