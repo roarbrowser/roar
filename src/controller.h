@@ -35,7 +35,6 @@ struct Tab {
   int id = 0;
   CefRefPtr<CefBrowserView> view;
   CefRefPtr<CefWindow> window;  // Created on first activation.
-  CefRefPtr<CefOverlayController> nav;  // Back/forward over the page while split (SyncPaneNav).
   bool floating = false;        // Detached into an always-on-top mini window.
   std::string url;
   std::string title;

@@ -790,6 +790,15 @@ void TrackHorizontalDrag(void* window, std::function<void(int x)> on_move) {
 
 }  // namespace roar::platform
 
+@interface RoarPaneNav : NSPanel
+@property(nonatomic, copy) void (^press)(BOOL forward);
+@end
+@implementation RoarPaneNav
+- (BOOL)canBecomeKeyWindow { return NO; }
+- (void)back:(id)s { if (self.press) self.press(NO); }
+- (void)forward:(id)s { if (self.press) self.press(YES); }
+@end
+
 @interface RoarDivider : NSView
 @property(nonatomic) BOOL stacked;
 @property(nonatomic, copy) void (^onDrag)(NSPoint screen);
@@ -844,6 +853,46 @@ void SetSplitDivider(void* window, int x, int y, int w, int h, bool stacked,
   if (divider.superview != content) [content addSubview:divider positioned:NSWindowAbove relativeTo:nil];
   [win invalidateCursorRectsForView:divider];
   divider.needsDisplay = YES;
+}
+
+void SetPaneNav(void* window, bool show, std::function<void(bool forward)> press) {
+  NSWindow* w = Win(window);
+  if (!w) return;
+  static NSMapTable<NSWindow*, RoarPaneNav*>* navs = [NSMapTable weakToStrongObjectsMapTable];
+  RoarPaneNav* nav = [navs objectForKey:w];
+  if (!show) {
+    if (nav) { [w removeChildWindow:nav]; [nav orderOut:nil]; }
+    return;
+  }
+  if (!nav) {
+    nav = [[RoarPaneNav alloc] initWithContentRect:NSMakeRect(0, 0, 56, 28)
+                                          styleMask:NSWindowStyleMaskBorderless | NSWindowStyleMaskNonactivatingPanel
+                                            backing:NSBackingStoreBuffered defer:NO];
+    nav.releasedWhenClosed = NO;
+    nav.opaque = NO;
+    nav.backgroundColor = [NSColor colorWithSRGBRed:0x2a / 255.0 green:0x1d / 255.0 blue:0x12 / 255.0 alpha:0xd8 / 255.0];
+    nav.hasShadow = NO;
+    nav.contentView.wantsLayer = YES;
+    nav.contentView.layer.cornerRadius = 6;
+    nav.collectionBehavior = NSWindowCollectionBehaviorTransient | NSWindowCollectionBehaviorIgnoresCycle;
+    nav.excludedFromWindowsMenu = YES;
+    for (int i = 0; i < 2; i++) {
+      NSButton* b = [NSButton buttonWithTitle:i ? @"›" : @"‹" target:nav action:i ? @selector(forward:) : @selector(back:)];
+      b.bordered = NO;
+      b.toolTip = i ? @"Forward" : @"Back";
+      b.attributedTitle = [[NSAttributedString alloc] initWithString:b.title attributes:@{
+        NSFontAttributeName : [NSFont boldSystemFontOfSize:15],
+        NSForegroundColorAttributeName : [NSColor colorWithSRGBRed:0xfb / 255.0 green:0xee / 255.0 blue:0xdd / 255.0 alpha:1]}];
+      b.frame = NSMakeRect(4 + i * 24, 2, 24, 24);
+      [nav.contentView addSubview:b];
+    }
+    [navs setObject:nav forKey:w];
+  }
+  nav.press = ^(BOOL forward) { press(forward); };
+  NSRect f = w.frame;
+  [nav setFrameOrigin:NSMakePoint(NSMinX(f) + 6, NSMaxY(f) - 6 - nav.frame.size.height)];
+  if (nav.parentWindow != w) [w addChildWindow:nav ordered:NSWindowAbove];
+  [nav orderFront:nil];
 }
 
 void SetFloating(void* window, bool floating, const std::string& title) {

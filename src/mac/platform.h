@@ -70,6 +70,9 @@ void TrackHorizontalDrag(void* window, std::function<void(int x)> on_move);
 // An empty rect hides it.
 void SetSplitDivider(void* window, int x, int y, int w, int h, bool stacked,
                      std::function<void(int sx, int sy)> on_drag, std::function<void()> reset);
+// ‹ › buttons pinned to |window|'s top-left corner (a split pane); press(forward) on a click.
+// A native child panel: CEF overlay views on Chrome-style windows stopped every mouse click.
+void SetPaneNav(void* window, bool show, std::function<void(bool forward)> press);
 // Turns a tab window into a titled, always-on-top mini window, or back.
 void SetFloating(void* window, bool floating, const std::string& title);
 void CopyText(const std::string& text);
