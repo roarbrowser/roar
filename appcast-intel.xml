@@ -10,5 +10,14 @@
       <description><![CDATA[Settings: pick your AI once; it connects for Agent sessions and browsing. Agent view: scroll back through the session, and / commands work from the reply box.]]></description>
       <enclosure url="https://github.com/roarbrowser/roar/releases/download/v0.23.6/Roar-0.23.6-intel.dmg" type="application/octet-stream" sparkle:edSignature="ZWkrGajP+14FxO16W/IAcXw0DHx6iImovbrpcDMOe3s6VvaVx3rKkjqpRX0H4Z2XLen2AiqWHZXMts7p21OZDg==" length="224816493"/>
     </item>
+    <item>
+      <title>0.23.7</title>
+      <pubDate>Sat, 17 Oct 2026 12:44:55 +0000</pubDate>
+      <sparkle:version>2307</sparkle:version>
+      <sparkle:shortVersionString>0.23.7</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[Needs-you alerts dismiss themselves after 60 seconds.]]></description>
+      <enclosure url="https://github.com/roarbrowser/roar/releases/download/v0.23.7/Roar-0.23.7-intel.dmg" type="application/octet-stream" sparkle:edSignature="bk42fzl0ZwkDcjDxRSyxxylRhMYhFYqrmN5NKvTGS1C7+tpY51qpBaWyucda1NqYm5wOBf2Gc8E8IT3kpZfnCg==" length="224816632"/>
+    </item>
   </channel>
 </rss>
