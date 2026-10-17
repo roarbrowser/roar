@@ -12,9 +12,9 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/roarbrowser/roar/releases/latest"><b>Download for macOS</b></a>
-  &nbsp;·&nbsp; <a href="https://roarbrowser.github.io/roar/">Website</a>
-  &nbsp;·&nbsp; Apple Silicon &nbsp;·&nbsp; Free, MIT licensed
+  <b>Download for macOS:</b> <a href="https://github.com/roarbrowser/roar/releases/latest"><b>Apple Silicon</b></a> (<code>Roar-&lt;version&gt;.dmg</code>)
+  &nbsp;·&nbsp; <a href="https://github.com/roarbrowser/roar/releases/latest"><b>Intel</b></a> (<code>Roar-&lt;version&gt;-intel.dmg</code>)
+  <br><a href="https://roarbrowser.github.io/roar/">Website</a> &nbsp;·&nbsp; Free, MIT licensed
 </p>
 
 <br>
@@ -36,7 +36,7 @@
 
 About five minutes. Needs macOS 13 or later; no Node.js.
 
-**1. Download (1 min).** Get the latest `Roar-<version>.dmg` from [Releases](https://github.com/roarbrowser/roar/releases/latest), open it and drag Roar onto Applications. Or:
+**1. Download (1 min).** Get the latest `Roar-<version>.dmg` (Apple Silicon) or `Roar-<version>-intel.dmg` (Intel) from [Releases](https://github.com/roarbrowser/roar/releases/latest), open it and drag Roar onto Applications. Or:
 
 ```bash
 brew install --cask roarbrowser/tap/roar
