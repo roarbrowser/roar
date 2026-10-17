@@ -112,7 +112,7 @@ $('skip').onclick = () => { step++; show(); };
 $('back').onclick = () => { step--; show(); };
 
 // Module tiles: pressed = on. Agent sessions also needs some CLI's hooks installed (all found here, on press).
-const modOn = (s, m) => ({ claude: s.settings.claudeSidebar !== false && !!s.claude?.hooks, agentFiles: s.settings.agentFiles === true,
+const modOn = (s, m) => ({ claude: s.settings.claudeSidebar !== false && !!s.claude?.hooks, agentFiles: s.settings.agentFilesRow !== false,
   github: s.github.enabled, gmail: s.gmail.enabled })[m];
 let last = null;
 function apply(s) {
@@ -130,7 +130,7 @@ $('tiles').onclick = (e) => {
   if (t.dataset.mod === 'claude') { set({ claudeSidebar: on }); ask({ cmd: 'claude.hooks', on }).then(refresh); }
   // PRs show in one space; turning them on while bound to another moves them here.
   else if (t.dataset.mod === 'github') (on ? ask({ cmd: 'settings.set', settings: { githubFolder: false } }) : Promise.resolve()).then(() => set({ githubFolder: on }));
-  else set({ agentFiles: { agentFiles: on }, gmail: { gmailFolder: on } }[t.dataset.mod]);
+  else set({ agentFiles: { agentFilesRow: on }, gmail: { gmailFolder: on } }[t.dataset.mod]);
 };
 $('make-default').onclick = () => ask({ cmd: 'browser.makeDefault' }).then(refresh);
 $('imports').onclick = (e) => {

@@ -28,7 +28,8 @@ struct Settings {
   // Agent sessions (claude_* keys predate other CLIs) in the sidebar; when on, launch installs the hooks once if Claude Code is set up.
   bool claude_sidebar = true;
   bool claude_alert_done = true, claude_alert_needs = true, claude_alert_system = true;  // Which agent session states post a macOS notification (ClaudeAlert).
-  bool agent_files = false;  // "Agent files" sidebar module.
+  bool agent_files = false;  // Unused since 0.17 (it was off by default); kept so older state.json files load.
+  bool agent_files_row = true;  // The Agent files row in Agent sessions; its { } header button toggles it.
   bool claude_hooks_offered = false;
   std::string agent_tool = "claude";  // The CLI the New dialog last started (claude-ctl new's tool).
   std::string agent_pins;  // Unused since 0.14 (pinned sessions); kept so older state.json files load.
@@ -73,7 +74,8 @@ inline const std::vector<SettingField>& SettingFields() {
       {"claudeAlertDone", &Settings::claude_alert_done, true},
       {"claudeAlertNeeds", &Settings::claude_alert_needs, true},
       {"claudeAlertSystem", &Settings::claude_alert_system, true},
-      {"agentFiles", &Settings::agent_files, true},
+      {"agentFiles", &Settings::agent_files, false},
+      {"agentFilesRow", &Settings::agent_files_row, true},
       {"claudeHooksOffered", &Settings::claude_hooks_offered, false},
       {"agentTool", &Settings::agent_tool, true},
       {"agentPins", &Settings::agent_pins, false},

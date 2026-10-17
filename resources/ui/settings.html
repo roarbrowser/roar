@@ -101,7 +101,7 @@ pre { margin: 6px 0; font: 12px/1.6 var(--mono); background: var(--ground); bord
           <div class="row"><label class="name" for="al-done">Alert me when a session finishes</label><input type="checkbox" class="switch" id="al-done" data-set="claudeAlertDone"></div>
           <div class="row"><label class="name" for="al-needs">Alert me when a session needs me</label><input type="checkbox" class="switch" id="al-needs" data-set="claudeAlertNeeds"></div>
           <div class="row"><label class="name" for="al-sys" title="Alerts show in the sidebar either way; this adds a macOS notification while Roar is in the background">Also send a macOS notification</label><input type="checkbox" class="switch" id="al-sys" data-set="claudeAlertSystem"></div>
-          <div class="row"><label class="name" for="af-on">Agent files row<small>A row in Agent sessions that opens CLAUDE.md, AGENTS.md, Cursor rules and similar.</small></label><input type="checkbox" class="switch" id="af-on" data-set="agentFiles"></div>
+          <div class="row"><label class="name" for="af-on">Agent files row<small>A row in Agent sessions that opens CLAUDE.md, AGENTS.md, Cursor rules and similar. The { } button in its header shows or hides it too.</small></label><input type="checkbox" class="switch" id="af-on" data-set="agentFilesRow"></div>
         </fieldset>
       </div>
       <h3>Agents that browse with Roar</h3>
@@ -141,7 +141,9 @@ pre { margin: 6px 0; font: 12px/1.6 var(--mono); background: var(--ground); bord
   get URL of every tab
 end tell</pre>
       </details>
-      <details class="row"><summary>Updates</summary>
+      <details class="row" open><summary>Updates</summary>
+        <div class="row"><label class="name" for="au-check">Check for updates automatically<small id="au-note">Roar looks for a new version once a day.</small></label><input type="checkbox" class="switch" id="au-check" data-set="autoUpdateChecks"></div>
+        <div class="row"><label class="name" for="au-dl">Download and install updates automatically<small>Off: Roar asks before each update.</small></label><input type="checkbox" class="switch" id="au-dl" data-set="autoUpdateDownloads"></div>
         <div class="end"><button class="btn" id="check-updates">Check for updates</button><button class="btn" id="update-chromium" title="Rebuilds Roar on the newest stable Chromium from its source checkout">Update Chromium</button></div>
       </details>
     </section>
@@ -206,6 +208,9 @@ function apply(s) {
   $('agent-opts').disabled = !st.cdpEnabled;
   $('clean-opts').disabled = !st.cleanLinks;
   $('update-chromium').hidden = !st.canBuildChromium;
+  $('au-check').disabled = !st.updaterOn;
+  $('au-dl').disabled = !st.updaterOn || !st.autoUpdateChecks;
+  $('au-note').textContent = st.updaterOn ? 'Roar looks for a new version once a day.' : 'Updates are off in test and headless instances.';
   $('mode-note').textContent = st.agentHeadless
     ? 'Agents use a separate, invisible Roar with its own profile: none of your logins, and nothing appears in this window.'
     : 'Agents open tabs in this window with your logins, so you can watch what they do.';

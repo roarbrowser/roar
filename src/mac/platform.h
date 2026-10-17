@@ -81,6 +81,12 @@ void CopyText(const std::string& text);
 void UpdateChromium(void* window);
 // Sparkle: checks the appcast for a newer Roar release and shows its update UI.
 void CheckForUpdates();
+// Sparkle's own saved choices: check daily, and download+install without asking. Both false, and
+// setting does nothing, when the updater isn't running (test and headless instances).
+bool UpdaterRunning();
+bool AutoUpdateChecks();
+bool AutoUpdateDownloads();
+void SetAutoUpdate(bool checks, bool downloads);
 void ChooseLookback(void* window, const std::string& what, std::function<void(double since)> done);
 // A path in ~/Downloads for |name| that doesn't exist yet ("name (1).ext" and so on).
 std::string UniqueDownloadPath(const std::string& name);

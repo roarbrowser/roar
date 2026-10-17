@@ -14,8 +14,13 @@ PLIST=resources/Info.plist.in
 [[ -z "$(git status --porcelain --untracked-files=no)" ]] || { echo "working tree dirty; commit first" >&2; exit 1; }
 git rev-parse -q --verify "refs/tags/$TAG" >/dev/null && { echo "$TAG already exists" >&2; exit 1; }
 
-# Version lives in Info.plist.in; the build number stays in step with it.
+# Version lives in Info.plist.in. Sparkle compares the build number (CFBundleVersion against
+# sparkle:version), so it must rise with every release: major*10000 + minor*100 + patch (0.17.0 -> 1700).
+# Builds before 0.17 all said 1, which Sparkle ranked above every "0.x.y" it was offered.
+BUILD=$(awk -F. '{print $1 * 10000 + $2 * 100 + $3}' <<<"$VERSION")
+(( BUILD > 1 )) || { echo "version $VERSION gives build number $BUILD" >&2; exit 1; }
 sed -i '' -E "s|(<key>CFBundleShortVersionString</key><string>)[^<]*|\1$VERSION|" "$PLIST"
+sed -i '' -E "s|(<key>CFBundleVersion</key><string>)[^<]*|\1$BUILD|" "$PLIST"
 
 # Public builds use the company Developer ID when it is in the keychain, else ad-hoc:
 # an Apple Development identity embeds the developer's real name.
@@ -58,7 +63,7 @@ SIG="$(third_party/Sparkle/bin/sign_update "$DMG")"   # sparkle:edSignature="...
 ITEM="    <item>
       <title>$VERSION</title>
       <pubDate>$(LC_ALL=C date -u '+%a, %d %b %Y %H:%M:%S +0000')</pubDate>
-      <sparkle:version>$VERSION</sparkle:version>
+      <sparkle:version>$BUILD</sparkle:version>
       <sparkle:shortVersionString>$VERSION</sparkle:shortVersionString>
       <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
       <description><![CDATA[${NOTES//]]>/]]]]><![CDATA[>}]]></description>

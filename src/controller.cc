@@ -3242,7 +3242,10 @@ std::string Controller::StateJson() {
   settings->SetBool("cdpEnabled", state.settings.cdp_enabled);
   settings->SetBool("cdpOn", cdp_on_);
   settings->SetBool("cdpLive", cdp_http_ != nullptr);
-  settings->SetBool("canBuildChromium", sizeof(ROAR_SOURCE_DIR) > 1);  // Only a build from a checkout can rebuild itself.
+  settings->SetBool("canBuildChromium", sizeof(ROAR_SOURCE_DIR) > 1);
+  settings->SetBool("updaterOn", platform::UpdaterRunning());
+  settings->SetBool("autoUpdateChecks", platform::AutoUpdateChecks());
+  settings->SetBool("autoUpdateDownloads", platform::AutoUpdateDownloads());  // Only a build from a checkout can rebuild itself.
   settings->SetInt("pageCount", static_cast<int>(state.pages.size()));
   settings->SetInt("cdpPort", platform::CdpPort());
   auto pins = CefListValue::Create();
@@ -3417,6 +3420,10 @@ void Controller::ApplySettings(CefRefPtr<CefDictionaryValue> d) {
         else v = static_cast<T>(d->GetType(f.key) == VTYPE_INT ? d->GetInt(f.key) : d->GetDouble(f.key));
       }, f.member);
   s.pinned_columns = std::clamp(s.pinned_columns, 0, 8);
+  // Sparkle keeps these itself (its user defaults), not state.json.
+  if (d->HasKey("autoUpdateChecks") || d->HasKey("autoUpdateDownloads"))
+    platform::SetAutoUpdate(d->HasKey("autoUpdateChecks") ? d->GetBool("autoUpdateChecks") : platform::AutoUpdateChecks(),
+                            d->HasKey("autoUpdateDownloads") ? d->GetBool("autoUpdateDownloads") : platform::AutoUpdateDownloads());
   if (d->HasKey("cdpEnabled")) {
     s.cdp_enabled = d->GetBool("cdpEnabled");
     SetCdp(s.cdp_enabled);

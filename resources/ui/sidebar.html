@@ -306,7 +306,7 @@ body.drag-active .pinned:empty::before { content: 'Drop to pin'; color: var(--in
 .feed .badge:empty { display: none; }
 .feed-pop { display: none; position: fixed; z-index: 15; left: 8px; right: 8px; bottom: 96px; max-height: 60vh; overflow: auto; padding: 4px; border-radius: 10px; background: var(--ground); box-shadow: 0 0 0 1px var(--rule), 0 8px 24px rgba(0,0,0,.35); }
 .feed-pop.open { display: block; }
-.group-head .af-btn { display: grid; place-items: center; padding: 3px 5px; } .group-head .af-btn[hidden] { display: none; } .group-head .af-btn[aria-disabled=true] { opacity: .45; } .af-btn svg { width: 14px; height: 14px; } .af-btn[aria-expanded="true"] { background: var(--hover); color: var(--ink); }
+.group-head .af-btn { display: grid; place-items: center; padding: 3px 5px; } .group-head .af-btn[hidden] { display: none; } .group-head .af-btn[aria-disabled=true] { opacity: .45; } .group-head .af-btn[aria-pressed=false] { color: var(--ink-3); } .af-btn svg { width: 14px; height: 14px; } .af-btn[aria-expanded="true"] { background: var(--hover); color: var(--ink); }
 .ext-pins button { width: 28px; height: 28px; border-radius: 7px; display: grid; place-items: center; }
 .ext-pins button:hover { background: var(--hover); }
 .ext-pins img { width: 18px; height: 18px; }
@@ -340,7 +340,7 @@ body.drag-active .pinned:empty::before { content: 'Drop to pin'; color: var(--in
     <div class="rows" id="tabs"></div>
   </section>
   <section id="cl-group" aria-label="Agent sessions" hidden>
-    <div class="group-head"><button class="toggle" data-collapse="cl-group" aria-expanded="true" aria-controls="cl" aria-label="Collapse agent sessions"><svg class="chev" viewBox="0 0 10 10" fill="currentColor"><path d="M1 3h8L5 8z"/></svg>Agent sessions</button><span class="count" id="cl-n"></span><span class="spacer"></span><button id="cl-sendtab" class="af-btn" aria-label="Send tab" hidden><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 7.5l-5.3 5.3a3.2 3.2 0 01-4.5-4.5l5.6-5.6a2.1 2.1 0 013 3L6.3 11.2a1 1 0 01-1.5-1.5L10 4.6"/></svg></button><button id="cl-new" aria-haspopup="dialog" title="Start an agent session">New</button></div>
+    <div class="group-head"><button class="toggle" data-collapse="cl-group" aria-expanded="true" aria-controls="cl" aria-label="Collapse agent sessions"><svg class="chev" viewBox="0 0 10 10" fill="currentColor"><path d="M1 3h8L5 8z"/></svg>Agent sessions</button><span class="count" id="cl-n"></span><span class="spacer"></span><button id="af-btn" class="af-btn" aria-label="Agent files row" aria-pressed="true"><svg aria-hidden="true" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2.5c-1.4 0-2 .6-2 2v1.6c0 .9-.5 1.6-1.5 1.9 1 .3 1.5 1 1.5 1.9v1.6c0 1.4.6 2 2 2M10 2.5c1.4 0 2 .6 2 2v1.6c0 .9.5 1.6 1.5 1.9-1 .3-1.5 1-1.5 1.9v1.6c0 1.4-.6 2-2 2"/></svg></button><button id="cl-sendtab" class="af-btn" aria-label="Send tab" hidden><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 7.5l-5.3 5.3a3.2 3.2 0 01-4.5-4.5l5.6-5.6a2.1 2.1 0 013 3L6.3 11.2a1 1 0 01-1.5-1.5L10 4.6"/></svg></button><button id="cl-new" aria-haspopup="dialog" title="Start an agent session">New</button></div>
     <div class="rows" id="cl"></div>
   </section>
 </div>
@@ -555,7 +555,10 @@ window.roar = {
     const f = document.activeElement?.closest?.('#cl .clq') && document.activeElement;
     const fq = f && f.closest('.clq').outerHTML.match(/data-cls?q="[^"]*"/)[0], fs = f && [f.selectionStart, f.selectionEnd];
     // Agent files (Settings) is one more row here: it opens the Agent files browser.
-    const afRow = s.settings?.agentFiles === true ? `<button class="row pr cl af-row" data-agentmd title="Browse CLAUDE.md, AGENTS.md, Cursor rules and other agent instruction files"><span class="clmain"><span class="cl-ic"><svg class="agent-icon" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2.5c-1.4 0-2 .6-2 2v1.6c0 .9-.5 1.6-1.5 1.9 1 .3 1.5 1 1.5 1.9v1.6c0 1.4.6 2 2 2M10 2.5c1.4 0 2 .6 2 2v1.6c0 .9.5 1.6 1.5 1.9-1 .3-1.5 1-1.5 1.9v1.6c0 1.4-.6 2-2 2"/></svg></span><span class="label"><span class="cl-name"><b>Agent files</b></span><small>CLAUDE.md, AGENTS.md and rules</small></span></span></button>` : '';
+    const afOn = s.settings?.agentFilesRow !== false;
+    $('af-btn').setAttribute('aria-pressed', String(afOn));
+    $('af-btn').title = (afOn ? 'Hide' : 'Show') + ' the Agent files row';
+    const afRow = afOn ? `<button class="row pr cl af-row" data-agentmd title="Browse CLAUDE.md, AGENTS.md, Cursor rules and other agent instruction files"><span class="clmain"><span class="cl-ic"><svg class="agent-icon" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2.5c-1.4 0-2 .6-2 2v1.6c0 .9-.5 1.6-1.5 1.9 1 .3 1.5 1 1.5 1.9v1.6c0 1.4.6 2 2 2M10 2.5c1.4 0 2 .6 2 2v1.6c0 .9.5 1.6 1.5 1.9-1 .3-1.5 1-1.5 1.9v1.6c0 1.4-.6 2-2 2"/></svg></span><span class="label"><span class="cl-name"><b>Agent files</b></span><small>CLAUDE.md, AGENTS.md and rules</small></span></span></button>` : '';
     setHtml($('cl'), starting + (cl.map(clRow).join('') || (starting || afRow ? '' : '<div class="note">No sessions yet. Press New to start one.</div>')) + afRow);
     clActive = webTab ? act.id : 0;
     if (fq) { const i = $('cl').querySelector(`[${fq}] input`); if (i && i !== f) { i.focus(); i.setSelectionRange(...fs); } }
@@ -1097,6 +1100,10 @@ function clOpenSend(id) {
   clReplyOpen = null;
   return ask({ cmd: 'state' }).then(roar.render).then(() => $('cl').querySelector(`[data-clsq="${CSS.escape(clSendOpen || '')}"] input`)?.focus());
 }
+$('af-btn').onclick = (e) => {
+  e.stopPropagation();
+  ask({ cmd: 'settings.set', settings: { agentFilesRow: state?.settings?.agentFilesRow === false } });
+};
 $('cl-btn').onclick = (e) => {
   e.stopPropagation();
   ask({ cmd: 'settings.set', settings: { agentSection: state?.settings?.agentSection === false } });

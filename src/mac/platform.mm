@@ -888,6 +888,15 @@ void CopyText(const std::string& text) {
   [pb setString:NS(text) forType:NSPasteboardTypeString];
 }
 
+bool UpdaterRunning() { return g_updater != nil; }
+bool AutoUpdateChecks() { return g_updater && g_updater.updater.automaticallyChecksForUpdates; }
+bool AutoUpdateDownloads() { return g_updater && g_updater.updater.automaticallyDownloadsUpdates; }
+void SetAutoUpdate(bool checks, bool downloads) {
+  if (!g_updater) return;
+  g_updater.updater.automaticallyChecksForUpdates = checks;
+  g_updater.updater.automaticallyDownloadsUpdates = checks && downloads;
+}
+
 void CheckForUpdates() {
   // Test mode checks without UI so a scratch instance never takes the front.
   if (g_updater && getenv("ROAR_SPARKLE_TEST")) [g_updater.updater checkForUpdateInformation];

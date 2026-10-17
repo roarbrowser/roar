@@ -11,7 +11,7 @@ int main() {
       "gmailFolder", "indexPages", "sidebarWidth", "pinnedColumns", "pinnedCentered", "cleanLinks", "askDefault",
       "claudeSidebar", "claudeAlertDone", "claudeAlertNeeds", "claudeAlertSystem", "agentFiles",
       "claudeHooksOffered", "cdpOpen", "agentHeadless", "searchMigrated", "askLlms", "agentTool", "agentPins", "agentSection",
-      "cleanSafeLinks", "cleanMcas", "cleanTracking", "cleanParams"};
+      "cleanSafeLinks", "cleanMcas", "cleanTracking", "cleanParams", "agentFilesRow"};
   std::set<std::string> got;
   int failures = 0;
   for (const auto& f : roar::SettingFields())
