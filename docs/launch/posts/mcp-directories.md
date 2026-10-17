@@ -4,8 +4,9 @@
 
 **Name:** Roar
 **Repo:** https://github.com/roarbrowser/roar
+**Homepage:** https://roarbrowser.app
 **Transport:** stdio (local)
-**Command:** `/Applications/Roar.app/Contents/Resources/roar-mcp.sh`
+**Command:** `/Applications/Roar.app/Contents/Resources/roar-mcp`
 **Requirements:** macOS, Roar installed in /Applications; no Node.js needed
 
 **Description:**
@@ -21,7 +22,7 @@ Roar is an open-source macOS browser (Chromium 154) with a built-in MCP server. 
 **Install:**
 
 ```bash
-claude mcp add roar -- /Applications/Roar.app/Contents/Resources/roar-mcp.sh
+claude mcp add roar -- /Applications/Roar.app/Contents/Resources/roar-mcp
 ```
 
 Other clients: add the same path as a stdio server command. No Node.js needed.

@@ -29,8 +29,8 @@ What's missing, honestly:
 - macOS only, no Windows or iOS, no sync between devices
 - Early: one developer, expect rough edges
 - No Boosts or Little Arc
-- Some .mp4 video needs a codec build of CEF
 
+Site: https://roarbrowser.app
 Repo and download: https://github.com/roarbrowser/roar
 
 If you try it, tell me which Arc feature you miss most. That decides what I build next.

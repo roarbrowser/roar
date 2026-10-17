@@ -14,13 +14,13 @@
 <p align="center">
   <b>Download for macOS:</b> <a href="https://github.com/roarbrowser/roar/releases/latest"><b>Apple Silicon</b></a> (<code>Roar-&lt;version&gt;.dmg</code>)
   &nbsp;·&nbsp; <a href="https://github.com/roarbrowser/roar/releases/latest"><b>Intel</b></a> (<code>Roar-&lt;version&gt;-intel.dmg</code>)
-  <br><a href="https://roarbrowser.github.io/roar/">Website</a> &nbsp;·&nbsp; Free, MIT licensed
+  <br><a href="https://roarbrowser.app/">Website</a> &nbsp;·&nbsp; Free, MIT licensed
 </p>
 
 <br>
 
 <p align="center">
-  <a href="https://roarbrowser.github.io/roar/media/roar-demo.mp4"><img src="docs/media/roar-demo.jpg" alt="Watch the one-minute Roar demo" width="720"></a>
+  <a href="https://roarbrowser.app/media/roar-demo.mp4"><img src="docs/media/roar-demo.jpg" alt="Watch the one-minute Roar demo" width="720"></a>
   <br><sub>▶ Watch the one-minute demo</sub>
 </p>
 
