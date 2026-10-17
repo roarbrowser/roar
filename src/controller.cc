@@ -1393,6 +1393,8 @@ void Controller::CloseTab(int id) {
   // Removed from tabs_ first, so CanCloseTabWindow lets the window go.
   if (tab.window) {
     platform::DetachChild(shell_->GetWindowHandle(), tab.window->GetWindowHandle());
+    // Force: a page's "Leave site?" prompt would show on the detached window and orphan it.
+    if (auto b = tab.view ? tab.view->GetBrowser() : nullptr) b->GetHost()->CloseBrowser(true);
     tab.window->Close();
   }
   if (active_id_ == id) {
@@ -4726,8 +4728,10 @@ bool Controller::CanCloseShell() {
   closing_ = true;
   SaveNow();
   State::Get().SavePages();
-  for (auto& t : tabs_)
+  for (auto& t : tabs_) {
+    if (auto b = t.view ? t.view->GetBrowser() : nullptr) b->GetHost()->CloseBrowser(true);
     if (t.window) t.window->Close();
+  }
   if (command_window_) command_window_->Close();
   if (hint_window_) hint_window_->Close();
   if (find_window_) find_window_->Close();

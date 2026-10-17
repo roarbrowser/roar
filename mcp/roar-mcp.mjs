@@ -68,7 +68,15 @@ async function pickPort() {
 
 const port = await pickPort();
 let agent = '';
-const listIds = new Set();
+const listIds = new Set(), initIds = new Set();
+// Sent with the initialize reply: clients that support server instructions (Claude Code and others) put
+// them in the agent's context, so the person never has to say "use Roar".
+export const INSTRUCTIONS = `Roar is the person's own web browser, already signed in to their sites, and these tools drive it.
+Use Roar whenever a task touches the web: opening, reading or checking a page, searching, logged-in sites (mail, GitHub, dashboards, docs), filling forms, or testing a local web app. Prefer it over fetching pages yourself or starting another browser, unless the person asks otherwise.
+- Pages you open appear as tabs in the person's sidebar, in the space set by use_profile. Only spaces the person allows agents in can be used; ghost tabs are never reachable.
+- Open pages in the background unless the person should see them, and close tabs you opened when you are done with them.
+- notify_user puts a card in Roar's sidebar: use level "done" when a long task finishes, "needs_you" when you are blocked.
+- ask_user asks the person a question with buttons in Roar and waits for the answer; use it when you cannot go on without a decision.`;
 const pending = new Set();  // ask_user keys still waiting, expired in Roar on timeout or exit.
 const expire = (key) => sidebarAsk({ cmd: 'agent.expire', key }, 3000).catch(() => {});
 
@@ -233,13 +241,17 @@ createInterface({ input: child.stdout }).on('line', (line) => {
   let msg;
   try { msg = JSON.parse(line); } catch { return void process.stdout.write(line + '\n'); }
   if (msg.id !== undefined && listIds.delete(msg.id) && msg.result?.tools) msg.result.tools.push(...TOOLS);
+  if (msg.id !== undefined && initIds.delete(msg.id) && msg.result) {
+    msg.result.instructions = [INSTRUCTIONS, msg.result.instructions].filter(Boolean).join('\n\n');
+    msg.result.serverInfo = { ...msg.result.serverInfo, name: 'roar', title: 'Roar' };  // Not "Chrome DevTools MCP server".
+  }
   out(msg);
 });
 
 createInterface({ input: process.stdin }).on('line', (line) => {
   let msg;
   try { msg = JSON.parse(line); } catch { return void child.stdin.write(line + '\n'); }
-  if (msg.method === 'initialize') agent = msg.params?.clientInfo?.name || '';
+  if (msg.method === 'initialize') agent = msg.params?.clientInfo?.name || '', initIds.add(msg.id);
   if (msg.method === 'tools/list') listIds.add(msg.id);
   if (msg.method === 'tools/call' && TOOLS.some((t) => t.name === msg.params?.name))
     return void callOwn(msg.id, msg.params.name, msg.params.arguments || {});
