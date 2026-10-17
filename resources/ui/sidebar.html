@@ -144,11 +144,9 @@ body.drag-active .pinned:empty::before { content: 'Drop to pin'; color: var(--in
    the same state is in the row's text for screen readers. */
 .vh { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .cl .dot.idle { background: var(--ink-3); } .cl .dot.needs_you { background: var(--mane, #d9822b); }
-.cl .dot.working, .cl .dot.starting { background: var(--ok); animation: clpulse 1.4s ease-in-out infinite; }
-@keyframes clpulse { 50% { opacity: .35; } }
-.cl.needs { animation: clneeds 2s ease-in-out infinite; }
-@keyframes clneeds { 50% { background: var(--mane-soft, rgba(217,130,43,.18)); } }
-@media (prefers-reduced-motion: reduce) { .cl.needs, .cl .dot.working, .cl .dot.starting { animation: none; } .cl.needs { background: var(--mane-soft, rgba(217,130,43,.18)); } }
+/* Still, never blinking: a tinted row and an orange dot say a session needs you. */
+.cl .dot.working, .cl .dot.starting { background: var(--ok); }
+.cl.needs { background: var(--mane-soft, rgba(217,130,43,.18)); }
 /* Two lines per session: name and age, then what it's doing (wraps to two lines, never mid-word
    on one). Actions float over the right edge on hover, so they never take width from the text. */
 .cl.pr { height: auto; min-height: 44px; padding-block: 7px; align-items: flex-start; }
@@ -187,7 +185,7 @@ body.drag-active .pinned:empty::before { content: 'Drop to pin'; color: var(--in
 .clq .send { background: var(--mane, #d9822b); color: #2a1604; } .clq .send:hover { background: var(--mane, #d9822b); color: #2a1604; filter: brightness(1.08); }
 .clq button:disabled, .clq button[aria-disabled=true] { opacity: .5; cursor: default; }
 .group-head button[aria-disabled=true] { opacity: .45; cursor: default; }
-#cl-group { margin-bottom: 8px; }
+#cl-group { margin-top: 8px; }
 .feed[aria-pressed="true"] { background: var(--hover); }
 /* New session: a centered modal, type first, then where. */
 .cld { width: calc(100% - 24px); max-width: 320px; padding: 14px; border: 0; border-radius: 12px; background: var(--ground); color: var(--ink); box-shadow: 0 0 0 1px var(--rule), 0 12px 32px rgba(0,0,0,.4); font-size: 12.5px; }
@@ -336,13 +334,13 @@ body.drag-active .pinned:empty::before { content: 'Drop to pin'; color: var(--in
     <div class="rows" id="ghost-tabs"></div>
   </section>
   <div id="groups"></div>
-  <section id="cl-group" aria-label="Agent sessions" hidden>
-    <div class="group-head"><span>Agent sessions</span><span class="count" id="cl-n"></span><span class="spacer"></span><button id="cl-sendtab" hidden>Send tab</button><button id="cl-new" aria-haspopup="dialog" title="Start an agent session">New</button></div>
-    <div class="rows" id="cl"></div>
-  </section>
   <section id="tabs-group">
     <div class="group-head"><span>Tabs</span><span class="count" id="tab-count"></span></div>
     <div class="rows" id="tabs"></div>
+  </section>
+  <section id="cl-group" aria-label="Agent sessions" hidden>
+    <div class="group-head"><span>Agent sessions</span><span class="count" id="cl-n"></span><span class="spacer"></span><button id="cl-sendtab" hidden>Send tab</button><button id="cl-new" aria-haspopup="dialog" title="Start an agent session">New</button></div>
+    <div class="rows" id="cl"></div>
   </section>
 </div>
 <section class="feed-pop" id="af-group" aria-label="Agent files">
