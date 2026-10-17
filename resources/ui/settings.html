@@ -17,6 +17,7 @@ nav .tips { margin-top: 14px; font-size: 12px; color: var(--ink-3); }
 main { display: grid; gap: 30px; min-width: 0; }
 section { display: grid; gap: 2px; scroll-margin-top: 20px; }
 h2 { margin: 0 0 6px; font: 700 16px var(--round); }
+h3 { margin: 14px 0 6px; font: 600 12.5px var(--ui); color: var(--ink-3); }
 .row { display: flex; align-items: center; gap: 12px; min-height: 40px; padding: 6px 0; border-bottom: 1px solid var(--rule); flex-wrap: wrap; }
 .row > .name { flex: 1; min-width: 180px; }
 .row small { display: block; color: var(--ink-3); font-size: 12px; }
@@ -75,19 +76,6 @@ pre { margin: 6px 0; font: 12px/1.6 var(--mono); background: var(--ground); bord
     </section>
 
     <section id="modules"><h2>Sidebar modules</h2>
-      <div class="module" data-module="claude">
-        <div class="row head"><label class="name" for="claude-on"><span data-icon="claude"></span>Agent sessions<small>Your Claude Code, Codex, Gemini, Qwen and Copilot CLI sessions, what they're doing and whether they need you; never the conversation.</small></label><input type="checkbox" class="switch" id="claude-on"></div>
-        <fieldset id="claude-opts"><p class="reason">Turn on Agent sessions to pick its tools and alerts.</p>
-          <p class="hint">Only connected CLIs show up in New and start from “Ask an Agent About This Page”.</p>
-          <div id="agent-tools"></div>
-          <div class="row"><label class="name" for="al-done">Alert me when a session finishes</label><input type="checkbox" class="switch" id="al-done" data-set="claudeAlertDone"></div>
-          <div class="row"><label class="name" for="al-needs">Alert me when a session needs me</label><input type="checkbox" class="switch" id="al-needs" data-set="claudeAlertNeeds"></div>
-          <div class="row"><label class="name" for="al-sys" title="Alerts show in the sidebar either way; this adds a macOS notification while Roar is in the background">Also send a macOS notification</label><input type="checkbox" class="switch" id="al-sys" data-set="claudeAlertSystem"></div>
-        </fieldset>
-      </div>
-      <div class="module" data-module="agentFiles">
-        <div class="row head"><label class="name" for="af-on"><span data-icon="agentFiles"></span>Agent files<small>CLAUDE.md, AGENTS.md, Cursor rules and similar, from the { } button in Agent sessions.</small></label><input type="checkbox" class="switch" id="af-on" data-set="agentFiles"></div>
-      </div>
       <div class="module" data-module="github">
         <div class="row head"><label class="name" for="gh-on"><span data-icon="github"></span>Pull requests<small id="gh-status">Checking GitHub CLI…</small></label><input type="checkbox" class="switch" id="gh-on"></div>
         <fieldset id="gh-opts"><p class="reason">Turn on Pull requests to change its query.</p>
@@ -102,21 +90,46 @@ pre { margin: 6px 0; font: 12px/1.6 var(--mono); background: var(--ground); bord
       </div>
     </section>
 
+
     <section id="agents"><h2>Agents</h2>
-      <div class="row"><span class="name" title="Running open models with Ollama, llama.cpp or LM Studio? Connect an app that drives them, such as Goose, opencode, Continue, Cline, Jan or Open WebUI.">Agent apps<small>Connect adds Roar to the app's MCP config and keeps a .bak of the original.</small></span></div>
-      <div class="row" id="agent-clients"><span class="empty">Looking for agent apps…</span></div>
-      <div class="row"><label class="name" for="cdp-on" title="Close it before a site that flags automated browsers">Agent access<small>The same switch as the dot under the sidebar's settings icon.</small></label><span class="end"><button class="btn" id="cdp-relaunch" hidden>Relaunch to apply</button><input type="checkbox" class="switch" id="cdp-on" data-set="cdpEnabled"></span></div>
-      <fieldset id="agent-opts"><p class="reason">Turn on Agent access to choose how agents drive Roar.</p>
-        <div class="row"><span class="name" id="mode-label">Agents drive</span>
-          <div class="segmented" role="group" aria-labelledby="mode-label" data-seg="agentHeadless">
-            <button data-v="false" title="You see what they do">This window</button><button data-v="true" title="A hidden Roar with its own profile">A hidden Roar</button></div></div>
-        <div class="row"><span class="name">Profiles agents may use<small>Change it in each space's menu in the sidebar.</small></span><span class="end" id="agent-spaces"></span></div>
-      </fieldset>
+      <h3>Coding agents in your terminal</h3>
+      <div class="module" data-module="claude">
+        <div class="row head"><label class="name" for="claude-on"><span data-icon="claude"></span>Agent sessions<small>Your Claude Code, Codex, Gemini, Qwen and Copilot CLI sessions, what they're doing and whether they need you; never the conversation.</small></label><input type="checkbox" class="switch" id="claude-on"></div>
+        <fieldset id="claude-opts"><p class="reason">Turn on Agent sessions to pick its tools and alerts.</p>
+          <p class="hint">Connect the CLIs you use. Only connected ones show up in New and start from “Ask an Agent About This Page”.</p>
+          <div id="agent-tools"></div>
+          <div class="row"><label class="name" for="al-done">Alert me when a session finishes</label><input type="checkbox" class="switch" id="al-done" data-set="claudeAlertDone"></div>
+          <div class="row"><label class="name" for="al-needs">Alert me when a session needs me</label><input type="checkbox" class="switch" id="al-needs" data-set="claudeAlertNeeds"></div>
+          <div class="row"><label class="name" for="al-sys" title="Alerts show in the sidebar either way; this adds a macOS notification while Roar is in the background">Also send a macOS notification</label><input type="checkbox" class="switch" id="al-sys" data-set="claudeAlertSystem"></div>
+          <div class="row"><label class="name" for="af-on">Agent files row<small>A row in Agent sessions that opens CLAUDE.md, AGENTS.md, Cursor rules and similar.</small></label><input type="checkbox" class="switch" id="af-on" data-set="agentFiles"></div>
+        </fieldset>
+      </div>
+      <h3>Agents that browse with Roar</h3>
+      <div class="module">
+        <div class="row head"><label class="name" for="cdp-on" title="Close it before a site that flags automated browsers"><span data-icon="browse"></span>Agent access<small>Lets AI agents open and use web pages through Roar. The same switch as the dot under the sidebar's settings icon.</small></label><span class="end"><button class="btn" id="cdp-relaunch" hidden>Relaunch to apply</button><input type="checkbox" class="switch" id="cdp-on" data-set="cdpEnabled"></span></div>
+        <fieldset id="agent-opts"><p class="reason">Turn on Agent access to choose where agents browse.</p>
+          <div class="row"><span class="name" id="mode-label">Where agents browse<small id="mode-note"></small></span>
+            <div class="segmented" role="group" aria-labelledby="mode-label" data-seg="agentHeadless">
+              <button data-v="false">With you</button><button data-v="true">In the background</button></div></div>
+          <div class="row"><span class="name">Spaces agents can see<small>Agents only see and open tabs in the spaces turned on here, each with that space's logins. Ghost tabs are never shared.</small></span></div>
+          <div id="agent-spaces"></div>
+        </fieldset>
+        <div class="row"><span class="name" title="Running open models with Ollama, llama.cpp or LM Studio? Connect an app that drives them, such as Goose, opencode, Continue, Cline, Jan or Open WebUI.">Agent apps<small>Connect adds Roar to the app's MCP config and keeps a .bak of the original.</small></span></div>
+        <div class="row" id="agent-clients"><span class="empty">Looking for agent apps…</span></div>
+      </div>
     </section>
 
     <section id="privacy"><h2>Privacy</h2>
       <div class="row"><label class="name" for="index-on">Remember the text of pages I visit<small id="index-status"></small></label><span class="end"><button class="btn" id="forget" hidden>Forget saved text</button><input type="checkbox" class="switch" id="index-on" data-set="indexPages"></span></div>
-      <div class="row"><label class="name" for="clean-links" title="Copy Link Address unwraps Safe Links and drops .mcas.ms; links you open are left alone">Clean links I copy</label><input type="checkbox" class="switch" id="clean-links" data-set="cleanLinks"></div>
+      <div class="module">
+        <div class="row head"><label class="name" for="clean-links"><span data-icon="link"></span>Clean links I copy<small>Copy Link Address gives you the real link. Links you open are never changed.</small></label><input type="checkbox" class="switch" id="clean-links" data-set="cleanLinks"></div>
+        <fieldset id="clean-opts"><p class="reason">Turn on Clean links to choose what it removes.</p>
+          <div class="row"><label class="name" for="cl-safe">Unwrap Outlook and Teams Safe Links</label><input type="checkbox" class="switch" id="cl-safe" data-set="cleanSafeLinks"></div>
+          <div class="row"><label class="name" for="cl-mcas">Remove Microsoft Defender's .mcas.ms proxy</label><input type="checkbox" class="switch" id="cl-mcas" data-set="cleanMcas"></div>
+          <div class="row"><label class="name" for="cl-track">Remove tracking parameters<small>utm_*, fbclid, gclid, msclkid, mc_eid and similar</small></label><input type="checkbox" class="switch" id="cl-track" data-set="cleanTracking"></div>
+          <div class="row"><label class="name" for="cl-params">Also remove these parameters<small>Separate with commas; end a name with * to match a prefix, like ref, src_*</small></label><input type="text" class="query" id="cl-params" data-set="cleanParams" spellcheck="false" placeholder="ref, src_*"></div>
+        </fieldset>
+      </div>
     </section>
 
     <section id="advanced"><h2>Advanced</h2>
@@ -191,10 +204,16 @@ function apply(s) {
   $('gm-account-row').hidden = !s.gmail.enabled || s.gmail.signedOut || !(s.gmail.accounts?.length || s.gmail.account);
   $('gm-account').textContent = (s.gmail.accounts || []).map((a) => a.address).filter(Boolean).join(', ') || s.gmail.account || '';
   $('agent-opts').disabled = !st.cdpEnabled;
+  $('clean-opts').disabled = !st.cleanLinks;
+  $('update-chromium').hidden = !st.canBuildChromium;
+  $('mode-note').textContent = st.agentHeadless
+    ? 'Agents use a separate, invisible Roar with its own profile: none of your logins, and nothing appears in this window.'
+    : 'Agents open tabs in this window with your logins, so you can watch what they do.';
   // Only a build without Roar's CEF patch needs a relaunch to apply it.
   $('cdp-relaunch').hidden = st.cdpLive || st.cdpEnabled === st.cdpOn;
-  const reach = s.spaces.filter((sp) => sp.agents).map((sp) => sp.name);
-  $('agent-spaces').textContent = reach.length ? reach.join(' · ') : 'None';
+  // One switch per space (the same flag as "Allow agents" in a space's sidebar menu).
+  if (!$('agent-spaces').contains(document.activeElement))
+    $('agent-spaces').innerHTML = s.spaces.map((sp) => `<div class="row"><label class="name" for="sp-ag-${sp.id}">${esc(sp.name)}</label><input type="checkbox" class="switch" id="sp-ag-${sp.id}" data-space-agents="${sp.id}"${sp.agents ? ' checked' : ''}></div>`).join('');
   $('index-status').textContent = st.pageCount ? `${st.pageCount} ${st.pageCount === 1 ? 'page' : 'pages'} saved on this Mac, so ⌘T finds them by what they said.` : 'So ⌘T finds pages by what they said. Nothing saved yet.';
   $('forget').hidden = !st.pageCount;
   $('port').textContent = '127.0.0.1:' + st.cdpPort;
@@ -214,6 +233,10 @@ $('llms').onclick = (e) => {
   if (!b) return;
   b.setAttribute('aria-pressed', String(b.getAttribute('aria-pressed') !== 'true'));
   set({ askLlms: [...$('llms').querySelectorAll('[aria-pressed=true]')].map((x) => x.dataset.llm).join(',') });
+};
+$('agent-spaces').onchange = (e) => {
+  const b = e.target.closest('[data-space-agents]');
+  if (b) ask({ cmd: 'space.agents', id: +b.dataset.spaceAgents, on: b.checked }).then(refresh);
 };
 $('agent-tools').onclick = (e) => {
   const b = e.target.closest('[data-tool]');

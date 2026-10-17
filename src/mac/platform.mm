@@ -584,7 +584,7 @@ void InstallMenu() {
   [app addItemWithTitle:@"About Roar" action:@selector(orderFrontStandardAboutPanel:) keyEquivalent:@""];
   [app addItem:[NSMenuItem separatorItem]];
   addCommand(app, @"Check for Updates…", @"checkUpdates", @"");
-  addCommand(app, @"Update Chromium…", @"updateChromium", @"");
+  if (sizeof(ROAR_SOURCE_DIR) > 1) addCommand(app, @"Update Chromium…", @"updateChromium", @"");  // Not in release builds.
   addCommand(app, @"New Instance", @"newInstance", @"");
   {
     std::string name = InstanceName();

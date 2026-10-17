@@ -34,6 +34,8 @@ struct Settings {
   std::string agent_pins;  // Unused since 0.14 (pinned sessions); kept so older state.json files load.
   bool agent_section = true;  // The sidebar's Agent sessions section, toggled by its footer button.
   bool clean_links = true;
+  bool clean_safelinks = true, clean_mcas = true, clean_tracking = true;  // Which cleanups CleanLink does (CleanOptions).
+  std::string clean_params;  // The user's own query parameters to drop from copied links, comma-separated.
   std::string ask_llms = "chatgpt,claude,gemini,perplexity,grok";  // Chat apps "Ask an LLM about page" lists (kLlms ids).  // Unwraps Safe Links and strips .mcas.ms from copied links (CleanLink).
 };
 
@@ -62,6 +64,10 @@ inline const std::vector<SettingField>& SettingFields() {
       {"pinnedColumns", &Settings::pinned_columns, true},
       {"pinnedCentered", &Settings::pinned_centered, true},
       {"cleanLinks", &Settings::clean_links, true},
+      {"cleanSafeLinks", &Settings::clean_safelinks, true},
+      {"cleanMcas", &Settings::clean_mcas, true},
+      {"cleanTracking", &Settings::clean_tracking, true},
+      {"cleanParams", &Settings::clean_params, true},
       {"askDefault", &Settings::ask_default, true},
       {"claudeSidebar", &Settings::claude_sidebar, true},
       {"claudeAlertDone", &Settings::claude_alert_done, true},

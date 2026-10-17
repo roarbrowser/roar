@@ -169,7 +169,7 @@ body.drag-active .pinned:empty::before { content: 'Drop to pin'; color: var(--in
 .cl-acts button[aria-disabled=true] { opacity: .35; cursor: default; }
 .cl-acts button[aria-pressed=true] { color: var(--mane, #d9822b); }
 .cl .cl-reply { align-self: flex-start; margin-top: 4px; padding: 2px 8px; border-radius: 999px; font: 600 11px var(--ui); background: var(--mane-soft, rgba(217,130,43,.18)); color: var(--mane, #d9822b); }
-.af { gap: 8px; } .af .agent-icon { flex: none; color: var(--ink-2); }
+.af-row { width: 100%; } .af-row .agent-icon { color: var(--ink-2); }
 .cl .clmain { display: flex; align-items: flex-start; gap: 8px; flex: 1; min-width: 0; height: 100%; text-align: left; cursor: pointer; }
 .cl { cursor: pointer; }
 .cl.starting { cursor: default; opacity: .8; }
@@ -307,9 +307,6 @@ body.drag-active .pinned:empty::before { content: 'Drop to pin'; color: var(--in
 .feed-pop { display: none; position: fixed; z-index: 15; left: 8px; right: 8px; bottom: 96px; max-height: 60vh; overflow: auto; padding: 4px; border-radius: 10px; background: var(--ground); box-shadow: 0 0 0 1px var(--rule), 0 8px 24px rgba(0,0,0,.35); }
 .feed-pop.open { display: block; }
 .group-head .af-btn { display: grid; place-items: center; padding: 3px 5px; } .group-head .af-btn[hidden] { display: none; } .group-head .af-btn[aria-disabled=true] { opacity: .45; } .af-btn svg { width: 14px; height: 14px; } .af-btn[aria-expanded="true"] { background: var(--hover); color: var(--ink); }
-#af-group.drop { bottom: auto; }
-.af-open { display: block; width: 100%; text-align: left; padding: 6px 8px; border-radius: 8px; color: var(--ink-2); font-size: 12.5px; }
-.af-open:hover { background: var(--hover); color: var(--ink); }
 .ext-pins button { width: 28px; height: 28px; border-radius: 7px; display: grid; place-items: center; }
 .ext-pins button:hover { background: var(--hover); }
 .ext-pins img { width: 18px; height: 18px; }
@@ -343,15 +340,10 @@ body.drag-active .pinned:empty::before { content: 'Drop to pin'; color: var(--in
     <div class="rows" id="tabs"></div>
   </section>
   <section id="cl-group" aria-label="Agent sessions" hidden>
-    <div class="group-head"><button class="toggle" data-collapse="cl-group" aria-expanded="true" aria-controls="cl" aria-label="Collapse agent sessions"><svg class="chev" viewBox="0 0 10 10" fill="currentColor"><path d="M1 3h8L5 8z"/></svg>Agent sessions</button><span class="count" id="cl-n"></span><span class="spacer"></span><button id="af-btn" class="af-btn" data-feed="af-group" aria-haspopup="true" aria-expanded="false" title="Agent files: recently changed CLAUDE.md, AGENTS.md and rules" aria-label="Agent files" hidden><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2.5c-1.4 0-2 .6-2 2v1.6c0 .9-.5 1.6-1.5 1.9 1 .3 1.5 1 1.5 1.9v1.6c0 1.4.6 2 2 2M10 2.5c1.4 0 2 .6 2 2v1.6c0 .9.5 1.6 1.5 1.9-1 .3-1.5 1-1.5 1.9v1.6c0 1.4-.6 2-2 2"/></svg></button><button id="cl-sendtab" class="af-btn" aria-label="Send tab" hidden><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 7.5l-5.3 5.3a3.2 3.2 0 01-4.5-4.5l5.6-5.6a2.1 2.1 0 013 3L6.3 11.2a1 1 0 01-1.5-1.5L10 4.6"/></svg></button><button id="cl-new" aria-haspopup="dialog" title="Start an agent session">New</button></div>
+    <div class="group-head"><button class="toggle" data-collapse="cl-group" aria-expanded="true" aria-controls="cl" aria-label="Collapse agent sessions"><svg class="chev" viewBox="0 0 10 10" fill="currentColor"><path d="M1 3h8L5 8z"/></svg>Agent sessions</button><span class="count" id="cl-n"></span><span class="spacer"></span><button id="cl-sendtab" class="af-btn" aria-label="Send tab" hidden><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 7.5l-5.3 5.3a3.2 3.2 0 01-4.5-4.5l5.6-5.6a2.1 2.1 0 013 3L6.3 11.2a1 1 0 01-1.5-1.5L10 4.6"/></svg></button><button id="cl-new" aria-haspopup="dialog" title="Start an agent session">New</button></div>
     <div class="rows" id="cl"></div>
   </section>
 </div>
-<section class="feed-pop" id="af-group" aria-label="Agent files">
-  <div class="group-head"><span>Agent files</span><span class="spacer"></span><span class="count">Recently changed</span></div>
-  <div class="rows" id="af"><div class="note">Looking…</div></div>
-  <button class="af-open" title="Browse CLAUDE.md, AGENTS.md, Cursor rules and other agent instruction files">Open Agent files browser</button>
-</section>
 <section class="feed-pop" id="gh-group" aria-label="GitHub PRs">
   <div class="group-head"><span>GitHub PRs</span><span class="spacer"></span><button id="gh-qbtn" title="Change which pull requests show" aria-expanded="false" aria-controls="gh-q">Query</button><button id="gh-refresh" title="Refresh pull requests">Refresh</button></div>
   <form class="gh-q" id="gh-q" hidden><input id="gh-qin" aria-label="GitHub search query" spellcheck="false" autocomplete="off"><button type="button" id="gh-qreset" title="Back to your open pull requests">Reset</button></form>
@@ -546,8 +538,6 @@ window.roar = {
     const starting = clWant ? `<div class="row pr cl starting" role="status"><span class="clmain"><span class="cl-ic">${agentIcon(clWant.tool, 16)}<span class="dot starting" aria-hidden="true"></span></span><span class="label"><span class="cl-name"><b>${esc(clWant.name)}</b></span><small>Starting…</small></span></span></div>` : '';
     const clNeeds = cl.filter(needs).length;
     const clOn = s.settings?.claudeSidebar !== false, clAny = clOn && !!(cl.length || s.claude?.hooks || clWant);
-    $('af-btn').hidden = s.settings?.agentFiles !== true;
-    if ($('af-btn').hidden) $('af-group').classList.remove('open');
     // The footer button only shows or hides the section; its badge still counts who needs you.
     $('cl-btn').hidden = !clAny;
     $('cl-btn').setAttribute('aria-pressed', String(s.settings?.agentSection !== false));
@@ -564,7 +554,9 @@ window.roar = {
     // Redrawing loses focus in a reply box; put it back where it was.
     const f = document.activeElement?.closest?.('#cl .clq') && document.activeElement;
     const fq = f && f.closest('.clq').outerHTML.match(/data-cls?q="[^"]*"/)[0], fs = f && [f.selectionStart, f.selectionEnd];
-    setHtml($('cl'), starting + (cl.map(clRow).join('') || (starting ? '' : '<div class="note">No sessions yet. Press New to start one.</div>')));
+    // Agent files (Settings) is one more row here: it opens the Agent files browser.
+    const afRow = s.settings?.agentFiles === true ? `<button class="row pr cl af-row" data-agentmd title="Browse CLAUDE.md, AGENTS.md, Cursor rules and other agent instruction files"><span class="clmain"><span class="cl-ic"><svg class="agent-icon" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2.5c-1.4 0-2 .6-2 2v1.6c0 .9-.5 1.6-1.5 1.9 1 .3 1.5 1 1.5 1.9v1.6c0 1.4.6 2 2 2M10 2.5c1.4 0 2 .6 2 2v1.6c0 .9.5 1.6 1.5 1.9-1 .3-1.5 1-1.5 1.9v1.6c0 1.4-.6 2-2 2"/></svg></span><span class="label"><span class="cl-name"><b>Agent files</b></span><small>CLAUDE.md, AGENTS.md and rules</small></span></span></button>` : '';
+    setHtml($('cl'), starting + (cl.map(clRow).join('') || (starting || afRow ? '' : '<div class="note">No sessions yet. Press New to start one.</div>')) + afRow);
     clActive = webTab ? act.id : 0;
     if (fq) { const i = $('cl').querySelector(`[${fq}] input`); if (i && i !== f) { i.focus(); i.setSelectionRange(...fs); } }
     // Recent folders for New; scratch folders are Roar's own, not projects.
@@ -622,7 +614,7 @@ document.addEventListener('click', (e) => {
   }
   const mute = e.target.closest('[data-mute]');
   if (mute) { e.stopPropagation(); return ask({ cmd: 'tab.mute', id: +mute.dataset.mute }); }
-  if (e.target.closest('.af-open')) { $('af-group').classList.remove('open'); syncFeeds(); return ask({ cmd: 'run', id: 'agentmd' }); }
+  if (e.target.closest('[data-agentmd]')) return ask({ cmd: 'run', id: 'agentmd' });
   if (e.target.closest('#dl-btn')) return ask({ cmd: 'run', id: 'downloads' });
   const close = e.target.closest('[data-close]');
   if (close) { e.stopPropagation(); return ask({ cmd: 'tab.close', id: +close.dataset.close }); }
@@ -1251,34 +1243,6 @@ $('cdp').onclick = () => {
     .then(() => ask({ cmd: 'space.agents', id: state.activeSpace, on }))
     .then(() => ask({ cmd: 'state' })).then(roar.render);
 };
-// Agent files: the 8 most recently changed, from Roar's cached home-folder walk (agentmd.recent).
-// A row opens that file in the Agent files browser.
-const AF_TOOL = { Claude: 'claude', 'AGENTS/Codex': 'codex', Gemini: 'gemini', Copilot: 'copilot' };
-const AF_SUB = /^(rules|commands|agents|skills|instructions|prompts|chatmodes|steering|memories|windsurf|rules-.*)$/;
-function afProject(path) {
-  const parts = path.split('/').slice(0, -1);
-  if (/^\/Users\/[^/]+$/.test(parts.slice(0, 3).join('/')) && parts.length <= 3) return '~';
-  for (let i = parts.length - 1; i >= 3; i--) if (!parts[i].startsWith('.') && !AF_SUB.test(parts[i].toLowerCase())) return parts[i];
-  return '~';
-}
-const afAgo = (sec) => { const m = Math.round((Date.now() / 1000 - sec) / 60); return m < 1 ? 'just now' : m < 60 ? m + ' min ago' : m < 1440 ? Math.round(m / 60) + ' h ago' : Math.round(m / 1440) + ' d ago'; };
-const AF_FILE = '<svg class="agent-icon" width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 1.8h5.2L12.6 5v9.2H4z"/><path d="M9 1.8V5h3.6"/></svg>';
-async function afLoad() {
-  let files = [];
-  try { const r = await ask({ cmd: 'agentmd.recent' }); files = typeof r === 'string' ? JSON.parse(r) : r; } catch { return setHtml($('af'), '<div class="note">Couldn’t list agent files.</div>'); }
-  files = files.sort((a, b) => b.mtime - a.mtime).slice(0, 8);
-  setHtml($('af'), files.map((f) => {
-    const name = f.path.split('/').pop(), proj = afProject(f.path);
-    return `<button class="row pr af" data-afpath="${esc(f.path)}" title="${esc(f.path.replace(/^\/Users\/[^/]+/, '~'))}" aria-label="${esc(f.kind)} ${esc(name)} in ${esc(proj)}, changed ${afAgo(f.mtime)}">${AF_TOOL[f.kind] ? agentIcon(AF_TOOL[f.kind]) : AF_FILE}<span class="label">${esc(name)}<small>${esc(f.kind)} · ${esc(proj)} · ${afAgo(f.mtime)}</small></span></button>`;
-  }).join('') || '<div class="note">No agent files found in your home folder.</div>');
-}
-$('af').addEventListener('click', (e) => {
-  const b = e.target.closest('[data-afpath]');
-  if (!b) return;
-  e.stopPropagation();
-  $('af-group').classList.remove('open'); syncFeeds();
-  ask({ cmd: 'run', id: 'agentmd:' + b.dataset.afpath });
-});
 // GitHub PRs and Unread mail open as popovers from their footer icons.
 function syncFeeds() {
   const bar = $('bar').getBoundingClientRect();
@@ -1287,22 +1251,7 @@ function syncFeeds() {
     b.setAttribute('aria-expanded', pop.classList.contains('open'));
     pop.style.bottom = (innerHeight - bar.top + 4) + 'px';
   }
-  $('af-btn').setAttribute('aria-expanded', String($('af-group').classList.contains('open')));
 }
-// Agent files: a dropdown under its button in the Agent sessions header.
-$('af-btn').onclick = (e) => {
-  e.stopPropagation();
-  const pop = $('af-group'), open = !pop.classList.contains('open');
-  for (const p of document.querySelectorAll('.feed-pop')) p.classList.remove('open');
-  syncFeeds();
-  pop.classList.toggle('open', open);
-  pop.classList.add('drop');
-  pop.style.top = ($('af-btn').getBoundingClientRect().bottom + 4) + 'px';
-  $('af-btn').setAttribute('aria-expanded', String(open));
-  if (!open) return;
-  afLoad();
-  (pop.querySelector('button, input, [tabindex]') || pop).focus();
-};
 $('bar').addEventListener('click', (e) => {
   const b = e.target.closest('[data-feed]');
   if (!b) return;

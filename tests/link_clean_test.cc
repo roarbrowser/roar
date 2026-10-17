@@ -5,8 +5,8 @@
 #include "link_clean.h"
 
 static int failures = 0;
-static void Check(const std::string& in, const std::string& want) {
-  std::string got = roar::CleanLink(in);
+static void Check(const std::string& in, const std::string& want, const roar::CleanOptions& o = {}) {
+  std::string got = roar::CleanLink(in, o);
   if (got != want) {
     ++failures;
     std::printf("FAIL %s\n  want %s\n  got  %s\n", in.c_str(), want.c_str(), got.c_str());
@@ -34,6 +34,15 @@ int main() {
         "https://example.com/");
   Check("https://eur01.safelinks.protection.outlook.com/?url=https%3A%2F%2Fcontoso.sharepoint.com.mcas.ms%2Fsites%2FX%3FMcasCtx%3D4&data=1",
         "https://contoso.sharepoint.com/sites/X");
+  // Tracking parameters, the user's own, and each kind turned off.
+  Check("https://example.com/a?utm_source=x&id=7&UTM_Campaign=y&fbclid=z#top", "https://example.com/a?id=7#top");
+  Check("https://example.com/?gclid=1", "https://example.com/");
+  Check("https://example.com/a?id=7&ref=nl&src_x=1", "https://example.com/a?id=7", {true, true, true, {"ref", "src_*"}});
+  Check("https://example.com/a?utm_source=x", "https://example.com/a?utm_source=x", {true, true, false, {}});
+  Check("https://contoso.sharepoint.com.mcas.ms/a", "https://contoso.sharepoint.com.mcas.ms/a", {true, false, true, {}});
+  Check("https://nam12.safelinks.protection.outlook.com/?url=https%3A%2F%2Fexample.com%2F&data=1",
+        "https://nam12.safelinks.protection.outlook.com/?url=https%3A%2F%2Fexample.com%2F&data=1", {false, true, true, {}});
+  if (roar::SplitParams(" ref, src_* ,x").size() != 3) ++failures, std::printf("FAIL SplitParams\n");
   // Left alone.
   Check("https://example.com/a?url=https%3A%2F%2Fother.com", "https://example.com/a?url=https%3A%2F%2Fother.com");
   Check("https://mcas.ms/", "https://mcas.ms/");

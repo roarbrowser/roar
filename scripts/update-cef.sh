@@ -22,6 +22,8 @@ echo "Update available: $CURRENT -> $NAME"
 sed -i '' -e "s|^NAME='.*'|NAME='$NAME'|" -e "s|^SHA1='.*'|SHA1='$SHA1'|" "$FETCH"
 if [[ -d "$ROOT/third_party/cef.prebuilt" ]]; then
   "$ROOT/scripts/build-cef-codecs.sh"
+  # A universal build needs both halves on the same CEF, or build.sh lipos mismatched frameworks.
+  [[ -d "$ROOT/third_party/cef-x64" ]] && ROAR_CEF_ARCH=x64 "$ROOT/scripts/build-cef-codecs.sh"
 else
   rm -rf "$ROOT/third_party/cef"
 fi

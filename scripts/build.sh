@@ -6,12 +6,12 @@ BUILD="${ROAR_BUILD_DIR:-$ROOT/build}"
 "$ROOT/scripts/fetch-cef.sh"
 "$ROOT/scripts/fetch-ubol.sh"
 "$ROOT/scripts/fetch-sparkle.sh"
-cmake -S "$ROOT" -B "$BUILD" -G Ninja -DCMAKE_BUILD_TYPE=Release
+cmake -S "$ROOT" -B "$BUILD" -G Ninja -DCMAKE_BUILD_TYPE=Release -DROAR_RELEASE="${ROAR_RELEASE:-OFF}"
 cmake --build "$BUILD" --target roar
 # With an x64 CEF (build-cef-codecs.sh, ROAR_CEF_ARCH=x64) build the Intel half too and
 # lipo every Mach-O pair into the arm64 bundle. ROAR_UNIVERSAL=0 skips it.
 if [[ -d "$ROOT/third_party/cef-x64" && "${ROAR_UNIVERSAL:-1}" == 1 ]]; then
-  cmake -S "$ROOT" -B "$BUILD-x64" -G Ninja -DCMAKE_BUILD_TYPE=Release \
+  cmake -S "$ROOT" -B "$BUILD-x64" -G Ninja -DCMAKE_BUILD_TYPE=Release -DROAR_RELEASE="${ROAR_RELEASE:-OFF}" \
     -DPROJECT_ARCH=x86_64 -DCEF_ROOT="$ROOT/third_party/cef-x64"
   cmake --build "$BUILD-x64" --target roar
   ARM="$BUILD/src/Release/Roar.app" X64="$BUILD-x64/src/Release/Roar.app"

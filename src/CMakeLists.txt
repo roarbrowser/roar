@@ -27,7 +27,11 @@ add_executable(${CEF_TARGET} MACOSX_BUNDLE ${ROAR_SRCS})
 SET_EXECUTABLE_TARGET_PROPERTIES(${CEF_TARGET})
 add_dependencies(${CEF_TARGET} libcef_dll_wrapper)
 # Update Chromium runs scripts/update-cef.sh from this checkout.
-target_compile_definitions(${CEF_TARGET} PRIVATE ROAR_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
+if(ROAR_RELEASE)
+  target_compile_definitions(${CEF_TARGET} PRIVATE ROAR_SOURCE_DIR="")
+else()
+  target_compile_definitions(${CEF_TARGET} PRIVATE ROAR_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
+endif()
 target_link_libraries(${CEF_TARGET} libcef_dll_wrapper ${CEF_STANDARD_LIBS} "-framework Carbon" "-framework Security" "-framework QuartzCore" "-framework UserNotifications" sqlite3
   "-F${CMAKE_SOURCE_DIR}/third_party/Sparkle" "-framework Sparkle" "-Wl,-rpath,@executable_path/../Frameworks")
 target_compile_options(${CEF_TARGET} PRIVATE "-F${CMAKE_SOURCE_DIR}/third_party/Sparkle")

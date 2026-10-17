@@ -3034,7 +3034,8 @@ bool Controller::OnContextMenuCommand(CefRefPtr<CefBrowser> browser, CefRefPtr<C
   // .mcas.ms session loops back through the proxy.
   if (command_id == IDC_CONTENT_CONTEXT_COPYLINKLOCATION && !link.empty() &&
       State::Get().settings.clean_links) {
-    platform::CopyText(CleanLink(link));
+    const auto& set = State::Get().settings;
+    platform::CopyText(CleanLink(link, {set.clean_safelinks, set.clean_mcas, set.clean_tracking, SplitParams(set.clean_params)}));
     return true;
   }
   if (command_id == kMenuMarkdown) {
@@ -3241,6 +3242,7 @@ std::string Controller::StateJson() {
   settings->SetBool("cdpEnabled", state.settings.cdp_enabled);
   settings->SetBool("cdpOn", cdp_on_);
   settings->SetBool("cdpLive", cdp_http_ != nullptr);
+  settings->SetBool("canBuildChromium", sizeof(ROAR_SOURCE_DIR) > 1);  // Only a build from a checkout can rebuild itself.
   settings->SetInt("pageCount", static_cast<int>(state.pages.size()));
   settings->SetInt("cdpPort", platform::CdpPort());
   auto pins = CefListValue::Create();

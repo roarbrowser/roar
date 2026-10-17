@@ -20,7 +20,7 @@ sed -i '' -E "s|(<key>CFBundleShortVersionString</key><string>)[^<]*|\1$VERSION|
 # Public builds use the company Developer ID when it is in the keychain, else ad-hoc:
 # an Apple Development identity embeds the developer's real name.
 DEVID="$(security find-identity -v -p codesigning | awk -F'"' '/Developer ID Application/{print $2; exit}')"
-ROAR_SIGN_IDENTITY="${ROAR_SIGN_IDENTITY:-${DEVID:--}}" bash scripts/build.sh
+ROAR_RELEASE=ON ROAR_SIGN_IDENTITY="${ROAR_SIGN_IDENTITY:-${DEVID:--}}" bash scripts/build.sh
 
 APP="$ROOT/build/src/Release/Roar.app"
 STAGE="$(mktemp -d)"
