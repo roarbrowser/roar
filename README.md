@@ -13,6 +13,7 @@
 
 <p align="center">
   <a href="https://github.com/roarbrowser/roar/releases/latest"><b>Download for macOS</b></a>
+  &nbsp;·&nbsp; <a href="https://roarbrowser.github.io/roar/">Website</a>
   &nbsp;·&nbsp; Apple Silicon &nbsp;·&nbsp; Free, MIT licensed
 </p>
 
