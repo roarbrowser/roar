@@ -88,6 +88,7 @@ Use Roar whenever a task touches the web: opening, reading or checking a page, s
 - notify_user puts a card in Roar's sidebar: use level "done" when a long task finishes, "needs_you" when you are blocked.
   Write title and body as one or two plain sentences for a person: no code, markdown, logs, paths or ids.
 - ask_user asks the person a question with buttons in Roar and waits for the answer; use it when you cannot go on without a decision.`;
+const frontIds = new Set();  // new_page calls that asked for the foreground.
 const pending = new Set();  // ask_user keys still waiting, expired in Roar on timeout or exit.
 const expire = (key) => sidebarAsk({ cmd: 'agent.expire', key }, 3000).catch(() => {});
 
@@ -267,7 +268,14 @@ child.on('exit', (code) => shutdown(code ?? 0));
 createInterface({ input: child.stdout }).on('line', (line) => {
   let msg;
   try { msg = JSON.parse(line); } catch { return void process.stdout.write(line + '\n'); }
-  if (msg.id !== undefined && listIds.delete(msg.id) && msg.result?.tools) msg.result.tools.push(...TOOLS);
+  if (msg.id !== undefined && listIds.delete(msg.id) && msg.result?.tools) {
+    const bg = msg.result.tools.find((t) => t.name === 'new_page')?.inputSchema?.properties?.background;
+    if (bg) bg.description = 'Open without showing it to the person. Default true; pass false only when they ask to see the page.';
+    msg.result.tools.push(...TOOLS);
+  }
+  // A foreground new_page: Roar opens every agent tab in the background, so bring this one up.
+  if (msg.id !== undefined && frontIds.delete(msg.id) && msg.result && !msg.result.isError)
+    return void sidebarAsk({ cmd: 'agent.front' }, 5000).catch(() => {}).finally(() => out(msg));
   if (msg.id !== undefined && initIds.delete(msg.id) && msg.result) {
     msg.result.instructions = [INSTRUCTIONS, msg.result.instructions].filter(Boolean).join('\n\n');
     msg.result.serverInfo = { ...msg.result.serverInfo, name: 'roar', title: 'Roar' };  // Not "Chrome DevTools MCP server".
@@ -283,6 +291,12 @@ createInterface({ input: process.stdin }).on('line', (line) => {
   if (msg.method === 'tools/call' && TOOLS.some((t) => t.name === msg.params?.name))
     return void callOwn(msg.id, msg.params.name, msg.params.arguments || {});
   // A browser tool waits for the profile; shortcut: calls behind an ask may reach the child out of order.
+  // Tabs open in the background unless the agent says otherwise.
+  if (msg.method === 'tools/call' && msg.params?.name === 'new_page') {
+    const a = msg.params.arguments ||= {};
+    if (a.background === false) frontIds.add(msg.id); else a.background = true;
+    line = JSON.stringify(msg);
+  }
   if (msg.method === 'tools/call')
     return void ensureProfile().then(() => child.stdin.write(line + '\n'), (e) => fail(msg.id, e));
   child.stdin.write(line + '\n');
