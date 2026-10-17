@@ -56,5 +56,14 @@
       <description><![CDATA[Agent sessions popover: readable two-line rows, icon actions on hover, one reply box at a time. Fixes a file-save issue where a planted symlink could redirect an Agent files save.]]></description>
       <enclosure url="https://github.com/roarbrowser/roar/releases/download/v0.12.1/Roar-0.12.1.dmg" type="application/octet-stream" sparkle:edSignature="c5zOpp6SBmBomVWr1RmA35gPLV1X1izEY58PrmqxgWlW1hn3HES9hhEN9FkwM2xgX8xN894L9F7BDmWuwivwCQ==" length="234917511"/>
     </item>
+    <item>
+      <title>0.13.0</title>
+      <pubDate>Sat, 17 Oct 2026 01:08:44 +0000</pubDate>
+      <sparkle:version>0.13.0</sparkle:version>
+      <sparkle:shortVersionString>0.13.0</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[Agent sessions: a visible Send tab button, pin sessions into their own sidebar section, start a chat with any installed agent without picking a folder, and start a session with the current page attached.]]></description>
+      <enclosure url="https://github.com/roarbrowser/roar/releases/download/v0.13.0/Roar-0.13.0.dmg" type="application/octet-stream" sparkle:edSignature="w+j0EwoVuoi+ZMhXRxLM1Ziv6fe7K/DGRanGBGAbtl3N7Pln3ie3es9ayW9L9YegZUVJoltpZahq69KRU/ZJAQ==" length="234924426"/>
+    </item>
   </channel>
 </rss>
