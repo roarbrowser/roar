@@ -30,6 +30,7 @@ struct Settings {
   bool claude_alert_done = true, claude_alert_needs = true, claude_alert_system = true;  // Which agent session states post a macOS notification (ClaudeAlert).
   bool agent_files = false;  // Unused since 0.17 (it was off by default); kept so older state.json files load.
   bool agent_files_row = true;
+  bool sidebar_counts = true;  // Count badges on the sidebar footer buttons (agents, GitHub, mail).
   std::string agent_hooks_ignore;  // CLIs (comma-separated) the hooks warning skips: Don't remind me, or disconnected on purpose.
   double agent_hooks_snooze = 0;  // Epoch seconds until the hooks warning may show again.  // The Agent files row in Agent sessions; its { } header button toggles it.
   bool claude_hooks_offered = false;
@@ -78,6 +79,7 @@ inline const std::vector<SettingField>& SettingFields() {
       {"claudeAlertSystem", &Settings::claude_alert_system, true},
       {"agentFiles", &Settings::agent_files, false},
       {"agentFilesRow", &Settings::agent_files_row, true},
+      {"sidebarCounts", &Settings::sidebar_counts, true},
       {"agentHooksIgnore", &Settings::agent_hooks_ignore, true},
       {"agentHooksSnooze", &Settings::agent_hooks_snooze, true},
       {"claudeHooksOffered", &Settings::claude_hooks_offered, false},

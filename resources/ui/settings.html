@@ -71,6 +71,7 @@ pre { margin: 6px 0; font: 12px/1.6 var(--mono); background: var(--ground); bord
           <button data-v="6">6 h</button><button data-v="12">12 h</button><button data-v="24">1 day</button><button data-v="168">1 week</button><button data-v="0">Never</button></div></div>
       <div class="row"><label class="name" for="pin-cols">Pinned tiles per row</label><select id="pin-cols" data-set="pinnedColumns" data-kind="number">
         <option value="0">Fit to width</option><option>2</option><option>3</option><option>4</option><option>5</option><option>6</option><option>7</option><option>8</option></select></div>
+      <div class="row"><label class="name" for="side-counts">Show counts on the footer buttons<small>Agent sessions, GitHub PRs and unread mail</small></label><input type="checkbox" class="switch" id="side-counts" data-set="sidebarCounts"></div>
       <div class="row"><label class="name" for="pin-center">Center a short last row of pinned tiles</label><input type="checkbox" class="switch" id="pin-center" data-set="pinnedCentered"></div>
       <div class="row"><span class="name">Spaces<small>Rename, remove and agent access live in each space's menu in the sidebar.</small></span><span class="end"><span id="spaces"></span><button class="btn" id="space-add">Add space</button></span></div>
     </section>

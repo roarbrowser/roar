@@ -304,7 +304,7 @@ body.drag-active .pinned:empty::before { content: 'Drop to pin'; color: var(--in
 .feed[hidden] { display: none; }
 .feed svg { width: 16px; height: 16px; color: var(--ink-2); }
 .feed .badge { position: absolute; top: 0; right: -2px; min-width: 14px; height: 14px; padding: 0 3px; border-radius: 7px; background: var(--mane, #d9822b); color: #fff; font: 600 9.5px/14px var(--ui); text-align: center; }
-.feed .badge:empty { display: none; }
+.feed .badge:empty, .no-counts .feed .badge { display: none; }
 .feed-pop { display: none; position: fixed; z-index: 15; left: 8px; right: 8px; bottom: 96px; max-height: 60vh; overflow: auto; padding: 4px; border-radius: 10px; background: var(--ground); box-shadow: 0 0 0 1px var(--rule), 0 8px 24px rgba(0,0,0,.35); }
 .feed-pop.open { display: block; }
 .group-head .af-btn { display: grid; place-items: center; padding: 3px 5px; } .group-head .af-btn[hidden] { display: none; } .group-head .af-btn[aria-disabled=true] { opacity: .45; } .group-head .af-btn[aria-pressed=false] { color: var(--ink-3); } .af-btn svg { width: 14px; height: 14px; } .af-btn[aria-expanded="true"] { background: var(--hover); color: var(--ink); }
@@ -563,6 +563,7 @@ window.roar = {
     const f = document.activeElement?.closest?.('#cl .clq') && document.activeElement;
     const fq = f && f.closest('.clq').outerHTML.match(/data-cls?q="[^"]*"/)[0], fs = f && [f.selectionStart, f.selectionEnd];
     // Agent files (Settings) is one more row here: it opens the Agent files browser.
+    document.body.classList.toggle('no-counts', s.settings?.sidebarCounts === false);
     const afOn = s.settings?.agentFilesRow !== false;
     $('af-btn').setAttribute('aria-pressed', String(afOn));
     $('af-btn').title = (afOn ? 'Hide' : 'Show') + ' the Agent files row';
