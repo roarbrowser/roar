@@ -191,5 +191,14 @@
       <description><![CDATA[Done cards from agents clear themselves after 30 seconds. Agent notifications are cleaned up: no code blocks, markdown or long encoded strings. A session's terminal view now scales to fit, so it reads properly side by side.]]></description>
       <enclosure url="https://github.com/roarbrowser/roar/releases/download/v0.20.2/Roar-0.20.2.dmg" type="application/octet-stream" sparkle:edSignature="Fu3J8PqYFRc1SOoWSwtEfpuulQyE/2JPUKgYtaam2bVKOeQnlc0X3HicekduJ2jZ/bVNOIYQhx2FWBXZEf8ACg==" length="234953522"/>
     </item>
+    <item>
+      <title>0.21.0</title>
+      <pubDate>Sat, 17 Oct 2026 03:30:29 +0000</pubDate>
+      <sparkle:version>2100</sparkle:version>
+      <sparkle:shortVersionString>0.21.0</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[Settings > Agents now asks one thing: which AI you use. Press ⌘T and type "ask" to ask it about the page, either its chat site with the page filled in or your terminal agent.]]></description>
+      <enclosure url="https://github.com/roarbrowser/roar/releases/download/v0.21.0/Roar-0.21.0.dmg" type="application/octet-stream" sparkle:edSignature="Rb2NQCG2rijqZJBqZ9m1TbwugksRkizLB0afMZJpnU4VALJ5K35B4QFKQsmbZZaD09JjpocgQvKcv1QriQjPAg==" length="234953453"/>
+    </item>
   </channel>
 </rss>
