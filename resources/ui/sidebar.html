@@ -149,20 +149,42 @@ body.drag-active .pinned:empty::before { content: 'Drop to pin'; color: var(--in
 .cl.needs { animation: clneeds 2s ease-in-out infinite; }
 @keyframes clneeds { 50% { background: var(--mane-soft, rgba(217,130,43,.18)); } }
 @media (prefers-reduced-motion: reduce) { .cl.needs, .cl .dot.working, .cl .dot.starting { animation: none; } .cl.needs { background: var(--mane-soft, rgba(217,130,43,.18)); } }
-.cl .clbtn { color: var(--ink-2); padding: 0 6px; font: 500 11.5px var(--ui); visibility: hidden; } .cl .clbtn[aria-disabled=true] { opacity: .4; cursor: default; } .cl .agent-icon { flex: none; } .cl [data-cldismiss] { color: var(--ink-3); padding: 0 4px; visibility: hidden; }
-.cl:hover .clbtn, .cl:focus-within .clbtn, .cl:hover [data-cldismiss], .cl:focus-within [data-cldismiss] { visibility: visible; }
+/* Two lines per session: name and age, then what it's doing (wraps to two lines, never mid-word
+   on one). Actions float over the right edge on hover, so they never take width from the text. */
+.cl.pr { height: auto; min-height: 44px; padding-block: 7px; align-items: flex-start; }
+.cl .clmain { align-items: flex-start; }
+.cl .label { white-space: normal; overflow: visible; gap: 2px; }
+.cl .cl-name { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+.cl .cl-name b { flex: 1; min-width: 0; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cl .cl-name time { flex: none; color: var(--ink-3); font-size: 10.5px; font-variant-numeric: tabular-nums; }
+.cl .label small { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; white-space: normal; overflow: hidden; line-height: 1.3; overflow-wrap: anywhere; }
+.cl.needs .label small { color: var(--ink-2); }
+.cl-ic { position: relative; flex: none; width: 16px; height: 16px; margin-top: 1px; }
+.cl-ic .agent-icon { display: block; }
+.cl-ic .dot { position: absolute; right: -3px; bottom: -3px; width: 7px; height: 7px; margin: 0; box-shadow: 0 0 0 2px var(--ground); }
+.cl-acts { position: absolute; top: 5px; right: 4px; display: flex; gap: 1px; padding-left: 14px; opacity: 0; pointer-events: none; transition: opacity .12s ease-out;
+  background: linear-gradient(to right, transparent, var(--ground) 14px); }
+.cl:hover .cl-acts, .cl:focus-within .cl-acts { opacity: 1; pointer-events: auto; }
+.cl:hover .cl-name time, .cl:focus-within .cl-name time { visibility: hidden; }
+.cl-acts button { width: 24px; height: 24px; display: grid; place-items: center; border-radius: 6px; color: var(--ink-2); }
+.cl-acts button:hover { background: var(--hover); color: var(--ink); }
+.cl-acts button[aria-disabled=true] { opacity: .35; cursor: default; }
+.cl-acts button[aria-pressed=true] { color: var(--mane, #d9822b); }
+.cl .cl-reply { align-self: flex-start; margin-top: 4px; padding: 2px 8px; border-radius: 999px; font: 600 11px var(--ui); background: var(--mane-soft, rgba(217,130,43,.18)); color: var(--mane, #d9822b); }
 .af { gap: 8px; } .af .agent-icon { flex: none; color: var(--ink-2); }
-.cl .clmain { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; height: 100%; text-align: left; cursor: pointer; }
+.cl .clmain { display: flex; align-items: flex-start; gap: 8px; flex: 1; min-width: 0; height: 100%; text-align: left; cursor: pointer; }
 .cl { cursor: pointer; }
 .cl.starting { cursor: default; opacity: .8; }
 /* A session that needs you: one reply line under its row (the full view has everything else). */
-.clq { display: flex; gap: 4px; margin: 2px 0 8px 22px; }
+.clq { position: relative; margin: 0 4px 8px 30px; }
 .gh-q { display: flex; gap: 4px; padding: 0 10px 8px; }
 .gh-q input { flex: 1; min-width: 0; font: 11.5px var(--mono); padding: 4px 7px; border-radius: 6px; border: 1px solid var(--rule); background: var(--ground); color: var(--ink); }
 .gh-q button { color: var(--ink-2); padding: 0 6px; font-size: 11.5px; }
-.clq input { flex: 1; min-width: 0; padding: 5px 8px; border: 0; border-radius: 6px; background: var(--ground); color: var(--ink); font: 12px var(--ui); box-shadow: inset 0 0 0 1px var(--rule); }
-.clq button { padding: 0 9px; border-radius: 6px; font: 600 11.5px var(--ui); background: var(--hover); color: var(--ink-2); }
-.clq .send { background: var(--mane, #d9822b); color: #2a1604; }
+.clq input { width: 100%; box-sizing: border-box; padding: 7px 60px 7px 9px; border: 0; border-radius: 6px; background: var(--ground); color: var(--ink); font: 12px var(--ui); box-shadow: inset 0 0 0 1px var(--rule); }
+.clq .clq-acts { position: absolute; top: 3px; right: 3px; bottom: 3px; display: flex; gap: 2px; }
+.clq button { width: 26px; display: grid; place-items: center; border-radius: 5px; color: var(--ink-2); }
+.clq button:hover { background: var(--hover); color: var(--ink); }
+.clq .send { background: var(--mane, #d9822b); color: #2a1604; } .clq .send:hover { background: var(--mane, #d9822b); color: #2a1604; filter: brightness(1.08); }
 .clq button:disabled, .clq button[aria-disabled=true] { opacity: .5; cursor: default; }
 .cln { display: grid; gap: 5px; margin: 0 0 8px; padding: 8px; border-radius: 8px; background: var(--hover); font-size: 12px; }
 .cln select, .cln textarea { width: 100%; box-sizing: border-box; padding: 5px 8px; border: 0; border-radius: 6px; background: var(--ground); color: var(--ink); font: 12px var(--ui); box-shadow: inset 0 0 0 1px var(--rule); }
@@ -458,11 +480,29 @@ window.roar = {
     const clAgo = (ms) => { const m = Math.round((Date.now() - ms) / 60000); return m < 1 ? 'now' : m < 60 ? m + ' min' : Math.round(m / 60) + ' h'; };
     const clStates = { needs_you: 'Needs you', working: 'Working', idle: 'Idle', starting: 'Starting' };
     const act = s.tabs.find((t) => t.active), webTab = act && /^https?:/.test(act.url || '');
+    const ico = {
+      attach: '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 7.5l-5.3 5.3a3.2 3.2 0 01-4.5-4.5l5.6-5.6a2.1 2.1 0 013 3L6.3 11.2a1 1 0 01-1.5-1.5L10 4.6"/></svg>',
+      term: '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="1.8" y="2.8" width="12.4" height="10.4" rx="2"/><path d="M4.6 6.4l2 1.6-2 1.6M8.6 9.8h2.8"/></svg>',
+      reply: '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 4.2a1.6 1.6 0 011.6-1.6h7.8a1.6 1.6 0 011.6 1.6v5a1.6 1.6 0 01-1.6 1.6H7l-3 2.6v-2.6h0a1.6 1.6 0 01-1.5-1.6z"/></svg>',
+      hide: '<svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8"/></svg>',
+      send: '<svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 13V3.5M4 7.2L8 3.2l4 4"/></svg>',
+    };
+    // "Claude is waiting for your input" → "Waiting for your input": the icon already names the tool.
+    const tidy = (t) => (t || '').replace(/^(Claude|Codex|Gemini|Qwen|Copilot)( Code| CLI)? (is|has|needs) /i, (m, a, b, v) => v.toLowerCase() === 'is' ? '' : v + ' ').replace(/^./, (x) => x.toUpperCase());
+    const attachAttrs = webTab ? `title="Attach the tab you're looking at to its prompt"` : 'aria-disabled="true" title="Switch to a web page first: only web pages can be attached"';
     const clRow = (c) => {
       const st = needs(c) ? 'needs_you' : c.state === 'needs_you' ? 'working' : (c.state || 'idle');
-      const sub = c.doing || (c.prompt || '').split('\n')[0];
-      return `<div class="row pr cl${needs(c) ? ' needs' : ''}${c.state === 'starting' ? ' starting' : ''}${clFull[c.id]?.active ? ' active' : ''}" data-clid="${esc(c.id)}" data-cltab="${clFull[c.id]?.id || ''}" title="${esc(c.prompt || c.cwd || '')}"><button class="clmain" aria-label="${esc(agentName(c))}: ${esc(c.project)}, ${clStates[st] || st}${sub ? ': ' + esc(sub) : ''}. Open"><span class="dot ${esc(st)}" aria-hidden="true"></span>${agentIcon(c)}<span class="label">${esc(c.project)}<small><span class="vh">${clStates[st] || st}: </span>${esc(sub)} · ${clAgo(c.updated)}</small></span></button>${c.live && !needs(c) ? `<button class="clbtn" data-clsend="${esc(c.id)}" aria-label="Attach this tab to ${esc(c.project)}'s prompt" ${webTab ? `title="Attach the tab you're looking at to the prompt"` : 'aria-disabled="true" title="Switch to a web page first: only web pages can be attached"'}>+</button>` : ''}${c.live ? `<button class="clbtn" data-clfocus="${esc(c.id)}" title="Bring its terminal window to the front">Terminal</button>` : ''}<button data-cldismiss="${esc(c.id)}" title="Hide this session" aria-label="Hide ${esc(c.project)}">×</button></div>` +
-        (needs(c) && c.live ? `<form class="clq" data-clq="${esc(c.id)}"><input placeholder="Reply…" title="Empty Enter accepts the highlighted choice" autocomplete="off" spellcheck="false" aria-label="Reply to ${esc(c.project)}" value="${esc(clDraft[c.id] || '')}"><button type="button" data-tab ${webTab ? `title="Attach the tab you're looking at to the prompt"` : 'aria-disabled="true" title="Switch to a web page first: only web pages can be attached"'}>+ This tab</button><button class="send">Send</button></form>` : '');
+      const sub = tidy(c.doing || (c.prompt || '').split('\n')[0]);
+      const open = clReplyOpen === c.id && needs(c) && c.live;
+      return `<div class="row pr cl${needs(c) ? ' needs' : ''}${c.state === 'starting' ? ' starting' : ''}${clFull[c.id]?.active ? ' active' : ''}" data-clid="${esc(c.id)}" data-cltab="${clFull[c.id]?.id || ''}" title="${esc(c.prompt || c.cwd || '')}">` +
+        `<button class="clmain" aria-label="${esc(agentName(c))}: ${esc(c.project)}, ${clStates[st] || st}${sub ? ': ' + esc(sub) : ''}. Open"><span class="cl-ic">${agentIcon(c, 16)}<span class="dot ${esc(st)}" aria-hidden="true"></span></span>` +
+        `<span class="label"><span class="cl-name"><b>${esc(c.project)}</b><time>${clAgo(c.updated)}</time></span><small><span class="vh">${clStates[st] || st}: </span>${esc(sub)}</small>` +
+        (needs(c) && c.live && !open ? `<span class="cl-reply" data-clreply="${esc(c.id)}" role="button" tabindex="-1">Reply</span>` : '') + `</span></button>` +
+        `<span class="cl-acts">${needs(c) && c.live ? `<button data-clreply="${esc(c.id)}" aria-pressed="${open}" aria-label="Reply to ${esc(c.project)}" title="Reply here">${ico.reply}</button>` : ''}` +
+        `${c.live ? `<button data-clsend="${esc(c.id)}" aria-label="Attach this tab to ${esc(c.project)}'s prompt" ${attachAttrs}>${ico.attach}</button>` : ''}` +
+        `${c.live ? `<button data-clfocus="${esc(c.id)}" aria-label="Show ${esc(c.project)}'s terminal" title="Bring its terminal window to the front">${ico.term}</button>` : ''}` +
+        `<button data-cldismiss="${esc(c.id)}" title="Hide this session" aria-label="Hide ${esc(c.project)}">${ico.hide}</button></span></div>` +
+        (open ? `<form class="clq" data-clq="${esc(c.id)}"><input placeholder="Reply to ${esc(c.project)}…" title="Empty Enter accepts the highlighted choice" autocomplete="off" spellcheck="false" aria-label="Reply to ${esc(c.project)}" value="${esc(clDraft[c.id] || '')}"><span class="clq-acts"><button type="button" data-tab aria-label="Attach this tab" ${attachAttrs}>${ico.attach}</button><button class="send" aria-label="Send">${ico.send}</button></span></form>` : '');
     };
     // A session started here shows at once, until its hook (or claude-ctl's stand-in) reports.
     if (clWant && (Date.now() - clWant.since > 60000 || cl.some((c) => c.cwd === clWant.dir && c.started >= clWant.since))) clWant = null;
@@ -899,12 +939,13 @@ $('cl').addEventListener('submit', async (e) => {
   if (why) return;  // claude.ctl already showed the reason in the hint.
   input.value = '';
   delete clDraft[id];
+  clReplyOpen = null;
   ask({ cmd: 'state' }).then(roar.render);
 });
 $('cl').addEventListener('keydown', (e) => { if (e.target.closest('[data-clq]') && e.key !== 'Escape') e.stopPropagation(); });  // Typing isn't a sidebar shortcut.
 // New session: a folder (recent ones, or a chooser) and an optional first prompt. Once its hook
 // reports in, it opens under its row.
-let clWant = null, clDirs = [], clFullTabs = {};
+let clWant = null, clDirs = [], clFullTabs = {}, clReplyOpen = null;
 const clNew = document.createElement('form');
 clNew.className = 'cln';
 clNew.innerHTML = `<div class="dir"><select aria-label="Folder"></select><button type="button" class="pick">Choose a folder…</button></div><textarea placeholder="First prompt (optional)" aria-label="First prompt"></textarea>
@@ -952,6 +993,12 @@ document.addEventListener('click', (e) => {
   ask({ cmd: 'tab.unsplit' });
 }, true);
 document.addEventListener('click', (e) => {
+  const rp = e.target.closest('[data-clreply]');
+  if (rp) {
+    e.stopPropagation();
+    clReplyOpen = clReplyOpen === rp.dataset.clreply ? null : rp.dataset.clreply;
+    return ask({ cmd: 'state' }).then(roar.render).then(() => $('cl').querySelector(`[data-clq="${CSS.escape(clReplyOpen || '')}"] input`)?.focus());
+  }
   const x = e.target.closest('[data-cldismiss]');
   if (x) { e.stopPropagation(); return ask({ cmd: 'claude.dismiss', id: x.dataset.cldismiss }); }
   const t = e.target.closest('[data-clsend]');
