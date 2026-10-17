@@ -336,7 +336,7 @@ body.drag-active .pinned:empty::before { content: 'Drop to pin'; color: var(--in
   </section>
   <div id="groups"></div>
   <section id="tabs-group">
-    <div class="group-head"><span>Tabs</span><span class="count" id="tab-count"></span></div>
+    <div class="group-head"><span>Tabs</span><span class="count" id="tab-count"></span><span class="spacer"></span><button id="ask-llm" class="af-btn" aria-label="Ask your AI about this page" hidden><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 4.5a2 2 0 012-2h7a2 2 0 012 2v5a2 2 0 01-2 2H7l-3 2.5v-2.5h0a2 2 0 01-1.5-2z"/></svg></button></div>
     <div class="rows" id="tabs"></div>
   </section>
   <section id="cl-group" aria-label="Agent sessions" hidden>
@@ -462,6 +462,11 @@ window.roar = {
       `<button class="pin${t.active ? ' active' : ''}" data-id="${t.id}" draggable="true" title="${esc(t.title)}" aria-label="${esc(t.title)}">${pinIcon(t)}${sndButton(t, '')}</button>`).join(''));
     setHtml($('tabs'), open.map((t) => tabRow(t, limit)).join(''));
     $('tab-count').textContent = open.length || '';
+    // The AI chosen in Settings (askLlms; older saves listed several, the first wins), as the command bar's "Ask … about this page".
+    const llm = (s.settings?.askLlms || '').split(',')[0], askAct = s.tabs.find((t) => t.active);
+    $('ask-llm').hidden = !llm;
+    $('ask-llm').dataset.llm = llm;
+    $('ask-llm').setAttribute('aria-disabled', String(!/^https?:/.test(askAct?.url || '')));
     $('back').disabled = !s.nav.canBack;
     $('forward').disabled = !s.nav.canForward;
     const url = s.nav.url || '';
@@ -1088,6 +1093,9 @@ clForm.onsubmit = async (e) => {
   ask({ cmd: 'state' }).then(roar.render);
 };
 // Header Send tab: straight to the only live session, else a short list to pick from.
+$('ask-llm').onclick = () => {
+  if ($('ask-llm').getAttribute('aria-disabled') !== 'true') ask({ cmd: 'run', id: 'askLlm:' + $('ask-llm').dataset.llm });
+};
 $('cl-sendtab').onclick = (e) => {
   e.stopPropagation();
   if ($('cl-sendtab').getAttribute('aria-disabled') === 'true') return;
