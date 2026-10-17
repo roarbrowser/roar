@@ -93,7 +93,7 @@ pre { margin: 6px 0; font: 12px/1.6 var(--mono); background: var(--ground); bord
 
 
     <section id="agents"><h2>Agents</h2>
-      <div class="row"><span class="name" id="llm-label">Your AI<small>One pick for both: “Ask about this page” (⌘T, or the button by Tabs) opens its chat site with the page filled in, and if it has a terminal CLI (Claude Code, Codex, Gemini CLI, Copilot CLI) Roar connects that one to Agent sessions. Click it again to unpick it and disconnect.</small></span><span class="end" id="llms" role="group" aria-labelledby="llm-label"></span></div>
+      <div class="row"><span class="name" id="llm-label">Your AI<small>One pick for everything: “Ask about this page” (⌘T, or the button by Tabs) opens its chat site with the page filled in, and if it has a terminal CLI (Claude Code, Codex, Gemini CLI, Copilot CLI) Roar connects that one to Agent sessions and lets it browse with Roar. Click it again to unpick it and disconnect.</small></span><span class="end" id="llms" role="group" aria-labelledby="llm-label"></span></div>
       <div id="agent-tools"></div>
       <div class="module" data-module="claude">
         <div class="row head"><label class="name" for="claude-on"><span data-icon="claude"></span>Agent sessions<small>Your Claude Code, Codex, Gemini, Qwen and Copilot CLI sessions, what they're doing and whether they need you; never the conversation.</small></label><input type="checkbox" class="switch" id="claude-on"></div>
@@ -115,7 +115,7 @@ pre { margin: 6px 0; font: 12px/1.6 var(--mono); background: var(--ground); bord
           <div class="row"><span class="name">Spaces agents can see<small>Agents only see and open tabs in the spaces turned on here, each with that space's logins. Ghost tabs are never shared.</small></span></div>
           <div id="agent-spaces"></div>
         </fieldset>
-        <div class="row"><span class="name" title="Running open models with Ollama, llama.cpp or LM Studio? Connect an app that drives them, such as Goose, opencode, Continue, Cline, Jan or Open WebUI.">Agent apps<small>Connect adds Roar to the app's MCP config and keeps a .bak of the original.</small></span></div>
+        <div class="row"><span class="name" title="Running open models with Ollama, llama.cpp or LM Studio? Connect an app that drives them, such as Goose, opencode, Continue, Cline, Jan or Open WebUI.">Other agent apps<small>Your AI above is already connected. Click an app here to add Roar to its MCP config (a .bak of the original is kept), or copy a config for one not on this Mac.</small></span></div>
         <div class="row" id="agent-clients"><span class="empty">Looking for agent apps…</span></div>
       </div>
     </section>
@@ -236,6 +236,9 @@ const LLMS = [['chatgpt', 'ChatGPT'], ['claude', 'Claude'], ['gemini', 'Gemini']
   ['mistral', 'Le Chat'], ['deepseek', 'DeepSeek'], ['copilot', 'Copilot'], ['kimi', 'Kimi']];
 // The terminal CLI each chat AI comes with (AGENT_TOOLS ids).
 const LLM_CLI = { claude: 'claude', chatgpt: 'codex', gemini: 'gemini', copilot: 'copilot' };
+// The same CLI's id in agents.list (agent_connect.cc), so picking it also lets it browse with Roar.
+const CLI_MCP = { claude: 'claude-code', codex: 'codex', gemini: 'gemini', copilot: 'copilot-cli' };
+const pickedMcp = () => CLI_MCP[LLM_CLI[(last?.settings?.askLlms || '').split(',')[0]]];
 $('llms').onclick = (e) => {
   const b = e.target.closest('[data-llm]');
   if (!b) return;
@@ -243,6 +246,9 @@ $('llms').onclick = (e) => {
   const id = b.ariaPressed === 'true' ? '' : b.dataset.llm, cli = LLM_CLI[id], tools = last?.claude?.tools || {};
   for (const x of $('llms').children) x.ariaPressed = String(!!id && x === b);
   set({ askLlms: id });
+  const mcp = agentClients.find((c) => c.id === CLI_MCP[cli]);
+  if (mcp?.detected && mcp.file && !mcp.error && !mcp.connected) ask({ cmd: 'agents.connect', id: mcp.id }).then(loadAgents);
+  else setTimeout(() => renderAgents(agentClients), 100);
   // One AI, one agent: connect its CLI (if set up here), disconnect every other (and stop warning about them).
   const conn = cli && !['absent', 'error'].includes(tools[cli] || 'absent') ? cli : '';
   const others = Object.keys(AGENT_TOOLS).filter((t) => t !== conn && tools[t] === 'installed');
@@ -292,17 +298,16 @@ function renderAgents(list) {
   agentClients = list || [];
   const box = $('agent-clients');
   const had = box.contains(document.activeElement) && document.activeElement.dataset.key;
-  const here = agentClients.filter((c) => c.detected).sort((a, b) => b.connected - a.connected);
-  const away = agentClients.filter((c) => !c.detected);
-  const row = (c) => `<span class="agent-row"><span>${esc(c.name)}</span>${
-    c.error ? `<span class="status err" title="${esc(c.error)}">Can't read its config</span>`
-    : agentErrors[c.id] ? `<span class="status err" title="${esc(agentErrors[c.id])}">Couldn't connect</span>`
-    : c.connected ? '<span class="on" aria-label="connected">✓</span>' : ''}${
-    c.file && !c.error ? (c.connected ? '' : `<button class="btn" data-key="c-${esc(c.id)}" data-connect="${esc(c.id)}">Connect</button>`)
-    : `<button class="chip" data-key="p-${esc(c.id)}" data-copy="${esc(c.id)}" title="${esc(c.snippet)}">Copy config</button>`}</span>`;
-  box.innerHTML = here.map(row).join('') + (away.length ? `<span class="agent-row"><small class="status">Not found here; click to copy a config:</small></span>` +
-    away.map((c) => `<button class="chip" data-key="p-${esc(c.id)}" data-copy="${esc(c.id)}" title="${esc(c.snippet)}">${esc(c.name)}</button>`).join('') : '') ||
-    '<span class="empty">No agent apps found.</span>';
+  // Your AI's own CLI is connected by the pick above, so it isn't offered again here.
+  const rest = agentClients.filter((c) => c.id !== pickedMcp());
+  const here = rest.filter((c) => c.detected).sort((a, b) => b.connected - a.connected);
+  const away = rest.filter((c) => !c.detected);
+  const chip = (c) => c.error ? `<span class="chip status err" title="${esc(c.error)}">${esc(c.name)}: can't read its config</span>`
+    : !c.file ? `<button class="chip" data-key="p-${esc(c.id)}" data-copy="${esc(c.id)}" title="${esc(c.snippet)}">${esc(c.name)}</button>`
+    : c.connected ? `<span class="chip" aria-label="${esc(c.name)} connected">${esc(c.name)} <span class="on">✓</span></span>`
+    : `<button class="chip" data-key="c-${esc(c.id)}" data-connect="${esc(c.id)}" title="${esc(agentErrors[c.id] ? 'Couldn’t connect: ' + agentErrors[c.id] : 'Connect')}">${esc(c.name)}${agentErrors[c.id] ? ' ⚠' : ''}</button>`;
+  box.innerHTML = here.map(chip).join('') + (away.length ? `<span class="agent-row"><small class="status">Not on this Mac; click to copy a config:</small></span>` +
+    away.map(chip).join('') : '') || '<span class="empty">No other agent apps.</span>';
   if (had) (box.querySelector(`[data-key="${CSS.escape(had)}"]`) || box.querySelector('button') || $('cdp-on')).focus();
 }
 const loadAgents = () => ask({ cmd: 'agents.list' }).then(renderAgents);
