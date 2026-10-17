@@ -353,5 +353,14 @@
       <description><![CDATA[Agent question cards have Reply: type an answer (a code, a name) instead of picking a button.]]></description>
       <enclosure url="https://github.com/roarbrowser/roar/releases/download/v0.26.1/Roar-0.26.1.dmg" type="application/octet-stream" sparkle:edSignature="tB45MzAuim2qkeVRMm+Iz6uBFlG2GYcwGAKRNW2BX33Qfwz5OFGXQO5DOQAWWP1hd1HdnWVI9oY5Rf0+l34nAQ==" length="203775355"/>
     </item>
+    <item>
+      <title>0.26.2</title>
+      <pubDate>Sat, 17 Oct 2026 18:00:00 +0000</pubDate>
+      <sparkle:version>2602</sparkle:version>
+      <sparkle:shortVersionString>0.26.2</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[An agent session's color can tint its window or just its terminal (Window / Terminal next to the color dots).]]></description>
+      <enclosure url="https://github.com/roarbrowser/roar/releases/download/v0.26.2/Roar-0.26.2.dmg" type="application/octet-stream" sparkle:edSignature="RU4FSyLAC5sOcM8zS8bum07s+mAwN6sWLRlVUxmQyezH52fGex4TD28aoE7F11BQyo4yZvrMI36ELPlVCl4BAg==" length="203768068"/>
+    </item>
   </channel>
 </rss>
