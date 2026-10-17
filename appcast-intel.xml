@@ -82,5 +82,14 @@
       <description><![CDATA[An agent session's color can tint its window or just its terminal (Window / Terminal next to the color dots).]]></description>
       <enclosure url="https://github.com/roarbrowser/roar/releases/download/v0.26.2/Roar-0.26.2-intel.dmg" type="application/octet-stream" sparkle:edSignature="9rOOFL0HlIJoXGW36MSkXfShRU7DmcCKsqOTb0Nult+w1MKPkLGIhXZy6bk7yTm6UkszZkv8I8Xw1xMbcxrxDg==" length="224827073"/>
     </item>
+    <item>
+      <title>0.27.0</title>
+      <pubDate>Sat, 17 Oct 2026 18:15:51 +0000</pubDate>
+      <sparkle:version>2700</sparkle:version>
+      <sparkle:shortVersionString>0.27.0</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[Agents open tabs in the background unless you ask to see them. Settings > Advanced can show onboarding again. Shorter tips.]]></description>
+      <enclosure url="https://github.com/roarbrowser/roar/releases/download/v0.27.0/Roar-0.27.0-intel.dmg" type="application/octet-stream" sparkle:edSignature="w1lboswfacBs+cr4kvjDrhzcpo+vqVuNbq5Yo8cEoMwX8YnjumPBWymwUW5rJphzegNBU72wVj+lEZXd9u3OBw==" length="224826801"/>
+    </item>
   </channel>
 </rss>
