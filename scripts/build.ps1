@@ -4,6 +4,8 @@
 # Needs: bun (https://bun.sh) for roar-mcp, and SQLite3 for CMake (e.g. vcpkg; pass
 # -DCMAKE_TOOLCHAIN_FILE=<vcpkg>\scripts\buildsystems\vcpkg.cmake via $env:ROAR_CMAKE_ARGS).
 $ErrorActionPreference = 'Stop'
+# Windows PowerShell's progress bar slows Invoke-WebRequest on big files to a crawl (a 50-minute hang in CI).
+$ProgressPreference = 'SilentlyContinue'
 $Root = if ($env:ROAR_ROOT) { $env:ROAR_ROOT } else { Split-Path -Parent $PSScriptRoot }
 $Build = if ($env:ROAR_BUILD_DIR) { $env:ROAR_BUILD_DIR } else { Join-Path $Root 'build' }
 function Run { & $args[0] $args[1..($args.Count - 1)]; if ($LASTEXITCODE) { throw "$($args -join ' ') failed ($LASTEXITCODE)" } }
