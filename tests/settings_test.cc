@@ -10,7 +10,7 @@ int main() {
   const std::set<std::string> want = {"archiveAfterHours", "onboarded", "searchUrl", "githubQuery", "githubFolder",
       "gmailFolder", "indexPages", "sidebarWidth", "pinnedColumns", "pinnedCentered", "cleanLinks", "askDefault",
       "claudeSidebar", "claudeAlertDone", "claudeAlertNeeds", "claudeAlertSystem", "agentFiles",
-      "claudeHooksOffered", "cdpOpen", "agentHeadless", "searchMigrated", "askLlms"};
+      "claudeHooksOffered", "cdpOpen", "agentHeadless", "searchMigrated", "askLlms", "agentTool", "agentPins"};
   std::set<std::string> got;
   int failures = 0;
   for (const auto& f : roar::SettingFields())

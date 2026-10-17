@@ -5,7 +5,9 @@
 //   roar-mcp claude-hook                       = agent-hook claude (hooks installed before 0.12 call it)
 //   roar-mcp agent-hooks install|uninstall|status [tool]   adds/removes the hooks in each CLI's config
 //   roar-mcp claude-hooks install|uninstall|status         the same for Claude Code only
-//   roar-mcp claude-ctl new <folder> [first prompt]   starts `claude` there (cmux, else tmux, else Terminal)
+//   roar-mcp claude-ctl new <folder> [first prompt] [tool]   starts that CLI (default claude) there
+//                                              (cmux, else tmux, else Terminal)
+//   roar-mcp claude-ctl tools                  prints the installed CLIs' ids, one per line
 //   roar-mcp claude-ctl focus|screen|send <session> [text|key:<name>]
 //                                              brings the session's terminal forward, prints its screen,
 //                                              or types into it (tmux and cmux only)
@@ -210,7 +212,7 @@ function hooks(cmd, action, exe, only) {
 // names a program or reaches a shell or AppleScript unchecked: binaries come from fixed paths,
 // and every other field must match a strict pattern.
 const TMUX = ['/opt/homebrew/bin/tmux', '/usr/local/bin/tmux', '/usr/bin/tmux'].find((p) => existsSync(p));
-const CMUX = '/Applications/cmux.app/Contents/Resources/bin/cmux';
+const CMUX = process.env.ROAR_NO_CMUX ? '' : '/Applications/cmux.app/Contents/Resources/bin/cmux';  // ROAR_NO_CMUX: tests stay out of a real cmux.
 const ok = (v, re) => typeof v === 'string' && re.test(v);
 const run1 = (bin, args, timeout = 5000) => execFileSync(bin, args, { encoding: 'utf8', timeout });
 // 60 s: the first AppleScript call waits on macOS's Automation prompt until the person answers.
@@ -220,24 +222,36 @@ const WEZTERM = '/Applications/WezTerm.app/Contents/MacOS/wezterm', KITTEN = '/A
 const KEYS = { enter: ['Enter', 'enter'], escape: ['Escape', 'escape'], up: ['Up', 'up'], down: ['Down', 'down'], tab: ['Tab', 'tab'], 'ctrl-c': ['C-c', 'ctrl+c'] };
 
 const sq = (v) => `'${String(v).replace(/'/g, `'\\''`)}'`;  // One shell word.
-const CLAUDE = [join(HOME, '.local/bin/claude'), join(HOME, '.claude/local/claude'), '/opt/homebrew/bin/claude', '/usr/local/bin/claude'].find((p) => existsSync(p));
+// Each CLI's binary: PATH, then the usual bin folders and Claude Code's own install spot (a GUI
+// app's PATH is short). Never a path from a session file. args: how it takes a first prompt.
+const BIN_DIRS = [...(process.env.PATH || '').split(':').filter((d) => d.startsWith('/')), join(HOME, '.local/bin'), '/opt/homebrew/bin', '/usr/local/bin', join(HOME, '.npm-global/bin'), join(HOME, '.bun/bin')];
+const CLIS = {
+  claude: { bin: [join(HOME, '.claude/local/claude')], args: (p) => ['--', p] },  // `--`: a prompt starting with - is no flag.
+  codex: { args: (p) => ['--', p] },
+  gemini: { args: (p) => ['-i', p] },
+  qwen: { args: (p) => ['-i', p] },
+  copilot: { args: (p) => ['-i', p] },
+};
+const binOf = (tool) => [...BIN_DIRS.map((d) => join(d, tool)), ...(CLIS[tool].bin || [])].find((p) => existsSync(p));
+const installed = () => Object.keys(CLIS).filter(binOf);
 
-// A new Claude Code session in `dir`, in the background: the hooks report it once it starts.
-function start(dir, prompt) {
+// A new agent session in `dir`, in the background: the hooks report it once it starts.
+function start(dir, prompt, tool = 'claude') {
   if (!ok(dir, /^\/[^\0\n]*$/) || !existsSync(dir)) throw new Error('pick a folder that exists');
-  if (!CLAUDE) throw new Error('Claude Code is not installed (no claude command found)');
-  // `--` ends claude's options, so a prompt starting with - is never read as a flag.
-  const cmd = [CLAUDE, ...(prompt ? ['--', prompt.slice(0, 2000)] : [])].map(sq).join(' ');
-  const name = basename(dir) || 'claude';
-  // Until Claude's own hook runs (after it asks whether to trust the folder), a stand-in entry
+  if (!CLIS[tool]) throw new Error('unknown agent CLI');
+  const bin = binOf(tool);
+  if (!bin) throw new Error(`${TOOLS[tool].name} is not installed (no ${tool} command found)`);
+  const cmd = [bin, ...(prompt ? CLIS[tool].args(prompt.slice(0, 2000)) : [])].map(sq).join(' ');
+  const name = basename(dir) || tool;
+  // Until the CLI's own hook runs (Claude's after it asks whether to trust the folder), a stand-in entry
   // lets Roar show the new terminal; the first real event for this folder replaces it.
-  const now = Date.now(), stub = { id: `new-${now}`, cwd: dir, project: name, state: 'starting', doing: `Starting in ${name}…`, started: now, updated: now, live: true, term: {} };
+  const now = Date.now(), stub = { id: `new-${now}`, tool, cwd: dir, project: name, state: 'starting', doing: `Starting in ${name}…`, started: now, updated: now, live: true, term: {} };
   if (existsSync(CMUX)) {
     const out = run1(CMUX, ['new-workspace', '--name', name, '--cwd', dir, '--command', cmd, '--focus', 'false']);
     const ws = /workspace:\d+/.exec(out)?.[0];
     if (ws) stub.term.cmux = { workspace: ws, surface: '' };
   } else if (TMUX) {
-    const pane = run1(TMUX, ['new-session', '-d', '-P', '-F', '#{pane_id} #{socket_path}', '-s', `claude-${name.replace(/[^\w-]/g, '-')}-${now % 100000}`, '-c', dir, cmd]).trim().split(' ');
+    const pane = run1(TMUX, ['new-session', '-d', '-P', '-F', '#{pane_id} #{socket_path}', '-s', `${tool}-${name.replace(/[^\w-]/g, '-')}-${now % 100000}`, '-c', dir, cmd]).trim().split(' ');
     stub.term.tmux = { pane: pane[0], socket: pane[1] };
   } else {
     osa(`tell application "Terminal" to do script ${JSON.stringify(`cd ${sq(dir)} && ${cmd}`)}`);
@@ -249,8 +263,9 @@ function start(dir, prompt) {
   return stub.id;
 }
 
-function ctl(action, id, arg) {
-  if (action === 'new') return start(id, arg);
+function ctl(action, id, arg, arg2) {
+  if (action === 'new') return start(id, arg, arg2 || 'claude');
+  if (action === 'tools') return installed().join('\n');
   if (!/^[\w-]+$/.test(id || '')) throw new Error('bad session id');
   const s = JSON.parse(readFileSync(join(DIR, id + '.json'), 'utf8')), t = s.term || {};
   const tm = TMUX && ok(t.tmux?.socket, /^\/[\w./-]+$/) && ok(t.tmux?.pane, /^%\d+$/) && { ...t.tmux, bin: TMUX };
@@ -342,7 +357,7 @@ function focus(s, f) {
 
 export function run(args, exe) {
   if (args[0] === 'claude-ctl') {
-    try { process.stdout.write(String(ctl(args[1], args[2], args[3]) ?? '')); }
+    try { process.stdout.write(String(ctl(args[1], args[2], args[3], args[4]) ?? '')); }
     catch (e) { process.stdout.write('error: ' + (e.stderr?.toString().trim() || e.message)); process.exitCode = 1; }
     return;
   }

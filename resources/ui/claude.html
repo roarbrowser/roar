@@ -24,23 +24,31 @@ form button:not(.btn) { background: var(--mane); color: #2a1604; font-weight: 60
 </style>
 </head>
 <body>
-<header><span class="dot" id="dot" aria-hidden="true"></span><span id="icon"></span><h1 id="name">Agent session</h1><span class="state" id="state" role="status"></span><button class="btn" id="focus" title="Bring its terminal window to the front">Terminal</button></header>
+<header><span class="dot" id="dot" aria-hidden="true"></span><span id="icon"></span><h1 id="name">Agent session</h1><span class="state" id="state" role="status"></span><button class="btn" id="attach">Send tab</button><button class="btn" id="focus" title="Bring its terminal window to the front">Terminal</button></header>
 <pre id="screen" aria-live="off"></pre>
-<form id="reply"><input id="text" placeholder="Reply… (empty Enter accepts)" autocomplete="off" spellcheck="false" aria-label="Reply"><button type="button" class="btn" id="attach">+ This tab</button><button>Send</button></form>
+<form id="reply"><input id="text" placeholder="Reply… (empty Enter accepts)" autocomplete="off" spellcheck="false" aria-label="Reply"><button>Send</button></form>
 <p class="status" id="attach-why" hidden></p>
 <div class="keys" role="group" aria-label="Keys"></div>
 <script src="bridge.js"></script>
 <script src="cl-session.js"></script>
 <script>
 const $ = (id) => document.getElementById(id);
-const id = new URLSearchParams(location.search).get('id') || '';
+const params = new URLSearchParams(location.search), cwd = params.get('cwd') || '';
+let id = params.get('id') || '';
 const keys = document.querySelector('.keys');
 keys.innerHTML = clSession.keysHtml();
 const STATES = { needs_you: 'Needs you', working: 'Working', idle: 'Idle', starting: 'Starting' };
 
 async function meta() {
   const s = await ask({ cmd: 'state' }).then((x) => typeof x === 'string' ? JSON.parse(x) : x);
-  const c = (s.claude?.items || []).find((x) => x.id === id);
+  const items = s.claude?.items || [];
+  let c = items.find((x) => x.id === id);
+  // Opened on claude-ctl's new-* stand-in (?cwd=): follow the real session that replaces it.
+  if (!c && cwd && id.startsWith('new-')) {
+    c = items.find((x) => x.cwd === cwd && !x.id.startsWith('new-'));
+    if (c) history.replaceState(null, '', `?id=${encodeURIComponent(id = c.id)}`);
+    else return void ($('state').textContent = 'Starting…');
+  }
   if (!c) { $('state').textContent = 'This session has ended.'; $('dot').className = 'dot'; $('reply').hidden = $('screen').hidden = keys.hidden = $('focus').hidden = true; return; }
   document.title = `${c.project} · ${agentName(c)}`;
   $('icon').innerHTML = agentIcon(c, 18);
@@ -53,8 +61,9 @@ async function meta() {
   // This page is the active tab, so "+ This tab" means the web tab used most recently before it.
   const web = s.tabs.filter((t) => !t.ghost && !t.active && /^https?:/.test(t.url || '')).sort((a, b) => a.idleSeconds - b.idleSeconds)[0];
   attachTab = web ? web.id : 0;
-  $('attach').disabled = !web;
-  $('attach').title = web ? `Attach “${web.title || web.url}” to the prompt` : '';
+  $('attach').disabled = !web || !c.live;
+  $('attach').hidden = !c.live;
+  $('attach').title = web ? `Send “${web.title || web.url}”: Roar saves it as Markdown and types @file into the prompt, without Enter` : 'Open a web page in this space first';
   $('attach-why').hidden = !!web || !c.live;
   $('attach-why').textContent = 'Open a web page in this space first: only web pages can be attached.';
 }

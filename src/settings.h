@@ -30,6 +30,8 @@ struct Settings {
   bool claude_alert_done = true, claude_alert_needs = true, claude_alert_system = true;  // Which agent session states post a macOS notification (ClaudeAlert).
   bool agent_files = false;  // "Agent files" sidebar module.
   bool claude_hooks_offered = false;
+  std::string agent_tool = "claude";  // The CLI New/Chat start (claude-ctl new's tool).
+  std::string agent_pins;  // Comma-separated session ids shown in the sidebar's Agent sessions section.
   bool clean_links = true;
   std::string ask_llms = "chatgpt,claude,gemini,perplexity,grok";  // Chat apps "Ask an LLM about page" lists (kLlms ids).  // Unwraps Safe Links and strips .mcas.ms from copied links (CleanLink).
 };
@@ -66,6 +68,8 @@ inline const std::vector<SettingField>& SettingFields() {
       {"claudeAlertSystem", &Settings::claude_alert_system, true},
       {"agentFiles", &Settings::agent_files, true},
       {"claudeHooksOffered", &Settings::claude_hooks_offered, false},
+      {"agentTool", &Settings::agent_tool, true},
+      {"agentPins", &Settings::agent_pins, true},
       // "cdpOpen", not 0.5.0's "cdpEnabled": that release saved false for everyone. Pages call it cdpEnabled.
       {"cdpOpen", &Settings::cdp_enabled, false},
       {"agentHeadless", &Settings::agent_headless, true},

@@ -13,6 +13,7 @@
 #include <cmath>
 #include <cstdlib>
 #include <cstring>
+#include <ctime>
 #include <dlfcn.h>
 #include <mach-o/dyld.h>
 #include <filesystem>
@@ -70,6 +71,7 @@ constexpr char kBookmarksUrl[] = "roar://ui/bookmarks.html";
 constexpr char kHistoryUrl[] = "roar://ui/history.html";
 constexpr char kDownloadsUrl[] = "roar://ui/downloads.html";
 constexpr char kAgentMdUrl[] = "roar://ui/agentmd.html";
+constexpr char kClaudeUrl[] = "roar://ui/claude.html";
 constexpr char kReaderUrl[] = "roar://ui/reader.html";
 constexpr int kFindWidth = 400;
 constexpr int kFindHeight = 46;
@@ -81,6 +83,7 @@ constexpr int kZoomActual = 7;
 constexpr int kMenuSplit = MENU_ID_USER_FIRST;
 constexpr int kMenuMarkdown = MENU_ID_USER_FIRST + 1;
 constexpr int kMenuSpaceRoot = MENU_ID_USER_FIRST + 2;
+constexpr int kMenuAgent = MENU_ID_USER_FIRST + 3;
 constexpr int kMenuSpaceBase = MENU_ID_USER_FIRST + 10;  // + index into State::spaces.
 
 std::string Lower(std::string s) {
@@ -1639,6 +1642,39 @@ constexpr Llm kLlms[] = {
     {"kimi", "Kimi", "https://www.kimi.com/"},
 };
 constexpr size_t kLlmMaxChars = 100000;
+constexpr const char* kSessionIdChars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_";
+
+void Controller::AgentStart(const std::string& dir, const std::string& prompt, int tab, bool open_view,
+                            std::function<void(const std::string&)> done) {
+  if (Tab* t = FindTab(tab); !t || t->ghost || !StartsWith(t->url, "http")) {
+    if (t && t->ghost) ShowHint("Ghost tabs stay private");
+    tab = 0;
+  }
+  platform::RoarMcp({"claude-ctl", "new", dir, prompt, State::Get().settings.agent_tool},
+                    [this, dir, tab, open_view, done](const std::string& out) {
+    if (StartsWith(out, "error:")) {
+      ShowHint("Agent session: " + out.substr(std::min<size_t>(out.size(), 7)));
+    } else {
+      if (tab) claude_attach_[dir] = {tab, NowSeconds()};
+      // A new-* stand-in id: the full view follows the session that replaces it by its folder.
+      if (open_view && StartsWith(out, "new-"))
+        NewTab(std::string(kClaudeUrl) + "?id=" + out + "&cwd=" + CefURIEncode(dir, false).ToString(), true);
+    }
+    if (done) done(out);
+  });
+}
+
+void Controller::AgentChat(int tab, std::function<void(const std::string&)> done) {
+  std::time_t t = std::time(nullptr);
+  char name[32];
+  std::strftime(name, sizeof name, "%Y-%m-%d-%H%M", std::localtime(&t));
+  std::filesystem::path base = std::filesystem::path(State::Get().Dir()) / "chats", dir = base / name;
+  for (int n = 2; std::filesystem::exists(dir); ++n) dir = base / (std::string(name) + "-" + std::to_string(n));
+  std::error_code ec;
+  std::filesystem::create_directories(dir, ec);
+  if (ec) return ShowHint("Couldn't make a chats folder"), done ? done("error: no chats folder") : void();
+  AgentStart(dir.string(), "", tab, true, done);
+}
 
 void Controller::ExtractActive(const std::string& target, int tab_id) {
   Tab* tab = tab_id ? FindTab(tab_id) : ActiveTab();
@@ -2011,6 +2047,11 @@ void Controller::ClaudeTick() {
     list->SetDictionary(list->GetSize(), d->Copy(false));
     seen.insert(d->GetString("id"));
     ClaudeAlert(d);
+    // A session New/Chat started with "Include this tab": attach once its own hook has reported,
+    // a moment later so its prompt is ready for input.
+    if (int tab = roar::TakeQueuedAttach(claude_attach_, d->GetString("cwd"), d->GetString("id"), d->GetDouble("started") / 1000, now))
+      CefPostDelayedTask(TID_UI, base::BindOnce([](std::string id, int tab) { Controller::Get()->ExtractActive("claude:" + id, tab); },
+                                                d->GetString("id").ToString(), tab), 1500);
   }
   // Ended sessions take their notification and needs-you count with them.
   for (auto it = claude_states_.begin(); it != claude_states_.end();) {
@@ -2385,6 +2426,9 @@ void Controller::RunCommand(const std::string& id) {
   else if (id == "copyMarkdown") ExtractActive("copy");
   else if (id == "saveMarkdown") ExtractActive("save");
   else if (StartsWith(id, "askLlm:")) ExtractActive(id.substr(7));
+  else if (id == "agentChat") AgentChat(active_id_);
+  else if (StartsWith(id, "agentSend:") && id.find_first_not_of(kSessionIdChars, 10) == std::string::npos && id.size() > 10)
+    ExtractActive("claude:" + id.substr(10));  // claude: refuses ghost tabs.
   else if (id == "find") ShowFind();
   else if (id == "zoomIn") ZoomStep(1);
   else if (id == "zoomOut") ZoomStep(-1);
@@ -2955,6 +2999,8 @@ void Controller::BuildContextMenu(CefRefPtr<CefBrowser> browser, CefRefPtr<CefCo
     }
   }
   model->AddItem(kMenuMarkdown, "Copy Page as Markdown");
+  if (!tab->ghost && State::Get().settings.claude_sidebar && StartsWith(tab->url, "http"))
+    model->AddItem(kMenuAgent, "Ask an Agent About This Page");
 }
 
 bool Controller::OnContextMenuCommand(CefRefPtr<CefBrowser> browser, CefRefPtr<CefContextMenuParams> params,
@@ -2979,6 +3025,10 @@ bool Controller::OnContextMenuCommand(CefRefPtr<CefBrowser> browser, CefRefPtr<C
   }
   if (command_id == kMenuMarkdown) {
     ExtractActive("copy", tab_id);
+    return true;
+  }
+  if (command_id == kMenuAgent && !ghost) {
+    AgentChat(tab_id);
     return true;
   }
   if (command_id == kMenuSplit && HttpHost(link) != "") {
@@ -3974,11 +4024,19 @@ bool Controller::HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> 
       });
     });
   } else if (cmd == "claude.ctl") {
-    // focus | screen | send for one Claude Code session (roar-mcp claude-ctl); replies its output.
+    // focus | screen | send for one agent session, new (a folder) or chat (a new chats folder),
+    // with the tab to attach once it reports; tools lists the installed CLIs. Replies claude-ctl's output.
     std::string action = msg->GetString("action").ToString();
-    if (action != "focus" && action != "screen" && action != "send" && action != "new") return callback->Failure(0, "bad action"), true;
+    if (action == "new" || action == "chat") {
+      int tab = msg->HasKey("tab") ? msg->GetInt("tab") : 0;
+      auto reply = [callback](const std::string& out) { callback->Success(out); };
+      if (action == "chat") return AgentChat(tab, reply), true;
+      return AgentStart(msg->GetString("id").ToString(), msg->GetString("text").ToString(), tab, false, reply), true;
+    }
+    if (action == "tools") return platform::RoarMcp({"claude-ctl", "tools"}, [callback](const std::string& out) { callback->Success(out); }), true;
+    if (action != "focus" && action != "screen" && action != "send") return callback->Failure(0, "bad action"), true;
     std::vector<std::string> args = {"claude-ctl", action, msg->GetString("id").ToString()};
-    if (action == "send" || action == "new") args.push_back(msg->GetString("text").ToString());
+    if (action == "send") args.push_back(msg->GetString("text").ToString());
     std::string sid = msg->GetString("id").ToString();
     platform::RoarMcp(args, [this, callback, action, sid](const std::string& out) {
       // Answering a session clears its needs-you row and notification right away.
@@ -4000,7 +4058,7 @@ bool Controller::HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> 
     std::string id = msg->GetString("id").ToString();
     // The full view (claude.html) is itself the active tab, so it names the web tab to attach.
     Tab* tab = msg->HasKey("tab") ? FindTab(msg->GetInt("tab")) : ActiveTab();
-    if (id.empty() || id.find_first_not_of("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_") != std::string::npos)
+    if (id.empty() || id.find_first_not_of(kSessionIdChars) != std::string::npos)
       return callback->Failure(0, "bad id"), true;
     if (!tab || tab->ghost) return ShowHint("Ghost tabs stay private"), callback->Success(""), true;
     ExtractActive("claude:" + id, tab->id);

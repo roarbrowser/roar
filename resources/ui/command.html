@@ -58,6 +58,8 @@ const COMMANDS = [
     { id: 'askLlm:copilot', title: 'Copilot', keys: '', words: 'llm ai microsoft bing' },
     { id: 'askLlm:kimi', title: 'Kimi', keys: '', words: 'llm ai moonshot' },
   ] },
+  { id: 'agentChat', title: 'Ask an agent about this tab', keys: '', words: 'ai chat claude code codex gemini qwen copilot cli session terminal' },
+  { id: 'agentSend', title: 'Send tab to agent session…', keys: '', words: 'ai attach share claude code codex gemini qwen copilot cli session terminal', children: [] },
   { id: 'find', title: 'Find in page', keys: '⌘F', words: 'search text match' },
   { id: 'zoomIn', title: 'Zoom in', keys: '⌘+', words: 'bigger larger magnify' },
   { id: 'zoomOut', title: 'Zoom out', keys: '⌘−', words: 'smaller shrink' },
@@ -109,8 +111,18 @@ let newTab = true;
 let seq = 0;
 // Only the chat apps chosen in Settings > General (askLlms).
 const ASK = COMMANDS.find((c) => c.id === 'askLlm'), ALL_LLMS = ASK.children;
+// Agent commands only with the Agent sessions module on; Send lists the live sessions.
+const AGENT = COMMANDS.filter((c) => c.id.startsWith('agent')), SEND = AGENT[1];
 const syncLlms = () => ask({ cmd: 'state' }).then((st) => {
-  const on = ((typeof st === 'string' ? JSON.parse(st) : st).settings?.askLlms || '').split(',');
+  st = typeof st === 'string' ? JSON.parse(st) : st;
+  SEND.children = (st.claude?.items || []).filter((c) => c.live && /^[\w-]+$/.test(c.id))
+    .map((c) => ({ id: 'agentSend:' + c.id, title: c.project || c.id, keys: '', words: [c.tool || 'claude', c.doing || ''].join(' ') }));
+  for (const c of AGENT) {
+    const want = st.settings?.claudeSidebar !== false && (c !== SEND || SEND.children.length), at = COMMANDS.indexOf(c);
+    if (!want && at >= 0) COMMANDS.splice(at, 1);
+    else if (want && at < 0) COMMANDS.splice(3, 0, c);
+  }
+  const on = (st.settings?.askLlms || '').split(',');
   ASK.children = ALL_LLMS.filter((c) => on.includes(c.id.slice(7)));
   const at = COMMANDS.indexOf(ASK);
   if (!ASK.children.length && at >= 0) COMMANDS.splice(at, 1);

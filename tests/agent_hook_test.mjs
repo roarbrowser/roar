@@ -80,5 +80,24 @@ let bad = '';
 try { mcp(['agent-hooks', 'install', 'qwen']); } catch (e) { bad = e.stdout; }
 check(bad.startsWith('error:') && readFileSync(join(HOME, '.qwen/settings.json'), 'utf8') === '{bad', 'invalid JSON is left alone');
 check(/^installed$/m.test(mcp(['claude-hooks', 'install'])), 'claude-hooks still works');
+
+// claude-ctl tools/new: a stub CLI on PATH, run in a scratch tmux server (never cmux, never a real CLI).
+// PATH comes first, so the stub wins over a real codex in /opt/homebrew/bin.
+const BIN = join(HOME, 'bin'), WORK = join(HOME, 'work'), ARGS = join(HOME, 'args.txt');
+mkdirSync(BIN); mkdirSync(WORK);
+writeFileSync(join(BIN, 'codex'), `#!/bin/sh\nprintf '%s|' "$@" > ${ARGS}\nexec cat\n`, { mode: 0o755 });
+const ctlEnv = { ...env, PATH: `${BIN}:/usr/bin:/bin`, ROAR_NO_CMUX: '1', TMUX_TMPDIR: HOME };
+const ctl = (...a) => execFileSync(process.execPath, [EXE, 'claude-ctl', ...a], { env: ctlEnv, encoding: 'utf8' });
+check(ctl('tools').split('\n').includes('codex'), 'tools lists a CLI found on PATH');
+let id = '';
+try { id = ctl('new', WORK, '-x hi', 'codex'); } catch (e) { id = e.stdout; }
+const stub = session(id);
+check(/^new-\d+$/.test(id) && stub?.tool === 'codex' && stub.cwd === WORK && stub.term.tmux?.pane, `new ... codex writes a codex stand-in (${id})`);
+for (let i = 0; i < 40 && !existsSync(ARGS); i++) execFileSync('sleep', ['0.05']);
+check(existsSync(ARGS) && readFileSync(ARGS, 'utf8') === '--|-x hi|', 'codex got `-- <prompt>`');
+let unk = '';
+try { ctl('new', WORK, '', 'nope'); } catch (e) { unk = e.stdout; }
+check(unk === 'error: unknown agent CLI', 'unknown CLI refused');
+try { execFileSync('tmux', ['-S', stub.term.tmux.socket, 'kill-server']); } catch {}
 console.log(fail ? `${fail} failure(s)` : 'ok');
 process.exit(fail ? 1 : 0);

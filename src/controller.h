@@ -10,6 +10,8 @@
 // Chrome.
 #pragma once
 
+#include "agent_queue.h"
+#include <functional>
 #include <map>
 #include <set>
 #include <string>
@@ -267,7 +269,13 @@ class Controller {
   std::string claude_sig_;
   std::map<std::string, std::string> claude_states_;  // Session id -> last state, for its notification.
   std::set<std::string> claude_acked_;  // Sessions answered since their state last changed.
-  bool claude_hooks_ = false;  // Any agent CLI's hooks installed.
+  bool claude_hooks_ = false;
+  roar::AttachQueue claude_attach_;  // Tabs to attach to sessions New/Chat just started, by folder.
+  // Starts the chosen agent CLI in |dir| (claude-ctl new); queues |tab| to attach once it reports,
+  // and opens its full view when |open_view|. |done| gets claude-ctl's reply.
+  void AgentStart(const std::string& dir, const std::string& prompt, int tab, bool open_view,
+                  std::function<void(const std::string&)> done = nullptr);
+  void AgentChat(int tab, std::function<void(const std::string&)> done = nullptr);  // AgentStart in a new <data>/chats folder.  // Any agent CLI's hooks installed.
   std::string agent_hooks_;  // roar-mcp agent-hooks status output: "<tool> <state>" lines.
   void SetAgentHooks(const std::string& out);
   std::string agentmd_cache_;  // agentmd.list's last walk, for the sidebar's recent files.
