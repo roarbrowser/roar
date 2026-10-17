@@ -50,7 +50,9 @@ const agentIcon = (c, size = 14) => {
   return `<svg class="agent-icon" width="${size}" height="${size}" viewBox="0 0 16 16" fill="none" stroke="${tint}" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${glyph}</svg>`;
 };
 
-// A session's own color (settings.agentColors, {sessionId: "#rrggbb"}), shown in its full view and its sidebar row.
+// A session's own color (settings.agentColors, {sessionId: "#rrggbb"}, "/t" appended when it colors the terminal
+// instead of the window), shown in its full view and its sidebar row.
 const CL_COLORS = ['#e5484d', '#f76b15', '#ffc53d', '#46a758', '#12a594', '#0090ff', '#8e4ec6', '#d6409f'];
 const clColors = (s) => { try { return JSON.parse(s?.settings?.agentColors || '{}') || {}; } catch { return {}; } };
-const clColor = (s, id) => { const c = clColors(s)[id]; return /^#[0-9a-f]{6}$/i.test(c || '') ? c : ''; };
+const clColor = (s, id) => { const c = clColors(s)[id]; return /^#[0-9a-f]{6}(\/t)?$/i.test(c || '') ? c.slice(0, 7) : ''; };
+const clColorTerm = (s, id) => !!clColor(s, id) && clColors(s)[id].endsWith('/t');

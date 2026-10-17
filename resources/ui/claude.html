@@ -26,13 +26,15 @@ form button:not(.btn) { background: var(--mane); color: #2a1604; font-weight: 60
 .swatches button { width: 14px; height: 14px; padding: 0; border-radius: 50%; box-shadow: inset 0 0 0 1px rgba(255,255,255,.15); }
 .swatches button[aria-pressed="true"] { box-shadow: 0 0 0 2px var(--ink); }
 body.tint { background: color-mix(in srgb, var(--cl-bg) 14%, var(--panel)); }
+body.tint-t pre { background: color-mix(in srgb, var(--cl-bg) 22%, #15100c); }
+#color-on button { padding: 2px 8px; font-size: 11.5px; }
 .keys { display: flex; flex-wrap: wrap; gap: 6px; padding: 6px 20px 16px; }
 .keys button { background: var(--ground); border-radius: 7px; padding: 4px 10px; font: 12px var(--mono); color: var(--ink-2); }
 .keys button:hover { background: var(--hover); color: var(--ink); }
 </style>
 </head>
 <body>
-<header><span class="dot" id="dot" aria-hidden="true"></span><span id="icon"></span><h1 id="name">Agent session</h1><span class="state" id="state" role="status"></span><span class="swatches" id="colors" role="group" aria-label="Session color"></span><button class="btn" id="attach">Send tab</button><button class="btn" id="beside" title="Split this view beside the web page you used last">Side by side</button><button class="btn" id="focus" title="Bring its terminal window to the front">Terminal</button></header>
+<header><span class="dot" id="dot" aria-hidden="true"></span><span id="icon"></span><h1 id="name">Agent session</h1><span class="state" id="state" role="status"></span><span class="segmented" id="color-on" role="group" aria-label="Color"><button data-on="w">Window</button><button data-on="t">Terminal</button></span><span class="swatches" id="colors" role="group" aria-label="Session color"></span><button class="btn" id="attach">Send tab</button><button class="btn" id="beside" title="Split this view beside the web page you used last">Side by side</button><button class="btn" id="focus" title="Bring its terminal window to the front">Terminal</button></header>
 <pre id="screen" aria-live="off"></pre>
 <form id="reply"><input id="text" list="slash" placeholder="Reply… (/ for commands; empty Enter accepts)" autocomplete="off" spellcheck="false" aria-label="Reply"><datalist id="slash"></datalist><button>Send</button></form>
 <p class="status" id="attach-why" hidden></p>
@@ -64,7 +66,11 @@ async function meta() {
   $('icon').title = agentName(c);
   $('name').textContent = c.project;
   const tint = clColor(s, c.id);
-  document.body.classList.toggle('tint', !!tint);
+  const onTerm = tint ? clColorTerm(s, c.id) : colorTerm;
+  colorTerm = onTerm;
+  document.body.classList.toggle('tint', !!tint && !onTerm);
+  document.body.classList.toggle('tint-t', !!tint && onTerm);
+  for (const b of $('color-on').children) b.setAttribute('aria-pressed', String((b.dataset.on === 't') === onTerm));
   document.body.style.setProperty('--cl-bg', tint || 'transparent');
   if (!$('colors').contains(document.activeElement))
     $('colors').innerHTML = ['', ...CL_COLORS].map((x) => `<button data-color="${x}" aria-pressed="${x === tint}" title="${x ? 'Color this session' : 'No color'}" style="background:${x || 'var(--ink-3)'}"></button>`).join('');
@@ -99,13 +105,22 @@ const SLASH = {
 };
 const esc = (t) => String(t).replace(/[&<>"]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[ch]);
 // Text in the reply box goes with the page as its prompt.
-let colorState = null;
+let colorState = null, colorTerm = false;
+const saveColor = (hex) => {
+  const all = clColors(colorState);
+  if (hex) all[id] = hex + (colorTerm ? '/t' : ''); else delete all[id];
+  return ask({ cmd: 'settings.set', settings: { agentColors: JSON.stringify(all) } }).then(meta);
+};
+$('color-on').onclick = (e) => {
+  const b = e.target.closest('[data-on]');
+  if (!b || !colorState) return;
+  colorTerm = b.dataset.on === 't';
+  saveColor(clColor(colorState, id));
+};
 $('colors').onclick = (e) => {
   const b = e.target.closest('[data-color]');
   if (!b || !colorState) return;
-  const all = clColors(colorState);
-  if (b.dataset.color) all[id] = b.dataset.color; else delete all[id];
-  ask({ cmd: 'settings.set', settings: { agentColors: JSON.stringify(all) } }).then(meta);
+  saveColor(b.dataset.color);
 };
 $('beside').onclick = () => ask({ cmd: 'claude.beside', id });
 // Claude Code's fullscreen UI runs on the terminal's alternate screen, which has no tmux scrollback,
