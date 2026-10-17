@@ -1,38 +1,80 @@
-# Builds the Windows port (scripts/build.ps1) on GitHub's Windows runners; nothing is published.
+# Builds Roar for Windows (x64 and ARM64) on every push to main or windows-port; nothing is published.
+# A main push first merges main into windows-port, so Windows always has the latest features; when
+# both builds pass, that merge is pushed to windows-port. A merge conflict fails the run.
 name: Windows build
 on:
   push:
-    branches: [windows-port]
+    branches: [main, windows-port]
   workflow_dispatch:
 permissions:
-  contents: read
+  contents: write
+concurrency:
+  group: windows-${{ github.ref }}
+  cancel-in-progress: true
 jobs:
   build:
-    runs-on: windows-2022
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { arch: x64, runner: windows-2022, cef: windows64, msvc: x64, triplet: x64-windows }
+          - { arch: arm64, runner: windows-11-arm, cef: windowsarm64, msvc: arm64, triplet: arm64-windows }
+    runs-on: ${{ matrix.runner }}
     timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: windows-port
+          fetch-depth: 0
+      - name: Merge main
+        shell: bash
+        run: |
+          git config user.name Roar && git config user.email roarbrowser@gmail.com
+          git merge --no-edit origin/main
       - uses: ilammy/msvc-dev-cmd@v1.13.0
         with:
-          arch: x64
+          arch: ${{ matrix.msvc }}
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: 1.2.21
       - uses: actions/cache@v4
         with:
           path: third_party/cef
-          key: cef-${{ hashFiles('scripts/fetch-cef.ps1') }}
+          key: cef-${{ matrix.cef }}-${{ hashFiles('scripts/fetch-cef.ps1') }}
+      - name: Fetch CEF
+        shell: pwsh
+        timeout-minutes: 15
+        env:
+          ROAR_CEF_ARCH: ${{ matrix.cef }}
+        run: ./scripts/fetch-cef.ps1
       - name: SQLite3 (vcpkg)
         shell: pwsh
-        run: '& "$env:VCPKG_INSTALLATION_ROOT\vcpkg.exe" install sqlite3:x64-windows'
+        run: '& "$env:VCPKG_INSTALLATION_ROOT\vcpkg.exe" install sqlite3:${{ matrix.triplet }}'
       - name: Build
         shell: pwsh
+        timeout-minutes: 60
         env:
-          ROAR_CMAKE_ARGS: -DCMAKE_TOOLCHAIN_FILE=C:/vcpkg/scripts/buildsystems/vcpkg.cmake -DVCPKG_TARGET_TRIPLET=x64-windows
-        run: ./scripts/build.ps1
+          ROAR_CEF_ARCH: ${{ matrix.cef }}
+          TRIPLET: ${{ matrix.triplet }}
+        run: |
+          $env:ROAR_CMAKE_ARGS = "-DCMAKE_TOOLCHAIN_FILE=$env:VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake -DVCPKG_TARGET_TRIPLET=$env:TRIPLET"
+          ./scripts/build.ps1
       - uses: actions/upload-artifact@v4
-        if: success()
         with:
-          name: roar-windows-x64-unsigned
+          name: roar-windows-${{ matrix.arch }}-unsigned
           path: build/src/Release
           retention-days: 7
+  # Both builds passed: windows-port takes the merge (a push by this token starts no new run).
+  advance:
+    needs: build
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: windows-port
+          fetch-depth: 0
+      - run: |
+          git config user.name Roar && git config user.email roarbrowser@gmail.com
+          git merge --no-edit origin/main
+          git push origin HEAD:windows-port

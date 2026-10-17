@@ -25,7 +25,9 @@ if (-not (Test-Path "$Ubol\manifest.json") -or -not (Select-String -Quiet -Simpl
   Remove-Item $Zip
 }
 
-$Extra = if ($env:ROAR_CMAKE_ARGS) { $env:ROAR_CMAKE_ARGS -split ' ' } else { @() }
+# ROAR_CEF_ARCH=windowsarm64 builds for Windows on ARM (from an ARM64 Native Tools prompt).
+$Arm = $env:ROAR_CEF_ARCH -eq 'windowsarm64'
+$Extra = @(if ($env:ROAR_CMAKE_ARGS) { $env:ROAR_CMAKE_ARGS -split ' ' }) + "-DPROJECT_ARCH=$(if ($Arm) { 'arm64' } else { 'x86_64' })"
 Run cmake -S $Root -B $Build -G Ninja -DCMAKE_BUILD_TYPE=Release @Extra
 Run cmake --build $Build --target roar
 
@@ -40,6 +42,7 @@ Copy-Item -Recurse $Ubol "$Out\extensions\ubol"
 if (-not (Get-Command bun -ErrorAction SilentlyContinue)) { throw 'build.ps1: bun is needed to build roar-mcp (https://bun.sh)' }
 Push-Location "$Root\mcp"
 try { Run bun install --frozen-lockfile --production } finally { Pop-Location }
+# shortcut: roar-mcp.exe stays x64 on ARM too (it runs under Windows' x64 emulation); use bun-windows-arm64 once bun ships it.
 Run bun build --compile --target=bun-windows-x64 "$Root\mcp\roar-mcp.mjs" --outfile "$Out\roar-mcp.exe"
 if (Test-Path "$Out\roar-mcp-modules") { Remove-Item -Recurse -Force "$Out\roar-mcp-modules" }
 Copy-Item -Recurse "$Root\mcp\node_modules" "$Out\roar-mcp-modules"
