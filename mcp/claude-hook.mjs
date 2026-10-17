@@ -25,6 +25,8 @@ const scratchName = (prompt) => short(prompt, 60) || 'Scratch';
 const EVENTS = ['SessionStart', 'UserPromptSubmit', 'PreToolUse', 'Notification', 'Stop', 'SessionEnd'];
 // Each CLI's user hook config. nested = Claude's event -> [{matcher, hooks:[{type,command}]}] shape;
 // own = a file of Roar's own (Copilot reads every *.json in its hooks folder).
+// What the hook does, for CLIs whose hook entries take a description (Gemini CLI, Qwen Code).
+const DESC = "Roar: reports this session's state (working, needs you, done) to Roar's Agent sessions sidebar. Never the conversation.";
 export const TOOLS = {
   claude: { name: 'Claude Code', dir: () => process.env.CLAUDE_CONFIG_DIR || join(HOME, '.claude'), file: 'settings.json', events: EVENTS,
     entry: (cmd) => ({ matcher: '', hooks: [{ type: 'command', command: cmd, async: true, timeout: 5 }] }), arg: 'claude-hook' },
@@ -35,11 +37,11 @@ export const TOOLS = {
   // https://geminicli.com/docs/hooks/reference/ (timeout in ms).
   gemini: { name: 'Gemini CLI', dir: () => join(HOME, '.gemini'), file: 'settings.json',
     events: ['SessionStart', 'BeforeAgent', 'BeforeTool', 'Notification', 'AfterAgent', 'SessionEnd'],
-    entry: (cmd) => ({ matcher: '*', hooks: [{ name: 'roar', type: 'command', command: cmd, timeout: 5000 }] }) },
+    entry: (cmd) => ({ matcher: '*', hooks: [{ name: 'roar', description: DESC, type: 'command', command: cmd, timeout: 5000 }] }) },
   // https://qwenlm.github.io/qwen-code-docs/en/users/features/hooks/ and .../configuration/settings/
   qwen: { name: 'Qwen Code', dir: () => join(HOME, '.qwen'), file: 'settings.json',
     events: ['SessionStart', 'UserPromptSubmit', 'PreToolUse', 'Notification', 'PermissionRequest', 'Stop', 'SessionEnd'],
-    entry: (cmd) => ({ matcher: '', hooks: [{ name: 'roar', type: 'command', command: cmd }] }) },
+    entry: (cmd) => ({ matcher: '', hooks: [{ name: 'roar', description: DESC, type: 'command', command: cmd }] }) },
   // https://docs.github.com/en/copilot/reference/copilot-cli-reference/cli-hooks-reference
   copilot: { name: 'Copilot CLI', dir: () => process.env.COPILOT_HOME || join(HOME, '.copilot'), file: 'hooks/roar.json', own: true,
     events: ['sessionStart', 'userPromptSubmitted', 'preToolUse', 'notification', 'agentStop', 'sessionEnd'] },
@@ -174,7 +176,9 @@ export function hooksFor(t, action, exe) {
   }
   const has = (e) => T.own ? cfg.hooks?.[e]?.some(OURS) : cfg.hooks?.[e]?.some((m) => m.hooks?.some(OURS));
   const installed = T.events.every(has);
-  if (action === 'status') return installed ? 'installed' : 'not installed';
+  // Installed by a Roar at another path (moved, or a copy since deleted): the CLI runs a missing program.
+  const cmds = T.events.flatMap((e) => (T.own ? cfg.hooks?.[e] || [] : (cfg.hooks?.[e] || []).flatMap((m) => m.hooks || [])).filter(OURS).map((h) => h.command || h.bash));
+  if (action === 'status') return !installed ? 'not installed' : cmds.every((c) => c.startsWith(`"${exe}" `)) ? 'installed' : 'outdated';
   if (T.own) {
     if (action === 'install') {
       mkdirSync(join(file, '..'), { recursive: true });
@@ -223,7 +227,9 @@ const run1 = (bin, args, timeout = 5000) => execFileSync(bin, args, { encoding: 
 const osa = (script) => run1('osascript', ['-e', script], 60000);
 const CMUX_APP = 'com.cmuxterm.app';
 const WEZTERM = '/Applications/WezTerm.app/Contents/MacOS/wezterm', KITTEN = '/Applications/kitty.app/Contents/MacOS/kitten';
-const KEYS = { enter: ['Enter', 'enter'], escape: ['Escape', 'escape'], up: ['Up', 'up'], down: ['Down', 'down'], tab: ['Tab', 'tab'], 'ctrl-c': ['C-c', 'ctrl+c'] };
+// Each key as [tmux keys, cmux keys]; send-now is Claude Code's "ctrl+x ctrl+s to send now" for a queued message.
+const KEYS = { enter: [['Enter'], ['enter']], escape: [['Escape'], ['escape']], up: [['Up'], ['up']], down: [['Down'], ['down']], tab: [['Tab'], ['tab']],
+  'ctrl-c': [['C-c'], ['ctrl+c']], 'send-now': [['C-x', 'C-s'], ['ctrl+x', 'ctrl+s']] };
 
 const sq = (v) => `'${String(v).replace(/'/g, `'\\''`)}'`;  // One shell word.
 // Each CLI's binary: PATH, then the usual bin folders and Claude Code's own install spot (a GUI
@@ -285,8 +291,9 @@ function ctl(action, id, arg, arg2) {
   if (action === 'send') {
     const key = /^key:(.+)$/.exec(arg || '')?.[1];
     if (key && !KEYS[key]) throw new Error('unknown key');
-    if (tm) return run1(tm.bin, key ? [...tx, 'send-keys', '-t', tm.pane, KEYS[key][0]] : [...tx, 'send-keys', '-t', tm.pane, '-l', '--', arg]);
-    if (cx) return run1(cx.bin, key ? ['send-key', '--workspace', cx.workspace, ...sf, KEYS[key][1]] : ['send', '--workspace', cx.workspace, ...sf, '--', arg]);
+    if (tm) return run1(tm.bin, key ? [...tx, 'send-keys', '-t', tm.pane, ...KEYS[key][0]] : [...tx, 'send-keys', '-t', tm.pane, '-l', '--', arg]);
+    if (cx && key) return KEYS[key][1].map((k) => run1(cx.bin, ['send-key', '--workspace', cx.workspace, ...sf, k])).join('');
+    if (cx) return run1(cx.bin, ['send', '--workspace', cx.workspace, ...sf, '--', arg]);
     throw new Error('this terminal does not take input from Roar');
   }
   if (tm) run1(tm.bin, [...tx, 'select-window', '-t', tm.pane]), run1(tm.bin, [...tx, 'select-pane', '-t', tm.pane]);

@@ -85,6 +85,15 @@ let bad = '';
 try { mcp(['agent-hooks', 'install', 'qwen']); } catch (e) { bad = e.stdout; }
 check(bad.startsWith('error:') && readFileSync(join(HOME, '.qwen/settings.json'), 'utf8') === '{bad', 'invalid JSON is left alone');
 check(/^installed$/m.test(mcp(['claude-hooks', 'install'])), 'claude-hooks still works');
+// Hooks pointing at another Roar (moved or deleted) read as outdated until reinstalled.
+{
+  const f = join(HOME, '.claude/settings.json'), cfg = JSON.parse(readFileSync(f, 'utf8'));
+  for (const e of Object.keys(cfg.hooks)) for (const m of cfg.hooks[e]) for (const h of m.hooks) h.command = h.command.replace(/^"[^"]*"/, '"/Old/Roar.app/roar-mcp"');
+  writeFileSync(f, JSON.stringify(cfg));
+  check(/^claude outdated$/m.test(mcp(['agent-hooks', 'status'])), 'hooks from another Roar are outdated');
+  mcp(['agent-hooks', 'install', 'claude']);
+  check(/^claude installed$/m.test(mcp(['agent-hooks', 'status'])), 'reinstalling fixes outdated hooks');
+}
 
 // claude-ctl tools/new: a stub CLI on PATH, run in a scratch tmux server (never cmux, never a real CLI).
 // PATH comes first, so the stub wins over a real codex in /opt/homebrew/bin.

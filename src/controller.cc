@@ -902,9 +902,64 @@ void Controller::Start() {
 }
 
 void Controller::SetAgentHooks(const std::string& out) {
-  claude_hooks_ = out.rfind("installed", 0) == 0;
+  claude_hooks_ = out.rfind("installed", 0) == 0 || out.find(" outdated") != std::string::npos;
   agent_hooks_ = out;
+  CheckAgentHooks();
   PushSidebar();
+}
+
+bool Controller::AgentConnected(const std::string& tool) const {
+  if (agent_hooks_.empty()) return true;
+  return agent_hooks_.find("\n" + tool + " installed") != std::string::npos || agent_hooks_.find("\n" + tool + " outdated") != std::string::npos;
+}
+
+void Controller::CheckAgentHooks() {
+  static const std::map<std::string, std::string> kNames = {{"claude", "Claude Code"}, {"codex", "Codex"}, {"gemini", "Gemini CLI"}, {"qwen", "Qwen Code"}, {"copilot", "Copilot CLI"}};
+  if (hook_card_) ResolveAlert(std::exchange(hook_card_, 0), "");
+  auto& set = State::Get().settings;
+  if (!set.claude_sidebar || NowSeconds() < set.agent_hooks_snooze) return;
+  // "not installed" means the CLI's config folder exists (it's set up here) without Roar's hooks.
+  std::vector<std::string> off, old;
+  std::istringstream lines(agent_hooks_);
+  for (std::string line; std::getline(lines, line);) {
+    auto sp = line.find(' ');
+    if (sp == std::string::npos) continue;
+    std::string tool = line.substr(0, sp), st = line.substr(sp + 1);
+    if (!kNames.count(tool) || ("," + set.agent_hooks_ignore + ",").find("," + tool + ",") != std::string::npos) continue;
+    if (st == "outdated") old.push_back(tool);
+    else if (st == "not installed") off.push_back(tool);
+  }
+  if (off.empty() && old.empty()) return;
+  auto names = [&](const std::vector<std::string>& v) {
+    std::string s;
+    for (size_t i = 0; i < v.size(); ++i) s += (i ? (i + 1 == v.size() ? " and " : ", ") : "") + kNames.at(v[i]);
+    return s;
+  };
+  AgentAlert a;
+  a.id = hook_card_ = next_alert_id_++;
+  a.agent = "Roar";
+  a.level = "info";
+  a.title = !old.empty() ? "Agent sessions: " + names(old) + (old.size() == 1 ? " points" : " point") + " at an old copy of Roar"
+                         : "Agent sessions can't see " + names(off);
+  a.body = !old.empty() ? "Its hooks run a Roar that moved or was deleted, so its sessions and alerts stop. Reconnect to fix it."
+                        : "Connect it so its sessions show here and alert you when they need you or finish. Sessions already running show after a restart.";
+  a.choices = {old.empty() ? "Connect" : "Reconnect", "Snooze a day", "Don't remind me"};
+  a.time = NowSeconds();
+  std::vector<std::string> tools = old;
+  tools.insert(tools.end(), off.begin(), off.end());
+  a.on_answer = [this, tools](const std::string& r) {
+    hook_card_ = 0;
+    auto& s = State::Get().settings;
+    if (r == "Snooze a day") s.agent_hooks_snooze = NowSeconds() + 24 * 3600;
+    if (r == "Don't remind me") for (const auto& t : tools) s.agent_hooks_ignore += (s.agent_hooks_ignore.empty() ? "" : ",") + t;
+    if (r == "Connect" || r == "Reconnect")
+      for (const auto& t : tools)
+        platform::RoarMcp({"agent-hooks", "install", t}, [this](const std::string&) {
+          platform::RoarMcp({"agent-hooks", "status"}, [this](const std::string& st) { SetAgentHooks(st); });
+        });
+    SaveSoon();
+  };
+  agent_alerts_.push_back(a);
 }
 
 void Controller::PaintPreview() {
@@ -1806,7 +1861,7 @@ void Controller::AskDefaultBrowser() {
 
 void Controller::SyncAlertBadge() {
   int n = 0;
-  for (const auto& a : agent_alerts_) n += a.level == "needs_you";
+  for (const auto& a : agent_alerts_) n += a.level == "needs_you" && !a.on_answer;  // Session cards count below, once.
   for (const auto& [id, state] : claude_states_) n += state == "needs_you" && !claude_acked_.count(id);
   platform::SetDockBadge(n);
 }
@@ -2035,14 +2090,33 @@ void Controller::ClaudeAlert(CefRefPtr<CefDictionaryValue> d) {
   it->second = state;
   claude_acked_.erase(id);
   platform::Unnotify("claude:" + id);
+  if (auto c = claude_cards_.find(id); c != claude_cards_.end()) { int card = c->second; claude_cards_.erase(c); ResolveAlert(card, ""); }
   SyncAlertBadge();
   const auto& set = State::Get().settings;
   bool want = state == "idle" ? set.claude_alert_done : state == "needs_you" && set.claude_alert_needs;
-  if (!set.claude_sidebar || !set.claude_alert_system || !want || platform::AppActive()) return;
+  if (!set.claude_sidebar || !want) return;
   static const std::map<std::string, std::string> kNames = {{"codex", "Codex"}, {"gemini", "Gemini CLI"}, {"qwen", "Qwen Code"}, {"copilot", "Copilot CLI"}};
   auto name = kNames.find(d->GetString("tool").ToString());
-  platform::Notify((name == kNames.end() ? std::string("Claude Code") : name->second) + ": " + d->GetString("project").ToString() + (state == "idle" ? " is done" : " needs you"),
-                   d->GetString(state == "idle" ? "prompt" : "doing").ToString(), "claude:" + id);
+  std::string tool = name == kNames.end() ? std::string("Claude Code") : name->second;
+  std::string title = d->GetString("project").ToString() + (state == "idle" ? " is done" : " needs you");
+  std::string body = d->GetString(state == "idle" ? "prompt" : "doing").ToString();
+  // A sidebar card always (it clears itself, or when the session moves on); a macOS one too while Roar is in the background.
+  AgentAlert a;
+  a.id = claude_cards_[id] = next_alert_id_++;
+  a.agent = tool;
+  a.title = title;
+  a.body = body;
+  a.level = state == "idle" ? "done" : "needs_you";
+  a.url = std::string(kClaudeUrl) + "?id=" + CefURIEncode(id, false).ToString();
+  a.time = NowSeconds();
+  a.on_answer = [this, id](const std::string&) { claude_cards_.erase(id); };
+  if (state == "idle")
+    CefPostDelayedTask(TID_UI, base::BindOnce([](int card) { Controller::Get()->ResolveAlert(card, ""); }, a.id), 180 * 1000);
+  agent_alerts_.push_back(a);
+  SyncAlertBadge();
+  PushSidebar();
+  if (!set.claude_alert_system || platform::AppActive()) return;
+  platform::Notify(tool + ": " + title, body, "claude:" + id);
 }
 
 void Controller::ClaudeTick() {
@@ -2066,7 +2140,9 @@ void Controller::ClaudeTick() {
     auto term = d->GetDictionary("term");
     int pid = term && term->GetType("pid") == VTYPE_INT ? term->GetInt("pid") : 0;
     bool dead = pid > 1 && kill(pid, 0) != 0 && errno == ESRCH;
-    if (dead || idle > 6 * 3600 || (e.path().filename().string().rfind("new-", 0) == 0 && idle > 15 * 60)) { fs::remove(e.path(), ec); continue; }
+    // Disconnected in Settings: sessions already running still fire the hooks they loaded at start; drop them.
+    bool off = !AgentConnected(d->HasKey("tool") ? d->GetString("tool").ToString() : "claude");
+    if (off || dead || idle > 6 * 3600 || (e.path().filename().string().rfind("new-", 0) == 0 && idle > 15 * 60)) { fs::remove(e.path(), ec); continue; }
     list->SetDictionary(list->GetSize(), d->Copy(false));
     seen.insert(d->GetString("id"));
     ClaudeAlert(d);
@@ -2082,6 +2158,7 @@ void Controller::ClaudeTick() {
   for (auto it = claude_states_.begin(); it != claude_states_.end();) {
     if (seen.count(it->first)) { ++it; continue; }
     platform::Unnotify("claude:" + it->first);
+    if (auto c = claude_cards_.find(it->first); c != claude_cards_.end()) { int card = c->second; claude_cards_.erase(c); ResolveAlert(card, ""); }
     claude_acked_.erase(it->first);
     it = claude_states_.erase(it);
     SyncAlertBadge();
@@ -4082,6 +4159,7 @@ bool Controller::HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> 
       // Answering a session clears its needs-you row and notification right away.
       if (action == "send" && out.rfind("error:", 0) != 0 && claude_acked_.insert(sid).second) {
         platform::Unnotify("claude:" + sid);
+        if (auto c = claude_cards_.find(sid); c != claude_cards_.end()) { int card = c->second; claude_cards_.erase(c); ResolveAlert(card, ""); }
         SyncAlertBadge();
         PushSidebar();
       }

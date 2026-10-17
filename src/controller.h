@@ -279,6 +279,11 @@ class Controller {
                     std::function<void(const std::string&)> done = nullptr);  // AgentStart in a new <data>/scratch folder.  // Any agent CLI's hooks installed.
   std::string agent_hooks_;  // roar-mcp agent-hooks status output: "<tool> <state>" lines.
   void SetAgentHooks(const std::string& out);
+  // A CLI whose hooks are installed (current or outdated). Before the first status, every CLI counts.
+  bool AgentConnected(const std::string& tool) const;
+  // A sidebar card when a set-up CLI isn't connected or its hooks point at another Roar; snoozable.
+  void CheckAgentHooks();
+  int hook_card_ = 0;
   std::string agentmd_cache_;  // agentmd.list's last walk, for the sidebar's recent files.
   double agentmd_cache_at_ = 0;
   void MaybeQuit();
@@ -342,6 +347,7 @@ class Controller {
   void AskDefaultBrowser();
   void SyncAlertBadge();
   void ClaudeAlert(CefRefPtr<CefDictionaryValue> d);
+  std::map<std::string, int> claude_cards_;  // Session id -> its needs-you/done sidebar card.
   int agent_space_ = -1;  // Last answer to "which profile should the agent use?".
   bool cdp_on_ = false;                 // Whether the CDP HTTP port is listening now.
   void (*cdp_http_)(int port) = nullptr;  // Roar's CEF patch: opens (port) or closes (0) it live.

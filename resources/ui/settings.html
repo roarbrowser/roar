@@ -39,6 +39,7 @@ pre { margin: 6px 0; font: 12px/1.6 var(--mono); background: var(--ground); bord
 .nomatch { display: none !important; }
 .empty { color: var(--ink-3); padding: 12px 0; }
 @media (max-width: 640px) { .wrap { grid-template-columns: 1fr; } nav { position: static; grid-auto-flow: column; overflow-x: auto; } }
+.status.warn { color: var(--mane-ink, #d9822b); }
 #claude-opts .hint { color: var(--ink-3); font-size: 12px; margin: 2px 0 6px; }
 </style>
 </head>
@@ -96,7 +97,7 @@ pre { margin: 6px 0; font: 12px/1.6 var(--mono); background: var(--ground); bord
       <div class="module" data-module="claude">
         <div class="row head"><label class="name" for="claude-on"><span data-icon="claude"></span>Agent sessions<small>Your Claude Code, Codex, Gemini, Qwen and Copilot CLI sessions, what they're doing and whether they need you; never the conversation.</small></label><input type="checkbox" class="switch" id="claude-on"></div>
         <fieldset id="claude-opts"><p class="reason">Turn on Agent sessions to pick its tools and alerts.</p>
-          <p class="hint">Connect the CLIs you use. Only connected ones show up in New and start from “Ask an Agent About This Page”.</p>
+          <p class="hint">Connecting adds a small Roar hook to that CLI's own settings. The CLI runs it when a session starts, gets a prompt, uses a tool, needs you and stops; it writes only the session's state to Roar, never the conversation. Sessions started before you connect show up after a restart. Disconnecting removes the hook and hides that CLI's sessions at once. Only connected CLIs show up in New and in “Ask an Agent About This Page”.</p>
           <div id="agent-tools"></div>
           <div class="row"><label class="name" for="al-done">Alert me when a session finishes</label><input type="checkbox" class="switch" id="al-done" data-set="claudeAlertDone"></div>
           <div class="row"><label class="name" for="al-needs">Alert me when a session needs me</label><input type="checkbox" class="switch" id="al-needs" data-set="claudeAlertNeeds"></div>
@@ -185,9 +186,11 @@ function apply(s) {
   toolsBox.innerHTML = Object.keys(AGENT_TOOLS).map((t) => {
     const stt = tools[t] || 'absent', name = esc(AGENT_TOOLS[t][0]);
     const note = stt === 'absent' ? 'Not set up on this Mac' : stt === 'error' ? 'Its config isn’t valid JSON; Roar won’t touch it' :
+      stt === 'outdated' ? 'Its hooks run an old copy of Roar, so nothing reaches this one. Reconnect.' :
       stt === 'installed' ? (t === 'codex' ? 'Connected. Approve Roar’s hooks once in Codex: run /hooks.' : 'Connected') : 'Not connected';
-    return `<div class="row tool-row"><span class="name">${agentIcon(t, 16)}${name}<small class="${stt === 'installed' ? 'status ok' : ''}">${note}</small></span>${
-      stt === 'installed' || stt === 'not installed' ? `<button class="btn" data-tool="${t}" data-on="${stt !== 'installed'}">${stt === 'installed' ? 'Disconnect' : 'Connect'}</button>` : ''}</div>`;
+    const btn = stt === 'installed' ? 'Disconnect' : stt === 'outdated' ? 'Reconnect' : 'Connect';
+    return `<div class="row tool-row"><span class="name">${agentIcon(t, 16)}${name}<small class="${stt === 'installed' ? 'status ok' : stt === 'outdated' ? 'status warn' : ''}">${note}</small></span>${
+      stt === 'absent' || stt === 'error' ? '' : `<button class="btn" data-tool="${t}" data-on="${stt !== 'installed'}">${btn}</button>`}</div>`;
   }).join('');
   if (hadTool) (toolsBox.querySelector(`[data-tool="${hadTool}"]`) || $('claude-on')).focus();
   const chosen = (st.askLlms || '').split(',');
@@ -246,8 +249,12 @@ $('agent-spaces').onchange = (e) => {
 $('agent-tools').onclick = (e) => {
   const b = e.target.closest('[data-tool]');
   if (!b) return;
-  b.textContent = b.dataset.on === 'true' ? 'Connecting…' : 'Disconnecting…';
-  ask({ cmd: 'claude.hooks', tool: b.dataset.tool, on: b.dataset.on === 'true' }).then(refresh);
+  const on = b.dataset.on === 'true', t = b.dataset.tool;
+  b.textContent = on ? 'Connecting…' : 'Disconnecting…';
+  // Disconnecting on purpose also stops the "can't see" warning for it; connecting brings it back.
+  const ignore = (last?.settings?.agentHooksIgnore || '').split(',').filter((x) => x && x !== t);
+  set({ agentHooksIgnore: (on ? ignore : [...ignore, t]).join(',') });
+  ask({ cmd: 'claude.hooks', tool: t, on }).then(refresh);
 };
 $('engine').onchange = () => set({ searchUrl: $('engine').value });
 $('claude-on').onchange = () => { const on = $('claude-on').checked; set({ claudeSidebar: on }); ask({ cmd: 'claude.hooks', on }).then(refresh); };

@@ -2,7 +2,7 @@
 // sidebar's quick reply: one key list, one reply rule, one error shape. Needs bridge.js.
 const clSession = {
   KEYS: [['key:enter', 'Enter'], ['key:escape', 'Esc'], ['key:up', '↑', 'Up'], ['key:down', '↓', 'Down'], ['key:tab', 'Tab'],
-    ['1', '1'], ['2', '2'], ['3', '3'], ['key:ctrl-c', '⌃C', 'Interrupt (press twice)']],
+    ['1', '1'], ['2', '2'], ['3', '3'], ['key:ctrl-c', '⌃C', 'Interrupt (press twice)'], ['key:send-now', 'Send now', 'Send a queued message now (Ctrl+X Ctrl+S)']],
   keysHtml() {
     return this.KEYS.map(([k, t, l]) => `<button type="button" data-k="${k}"${l ? ` aria-label="${l}" title="${l}"` : ''}>${t}</button>`).join('');
   },
