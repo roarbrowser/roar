@@ -7,7 +7,7 @@
 #include "action_watch.h"
 #include "browser_app.h"
 #include "controller.h"
-#include "mac/platform.h"
+#include "platform.h"
 #include "state.h"
 
 // CEF requires an NSApplication that implements CefAppProtocol.

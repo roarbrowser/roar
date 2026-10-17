@@ -14,15 +14,23 @@
 #include <cstdlib>
 #include <cstring>
 #include <ctime>
+#ifdef _WIN32
+#define WIN32_LEAN_AND_MEAN
+#define NOMINMAX
+#include <windows.h>
+#else
 #include <dlfcn.h>
 #include <mach-o/dyld.h>
+#endif
 #include <filesystem>
 #include <fstream>
 #include <functional>
 #include <sstream>
 #include <set>
+#ifndef _WIN32
 #include <signal.h>
 #include <unistd.h>
+#endif
 
 #include "include/cef_command_ids.h"
 #include "include/base/cef_callback.h"
@@ -42,7 +50,7 @@
 #include "browser_app.h"
 #include "library.h"
 #include "client.h"
-#include "mac/platform.h"
+#include "platform.h"
 #include "shared.h"
 #include "state.h"
 
@@ -803,18 +811,27 @@ void Controller::Start() {
   // so MCP new_page opens a Roar tab instead of a bare Chrome window.
   // The CEF loader opens the framework RTLD_LOCAL, so look in its own image.
   using Hook = int (*)(const char*);
+#ifdef _WIN32
+  // TODO(windows): the patched libcef.dll must export these (a .def entry or __declspec(dllexport)).
+  HMODULE lib = GetModuleHandleW(L"libcef.dll");
+  auto sym = [lib](const char* name) { return lib ? reinterpret_cast<void*>(GetProcAddress(lib, name)) : nullptr; };
+  {
+#else
   for (uint32_t i = 0; i < _dyld_image_count(); ++i) {
     if (!strstr(_dyld_get_image_name(i), "/Chromium Embedded Framework")) continue;
     void* lib = dlopen(_dyld_get_image_name(i), RTLD_LAZY | RTLD_NOLOAD);
-    if (auto set = reinterpret_cast<void (*)(Hook)>(lib ? dlsym(lib, "roar_set_create_target_hook") : nullptr))
+    auto sym = [lib](const char* name) { return lib ? dlsym(lib, name) : nullptr; };
+#endif
+    if (auto set = reinterpret_cast<void (*)(Hook)>(sym("roar_set_create_target_hook")))
       set([](const char* url) { return Controller::Get()->OpenTargetTab(url); });
-    cdp_http_ = reinterpret_cast<void (*)(int)>(lib ? dlsym(lib, "roar_devtools_http") : nullptr);
+    cdp_http_ = reinterpret_cast<void (*)(int)>(sym("roar_devtools_http"));
     // Hides ghost tabs and spaces with agents off from CDP clients (scripts/cef-patches).
     using Filter = bool (*)(int, const char*);
-    if (auto filter = reinterpret_cast<void (*)(Filter)>(
-            lib ? dlsym(lib, "roar_set_devtools_target_filter") : nullptr))
+    if (auto filter = reinterpret_cast<void (*)(Filter)>(sym("roar_set_devtools_target_filter")))
       filter([](int id, const char* path) { return Controller::Get()->AgentMayReach(id, path); });
+#ifndef _WIN32
     break;
+#endif
   }
   cdp_on_ = platform::CdpEnabled();
   State& state = State::Get();
@@ -1958,7 +1975,8 @@ std::string AgentMdList() {
   static const std::set<std::string> skip = {"Library", "node_modules", ".git", "Pictures", "Movies", "Music", "build",
       "dist", "out", "target", "third_party", "vendor", "venv", ".venv", "__pycache__", "Pods", "DerivedData", "cef-src", "cache", "Caches"};
   const auto& dots = roar::AgentDotDirs();
-  const char* home = getenv("HOME");
+  const std::string home_dir = platform::HomeDir();
+  const char* home = home_dir.empty() ? nullptr : home_dir.c_str();
   auto list = CefListValue::Create();
   std::error_code ec;
   fs::recursive_directory_iterator it(home ? home : "/", fs::directory_options::skip_permission_denied, ec), end;
@@ -1990,8 +2008,8 @@ std::string AgentMdList() {
 std::filesystem::path AgentFilePath(const std::string& raw) {
   namespace fs = std::filesystem;
   std::error_code ec;
-  const char* h = getenv("HOME");
-  if (!h || !*h) return {};
+  const std::string h = platform::HomeDir();
+  if (h.empty()) return {};
   fs::path home = fs::weakly_canonical(h, ec);
   if (ec) return {};
   fs::path p = fs::weakly_canonical(raw, ec);
@@ -2042,7 +2060,13 @@ void Controller::ClaudeTick() {
     // Or at once when the Claude process the hook recorded is gone.
     auto term = d->GetDictionary("term");
     int pid = term && term->GetType("pid") == VTYPE_INT ? term->GetInt("pid") : 0;
+#ifdef _WIN32
+    HANDLE proc = pid > 1 ? OpenProcess(SYNCHRONIZE, FALSE, static_cast<DWORD>(pid)) : nullptr;
+    bool dead = pid > 1 && (!proc ? GetLastError() == ERROR_INVALID_PARAMETER : WaitForSingleObject(proc, 0) == WAIT_OBJECT_0);
+    if (proc) CloseHandle(proc);
+#else
     bool dead = pid > 1 && kill(pid, 0) != 0 && errno == ESRCH;
+#endif
     if (dead || idle > 6 * 3600 || (e.path().filename().string().rfind("new-", 0) == 0 && idle > 15 * 60)) { fs::remove(e.path(), ec); continue; }
     list->SetDictionary(list->GetSize(), d->Copy(false));
     seen.insert(d->GetString("id"));

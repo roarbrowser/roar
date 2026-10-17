@@ -14,8 +14,16 @@ set(ROAR_SRCS
   library.cc library.h
   link_clean.cc link_clean.h
   state.cc state.h
-  mac/main.mm mac/platform.h mac/platform.mm mac/scripting.mm
+  platform.h
   )
+
+# Windows: one roar.exe, no app bundle or helpers (src/win/CMakeLists.txt).
+if(OS_WINDOWS)
+  include("${CMAKE_CURRENT_SOURCE_DIR}/win/CMakeLists.txt")
+  return()
+endif()
+
+list(APPEND ROAR_SRCS mac/main.mm mac/platform.mm mac/scripting.mm)
 set(ROAR_HELPER_SRCS ${ROAR_SHARED_SRCS} mac/helper_main.cc)
 
 SET_CEF_TARGET_OUT_DIR()

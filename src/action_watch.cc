@@ -1,7 +1,13 @@
 #include "action_watch.h"
 
+#ifdef _WIN32
+#include <io.h>
+#include <BaseTsd.h>
+using ssize_t = SSIZE_T;
+#else
 #include <fcntl.h>
 #include <unistd.h>
+#endif
 
 #include <map>
 #include <thread>
@@ -232,6 +238,11 @@ void ReadLoop(int fd) {
 }  // namespace
 
 bool PrepareMain() {
+#ifdef _WIN32
+  // TODO(windows): Chromium takes the pipe as inherited handles (--remote-debugging-io-pipes);
+  // until that is wired up, extension toolbar state stays off.
+  return false;
+#else
   if (fcntl(3, F_GETFD) != -1 || fcntl(4, F_GETFD) != -1) return false;
   int to_chrome[2], from_chrome[2];
   if (pipe(to_chrome) || pipe(from_chrome)) return false;
@@ -252,6 +263,7 @@ bool PrepareMain() {
   fcntl(g_write, F_SETFD, FD_CLOEXEC);
   fcntl(g_read, F_SETFD, FD_CLOEXEC);
   return true;
+#endif
 }
 
 bool Enabled() { return g_read >= 0; }

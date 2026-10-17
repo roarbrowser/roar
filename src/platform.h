@@ -1,4 +1,4 @@
-// macOS services the cross-platform code needs: bundle resources, the menu
+// OS services the cross-platform code needs (src/mac, src/win): bundle resources, the menu
 // bar, the pasteboard, Downloads and the `gh` CLI.
 #pragma once
 

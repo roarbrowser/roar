@@ -5,9 +5,16 @@
 #include <cstdlib>
 #include <fstream>
 #include <sstream>
-#include <pwd.h>
 #include <sys/stat.h>
+#ifdef _WIN32
+#include <direct.h>
+#include <io.h>
+#define mkdir(path, mode) _mkdir(path)
+#define chmod _chmod
+#else
+#include <pwd.h>
 #include <unistd.h>
+#endif
 #include <vector>
 
 #include "atomic_write.h"
@@ -46,10 +53,25 @@ void WriteJson(const std::string& dir, const std::string& name, CefRefPtr<CefDic
 }
 
 std::string Home() {
+#ifdef _WIN32
+  const char* h = std::getenv("USERPROFILE");
+  return h ? h : "";
+#else
   const char* h = std::getenv("HOME");
   if (h && *h) return h;
   const passwd* pw = getpwuid(getuid());
   return pw && pw->pw_dir ? pw->pw_dir : "";
+#endif
+}
+
+// The main instance's data dir: ~/Library/Application Support/Roar, %APPDATA%/Roar on Windows.
+std::string MainDir() {
+#ifdef _WIN32
+  const char* a = std::getenv("APPDATA");
+  return std::string(a ? a : "") + "/Roar";
+#else
+  return Home() + "/Library/Application Support/Roar";
+#endif
 }
 
 // Drops the oldest ~10% once a map passes `cap`, so trimming is not a full scan per insert.
@@ -92,7 +114,7 @@ State& State::Get() {
 std::string State::Dir() const {
   const char* override_dir = std::getenv("ROAR_DATA_DIR");
   if (override_dir && *override_dir) return override_dir;
-  std::string dir = Home() + "/Library/Application Support/Roar";
+  std::string dir = MainDir();
   // Extra instances (platform::InstanceName) sit beside the main data dir.
   const char* instance = std::getenv("ROAR_INSTANCE");
   return instance && *instance ? dir + "-" + instance : dir;
@@ -143,7 +165,7 @@ void State::Load() {
     seed = !pinned && (!sp || sp->GetSize() <= 1);
   }
   if (seed) {
-    std::string main = ReadFile(Home() + "/Library/Application Support/Roar/state.json");
+    std::string main = ReadFile(MainDir() + "/state.json");
     if (!main.empty()) text = main;
     else seed = false;
   }

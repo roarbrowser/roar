@@ -15,7 +15,7 @@
 #include <sys/socket.h>
 #include <unistd.h>
 
-#include "mac/platform.h"
+#include "platform.h"
 
 #include "include/base/cef_callback.h"
 #include "include/cef_task.h"

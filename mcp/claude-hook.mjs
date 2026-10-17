@@ -6,7 +6,7 @@
 //   roar-mcp agent-hooks install|uninstall|status [tool]   adds/removes the hooks in each CLI's config
 //   roar-mcp claude-hooks install|uninstall|status         the same for Claude Code only
 //   roar-mcp claude-ctl new <folder> [first prompt] [tool]   starts that CLI (default claude) there
-//                                              (cmux, else tmux, else Terminal)
+//                                              (cmux, else tmux, else Terminal; Windows: wt.exe, else a console)
 //   roar-mcp claude-ctl tools                  prints the installed CLIs' ids, one per line
 //   roar-mcp claude-ctl focus|screen|send <session> [text|key:<name>]
 //                                              brings the session's terminal forward, prints its screen,
@@ -14,11 +14,15 @@
 // Roar reads the folder every few seconds (Controller::ClaudeTick). Only the latest prompt,
 // the current tool and the session state are kept; never the conversation.
 import { readFileSync, writeFileSync, mkdirSync, rmSync, renameSync, existsSync, copyFileSync, readdirSync } from 'node:fs';
-import { basename, join } from 'node:path';
-import { execFileSync } from 'node:child_process';
+import { basename, delimiter, isAbsolute, join } from 'node:path';
+import { execFileSync, spawn } from 'node:child_process';
+import { homedir } from 'node:os';
 
-const HOME = process.env.HOME;
-const DIR = join(process.env.ROAR_DATA_DIR || join(HOME, 'Library/Application Support/Roar'), 'claude-sessions');
+const WIN = process.platform === 'win32';
+const HOME = process.env.HOME || homedir();
+// Roar's data dir; %APPDATA%\Roar on Windows (src/state.cc MainDir).
+const DATA = WIN ? join(process.env.APPDATA || join(HOME, 'AppData', 'Roaming'), 'Roar') : join(HOME, 'Library/Application Support/Roar');
+const DIR = join(process.env.ROAR_DATA_DIR || DATA, 'claude-sessions');
 const EVENTS = ['SessionStart', 'UserPromptSubmit', 'PreToolUse', 'Notification', 'Stop', 'SessionEnd'];
 // Each CLI's user hook config. nested = Claude's event -> [{matcher, hooks:[{type,command}]}] shape;
 // own = a file of Roar's own (Copilot reads every *.json in its hooks folder).
@@ -100,7 +104,9 @@ export function update(prev, ev, now, tool = 'claude') {
   }
 }
 
-const which = (bin) => (process.env.PATH || '').split(':').map((d) => join(d, bin)).find((p) => existsSync(p));
+// Windows CLIs are .exe files or npm's .cmd shims.
+const EXTS = WIN ? ['.exe', '.cmd'] : [''];
+const which = (bin) => (process.env.PATH || '').split(delimiter).flatMap((d) => EXTS.map((x) => join(d, bin + x))).find((p) => existsSync(p));
 
 // Terminal bundle ids by TERM_PROGRAM, for terminals that don't pass __CFBundleIdentifier on.
 const TERM_APPS = { Apple_Terminal: 'com.apple.Terminal', 'iTerm.app': 'com.googlecode.iterm2', WezTerm: 'com.github.wez.wezterm', ghostty: 'com.mitchellh.ghostty', vscode: 'com.microsoft.VSCode' };
@@ -224,7 +230,7 @@ const KEYS = { enter: ['Enter', 'enter'], escape: ['Escape', 'escape'], up: ['Up
 const sq = (v) => `'${String(v).replace(/'/g, `'\\''`)}'`;  // One shell word.
 // Each CLI's binary: PATH, then the usual bin folders and Claude Code's own install spot (a GUI
 // app's PATH is short). Never a path from a session file. args: how it takes a first prompt.
-const BIN_DIRS = [...(process.env.PATH || '').split(':').filter((d) => d.startsWith('/')), join(HOME, '.local/bin'), '/opt/homebrew/bin', '/usr/local/bin', join(HOME, '.npm-global/bin'), join(HOME, '.bun/bin')];
+const BIN_DIRS = [...(process.env.PATH || '').split(delimiter).filter((d) => isAbsolute(d)), join(HOME, '.local/bin'), '/opt/homebrew/bin', '/usr/local/bin', join(HOME, '.npm-global/bin'), join(HOME, '.bun/bin')];
 const CLIS = {
   claude: { bin: [join(HOME, '.claude/local/claude')], args: (p) => ['--', p] },  // `--`: a prompt starting with - is no flag.
   codex: { args: (p) => ['--', p] },
@@ -232,17 +238,31 @@ const CLIS = {
   qwen: { args: (p) => ['-i', p] },
   copilot: { args: (p) => ['-i', p] },
 };
-const binOf = (tool) => [...BIN_DIRS.map((d) => join(d, tool)), ...(CLIS[tool].bin || [])].find((p) => existsSync(p));
+const binOf = (tool) => [...BIN_DIRS.map((d) => join(d, tool)), ...(CLIS[tool].bin || [])].flatMap((p) => EXTS.map((x) => p + x)).find((p) => existsSync(p));
+
+// Windows: a Windows Terminal tab when wt.exe is installed, else the CLI in its own console.
+// shortcut: no live view, input or focus on Windows (that needs tmux/cmux); a ConPTY host would add them.
+function startWindows(dir, bin, args, name) {
+  // A .cmd shim runs through cmd.exe, which re-parses its arguments: keep such a prompt out of it.
+  if (/\.cmd$/i.test(bin) && args.some((a) => /["%^&|<>!\r\n]/.test(a))) throw new Error('this prompt has characters cmd.exe would run; start without it');
+  const wt = which('wt');
+  // wt splits its command line on ';', so escape it inside arguments.
+  const [exe, argv] = wt ? [wt, ['-w', 'new', 'new-tab', '--title', name, '-d', dir, '--', bin, ...args.map((a) => a.replace(/;/g, '\\;'))]]
+    : /\.cmd$/i.test(bin) ? [process.env.ComSpec || 'cmd.exe', ['/d', '/c', bin, ...args]] : [bin, args];
+  spawn(exe, argv, { cwd: dir, detached: true, stdio: 'ignore', windowsHide: false }).unref();
+  return 'terminal';
+}
 const installed = () => Object.keys(CLIS).filter(binOf);
 
 // A new agent session in `dir`, in the background: the hooks report it once it starts.
 function start(dir, prompt, tool = 'claude') {
-  if (!ok(dir, /^\/[^\0\n]*$/) || !existsSync(dir)) throw new Error('pick a folder that exists');
+  if (!ok(dir, WIN ? /^[A-Za-z]:[\\/][^\0\n"]*$/ : /^\/[^\0\n]*$/) || !existsSync(dir)) throw new Error('pick a folder that exists');
   if (!CLIS[tool]) throw new Error('unknown agent CLI');
   const bin = binOf(tool);
   if (!bin) throw new Error(`${TOOLS[tool].name} is not installed (no ${tool} command found)`);
   const cmd = [bin, ...(prompt ? CLIS[tool].args(prompt.slice(0, 2000)) : [])].map(sq).join(' ');
   const name = basename(dir) || tool;
+  if (WIN) return startWindows(dir, bin, prompt ? CLIS[tool].args(prompt.slice(0, 2000)) : [], name);
   // Until the CLI's own hook runs (Claude's after it asks whether to trust the folder), a stand-in entry
   // lets Roar show the new terminal; the first real event for this folder replaces it.
   const now = Date.now(), stub = { id: `new-${now}`, tool, cwd: dir, project: name, state: 'starting', doing: `Starting in ${name}…`, started: now, updated: now, live: true, term: {} };

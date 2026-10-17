@@ -6,7 +6,11 @@ if(NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE Release)
 endif()
 # build.sh passes x86_64 + third_party/cef-x64 for the Intel half of a universal build.
-set(PROJECT_ARCH "arm64" CACHE STRING "arm64 or x86_64")
+if(WIN32)
+  set(PROJECT_ARCH "x86_64" CACHE STRING "x86_64 or arm64")  # scripts/build.ps1
+else()
+  set(PROJECT_ARCH "arm64" CACHE STRING "arm64 or x86_64")
+endif()
 set(CEF_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/third_party/cef" CACHE PATH "CEF binary distribution")
 set(CMAKE_OSX_ARCHITECTURES "${PROJECT_ARCH}")
 list(APPEND CMAKE_MODULE_PATH "${CEF_ROOT}/cmake")

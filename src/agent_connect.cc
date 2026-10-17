@@ -5,7 +5,12 @@
 #include <cstring>
 #include <fcntl.h>
 #include <sys/stat.h>
+#ifdef _WIN32
+#include <io.h>
+#include <share.h>
+#else
 #include <unistd.h>
+#endif
 
 #include <cstdlib>
 #include <filesystem>
@@ -616,6 +621,15 @@ std::string Connect(const std::string& id, const std::string& home, const std::s
     fs::path tmp = file.string() + ".roar-tmp";
     // Created private (or with the original's mode) before any content lands;
     // O_EXCL after unlink refuses a symlink planted in between.
+#ifdef _WIN32
+    // No symlink games without admin rights on Windows; _O_EXCL still refuses a planted file.
+    fs::remove(tmp, ec);
+    int fd = -1;
+    _wsopen_s(&fd, tmp.wstring().c_str(), _O_WRONLY | _O_CREAT | _O_EXCL | _O_BINARY, _SH_DENYRW, _S_IREAD | _S_IWRITE);
+    if (fd < 0) return "can't write " + tmp.string();
+    bool ok = _write(fd, text.data(), static_cast<unsigned>(text.size())) == static_cast<int>(text.size());
+    ok = _close(fd) == 0 && ok;
+#else
     unlink(tmp.c_str());
     mode_t mode = existed ? static_cast<mode_t>(fs::status(file, ec).permissions() & fs::perms::mask) : 0600;
     int fd = open(tmp.c_str(), O_WRONLY | O_CREAT | O_EXCL | O_TRUNC | O_NOFOLLOW, mode);
@@ -623,6 +637,7 @@ std::string Connect(const std::string& id, const std::string& home, const std::s
     fchmod(fd, mode);  // umask may have narrowed it.
     bool ok = write(fd, text.data(), text.size()) == static_cast<ssize_t>(text.size());
     ok = close(fd) == 0 && ok;
+#endif
     if (!ok) { fs::remove(tmp, ec); return "can't write " + tmp.string(); }
     fs::rename(tmp, file, ec);
     if (ec) { fs::remove(tmp, ec); return "can't write " + file.string() + ": " + ec.message(); }

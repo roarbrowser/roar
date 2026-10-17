@@ -15,7 +15,7 @@
 
 #include "include/cef_parser.h"
 
-#include "mac/platform.h"
+#include "platform.h"
 #include "state.h"
 
 namespace roar::library {
@@ -40,7 +40,11 @@ CefRefPtr<CefDictionaryValue> ParseDict(const std::string& json) {
 }
 
 std::string Home() {
+#ifdef _WIN32
+  const char* home = std::getenv("USERPROFILE");
+#else
   const char* home = std::getenv("HOME");
+#endif
   return home ? home : "";
 }
 
@@ -385,7 +389,11 @@ std::vector<Link> FirefoxPinned(const fs::path& profile) {
 
 std::vector<BrowserProfile> ReadFirefox(std::string* error) {
   std::vector<BrowserProfile> out;
+#ifdef _WIN32
+  fs::path root = std::string(std::getenv("APPDATA") ? std::getenv("APPDATA") : "") + "/Mozilla/Firefox";
+#else
   fs::path root = Home() + "/Library/Application Support/Firefox";
+#endif
   std::ifstream ini(root / "profiles.ini");
   if (!ini) return *error = "not found", out;
   struct Section { std::map<std::string, std::string> kv; std::string name; };
@@ -529,9 +537,16 @@ std::string BrowserName(const std::string& b) {
 }
 
 std::vector<BrowserProfile> ReadBrowser(const std::string& browser, std::string* error) {
+#ifdef _WIN32
+  const char* local = std::getenv("LOCALAPPDATA");
+  std::string support = std::string(local ? local : "") + "/";
+  if (browser == "chrome") return ReadChromium(support + "Google/Chrome/User Data", error);
+  if (browser == "edge") return ReadChromium(support + "Microsoft/Edge/User Data", error);
+#else
   std::string support = Home() + "/Library/Application Support/";
   if (browser == "chrome") return ReadChromium(support + "Google/Chrome", error);
   if (browser == "edge") return ReadChromium(support + "Microsoft Edge", error);
+#endif
   if (browser == "dia") return ReadChromium(support + "Dia/User Data", error);
   if (browser == "firefox") return ReadFirefox(error);
   if (browser == "safari") return ReadSafari(error);

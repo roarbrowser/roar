@@ -10,7 +10,7 @@
 
 #include "action_watch.h"
 #include "controller.h"
-#include "mac/platform.h"
+#include "platform.h"
 #include "shared.h"
 #include "state.h"
 

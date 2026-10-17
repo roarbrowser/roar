@@ -21,6 +21,7 @@ import { spawn, execFileSync } from 'node:child_process';
 import { createInterface } from 'node:readline';
 import { mkdirSync, readFileSync, existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
+import { homedir } from 'node:os';
 import { run as claudeHooks } from './claude-hook.mjs';
 
 // `roar-mcp agent-hook <tool>` / `agent-hooks <action> [tool]` (and the claude-* forms): agent sessions in the sidebar.
@@ -28,7 +29,10 @@ const mode = process.argv.slice(2)[0];
 if (['claude-hook', 'claude-hooks', 'claude-ctl', 'agent-hook', 'agent-hooks'].includes(mode)) { claudeHooks(process.argv.slice(2), process.execPath); process.exit(); }
 
 // Contents/Resources/roar-mcp -> Roar.app
-const APP = process.env.ROAR_APP || join(dirname(process.execPath), '..', '..');
+// macOS: Roar.app (roar-mcp sits in Contents/Resources). Windows: the folder holding Roar.exe and roar-mcp.exe.
+const WIN = process.platform === 'win32';
+const HOME = process.env.HOME || homedir();
+const APP = process.env.ROAR_APP || (WIN ? dirname(process.execPath) : join(dirname(process.execPath), '..', '..'));
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const get = async (port, path) => {
   try { const r = await fetch(`http://127.0.0.1:${port}${path}`, { signal: AbortSignal.timeout(2000) }); return r.ok ? await r.text() : null; }
@@ -38,14 +42,14 @@ const up = async (port) => (await get(port, '/json/version')) !== null;
 const waitFor = async (check) => { for (let i = 0; i < 40 && !(await check()); i++) await sleep(500); };
 
 async function pickPort() {
-  const stateFile = join(process.env.ROAR_DATA_DIR || join(process.env.HOME, 'Library/Application Support/Roar'), 'state.json');
+  const stateFile = join(process.env.ROAR_DATA_DIR || (WIN ? join(process.env.APPDATA || join(HOME, 'AppData', 'Roaming'), 'Roar') : join(HOME, 'Library/Application Support/Roar')), 'state.json');
   let headless = false;
   try { headless = JSON.parse(readFileSync(stateFile, 'utf8')).settings?.agentHeadless === true; } catch {}
   const fixed = process.env.ROAR_CDP_PORT;
   const port = fixed || (headless ? '9444' : '9222');
-  const bin = join(APP, 'Contents/MacOS/Roar');
+  const bin = WIN ? join(APP, 'Roar.exe') : join(APP, 'Contents/MacOS/Roar');
   if (!fixed && headless && !(await up(port))) {
-    const data = join(process.env.HOME, '.roar-headless');
+    const data = join(HOME, '.roar-headless');
     mkdirSync(data, { recursive: true });
     spawn(bin, ['--headless=new'], { env: { ...process.env, ROAR_DATA_DIR: data, ROAR_CDP_PORT: port }, stdio: 'ignore', detached: true }).unref();
     await waitFor(() => up(port));
@@ -55,8 +59,9 @@ async function pickPort() {
   } else if (!(await up(port))) {
     // Anchored: a headless Roar runs the same binary, with arguments.
     let running = true;
-    try { execFileSync('pgrep', ['-f', `${bin}$`], { stdio: 'ignore' }); } catch { running = false; }
-    if (!running && existsSync(bin)) spawn('open', ['-a', APP], { stdio: 'ignore' });
+    if (WIN) running = false;  // A running Roar would already answer on its port.
+    else try { execFileSync('pgrep', ['-f', `${bin}$`], { stdio: 'ignore' }); } catch { running = false; }
+    if (!running && existsSync(bin)) WIN ? spawn(bin, [], { stdio: 'ignore', detached: true }).unref() : spawn('open', ['-a', APP], { stdio: 'ignore' });
     await waitFor(() => up(port));
   }
   if (!(await up(port))) {
