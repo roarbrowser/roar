@@ -3971,6 +3971,21 @@ bool Controller::HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> 
       }
     });
     callback->Success("");
+  } else if (cmd == "settings.reset") {
+    // Every setting back to its default; onboarding stays done. Side-effect settings go
+    // through ApplySettings so CDP, GitHub and Gmail follow.
+    Settings& s = State::Get().settings;
+    Settings fresh;
+    fresh.onboarded = s.onboarded;
+    s = fresh;
+    auto d = CefDictionaryValue::Create();
+    d->SetBool("cdpEnabled", fresh.cdp_enabled);
+    d->SetBool("githubFolder", fresh.github_folder);
+    d->SetString("githubQuery", fresh.github_query);
+    d->SetBool("gmailFolder", fresh.gmail_folder);
+    ApplySettings(d);
+    ApplySidebarWidth();
+    callback->Success(StateJson());
   } else if (cmd == "settings.set") {
     ApplySettings(msg->GetDictionary("settings"));
     callback->Success(StateJson());
