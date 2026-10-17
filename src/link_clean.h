@@ -2,6 +2,7 @@
 #pragma once
 
 #include <string>
+#include <vector>
 
 namespace roar {
 
@@ -12,7 +13,15 @@ namespace roar {
 //  - Defender for Cloud Apps session proxy hosts lose their `.mcas.ms` suffix
 //    (`x.sharepoint.com.mcas.ms` -> `x.sharepoint.com`), and the `McasCtx` /
 //    `McasTsid` query parameters it adds are dropped.
-// Wrappers can nest, so the result is cleaned again until nothing changes.
-std::string CleanLink(const std::string& url);
+//  - Tracking parameters (utm_*, fbclid, gclid and the like) are dropped.
+//  - So are |params|, the user's own names (case-insensitive; a trailing * matches a prefix).
+// Each kind can be turned off. Wrappers can nest, so the result is cleaned again until nothing changes.
+struct CleanOptions {
+  bool safelinks = true, mcas = true, tracking = true;
+  std::vector<std::string> params;
+};
+std::string CleanLink(const std::string& url, const CleanOptions& opts = {});
+// "a, b c" -> {"a", "b", "c"}: the saved cleanParams setting.
+std::vector<std::string> SplitParams(const std::string& list);
 
 }  // namespace roar

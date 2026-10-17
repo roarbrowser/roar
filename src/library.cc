@@ -293,7 +293,7 @@ std::string MozLz4(const std::string& in) {
   uint32_t size;
   std::memcpy(&size, in.data() + 8, 4);
   std::string out;
-  out.reserve(size);
+  out.reserve(std::min<size_t>(size, in.size() * 255));  // header size is untrusted
   const auto* ip = reinterpret_cast<const uint8_t*>(in.data()) + 12;
   const auto* end = reinterpret_cast<const uint8_t*>(in.data()) + in.size();
   auto length = [&](size_t n) {
@@ -449,7 +449,7 @@ std::vector<Link> SafariPinned() {
 std::vector<BrowserProfile> ReadSafari(std::string* error) {
   std::vector<BrowserProfile> out;
   auto d = ParseDict(platform::SafariBookmarksJson());
-  if (!d) return *error = "Roar needs Full Disk Access to read Safari", out;
+  if (!d) return *error = "Roar needs Full Disk Access to read Safari: turn Roar on in the Settings window that just opened, then import again", out;
   BrowserProfile bp;
   bp.name = "Safari";
   bp.is_default = true;

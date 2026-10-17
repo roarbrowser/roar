@@ -28,13 +28,20 @@ struct Settings {
   // Agent sessions (claude_* keys predate other CLIs) in the sidebar; when on, launch installs the hooks once if Claude Code is set up.
   bool claude_sidebar = true;
   bool claude_alert_done = true, claude_alert_needs = true, claude_alert_system = true;  // Which agent session states post a macOS notification (ClaudeAlert).
-  bool agent_files = false;  // "Agent files" sidebar module.
+  bool agent_files = false;  // Unused since 0.17 (it was off by default); kept so older state.json files load.
+  bool agent_files_row = true;
+  bool sidebar_counts = true;  // Count badges on the sidebar footer buttons (agents, GitHub, mail).
+  std::string agent_hooks_ignore;  // CLIs (comma-separated) the hooks warning skips: Don't remind me, or disconnected on purpose.
+  double agent_hooks_snooze = 0;  // Epoch seconds until the hooks warning may show again.  // The Agent files row in Agent sessions; its { } header button toggles it.
   bool claude_hooks_offered = false;
   std::string agent_tool = "claude";  // The CLI the New dialog last started (claude-ctl new's tool).
   std::string agent_pins;  // Unused since 0.14 (pinned sessions); kept so older state.json files load.
   bool agent_section = true;  // The sidebar's Agent sessions section, toggled by its footer button.
   bool clean_links = true;
-  std::string ask_llms = "chatgpt,claude,gemini,perplexity,grok";  // Chat apps "Ask an LLM about page" lists (kLlms ids).  // Unwraps Safe Links and strips .mcas.ms from copied links (CleanLink).
+  bool clean_safelinks = true, clean_mcas = true, clean_tracking = true;  // Which cleanups CleanLink does (CleanOptions).
+  std::string clean_params;  // The user's own query parameters to drop from copied links, comma-separated.
+  std::string agent_colors;  // Each agent session's own color, JSON {sessionId: "#rrggbb"} (claude.html).
+  std::string ask_llms = "chatgpt";  // The AI "Ask <AI> about this page" opens (a kLlms id; older saves list several, the first wins).  // Unwraps Safe Links and strips .mcas.ms from copied links (CleanLink).
 };
 
 // Each setting once: the JSON name it is saved under in state.json (never rename one: saved
@@ -62,12 +69,20 @@ inline const std::vector<SettingField>& SettingFields() {
       {"pinnedColumns", &Settings::pinned_columns, true},
       {"pinnedCentered", &Settings::pinned_centered, true},
       {"cleanLinks", &Settings::clean_links, true},
+      {"cleanSafeLinks", &Settings::clean_safelinks, true},
+      {"cleanMcas", &Settings::clean_mcas, true},
+      {"cleanTracking", &Settings::clean_tracking, true},
+      {"cleanParams", &Settings::clean_params, true},
       {"askDefault", &Settings::ask_default, true},
       {"claudeSidebar", &Settings::claude_sidebar, true},
       {"claudeAlertDone", &Settings::claude_alert_done, true},
       {"claudeAlertNeeds", &Settings::claude_alert_needs, true},
       {"claudeAlertSystem", &Settings::claude_alert_system, true},
-      {"agentFiles", &Settings::agent_files, true},
+      {"agentFiles", &Settings::agent_files, false},
+      {"agentFilesRow", &Settings::agent_files_row, true},
+      {"sidebarCounts", &Settings::sidebar_counts, true},
+      {"agentHooksIgnore", &Settings::agent_hooks_ignore, true},
+      {"agentHooksSnooze", &Settings::agent_hooks_snooze, true},
       {"claudeHooksOffered", &Settings::claude_hooks_offered, false},
       {"agentTool", &Settings::agent_tool, true},
       {"agentPins", &Settings::agent_pins, false},
@@ -76,6 +91,7 @@ inline const std::vector<SettingField>& SettingFields() {
       {"cdpOpen", &Settings::cdp_enabled, false},
       {"agentHeadless", &Settings::agent_headless, true},
       {"askLlms", &Settings::ask_llms, true},
+      {"agentColors", &Settings::agent_colors, true},
   };
   return fields;
 }

@@ -15,6 +15,10 @@ set(CEF_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/third_party/cef" CACHE PATH "CEF binar
 set(CMAKE_OSX_ARCHITECTURES "${PROJECT_ARCH}")
 list(APPEND CMAKE_MODULE_PATH "${CEF_ROOT}/cmake")
 find_package(CEF REQUIRED)
+# Keep this checkout's path (a home folder) out of the binary: CEF's wrapper logs __FILE__.
+add_compile_options("-ffile-prefix-map=${CMAKE_SOURCE_DIR}/=")
+# Release builds (release.sh) are for other Macs, which have no checkout to rebuild from.
+option(ROAR_RELEASE "Build for distribution: no source checkout baked in" OFF)
 
 add_subdirectory(${CEF_LIBCEF_DLL_WRAPPER_PATH} libcef_dll_wrapper)
 add_subdirectory(src)

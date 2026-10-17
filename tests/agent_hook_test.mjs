@@ -17,7 +17,12 @@ const check = (ok, what) => { if (!ok) fail++; console.log((ok ? 'ok   ' : 'FAIL
 const session = (key) => { try { return JSON.parse(readFileSync(join(DATA, 'claude-sessions', key + '.json'), 'utf8')); } catch { return null; } };
 
 // Adapters: each CLI's sample payloads -> the expected session file.
+const TR = join(HOME, 't.jsonl');
+writeFileSync(TR, '{"type":"user"}\n{"type":"custom-title","customTitle":"old"}\n{"type":"custom-title","customTitle":"Release prep","sessionId":"n1"}\n{"type":"assistant"}\n');
 const cases = [
+  // /rename: the transcript's last custom-title names the session, and it sticks without a transcript.
+  ['claude', [], { session_id: 'n1', cwd: '/w/alpha', hook_event_name: 'Stop', transcript_path: TR }, 'n1', { project: 'Release prep' }],
+  ['claude', [], { session_id: 'n1', cwd: '/w/alpha', hook_event_name: 'Stop' }, 'n1', { project: 'Release prep' }],
   ['claude', [], { session_id: 'c1', cwd: '/w/alpha', hook_event_name: 'UserPromptSubmit', prompt: 'fix it' }, 'c1', { tool: 'claude', state: 'working', prompt: 'fix it', project: 'alpha' }],
   ['claude', [], { session_id: 'c1', cwd: '/w/alpha', hook_event_name: 'PreToolUse', tool_name: 'Edit', tool_input: { file_path: '/w/alpha/x.c' } }, 'c1', { doing: 'Editing x.c' }],
   ['codex', [], { session_id: 'c1', cwd: '/w/beta', hook_event_name: 'SessionStart', model: 'gpt' }, 'codex-c1', { tool: 'codex', sid: 'c1', state: 'idle', project: 'beta' }],
@@ -85,6 +90,15 @@ let bad = '';
 try { mcp(['agent-hooks', 'install', 'qwen']); } catch (e) { bad = e.stdout; }
 check(bad.startsWith('error:') && readFileSync(join(HOME, '.qwen/settings.json'), 'utf8') === '{bad', 'invalid JSON is left alone');
 check(/^installed$/m.test(mcp(['claude-hooks', 'install'])), 'claude-hooks still works');
+// Hooks pointing at another Roar (moved or deleted) read as outdated until reinstalled.
+{
+  const f = join(HOME, '.claude/settings.json'), cfg = JSON.parse(readFileSync(f, 'utf8'));
+  for (const e of Object.keys(cfg.hooks)) for (const m of cfg.hooks[e]) for (const h of m.hooks) h.command = h.command.replace(/^"[^"]*"/, '"/Old/Roar.app/roar-mcp"');
+  writeFileSync(f, JSON.stringify(cfg));
+  check(/^claude outdated$/m.test(mcp(['agent-hooks', 'status'])), 'hooks from another Roar are outdated');
+  mcp(['agent-hooks', 'install', 'claude']);
+  check(/^claude installed$/m.test(mcp(['agent-hooks', 'status'])), 'reinstalling fixes outdated hooks');
+}
 
 // claude-ctl tools/new: a stub CLI on PATH, run in a scratch tmux server (never cmux, never a real CLI).
 // PATH comes first, so the stub wins over a real codex in /opt/homebrew/bin.

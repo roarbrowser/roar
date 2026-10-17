@@ -19,7 +19,8 @@ int CdpPort();
 // Whether this launch starts listening on CdpPort(): ROAR_CDP_PORT, headless, or the cdpEnabled setting.
 bool CdpEnabled();
 // Reopens this app bundle once this process has exited; call before quitting.
-void RelaunchAfterExit();
+// |wipe_dir| (the data dir, for Reset Roar) is deleted once this process has exited.
+void RelaunchAfterExit(const std::string& wipe_dir = "");
 // Open TCP connections to this process's CDP port: one per connected agent/CDP client.
 int CdpClientCount();
 // A macOS notification (asks for permission the first time). A non-empty |id| replaces an
@@ -70,6 +71,9 @@ void TrackHorizontalDrag(void* window, std::function<void(int x)> on_move);
 // An empty rect hides it.
 void SetSplitDivider(void* window, int x, int y, int w, int h, bool stacked,
                      std::function<void(int sx, int sy)> on_drag, std::function<void()> reset);
+// ‹ › buttons pinned to |window|'s top-left corner (a split pane); press(forward) on a click.
+// A native child panel: CEF overlay views on Chrome-style windows stopped every mouse click.
+void SetPaneNav(void* window, bool show, std::function<void(bool forward)> press);
 // Turns a tab window into a titled, always-on-top mini window, or back.
 void SetFloating(void* window, bool floating, const std::string& title);
 void CopyText(const std::string& text);
@@ -81,6 +85,14 @@ void CopyText(const std::string& text);
 void UpdateChromium(void* window);
 // Sparkle: checks the appcast for a newer Roar release and shows its update UI.
 void CheckForUpdates();
+// Moves |path| to the user's Trash (Finder's Put Back works); false when it couldn't.
+bool MoveToTrash(const std::string& path);
+// Sparkle's own saved choices: check daily, and download+install without asking. Both false, and
+// setting does nothing, when the updater isn't running (test and headless instances).
+bool UpdaterRunning();
+bool AutoUpdateChecks();
+bool AutoUpdateDownloads();
+void SetAutoUpdate(bool checks, bool downloads);
 void ChooseLookback(void* window, const std::string& what, std::function<void(double since)> done);
 // A path in ~/Downloads for |name| that doesn't exist yet ("name (1).ext" and so on).
 std::string UniqueDownloadPath(const std::string& name);
@@ -93,6 +105,8 @@ void ConfirmDownload(void* window, const std::string& name, const std::string& h
 // Adds com.apple.quarantine to a finished download unless Chromium already did.
 void QuarantineDownload(const std::string& path, const std::string& url);
 void RevealInFinder(const std::string& path);
+// Opens System Settings at Privacy & Security > Full Disk Access.
+void OpenFullDiskAccessSettings();
 // Asks whether to open `url` (a non-web scheme) in the app registered for it, then
 // opens it. Returns false, without asking, when no app handles the scheme.
 bool OpenInApp(void* window, const std::string& url);

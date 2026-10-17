@@ -1,5 +1,6 @@
 #include "action_watch.h"
 
+#include <cerrno>
 #ifdef _WIN32
 #include <io.h>
 #include <BaseTsd.h>
@@ -225,6 +226,7 @@ void ReadLoop(int fd) {
   char chunk[65536];
   for (;;) {
     ssize_t n = read(fd, chunk, sizeof chunk);
+    if (n < 0 && errno == EINTR) continue;
     if (n <= 0) return;
     buf.append(chunk, n);
     size_t end;

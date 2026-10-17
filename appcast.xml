@@ -92,5 +92,275 @@
       <description><![CDATA[Agent sessions now sit below Tabs, and rows no longer flash: a session that needs you is a steady orange tint.]]></description>
       <enclosure url="https://github.com/roarbrowser/roar/releases/download/v0.15.1/Roar-0.15.1.dmg" type="application/octet-stream" sparkle:edSignature="u0BSdTi2f8eKV1CuiWI/yk4yKNn5oHOc0l/bQRuRfPYRtPrf+oEsUQSuYvUSxS0SogC1G14F4eqD9W4SwHPnAA==" length="234994210"/>
     </item>
+    <item>
+      <title>0.15.2</title>
+      <pubDate>Sat, 17 Oct 2026 02:19:22 +0000</pubDate>
+      <sparkle:version>0.15.2</sparkle:version>
+      <sparkle:shortVersionString>0.15.2</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[Agent sessions can be collapsed and expanded from the arrow beside its name; Roar remembers which.]]></description>
+      <enclosure url="https://github.com/roarbrowser/roar/releases/download/v0.15.2/Roar-0.15.2.dmg" type="application/octet-stream" sparkle:edSignature="/44iQUE2hHvyKwW5ay0qIMOxX9bPvxVa+MNoDsaHh+5D6N3n/WQXmagBA6/hfWSkrWvx+Q4H8y6B8NKPtlauDg==" length="234994759"/>
+    </item>
+    <item>
+      <title>0.15.3</title>
+      <pubDate>Sat, 17 Oct 2026 02:24:31 +0000</pubDate>
+      <sparkle:version>0.15.3</sparkle:version>
+      <sparkle:shortVersionString>0.15.3</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[Agent files now opens from the { } button in the Agent sessions header instead of its own footer icon. The header's Send tab is a paperclip, so everything fits on one line.]]></description>
+      <enclosure url="https://github.com/roarbrowser/roar/releases/download/v0.15.3/Roar-0.15.3.dmg" type="application/octet-stream" sparkle:edSignature="10DH8brSKaNEu0KlrdfyWiOnCnNOc8QlR08Djr2DTEfLtwuZR8dw3mWGIH4nOoxhqLJ6+lHCdetezsNIs+sVCg==" length="234992268"/>
+    </item>
+    <item>
+      <title>0.16.0</title>
+      <pubDate>Sat, 17 Oct 2026 02:33:40 +0000</pubDate>
+      <sparkle:version>0.16.0</sparkle:version>
+      <sparkle:shortVersionString>0.16.0</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[Settings has one Agents section: coding agents in your terminal, then agents that browse with Roar, with a plain choice of where agents browse and a switch for each space they can see. Clean links I copy now lets you choose what it removes: Safe Links, the .mcas.ms proxy, tracking parameters (utm_*, fbclid, gclid…) and your own list. Agent files is a row in Agent sessions.]]></description>
+      <enclosure url="https://github.com/roarbrowser/roar/releases/download/v0.16.0/Roar-0.16.0.dmg" type="application/octet-stream" sparkle:edSignature="i0nolHofkFdjVzK+oGkq2kieM/UIJZ2ksIF8HOlNoGsKTUNG+xrKWMPgXN8Lbr7sjTc1BgILMwkus10T/QWqDw==" length="234995152"/>
+    </item>
+    <item>
+      <title>0.17.0</title>
+      <pubDate>Sat, 17 Oct 2026 02:37:25 +0000</pubDate>
+      <sparkle:version>1700</sparkle:version>
+      <sparkle:shortVersionString>0.17.0</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[Agent files shows in Agent sessions by default; the { } button in its header hides or shows it. Settings > Updates lets you turn automatic update checks and automatic installs on or off. Fixes updates: earlier builds all carried build number 1, so Roar never saw a release as newer. This version is the first one Check for Updates can install.]]></description>
+      <enclosure url="https://github.com/roarbrowser/roar/releases/download/v0.17.0/Roar-0.17.0.dmg" type="application/octet-stream" sparkle:edSignature="nWzvbphCCIvfCh6i0WcwXphLG94JKYE5WcIsG9ZKBrZVnjUyaNsCa/bnVvzrCtgpRCZNiC0owRpJXYKKpVjiBA==" length="235004426"/>
+    </item>
+    <item>
+      <title>0.18.0</title>
+      <pubDate>Sat, 17 Oct 2026 02:41:29 +0000</pubDate>
+      <sparkle:version>1800</sparkle:version>
+      <sparkle:shortVersionString>0.18.0</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[Agent files groups files by project, so it's clear which repo each one belongs to (files in ~/.claude and similar show as Global). Filter by project, agent, and by when a file was changed, created or last opened, including stale files over 3 months or a year old. Tick files and move them to the Trash in one go; Finder's Put Back undoes it.]]></description>
+      <enclosure url="https://github.com/roarbrowser/roar/releases/download/v0.18.0/Roar-0.18.0.dmg" type="application/octet-stream" sparkle:edSignature="7s4kn9Ccuty3HjTKkl6MEJj589zxQN5ok7KKS9ncJchkRbYxbLCXhnPyX6snVHWZ2hDbiMY4bcF0XtP7UjuSCQ==" length="234996767"/>
+    </item>
+    <item>
+      <title>0.18.1</title>
+      <pubDate>Sat, 17 Oct 2026 02:49:58 +0000</pubDate>
+      <sparkle:version>1801</sparkle:version>
+      <sparkle:shortVersionString>0.18.1</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[Signed with the company Developer ID (notarization follows in 0.18.2).]]></description>
+      <enclosure url="https://github.com/roarbrowser/roar/releases/download/v0.18.1/Roar-0.18.1.dmg" type="application/octet-stream" sparkle:edSignature="MAhft6ESkyYxNRAGbw62W/220mrtY/P+i3hGX0f+AfsPWQLYna5YVcakkJHTz39vV0BUs4DzUI3WH0G8X66bAw==" length="234996536"/>
+    </item>
+    <item>
+      <title>0.18.2</title>
+      <pubDate>Sat, 17 Oct 2026 02:53:43 +0000</pubDate>
+      <sparkle:version>1802</sparkle:version>
+      <sparkle:shortVersionString>0.18.2</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[Roar is now notarized by Apple: it opens on the first launch without a trip to Privacy & Security.]]></description>
+      <enclosure url="https://github.com/roarbrowser/roar/releases/download/v0.18.2/Roar-0.18.2.dmg" type="application/octet-stream" sparkle:edSignature="FTUhy69CdNLOpMuDQVrFJwgeHPw8IFgEEiP6XkT5CKof3/k3btsUMfksYgqekou2TKa5Z1GOpOzFf+PBwLrWBQ==" length="234946845"/>
+    </item>
+    <item>
+      <title>0.19.0</title>
+      <pubDate>Sat, 17 Oct 2026 03:00:52 +0000</pubDate>
+      <sparkle:version>1900</sparkle:version>
+      <sparkle:shortVersionString>0.19.0</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[Agent sessions now tell you in the sidebar when a session needs you or finishes, not only with a macOS notification while Roar is in the background. Disconnecting a CLI in Settings hides its sessions right away. If a CLI on your Mac isn't connected, or its hooks point at an old copy of Roar, a card says so with Connect, Snooze a day and Don't remind me. The full session view has a Send now key for messages Claude Code has queued.]]></description>
+      <enclosure url="https://github.com/roarbrowser/roar/releases/download/v0.19.0/Roar-0.19.0.dmg" type="application/octet-stream" sparkle:edSignature="CMrd+0u8b9FgpeIY+fkwmp7zR/gOYkKoW5miUX1LWTBmVE7BmAAXixJBX7Lp/tQEd94SFdwe++Z1Ky6NMl/pCg==" length="234948393"/>
+    </item>
+    <item>
+      <title>0.20.0</title>
+      <pubDate>Sat, 17 Oct 2026 03:04:35 +0000</pubDate>
+      <sparkle:version>2000</sparkle:version>
+      <sparkle:shortVersionString>0.20.0</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[Side by side: put an agent session next to the web page you're on, from the split icon on its row or the button in its full view. In the full view, clicking the terminal screen or just starting to type puts you in the reply box.]]></description>
+      <enclosure url="https://github.com/roarbrowser/roar/releases/download/v0.20.0/Roar-0.20.0.dmg" type="application/octet-stream" sparkle:edSignature="V2diUxpoC5nrm33DiiZX/8whJMJdlAeBAQr1AAJE71zCuObS9GA2QBZ8OuAwfoUeumTU4zu192050CP5C6joAQ==" length="234949870"/>
+    </item>
+    <item>
+      <title>0.20.1</title>
+      <pubDate>Sat, 17 Oct 2026 03:20:22 +0000</pubDate>
+      <sparkle:version>2001</sparkle:version>
+      <sparkle:shortVersionString>0.20.1</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[Fix: closing a tab with a "Leave site?" prompt left an orphaned window and could take Roar down. Agents connected through the Roar MCP server now know to use Roar for web tasks without being told.]]></description>
+      <enclosure url="https://github.com/roarbrowser/roar/releases/download/v0.20.1/Roar-0.20.1.dmg" type="application/octet-stream" sparkle:edSignature="dm4mRs5omKdXCDUBWniRvHl0hCrQRBtOnONyLOZiN4Q+kAVt2ojREbBVnT2QTA3WY6kNsYZw6Yr/WHATWGicDQ==" length="234952801"/>
+    </item>
+    <item>
+      <title>0.20.2</title>
+      <pubDate>Sat, 17 Oct 2026 03:23:40 +0000</pubDate>
+      <sparkle:version>2002</sparkle:version>
+      <sparkle:shortVersionString>0.20.2</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[Done cards from agents clear themselves after 30 seconds. Agent notifications are cleaned up: no code blocks, markdown or long encoded strings. A session's terminal view now scales to fit, so it reads properly side by side.]]></description>
+      <enclosure url="https://github.com/roarbrowser/roar/releases/download/v0.20.2/Roar-0.20.2.dmg" type="application/octet-stream" sparkle:edSignature="Fu3J8PqYFRc1SOoWSwtEfpuulQyE/2JPUKgYtaam2bVKOeQnlc0X3HicekduJ2jZ/bVNOIYQhx2FWBXZEf8ACg==" length="234953522"/>
+    </item>
+    <item>
+      <title>0.21.0</title>
+      <pubDate>Sat, 17 Oct 2026 03:30:29 +0000</pubDate>
+      <sparkle:version>2100</sparkle:version>
+      <sparkle:shortVersionString>0.21.0</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[Settings > Agents now asks one thing: which AI you use. Press ⌘T and type "ask" to ask it about the page, either its chat site with the page filled in or your terminal agent.]]></description>
+      <enclosure url="https://github.com/roarbrowser/roar/releases/download/v0.21.0/Roar-0.21.0.dmg" type="application/octet-stream" sparkle:edSignature="Rb2NQCG2rijqZJBqZ9m1TbwugksRkizLB0afMZJpnU4VALJ5K35B4QFKQsmbZZaD09JjpocgQvKcv1QriQjPAg==" length="234953453"/>
+    </item>
+    <item>
+      <title>0.21.1</title>
+      <pubDate>Sat, 17 Oct 2026 03:34:38 +0000</pubDate>
+      <sparkle:version>2101</sparkle:version>
+      <sparkle:shortVersionString>0.21.1</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[Split view stays put: clicking another tab shows that tab alone, and clicking either split tab brings the split back. To change a pane, drag a tab onto one of the split's tabs.]]></description>
+      <enclosure url="https://github.com/roarbrowser/roar/releases/download/v0.21.1/Roar-0.21.1.dmg" type="application/octet-stream" sparkle:edSignature="le+fc45gHYvc9jxrsrJqWeEmUWTpAlAFuadt3VBY2NugO7qSw3tyft/794VhUiTErseX7PoZg9ewlKH1o8ieCg==" length="234953341"/>
+    </item>
+    <item>
+      <title>0.22.0</title>
+      <pubDate>Sat, 17 Oct 2026 03:51:44 +0000</pubDate>
+      <sparkle:version>2200</sparkle:version>
+      <sparkle:shortVersionString>0.22.0</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[Tabs header button sends the current page to your chosen AI (same as Ask <AI> about this page)]]></description>
+      <enclosure url="https://github.com/roarbrowser/roar/releases/download/v0.22.0/Roar-0.22.0.dmg" type="application/octet-stream" sparkle:edSignature="7XnekLpu7rjI31kxb3qD74+buJDQKVvys6q3WELPSBWgj20+i6hD2tx56+SSpVBLGcBh9x7GfpIFXfYF6nTbBA==" length="203764580"/>
+    </item>
+    <item>
+      <title>0.22.1</title>
+      <pubDate>Sat, 17 Oct 2026 03:54:39 +0000</pubDate>
+      <sparkle:version>2201</sparkle:version>
+      <sparkle:shortVersionString>0.22.1</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[Settings > Agents: picking your AI also connects its terminal agent; no separate connect list]]></description>
+      <enclosure url="https://github.com/roarbrowser/roar/releases/download/v0.22.1/Roar-0.22.1.dmg" type="application/octet-stream" sparkle:edSignature="4yeLJebxfJ62hCNPKUABjH3H1lIo5S9uTH60hWmh7dJ85c6t5hJOvBb1xGS2Ssvkyd3EnoIv/kxok9X5sctOBw==" length="203759153"/>
+    </item>
+    <item>
+      <title>0.23.0</title>
+      <pubDate>Sat, 17 Oct 2026 04:08:15 +0000</pubDate>
+      <sparkle:version>2300</sparkle:version>
+      <sparkle:shortVersionString>0.23.0</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[Split view: keep several splits at once, drag any tab onto any tab (rows and pinned tiles) to split, drop on the list to separate, and Separate tabs acts on that pair. Security and reliability fixes for AppleScript, Gmail actions and agent tools; accessibility labels; agent session cards no longer show internal tags.]]></description>
+      <enclosure url="https://github.com/roarbrowser/roar/releases/download/v0.23.0/Roar-0.23.0.dmg" type="application/octet-stream" sparkle:edSignature="9xS3pKgd4t6z9U3qH6Jx9DPJMlVnJK6IvQiPY5Ip0JtMiBPngDjI5OPnmNhgk38TilU+qZgx68mByzQ2VLrEDA==" length="203760761"/>
+    </item>
+    <item>
+      <title>0.23.1</title>
+      <pubDate>Sat, 17 Oct 2026 04:10:39 +0000</pubDate>
+      <sparkle:version>2301</sparkle:version>
+      <sparkle:shortVersionString>0.23.1</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[The agent session's Send button now names the page it will send. Agent alert links always open in the agent's own space.]]></description>
+      <enclosure url="https://github.com/roarbrowser/roar/releases/download/v0.23.1/Roar-0.23.1.dmg" type="application/octet-stream" sparkle:edSignature="w9hKXDc+2AvUrUEv1jW6sSLocIQWrd5ZLrudQniaTOlarFV7hEmkG3cMakRpqvp9o3ySmnEVR4GklbzxysyLAw==" length="203761270"/>
+    </item>
+    <item>
+      <title>0.23.2</title>
+      <pubDate>Sat, 17 Oct 2026 04:17:53 +0000</pubDate>
+      <sparkle:version>2302</sparkle:version>
+      <sparkle:shortVersionString>0.23.2</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[Settings > Agents: a connected terminal CLI can be disconnected again.]]></description>
+      <enclosure url="https://github.com/roarbrowser/roar/releases/download/v0.23.2/Roar-0.23.2.dmg" type="application/octet-stream" sparkle:edSignature="OjFDeftqCPYnr/HWdLfL81sERCnhMHMSUJR7QOv5weLpYSBnsA3x2fX+OJkmbYXyy/Ii3KCivvkdnuEPUf7CAg==" length="203761152"/>
+    </item>
+    <item>
+      <title>0.23.3</title>
+      <pubDate>Sat, 17 Oct 2026 04:23:53 +0000</pubDate>
+      <sparkle:version>2303</sparkle:version>
+      <sparkle:shortVersionString>0.23.3</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[Settings > Agents: your AI and its terminal agent are one setting. Click the picked AI again to unpick it; that disconnects its terminal agent, as does picking an AI without one.]]></description>
+      <enclosure url="https://github.com/roarbrowser/roar/releases/download/v0.23.3/Roar-0.23.3.dmg" type="application/octet-stream" sparkle:edSignature="+8JlNfcsG7bVXnXWrQ/EnXI53hVFd5FeJpiFb3aou4vymHFyK+4ebmhKibwKDXlHvGWI9BhydSUK+ZBMSZQ+DQ==" length="203760944"/>
+    </item>
+    <item>
+      <title>0.23.4</title>
+      <pubDate>Sat, 17 Oct 2026 04:28:15 +0000</pubDate>
+      <sparkle:version>2304</sparkle:version>
+      <sparkle:shortVersionString>0.23.4</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[Settings > Sidebar: a switch to hide the counts on the footer buttons (agent sessions, GitHub PRs, unread mail).]]></description>
+      <enclosure url="https://github.com/roarbrowser/roar/releases/download/v0.23.4/Roar-0.23.4.dmg" type="application/octet-stream" sparkle:edSignature="3Mwr/HttyDnR/KWMMFq+4zPLSOCtqLIf/uqd/nv84OPiI7jmmYy7QDsRZU4REPTWdWUxP6LNx2TaXgsfUmWtBg==" length="203761333"/>
+    </item>
+    <item>
+      <title>0.23.5</title>
+      <pubDate>Sat, 17 Oct 2026 05:09:42 +0000</pubDate>
+      <sparkle:version>2305</sparkle:version>
+      <sparkle:shortVersionString>0.23.5</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[Split view no longer stops mouse clicks in the pages and sidebar.]]></description>
+      <enclosure url="https://github.com/roarbrowser/roar/releases/download/v0.23.5/Roar-0.23.5.dmg" type="application/octet-stream" sparkle:edSignature="69LWjWf6rQZl4JjR7Kd9Xat9FPzZzpT2/7VLsvNBNcRwh8tHD9ebB/e9iweLE1EJNC2n/0K2VJIV0L7hokJUDA==" length="203760567"/>
+    </item>
+    <item>
+      <title>0.23.6</title>
+      <pubDate>Sat, 17 Oct 2026 12:36:00 +0000</pubDate>
+      <sparkle:version>2306</sparkle:version>
+      <sparkle:shortVersionString>0.23.6</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[Settings: pick your AI once; it connects for Agent sessions and browsing. Agent view: scroll back through the session, and / commands work from the reply box.]]></description>
+      <enclosure url="https://github.com/roarbrowser/roar/releases/download/v0.23.6/Roar-0.23.6.dmg" type="application/octet-stream" sparkle:edSignature="1qmT8dBe3Wv86JbWXnepT2fH5HeTQgPV6AFM1nKnERFIdbZ/gAdlmk7Yl/2H7iZKHKK0B9QlBiLUrjin8piiBQ==" length="203760968"/>
+    </item>
+    <item>
+      <title>0.23.7</title>
+      <pubDate>Sat, 17 Oct 2026 12:43:13 +0000</pubDate>
+      <sparkle:version>2307</sparkle:version>
+      <sparkle:shortVersionString>0.23.7</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[Needs-you alerts dismiss themselves after 60 seconds.]]></description>
+      <enclosure url="https://github.com/roarbrowser/roar/releases/download/v0.23.7/Roar-0.23.7.dmg" type="application/octet-stream" sparkle:edSignature="VrxQ8KfTmCnHznwX/NOWtkDCu2zo/2jdrhRVrk40X58H9xVsELZMaqYW7EGkqlL0TyAsnoe3zfTnkuaW5UR1Bw==" length="203761132"/>
+    </item>
+    <item>
+      <title>0.23.8</title>
+      <pubDate>Sat, 17 Oct 2026 12:48:09 +0000</pubDate>
+      <sparkle:version>2308</sparkle:version>
+      <sparkle:shortVersionString>0.23.8</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[Agent view: / suggests commands and skills as you type; Send tab lets you pick the tab, grouped by pinned and unpinned.]]></description>
+      <enclosure url="https://github.com/roarbrowser/roar/releases/download/v0.23.8/Roar-0.23.8.dmg" type="application/octet-stream" sparkle:edSignature="O9ISdtA2oXUB5MGK92wQohIol7qOYoSqJlZ4YuPCRKZgCXy0PGA83FteEeRWoktcVuGUF+dOnDDrd8hyJV93Bg==" length="203770449"/>
+    </item>
+    <item>
+      <title>0.24.0</title>
+      <pubDate>Sat, 17 Oct 2026 12:54:10 +0000</pubDate>
+      <sparkle:version>2400</sparkle:version>
+      <sparkle:shortVersionString>0.24.0</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[Split tabs and agent sessions now show together in a Split section of the sidebar, side by side or stacked like on screen, with one button to separate them.]]></description>
+      <enclosure url="https://github.com/roarbrowser/roar/releases/download/v0.24.0/Roar-0.24.0.dmg" type="application/octet-stream" sparkle:edSignature="Xpb1TlX3dyF03oXksnjPujcPiFUvlsY4aQV0TTs4H0i9/lhDVVU0Fx9vUe/Z/PdBh7twnhCMmRgtiefeu0ClDA==" length="203770825"/>
+    </item>
+    <item>
+      <title>0.24.1</title>
+      <pubDate>Sat, 17 Oct 2026 16:57:50 +0000</pubDate>
+      <sparkle:version>2401</sparkle:version>
+      <sparkle:shortVersionString>0.24.1</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[Importing from Safari now opens System Settings at Full Disk Access when Roar needs it.]]></description>
+      <enclosure url="https://github.com/roarbrowser/roar/releases/download/v0.24.1/Roar-0.24.1.dmg" type="application/octet-stream" sparkle:edSignature="IccfUXWthH8nCXBchf9D/KHTvnJG0bu5qMlHAahfPLxp5qTd/w+n380YV+ZXagVKGZmJVCjj90kxEJb7kLpLCw==" length="203770959"/>
+    </item>
+    <item>
+      <title>0.25.0</title>
+      <pubDate>Sat, 17 Oct 2026 17:20:50 +0000</pubDate>
+      <sparkle:version>2500</sparkle:version>
+      <sparkle:shortVersionString>0.25.0</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[Settings > Advanced can reset every setting to its default. In agent views, scrolling up now scrolls Claude Code's own history.]]></description>
+      <enclosure url="https://github.com/roarbrowser/roar/releases/download/v0.25.0/Roar-0.25.0.dmg" type="application/octet-stream" sparkle:edSignature="kbTGOiyMzmhpprSOC5btMZ/8di3Zr+En/z2Uvh2OuKlN/tMygiAqvwF7wJUl78e7jR88FQIog52BO/YBcl3nBQ==" length="203773091"/>
+    </item>
+    <item>
+      <title>0.26.0</title>
+      <pubDate>Sat, 17 Oct 2026 17:38:04 +0000</pubDate>
+      <sparkle:version>2600</sparkle:version>
+      <sparkle:shortVersionString>0.26.0</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[Settings in tabs with a simpler Agents tab; Reset Roar (Advanced); agent sessions take their /rename name, can have a color, show as compact rows, and close their tab when they end.]]></description>
+      <enclosure url="https://github.com/roarbrowser/roar/releases/download/v0.26.0/Roar-0.26.0.dmg" type="application/octet-stream" sparkle:edSignature="IgGsJmJRktv7LQwBCok7/q74IQ1H0p/KKEQrLUXe5r8O4unSZJvs/ZClcW+NL8fzhZEdhlJXI0OzBTBOwFnfAQ==" length="203774772"/>
+    </item>
+    <item>
+      <title>0.26.1</title>
+      <pubDate>Sat, 17 Oct 2026 17:55:35 +0000</pubDate>
+      <sparkle:version>2601</sparkle:version>
+      <sparkle:shortVersionString>0.26.1</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[Agent question cards have Reply: type an answer (a code, a name) instead of picking a button.]]></description>
+      <enclosure url="https://github.com/roarbrowser/roar/releases/download/v0.26.1/Roar-0.26.1.dmg" type="application/octet-stream" sparkle:edSignature="tB45MzAuim2qkeVRMm+Iz6uBFlG2GYcwGAKRNW2BX33Qfwz5OFGXQO5DOQAWWP1hd1HdnWVI9oY5Rf0+l34nAQ==" length="203775355"/>
+    </item>
+    <item>
+      <title>0.26.2</title>
+      <pubDate>Sat, 17 Oct 2026 18:00:00 +0000</pubDate>
+      <sparkle:version>2602</sparkle:version>
+      <sparkle:shortVersionString>0.26.2</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[An agent session's color can tint its window or just its terminal (Window / Terminal next to the color dots).]]></description>
+      <enclosure url="https://github.com/roarbrowser/roar/releases/download/v0.26.2/Roar-0.26.2.dmg" type="application/octet-stream" sparkle:edSignature="RU4FSyLAC5sOcM8zS8bum07s+mAwN6sWLRlVUxmQyezH52fGex4TD28aoE7F11BQyo4yZvrMI36ELPlVCl4BAg==" length="203768068"/>
+    </item>
   </channel>
 </rss>

@@ -4,6 +4,8 @@
 #include "arc_import.h"
 #include "agent_connect.h"
 #include "agent_files.h"
+
+#include <sys/stat.h>
 #include "atomic_write.h"
 #include "link_clean.h"
 
@@ -111,6 +113,11 @@ std::string HttpHost(const std::string& url) {
 
 std::string ToJson(CefRefPtr<CefValue> v) { return CefWriteJSON(v, JSON_WRITER_DEFAULT); }
 
+// Browser id -> {nonce, expiry} of the mail-act.js run Roar started there; only its clicks are honoured.
+std::map<int, std::pair<std::string, double>> g_mail_nonces;
+// Each run waits ~33 s for a fresh page plus several ~20 s polls; 5 minutes covers it.
+constexpr double kMailNonceSecs = 300;
+
 CefRefPtr<CefValue> Wrap(CefRefPtr<CefDictionaryValue> d) {
   auto v = CefValue::Create();
   v->SetDictionary(d);
@@ -127,6 +134,15 @@ std::string JsString(const std::string& s) {
   auto v = CefValue::Create();
   v->SetString(s);
   return ToJson(v);
+}
+
+// Runs mail-act.js for one action with a fresh nonce its click requests must carry.
+void RunMailAct(CefRefPtr<CefBrowser> browser, int tab_id, const std::string& action, const std::string& mid) {
+  if (!browser) return;
+  std::string nonce = platform::RandomToken();
+  g_mail_nonces[browser->GetIdentifier()] = {nonce, NowSeconds() + kMailNonceSecs};
+  Controller::Get()->ExecuteScript(tab_id, platform::ReadResource("ui/mail-act.js") + "\n;window.__roarMailAct(" +
+                                               JsString(action) + "," + JsString(mid) + "," + JsString(nonce) + ");");
 }
 
 // Delegate for the sidebar, command bar and hint views (Alloy style).
@@ -399,16 +415,6 @@ class ShellDelegate : public CefWindowDelegate {
 
 // A frameless Chrome-style window that holds exactly one tab.
 // A split pane's own back or forward button: the sidebar's act on the focused pane only.
-class PaneNavDelegate : public CefButtonDelegate {
- public:
-  PaneNavDelegate(int tab, bool forward) : tab_(tab), forward_(forward) {}
-  void OnButtonPressed(CefRefPtr<CefButton>) override { Controller::Get()->PaneNav(tab_, forward_); }
- private:
-  int tab_;
-  bool forward_;
-  IMPLEMENT_REFCOUNTING(PaneNavDelegate);
-};
-
 class TabWindowDelegate : public CefWindowDelegate {
  public:
   TabWindowDelegate(CefRefPtr<CefBrowserView> view, CefRect bounds)
@@ -917,9 +923,64 @@ void Controller::Start() {
 }
 
 void Controller::SetAgentHooks(const std::string& out) {
-  claude_hooks_ = out.rfind("installed", 0) == 0;
+  claude_hooks_ = out.rfind("installed", 0) == 0 || out.find(" outdated") != std::string::npos;
   agent_hooks_ = out;
+  CheckAgentHooks();
   PushSidebar();
+}
+
+bool Controller::AgentConnected(const std::string& tool) const {
+  if (agent_hooks_.empty()) return true;
+  return agent_hooks_.find("\n" + tool + " installed") != std::string::npos || agent_hooks_.find("\n" + tool + " outdated") != std::string::npos;
+}
+
+void Controller::CheckAgentHooks() {
+  static const std::map<std::string, std::string> kNames = {{"claude", "Claude Code"}, {"codex", "Codex"}, {"gemini", "Gemini CLI"}, {"qwen", "Qwen Code"}, {"copilot", "Copilot CLI"}};
+  if (hook_card_) ResolveAlert(std::exchange(hook_card_, 0), "");
+  auto& set = State::Get().settings;
+  if (!set.claude_sidebar || NowSeconds() < set.agent_hooks_snooze) return;
+  // "not installed" means the CLI's config folder exists (it's set up here) without Roar's hooks.
+  std::vector<std::string> off, old;
+  std::istringstream lines(agent_hooks_);
+  for (std::string line; std::getline(lines, line);) {
+    auto sp = line.find(' ');
+    if (sp == std::string::npos) continue;
+    std::string tool = line.substr(0, sp), st = line.substr(sp + 1);
+    if (!kNames.count(tool) || ("," + set.agent_hooks_ignore + ",").find("," + tool + ",") != std::string::npos) continue;
+    if (st == "outdated") old.push_back(tool);
+    else if (st == "not installed") off.push_back(tool);
+  }
+  if (off.empty() && old.empty()) return;
+  auto names = [&](const std::vector<std::string>& v) {
+    std::string s;
+    for (size_t i = 0; i < v.size(); ++i) s += (i ? (i + 1 == v.size() ? " and " : ", ") : "") + kNames.at(v[i]);
+    return s;
+  };
+  AgentAlert a;
+  a.id = hook_card_ = next_alert_id_++;
+  a.agent = "Roar";
+  a.level = "info";
+  a.title = !old.empty() ? "Agent sessions: " + names(old) + (old.size() == 1 ? " points" : " point") + " at an old copy of Roar"
+                         : "Agent sessions can't see " + names(off);
+  a.body = !old.empty() ? "Its hooks run a Roar that moved or was deleted, so its sessions and alerts stop. Reconnect to fix it."
+                        : "Connect it so its sessions show here and alert you when they need you or finish. Sessions already running show after a restart.";
+  a.choices = {old.empty() ? "Connect" : "Reconnect", "Snooze a day", "Don't remind me"};
+  a.time = NowSeconds();
+  std::vector<std::string> tools = old;
+  tools.insert(tools.end(), off.begin(), off.end());
+  a.on_answer = [this, tools](const std::string& r) {
+    hook_card_ = 0;
+    auto& s = State::Get().settings;
+    if (r == "Snooze a day") s.agent_hooks_snooze = NowSeconds() + 24 * 3600;
+    if (r == "Don't remind me") for (const auto& t : tools) s.agent_hooks_ignore += (s.agent_hooks_ignore.empty() ? "" : ",") + t;
+    if (r == "Connect" || r == "Reconnect")
+      for (const auto& t : tools)
+        platform::RoarMcp({"agent-hooks", "install", t}, [this](const std::string&) {
+          platform::RoarMcp({"agent-hooks", "status"}, [this](const std::string& st) { SetAgentHooks(st); });
+        });
+    SaveSoon();
+  };
+  agent_alerts_.push_back(a);
 }
 
 void Controller::PaintPreview() {
@@ -1075,8 +1136,7 @@ CefRect Controller::ContentRect() {
 }
 
 std::vector<int> Controller::VisibleIds() {
-  if (split_a_ && split_b_ && (active_id_ == split_a_ || active_id_ == split_b_))
-    return {split_a_, split_b_};
+  if (SplitPair* p = SplitOf(active_id_)) return {p->a, p->b};
   if (active_id_) return {active_id_};
   return {};
 }
@@ -1091,12 +1151,13 @@ CefRect Controller::RectFor(int id) {
   CefRect r = ContentRect();
   auto v = VisibleIds();
   if (v.size() < 2) return r;
-  if (split_stacked_) {
-    int half = static_cast<int>((r.height - kGutter) * split_ratio_);
+  SplitPair* p = SplitOf(v[0]);
+  if (p->stacked) {
+    int half = static_cast<int>((r.height - kGutter) * p->ratio);
     if (id == v[0]) return CefRect(r.x, r.y, r.width, half);
     return CefRect(r.x, r.y + half + kGutter, r.width, r.height - half - kGutter);
   }
-  int half = static_cast<int>((r.width - kGutter) * split_ratio_);
+  int half = static_cast<int>((r.width - kGutter) * p->ratio);
   if (id == v[0]) return CefRect(r.x, r.y, half, r.height);
   return CefRect(r.x + half + kGutter, r.y, r.width - half - kGutter, r.height);
 }
@@ -1115,32 +1176,10 @@ void Controller::SyncWindows() {
 
 // ‹ › in a pane's top-left corner while it shares the screen in split view.
 void Controller::SyncPaneNav(Tab* t) {
-  bool want = t->window && !t->floating && IsVisible(t->id) && VisibleIds().size() == 2;
-  if (!want) {
-    if (t->nav) t->nav->SetVisible(false);
-    return;
-  }
-  if (!t->nav) {
-    auto panel = CefPanel::CreatePanel(nullptr);
-    CefBoxLayoutSettings box;
-    box.horizontal = true;
-    box.between_child_spacing = 2;
-    box.inside_border_insets = {3, 4, 3, 4};
-    panel->SetToBoxLayout(box);
-    panel->SetBackgroundColor(CefColorSetARGB(0xd8, 0x2a, 0x1d, 0x12));
-    for (bool fwd : {false, true}) {
-      auto b = CefLabelButton::CreateLabelButton(new PaneNavDelegate(t->id, fwd), fwd ? "›" : "‹");
-      b->SetTooltipText(fwd ? "Forward" : "Back");
-      b->SetTextColor(CEF_BUTTON_STATE_NORMAL, CefColorSetARGB(0xff, 0xfb, 0xee, 0xdd));
-      b->SetTextColor(CEF_BUTTON_STATE_HOVERED, CefColorSetARGB(0xff, 0xff, 0x9a, 0x2e));
-      b->SetFontList("SF Pro Rounded, Bold 15px");
-      panel->AddChildView(b);
-    }
-    t->nav = t->window->AddOverlayView(panel, CEF_DOCKING_MODE_TOP_LEFT, false);
-    t->nav->SetInsets(CefInsets(6, 6, 0, 0));
-  }
-  t->nav->SizeToPreferredSize();
-  t->nav->SetVisible(true);
+  if (!t->window) return;
+  bool want = !t->floating && IsVisible(t->id) && VisibleIds().size() == 2;
+  int id = t->id;
+  platform::SetPaneNav(t->window->GetWindowHandle(), want, [id](bool forward) { Controller::Get()->PaneNav(id, forward); });
 }
 
 void Controller::PaneNav(int id, bool forward) {
@@ -1149,9 +1188,20 @@ void Controller::PaneNav(int id, bool forward) {
   if (b) forward ? b->GoForward() : b->GoBack();
 }
 
-void Controller::Unsplit() {
-  split_a_ = split_b_ = 0;
-  split_ratio_ = 0.5;
+Controller::SplitPair* Controller::SplitOf(int id) {
+  for (auto& p : splits_)
+    if (id && (p.a == id || p.b == id)) return &p;
+  return nullptr;
+}
+
+void Controller::Pair(int a, int b, bool stacked) {
+  std::erase_if(splits_, [&](const SplitPair& p) { return p.a == a || p.b == a || p.a == b || p.b == b; });
+  splits_.push_back({a, b, stacked, 0.5});
+}
+
+void Controller::Unsplit(int id) {
+  int key = id ? id : active_id_;
+  std::erase_if(splits_, [&](const SplitPair& p) { return p.a == key || p.b == key; });
   SyncWindows();
   PushSidebar();
 }
@@ -1162,15 +1212,18 @@ void Controller::SyncDivider() {
   auto v = VisibleIds();
   if (v.size() < 2) return platform::SetSplitDivider(shell_->GetWindowHandle(), 0, 0, 0, 0, false, nullptr, nullptr);
   CefRect a = RectFor(v[0]), r = ContentRect();
-  CefRect gap = split_stacked_ ? CefRect(r.x, a.y + a.height, r.width, kGutter) : CefRect(a.x + a.width, r.y, kGutter, r.height);
-  platform::SetSplitDivider(shell_->GetWindowHandle(), gap.x, gap.y, gap.width, gap.height, split_stacked_,
+  bool stacked = SplitOf(v[0])->stacked;
+  CefRect gap = stacked ? CefRect(r.x, a.y + a.height, r.width, kGutter) : CefRect(a.x + a.width, r.y, kGutter, r.height);
+  platform::SetSplitDivider(shell_->GetWindowHandle(), gap.x, gap.y, gap.width, gap.height, stacked,
       [this](int sx, int sy) {
+        SplitPair* p = SplitOf(active_id_);
+        if (!p) return;
         CefRect c = ContentRect();
-        double f = split_stacked_ ? double(sy - c.y) / std::max(1, c.height) : double(sx - c.x) / std::max(1, c.width);
-        split_ratio_ = std::clamp(f, 0.15, 0.85);
+        double f = p->stacked ? double(sy - c.y) / std::max(1, c.height) : double(sx - c.x) / std::max(1, c.width);
+        p->ratio = std::clamp(f, 0.15, 0.85);
         SyncWindows();
       },
-      [this] { split_ratio_ = 0.5; SyncWindows(); });
+      [this] { if (SplitPair* p = SplitOf(active_id_)) p->ratio = 0.5; SyncWindows(); });
 }
 
 CefRefPtr<CefRequestContext> Controller::ContextFor(int space) {
@@ -1297,10 +1350,7 @@ void Controller::ActivateTab(int id) {
   if (tab->floating) return DockTab(id);
   if (find_visible_ && find_tab_ != id) HideFind(false);
   if (Tab* old = ActiveTab()) old->last_active = NowSeconds();
-  // In split view, a tab picked from the same space replaces the focused pane.
-  bool in_split = split_a_ && (active_id_ == split_a_ || active_id_ == split_b_);
-  if (in_split && id != split_a_ && id != split_b_ && ActiveTab()->space == tab->space)
-    (active_id_ == split_a_ ? split_a_ : split_b_) = id;
+  // Another tab shows alone; the split stays and comes back with either of its tabs (drag a tab onto one to change a pane).
   active_id_ = id;
   State::Get().active_space = tab->space;
   tab->last_active = NowSeconds();
@@ -1338,7 +1388,7 @@ void Controller::CloseTab(int id) {
   size_t index = it - tabs_.begin();
   tabs_.erase(it);
   if (find_visible_ && find_tab_ == id) HideFind(false);
-  if (id == split_a_ || id == split_b_) split_a_ = split_b_ = 0;
+  std::erase_if(splits_, [&](const SplitPair& p) { return p.a == id || p.b == id; });
   if (tab.group) DropGroupIfEmpty(tab.group);
   if (tab.ghost && std::none_of(tabs_.begin(), tabs_.end(), [](const Tab& t) { return t.ghost; }))
     EndGhostSession();
@@ -1353,6 +1403,8 @@ void Controller::CloseTab(int id) {
   // Removed from tabs_ first, so CanCloseTabWindow lets the window go.
   if (tab.window) {
     platform::DetachChild(shell_->GetWindowHandle(), tab.window->GetWindowHandle());
+    // Force: a page's "Leave site?" prompt would show on the detached window and orphan it.
+    if (auto b = tab.view ? tab.view->GetBrowser() : nullptr) b->GetHost()->CloseBrowser(true);
     tab.window->Close();
   }
   if (active_id_ == id) {
@@ -1753,7 +1805,7 @@ void Controller::FloatActiveTab() {
   int id = tab->id;
   platform::DetachChild(shell_->GetWindowHandle(), tab->window->GetWindowHandle());
   tab->floating = true;
-  if (id == split_a_ || id == split_b_) split_a_ = split_b_ = 0;
+  std::erase_if(splits_, [&](const SplitPair& p) { return p.a == id || p.b == id; });
   CefRect work = CefDisplay::GetDisplayMatchingBounds(shell_->GetBounds(), false)->GetWorkArea();
   tab->window->SetBounds(CefRect(work.x + work.width - 504, work.y + work.height - 344, 480, 320));
   platform::SetFloating(tab->window->GetWindowHandle(), true, tab->title);
@@ -1821,7 +1873,7 @@ void Controller::AskDefaultBrowser() {
 
 void Controller::SyncAlertBadge() {
   int n = 0;
-  for (const auto& a : agent_alerts_) n += a.level == "needs_you";
+  for (const auto& a : agent_alerts_) n += a.level == "needs_you" && !a.on_answer;  // Session cards count below, once.
   for (const auto& [id, state] : claude_states_) n += state == "needs_you" && !claude_acked_.count(id);
   platform::SetDockBadge(n);
 }
@@ -1980,7 +2032,8 @@ void Controller::GmailOpenTick() {
 
 std::filesystem::path AgentFilePath(const std::string& raw);
 
-// Every agent instructions file under the home folder, as JSON [{path, kind, size, mtime}].
+// Every agent instructions file under the home folder, as JSON [{path, kind, size, mtime, ctime
+// (created), atime (last opened), project, root}].
 // Skips Library, caches, dependency and build folders, and dot-folders other than agent configs.
 std::string AgentMdList() {
   namespace fs = std::filesystem;
@@ -2009,6 +2062,14 @@ std::string AgentMdList() {
     d->SetInt("size", static_cast<int>(e.file_size(ec2)));
     d->SetDouble("mtime", static_cast<double>(std::chrono::duration_cast<std::chrono::seconds>(
         e.last_write_time(ec2).time_since_epoch()).count()));
+    struct stat st;
+    if (stat(e.path().c_str(), &st) == 0) {
+      d->SetDouble("ctime", static_cast<double>(st.st_birthtimespec.tv_sec));
+      d->SetDouble("atime", static_cast<double>(st.st_atimespec.tv_sec));
+    }
+    auto [project, root] = roar::AgentFileProject(e.path().string(), home ? home : "/");
+    d->SetString("project", project);
+    d->SetString("root", root);
     list->SetDictionary(list->GetSize(), d);
   }
   auto v = CefValue::Create(); v->SetList(list);
@@ -2042,14 +2103,32 @@ void Controller::ClaudeAlert(CefRefPtr<CefDictionaryValue> d) {
   it->second = state;
   claude_acked_.erase(id);
   platform::Unnotify("claude:" + id);
+  if (auto c = claude_cards_.find(id); c != claude_cards_.end()) { int card = c->second; claude_cards_.erase(c); ResolveAlert(card, ""); }
   SyncAlertBadge();
   const auto& set = State::Get().settings;
   bool want = state == "idle" ? set.claude_alert_done : state == "needs_you" && set.claude_alert_needs;
-  if (!set.claude_sidebar || !set.claude_alert_system || !want || platform::AppActive()) return;
+  if (!set.claude_sidebar || !want) return;
   static const std::map<std::string, std::string> kNames = {{"codex", "Codex"}, {"gemini", "Gemini CLI"}, {"qwen", "Qwen Code"}, {"copilot", "Copilot CLI"}};
   auto name = kNames.find(d->GetString("tool").ToString());
-  platform::Notify((name == kNames.end() ? std::string("Claude Code") : name->second) + ": " + d->GetString("project").ToString() + (state == "idle" ? " is done" : " needs you"),
-                   d->GetString(state == "idle" ? "prompt" : "doing").ToString(), "claude:" + id);
+  std::string tool = name == kNames.end() ? std::string("Claude Code") : name->second;
+  std::string title = d->GetString("project").ToString() + (state == "idle" ? " is done" : " needs you");
+  std::string body = d->GetString(state == "idle" ? "prompt" : "doing").ToString();
+  // A sidebar card always (it clears itself, or when the session moves on); a macOS one too while Roar is in the background.
+  AgentAlert a;
+  a.id = claude_cards_[id] = next_alert_id_++;
+  a.agent = tool;
+  a.title = title;
+  a.body = body;
+  a.level = state == "idle" ? "done" : "needs_you";
+  a.url = std::string(kClaudeUrl) + "?id=" + CefURIEncode(id, false).ToString();
+  a.time = NowSeconds();
+  a.on_answer = [this, id](const std::string&) { claude_cards_.erase(id); };
+  CefPostDelayedTask(TID_UI, base::BindOnce([](int card) { Controller::Get()->ResolveAlert(card, ""); }, a.id), (state == "idle" ? 30 : 60) * 1000);
+  agent_alerts_.push_back(a);
+  SyncAlertBadge();
+  PushSidebar();
+  if (!set.claude_alert_system || platform::AppActive()) return;
+  platform::Notify(tool + ": " + title, body, "claude:" + id);
 }
 
 void Controller::ClaudeTick() {
@@ -2079,7 +2158,9 @@ void Controller::ClaudeTick() {
 #else
     bool dead = pid > 1 && kill(pid, 0) != 0 && errno == ESRCH;
 #endif
-    if (dead || idle > 6 * 3600 || (e.path().filename().string().rfind("new-", 0) == 0 && idle > 15 * 60)) { fs::remove(e.path(), ec); continue; }
+    // Disconnected in Settings: sessions already running still fire the hooks they loaded at start; drop them.
+    bool off = !AgentConnected(d->HasKey("tool") ? d->GetString("tool").ToString() : "claude");
+    if (off || dead || idle > 6 * 3600 || (e.path().filename().string().rfind("new-", 0) == 0 && idle > 15 * 60)) { fs::remove(e.path(), ec); continue; }
     list->SetDictionary(list->GetSize(), d->Copy(false));
     seen.insert(d->GetString("id"));
     ClaudeAlert(d);
@@ -2095,10 +2176,20 @@ void Controller::ClaudeTick() {
   for (auto it = claude_states_.begin(); it != claude_states_.end();) {
     if (seen.count(it->first)) { ++it; continue; }
     platform::Unnotify("claude:" + it->first);
+    if (auto c = claude_cards_.find(it->first); c != claude_cards_.end()) { int card = c->second; claude_cards_.erase(c); ResolveAlert(card, ""); }
     claude_acked_.erase(it->first);
     it = claude_states_.erase(it);
     SyncAlertBadge();
   }
+  // An ended session's full view goes with it (new-* stand-ins wait for their real session).
+  std::vector<int> ended;
+  std::string prefix = std::string(kClaudeUrl) + "?id=";
+  for (const auto& t : tabs_) {
+    if (!StartsWith(t.url, prefix)) continue;
+    std::string sid = CefURIDecode(t.url.substr(prefix.size(), t.url.find('&') - prefix.size()), false, UU_SPACES).ToString();
+    if (!sid.empty() && sid.rfind("new-", 0) != 0 && !seen.count(sid)) ended.push_back(t.id);
+  }
+  for (int id : ended) CloseTab(id);
   std::string sig = ToJson([&] { auto x = CefValue::Create(); x->SetList(list); return x; }());
   if (sig != claude_sig_) {
     claude_sig_ = sig;
@@ -2152,6 +2243,8 @@ void Controller::ImportBrowser(const std::string& browser) {
   std::string error;
   std::string label = library::BrowserName(browser);
   auto profiles = library::ReadBrowser(browser, &error);
+  // Safari's files are readable only with Full Disk Access, which only the user can grant.
+  if (profiles.empty() && error.find("Full Disk Access") != std::string::npos) platform::OpenFullDiskAccessSettings();
   if (profiles.empty()) return ShowHint(label + ": " + (error.empty() ? "nothing found" : error));
 
   State& state = State::Get();
@@ -2408,9 +2501,8 @@ void Controller::ToggleSplit() {
   Tab* tab = ActiveTab();
   if (!tab) return;
   int id = tab->id;
-  if (split_a_ && (id == split_a_ || id == split_b_)) {
-    split_a_ = split_b_ = 0;
-    SyncWindows();
+  if (SplitOf(id)) {
+    Unsplit(id);
     FocusTab(ActiveTab());
     PushSidebar();
     return;
@@ -2422,9 +2514,7 @@ void Controller::ToggleSplit() {
         (!other || t.last_active > other->last_active))
       other = &t;
   int other_id = other ? other->id : NewTab(kNewTabUrl, false, false, 0, tab->space);
-  split_a_ = id;
-  split_b_ = other_id;
-  split_stacked_ = false;
+  Pair(id, other_id, false);
   SyncWindows();
   FocusTab(ActiveTab());
   PushSidebar();
@@ -2458,6 +2548,13 @@ void Controller::RunCommand(const std::string& id) {
   if (id == "quit") Quit();
   else if (id == "relaunch") {
     platform::RelaunchAfterExit();
+    Quit();
+  }
+  else if (id == "factoryReset") {
+    // Reset Roar: the whole data dir (this instance's only) goes once Roar has exited; it comes back into onboarding.
+    std::string dir = State::Get().Dir();
+    if (dir.size() < 2 || dir[0] != '/' || dir == platform::HomeDir()) return;
+    platform::RelaunchAfterExit(dir);
     Quit();
   }
   else if (id == "clean") CleanTabs();
@@ -3058,7 +3155,8 @@ bool Controller::OnContextMenuCommand(CefRefPtr<CefBrowser> browser, CefRefPtr<C
   // .mcas.ms session loops back through the proxy.
   if (command_id == IDC_CONTENT_CONTEXT_COPYLINKLOCATION && !link.empty() &&
       State::Get().settings.clean_links) {
-    platform::CopyText(CleanLink(link));
+    const auto& set = State::Get().settings;
+    platform::CopyText(CleanLink(link, {set.clean_safelinks, set.clean_mcas, set.clean_tracking, SplitParams(set.clean_params)}));
     return true;
   }
   if (command_id == kMenuMarkdown) {
@@ -3087,15 +3185,13 @@ bool Controller::OnContextMenuCommand(CefRefPtr<CefBrowser> browser, CefRefPtr<C
 void Controller::OpenInSplit(const std::string& url, bool ghost) {
   Tab* cur = ActiveTab();
   if (!cur) return;
-  if (split_a_ && (cur->id == split_a_ || cur->id == split_b_)) {
+  if (SplitOf(cur->id)) {
     NewTab(url, true, false, 0, cur->space, ghost);
     return;
   }
   int first = cur->id;
   int second = NewTab(url, false, false, 0, cur->space, ghost);
-  split_a_ = first;
-  split_b_ = second;
-  split_stacked_ = false;
+  Pair(first, second, false);
   ActivateTab(second);
 }
 
@@ -3128,7 +3224,14 @@ std::string Controller::StateJson() {
     d->SetBool("kept", IsKept(t));
     d->SetBool("audible", t.audible);
     d->SetBool("muted", t.muted);
-    d->SetBool("split", split_a_ && (t.id == split_a_ || t.id == split_b_));
+    if (SplitPair* sp = SplitOf(t.id)) {
+      d->SetBool("split", true);
+      d->SetInt("splitWith", sp->a == t.id ? sp->b : sp->a);
+      d->SetBool("splitFirst", sp->a == t.id);
+      d->SetBool("stacked", sp->stacked);
+    } else {
+      d->SetBool("split", false);
+    }
     d->SetDouble("idleSeconds", t.id == active_id_ ? 0 : std::max(0.0, now - t.last_active));
     tabs->SetDictionary(shown++, d);
   }
@@ -3142,6 +3245,7 @@ std::string Controller::StateJson() {
     d->SetString("level", a.level);
     d->SetString("url", a.url);
     d->SetString("agent", a.agent);
+    d->SetInt("space", a.space);
     d->SetDouble("time", a.time);
     auto choices = CefListValue::Create();
     for (size_t i = 0; i < a.choices.size(); ++i) choices->SetString(i, a.choices[i]);
@@ -3176,7 +3280,7 @@ std::string Controller::StateJson() {
   }
   root->SetList("groups", groups);
   root->SetInt("activeSpace", state.active_space);
-  root->SetBool("split", split_a_ && IsVisible(split_a_));
+  root->SetBool("split", VisibleIds().size() == 2);
   auto archive = CefListValue::Create();
   size_t archived = 0, archive_count = 0;
   for (size_t i = 0; i < state.archive.size(); ++i) {
@@ -3265,6 +3369,10 @@ std::string Controller::StateJson() {
   settings->SetBool("cdpEnabled", state.settings.cdp_enabled);
   settings->SetBool("cdpOn", cdp_on_);
   settings->SetBool("cdpLive", cdp_http_ != nullptr);
+  settings->SetBool("canBuildChromium", sizeof(ROAR_SOURCE_DIR) > 1);
+  settings->SetBool("updaterOn", platform::UpdaterRunning());
+  settings->SetBool("autoUpdateChecks", platform::AutoUpdateChecks());
+  settings->SetBool("autoUpdateDownloads", platform::AutoUpdateDownloads());  // Only a build from a checkout can rebuild itself.
   settings->SetInt("pageCount", static_cast<int>(state.pages.size()));
   settings->SetInt("cdpPort", platform::CdpPort());
   auto pins = CefListValue::Create();
@@ -3439,6 +3547,10 @@ void Controller::ApplySettings(CefRefPtr<CefDictionaryValue> d) {
         else v = static_cast<T>(d->GetType(f.key) == VTYPE_INT ? d->GetInt(f.key) : d->GetDouble(f.key));
       }, f.member);
   s.pinned_columns = std::clamp(s.pinned_columns, 0, 8);
+  // Sparkle keeps these itself (its user defaults), not state.json.
+  if (d->HasKey("autoUpdateChecks") || d->HasKey("autoUpdateDownloads"))
+    platform::SetAutoUpdate(d->HasKey("autoUpdateChecks") ? d->GetBool("autoUpdateChecks") : platform::AutoUpdateChecks(),
+                            d->HasKey("autoUpdateDownloads") ? d->GetBool("autoUpdateDownloads") : platform::AutoUpdateDownloads());
   if (d->HasKey("cdpEnabled")) {
     s.cdp_enabled = d->GetBool("cdpEnabled");
     SetCdp(s.cdp_enabled);
@@ -3540,7 +3652,11 @@ bool Controller::HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> 
       // Send to an agent session: the page goes in a file and the session gets an @-mention of it in its
       // prompt. With a prompt from the sender, that follows and Enter sends both; without, no Enter.
       std::string body = markdown.size() > kLlmMaxChars ? markdown.substr(0, kLlmMaxChars) : markdown;
-      while (!body.empty() && body.size() < markdown.size() && (static_cast<unsigned char>(body.back()) & 0x80)) body.pop_back();
+      if (body.size() < markdown.size()) {
+        // Don't leave a split UTF-8 sequence at the cut.
+        while (!body.empty() && (static_cast<unsigned char>(body.back()) & 0xC0) == 0x80) body.pop_back();
+        if (!body.empty() && static_cast<unsigned char>(body.back()) >= 0xC0) body.pop_back();
+      }
       // Per-user temp (no spaces, unlike Application Support): an @-mention stops at a space.
       std::filesystem::path dir = std::filesystem::temp_directory_path() / "roar-claude-pages";
       std::error_code ec;
@@ -3591,7 +3707,10 @@ bool Controller::HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> 
     Tab* tab = ActiveTab();
     // A blank new tab page is reused rather than left behind.
     if (tab && tab->url == kNewTabUrl && tab->ghost == ghost) new_tab = false;
-    if (new_tab || !tab) NewTab(url, true, false, 0, -1, ghost);
+    // An agent card's Open names the agent's space; anything else opens in the active one.
+    int space = msg->HasKey("space") && State::Get().FindSpace(int_arg("space")) ? int_arg("space") : -1;
+    if (space >= 0 && space != State::Get().active_space) new_tab = true;
+    if (new_tab || !tab) NewTab(url, true, false, 0, space, ghost);
     else Navigate(tab->id, url);
     callback->Success("");
   } else if (cmd == "folder.open") {
@@ -3644,8 +3763,7 @@ bool Controller::HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> 
       if (it != tabs_.end() && loaded) {
         id = it->id;
         it->folder_item = url;
-        ExecuteScript(id, platform::ReadResource("ui/mail-act.js") + "\n;window.__roarMailAct(" +
-                              JsString(action) + "," + JsString(mid) + ");");
+        RunMailAct(it->view ? it->view->GetBrowser() : nullptr, id, action, mid);
       } else if (it != tabs_.end()) {
         id = it->id;
         it->folder_item = url;
@@ -3764,17 +3882,40 @@ bool Controller::HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> 
     Tab* a = FindTab(int_arg("with"));
     Tab* b = FindTab(int_arg("id"));
     if (a && b && a != b && a->space == b->space && !a->floating && !b->floating) {
-      split_a_ = a->id;
-      split_b_ = b->id;
-      split_stacked_ = msg->GetBool("stacked");
-      split_ratio_ = 0.5;
+      Pair(a->id, b->id, msg->GetBool("stacked"));
       ActivateTab(b->id);
       SyncWindows();
       PushSidebar();
     }
     callback->Success("");
+  } else if (cmd == "claude.beside") {
+    // A session's full view split beside a web page: the active tab, or the web tab used most
+    // recently (when the full view itself is active). Never a ghost tab.
+    std::string id = msg->GetString("id").ToString();
+    if (id.empty() || id.find_first_not_of(kSessionIdChars) != std::string::npos) return callback->Failure(0, "bad id"), true;
+    std::string view = std::string(kClaudeUrl) + "?id=" + id;
+    int space = State::Get().active_space;
+    auto usable = [&](const Tab& t) { return t.space == space && !t.ghost && !t.floating && StartsWith(t.url, "http"); };
+    Tab* web = ActiveTab();
+    if (!web || !usable(*web)) {
+      web = nullptr;
+      for (auto& t : tabs_)
+        if (usable(t) && (!web || t.last_active > web->last_active)) web = &t;
+    }
+    if (!web) return ShowHint("Open a web page first"), callback->Success(""), true;
+    int web_id = web->id, view_id = 0;
+    for (const auto& t : tabs_)
+      if (t.space == space && !t.floating && t.url == view) view_id = t.id;
+    if (!view_id) view_id = NewTab(view, true);
+    if (Tab* a = FindTab(web_id); a && FindTab(view_id)) {
+      Pair(web_id, view_id, false);
+      ActivateTab(view_id);
+      SyncWindows();
+      PushSidebar();
+    }
+    callback->Success("");
   } else if (cmd == "tab.unsplit") {
-    Unsplit();
+    Unsplit(int_arg("id"));
     callback->Success("");
   } else if (cmd == "tab.dropAt") {
     // A sidebar tab dropped outside the sidebar (screen x, y). On the page: split it with the tab
@@ -3784,8 +3925,8 @@ bool Controller::HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> 
     CefRect shell = shell_ ? shell_->GetBounds() : CefRect(), c = ContentRect();
     bool on_page = x >= c.x && x < c.x + c.width && y >= c.y && y < c.y + c.height;
     bool off_window = !(x >= shell.x && x < shell.x + shell.width && y >= shell.y && y < shell.y + shell.height);
-    if (t && off_window && (t->id == split_a_ || t->id == split_b_)) {
-      Unsplit();
+    if (t && off_window && SplitOf(t->id)) {
+      Unsplit(t->id);
     } else if (t && on_page && !t->floating) {
       // The pane under the drop, or the active tab when there's no split on screen.
       int under = active_id_;
@@ -3804,9 +3945,7 @@ bool Controller::HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> 
       }
       if (keep && keep != t && keep->space == t->space && !keep->floating) {
         bool first = x < c.x + c.width / 2;  // Dropped on the left half: it takes the left pane.
-        split_stacked_ = false;
-        split_a_ = first ? t->id : keep->id;
-        split_b_ = first ? keep->id : t->id;
+        Pair(first ? t->id : keep->id, first ? keep->id : t->id, false);
         ActivateTab(t->id);
         SyncWindows();
         PushSidebar();
@@ -3872,6 +4011,21 @@ bool Controller::HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> 
       }
     });
     callback->Success("");
+  } else if (cmd == "settings.reset") {
+    // Every setting back to its default, then onboarding again. Side-effect settings go
+    // through ApplySettings so CDP, GitHub and Gmail follow.
+    Settings& s = State::Get().settings;
+    Settings fresh;
+    s = fresh;
+    auto d = CefDictionaryValue::Create();
+    d->SetBool("cdpEnabled", fresh.cdp_enabled);
+    d->SetBool("githubFolder", fresh.github_folder);
+    d->SetString("githubQuery", fresh.github_query);
+    d->SetBool("gmailFolder", fresh.gmail_folder);
+    ApplySettings(d);
+    ApplySidebarWidth();
+    OpenUiPage(kWelcomeUrl);
+    callback->Success(StateJson());
   } else if (cmd == "settings.set") {
     ApplySettings(msg->GetDictionary("settings"));
     callback->Success(StateJson());
@@ -4007,7 +4161,9 @@ bool Controller::HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> 
     a.level = msg->GetString("level").ToString();
     if (a.level != "done" && a.level != "needs_you") a.level = "info";
     a.url = msg->GetString("url").ToString();
+    if (!StartsWith(a.url, "http://") && !StartsWith(a.url, "https://")) a.url.clear();  // Open hands it to trusted open.
     a.agent = msg->GetString("agent").ToString().substr(0, 60);
+    a.space = AgentSpace();  // never a caller-given space: it could name one closed to agents
     if (auto list = msg->GetList("choices"))
       for (size_t i = 0; i < list->GetSize() && i < 6; ++i) a.choices.push_back(list->GetString(i).ToString().substr(0, 60));
     bool wait = msg->HasKey("wait") && msg->GetBool("wait");
@@ -4023,10 +4179,11 @@ bool Controller::HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> 
     for (int o : old) ResolveAlert(o, "");
     if (a.level == "needs_you" && !platform::AppActive())
       platform::Notify((a.agent.empty() ? std::string("Agent") : a.agent) + ": " + a.title, a.body, "alert:" + std::to_string(a.id));
-    // Done and info cards clear themselves (ROAR_ALERT_TTL seconds overrides the 3 minutes, for tests).
-    if (a.level != "needs_you") {
+    // Cards clear themselves: done/info after 30 s, needs-you after 60 s (ROAR_ALERT_TTL seconds overrides, for tests).
+    // Never an ask_user still waiting: dismissing it would answer for the person.
+    if (!wait) {
       const char* ttl = getenv("ROAR_ALERT_TTL");
-      int secs = ttl && atoi(ttl) > 0 ? atoi(ttl) : 180;
+      int secs = ttl && atoi(ttl) > 0 ? atoi(ttl) : a.level == "needs_you" ? 60 : 30;
       CefPostDelayedTask(TID_UI, base::BindOnce([](int id) { Controller::Get()->ResolveAlert(id, ""); }, a.id), secs * 1000);
     }
     agent_alerts_.push_back(a);
@@ -4086,6 +4243,7 @@ bool Controller::HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> 
       // Answering a session clears its needs-you row and notification right away.
       if (action == "send" && out.rfind("error:", 0) != 0 && claude_acked_.insert(sid).second) {
         platform::Unnotify("claude:" + sid);
+        if (auto c = claude_cards_.find(sid); c != claude_cards_.end()) { int card = c->second; claude_cards_.erase(c); ResolveAlert(card, ""); }
         SyncAlertBadge();
         PushSidebar();
       }
@@ -4120,7 +4278,20 @@ bool Controller::HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> 
   } else if (cmd == "browser.makeDefault") {
     platform::MakeDefaultBrowser([callback] { callback->Success(platform::IsDefaultBrowser() ? "yes" : "no"); });
   } else if (cmd == "agent.answer") {
-    ResolveAlert(int_arg("id"), msg->GetString("choice").ToString());
+    std::string choice = msg->GetString("choice").ToString();
+    int id = int_arg("id");
+    // A clicked choice answers an ask_user as {"choice":label,"index":n}: labels are cut to 60 chars, so match by index.
+    for (const auto& a : agent_alerts_) {
+      if (a.id != id || !a.answer || choice.empty()) continue;
+      auto at = std::find(a.choices.begin(), a.choices.end(), choice);
+      if (at == a.choices.end()) break;
+      auto d = CefDictionaryValue::Create();
+      d->SetString("choice", choice);
+      d->SetInt("index", int(at - a.choices.begin()));
+      choice = ToJson(Wrap(d));
+      break;
+    }
+    ResolveAlert(id, choice);
     callback->Success("");
   } else if (cmd == "agent.clear") {
     std::vector<int> ids;
@@ -4181,6 +4352,26 @@ bool Controller::HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> 
         cb->Success(j);
       }, cb, json));
     }, callback));
+  } else if (cmd == "claude.commands") {
+    // Names of the user's and the project's own / commands and skills, for the agent view's suggestions.
+    namespace fs = std::filesystem;
+    auto list = CefListValue::Create();
+    std::set<std::string> seen;
+    std::error_code ec;
+    for (const fs::path& base : {fs::path(platform::HomeDir()), fs::path(msg->GetString("cwd").ToString())}) {
+      if (base.empty() || !base.is_absolute()) continue;
+      for (const char* sub : {".claude/commands", ".claude/skills"})
+        for (fs::recursive_directory_iterator it(base / sub, ec), end; !ec && it != end; it.increment(ec)) {
+          if (it.depth() > 2) { it.disable_recursion_pending(); continue; }
+          const auto& p = it->path();
+          std::string name = p.filename() == "SKILL.md" ? p.parent_path().filename().string()
+              : p.extension() == ".md" && strcmp(sub, ".claude/commands") == 0 ? fs::relative(p, base / sub, ec).replace_extension().string() : "";
+          std::replace(name.begin(), name.end(), '/', ':');
+          if (!name.empty() && seen.insert(name).second) list->SetString(list->GetSize(), name);
+        }
+    }
+    auto v = CefValue::Create(); v->SetList(list);
+    callback->Success(ToJson(v));
   } else if (cmd == "agentmd.read") {
     auto p = AgentFilePath(msg->GetString("path").ToString());
     if (p.empty()) return callback->Failure(0, "Not an agent instructions file"), true;
@@ -4191,6 +4382,16 @@ bool Controller::HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> 
     if (p.empty()) return callback->Failure(0, "Not an agent instructions file"), true;
     platform::RevealInFinder(p.string());
     callback->Success("");
+  } else if (cmd == "agentmd.trash") {
+    // Bulk delete from the Agent files page: each path must still be a recognized agent file under home.
+    auto l = msg->GetList("paths");
+    int moved = 0, failed = 0;
+    for (size_t i = 0; l && i < l->GetSize() && i < 1000; ++i) {
+      auto p = AgentFilePath(l->GetString(i).ToString());
+      (!p.empty() && platform::MoveToTrash(p.string()) ? moved : failed)++;
+    }
+    agentmd_cache_.clear();
+    callback->Success(std::to_string(moved) + " " + std::to_string(failed));
   } else if (cmd == "agentmd.write") {
     namespace fs = std::filesystem;
     auto p = AgentFilePath(msg->GetString("path").ToString());
@@ -4339,6 +4540,14 @@ void Controller::OnMailResult(CefRefPtr<CefBrowser> browser, const std::string& 
   ShowHint(text.substr(0, 120));
 }
 
+// Called by Client::OnConsoleMessage: true only for the nonce of the action pending in |browser|.
+bool MailClickAllowed(CefRefPtr<CefBrowser> browser, const std::string& nonce) {
+  auto it = browser ? g_mail_nonces.find(browser->GetIdentifier()) : g_mail_nonces.end();
+  if (it == g_mail_nonces.end()) return false;
+  if (NowSeconds() > it->second.second) { g_mail_nonces.erase(it); return false; }
+  return !nonce.empty() && it->second.first == nonce;
+}
+
 void Controller::OnMailClick(CefRefPtr<CefBrowser> browser, double x, double y) {
   Tab* tab = FindTabByBrowser(browser);
   // Only the Gmail folder tab, while it shows Gmail, takes scripted clicks: any other
@@ -4379,9 +4588,7 @@ void Controller::OnLoading(CefRefPtr<CefBrowser> browser, bool loading, bool can
   if (!loading) {
     ApplyZoom(browser, tab->url);
     if (auto act = mail_acts_.find(tab->id); act != mail_acts_.end()) {
-      ExecuteScript(tab->id, platform::ReadResource("ui/mail-act.js") +
-                                 "\n;window.__roarMailAct(" + JsString(act->second.substr(0, act->second.find(' '))) + "," +
-                                 JsString(act->second.substr(act->second.find(' ') + 1)) + ");");
+      RunMailAct(browser, tab->id, act->second.substr(0, act->second.find(' ')), act->second.substr(act->second.find(' ') + 1));
       mail_acts_.erase(act);
     }
     if (auto fill = llm_fills_.find(tab->id); fill != llm_fills_.end()) {
@@ -4613,8 +4820,10 @@ bool Controller::CanCloseShell() {
   closing_ = true;
   SaveNow();
   State::Get().SavePages();
-  for (auto& t : tabs_)
+  for (auto& t : tabs_) {
+    if (auto b = t.view ? t.view->GetBrowser() : nullptr) b->GetHost()->CloseBrowser(true);
     if (t.window) t.window->Close();
+  }
   if (command_window_) command_window_->Close();
   if (hint_window_) hint_window_->Close();
   if (find_window_) find_window_->Close();

@@ -387,7 +387,7 @@ bool CdpEnabled() {
     NSDictionary* root = data ? [NSJSONSerialization JSONObjectWithData:data options:0 error:nil] : nil;
     id s = [root isKindOfClass:NSDictionary.class] ? root[@"settings"] : nil;
     id on = [s isKindOfClass:NSDictionary.class] ? s[@"cdpOpen"] : nil;
-    return on ? [on boolValue] : YES;
+    return on ? (bool)[on boolValue] : true;
   }();
   return on;
 }
@@ -482,16 +482,18 @@ void MakeDefaultBrowser(std::function<void()> done) {
   }];
 }
 
-void RelaunchAfterExit() {
+void RelaunchAfterExit(const std::string& wipe_dir) {
   // Instances and scratch runs come back as themselves.
   // Values go in as arguments, never into the script text.
   NSMutableArray* args = [NSMutableArray arrayWithArray:@[
-    @"/bin/sh", @"-c", @"while kill -0 \"$1\" 2>/dev/null; do sleep 0.5; done; shift; exec open -n \"$@\"", @"sh",
-    [NSString stringWithFormat:@"%d", getpid()]
+    @"/bin/sh", @"-c",
+    @"while kill -0 \"$1\" 2>/dev/null; do sleep 0.5; done; [ -n \"$2\" ] && rm -rf \"$2\"; shift 2; exec open -n \"$@\"",
+    @"sh", [NSString stringWithFormat:@"%d", getpid()], NS(wipe_dir)
   ]];
-  for (const char* key : {"ROAR_DATA_DIR", "ROAR_INSTANCE", "ROAR_CDP_PORT"})
+  for (const char* key : {"ROAR_DATA_DIR", "ROAR_INSTANCE", "ROAR_CDP_PORT", "ROAR_UI_CDP"})
     if (const char* v = getenv(key)) [args addObjectsFromArray:@[ @"--env", [NSString stringWithFormat:@"%s=%s", key, v] ]];
   [args addObject:NSBundle.mainBundle.bundlePath];
+  if (Headless()) [args addObjectsFromArray:@[ @"--args", @"--headless=new" ]];
   NSTask* run = [[NSTask alloc] init];
   run.executableURL = [NSURL fileURLWithPath:@"/usr/bin/nohup"];
   run.arguments = args;
@@ -584,7 +586,7 @@ void InstallMenu() {
   [app addItemWithTitle:@"About Roar" action:@selector(orderFrontStandardAboutPanel:) keyEquivalent:@""];
   [app addItem:[NSMenuItem separatorItem]];
   addCommand(app, @"Check for Updates…", @"checkUpdates", @"");
-  addCommand(app, @"Update Chromium…", @"updateChromium", @"");
+  if (sizeof(ROAR_SOURCE_DIR) > 1) addCommand(app, @"Update Chromium…", @"updateChromium", @"");  // Not in release builds.
   addCommand(app, @"New Instance", @"newInstance", @"");
   {
     std::string name = InstanceName();
@@ -790,6 +792,15 @@ void TrackHorizontalDrag(void* window, std::function<void(int x)> on_move) {
 
 }  // namespace roar::platform
 
+@interface RoarPaneNav : NSPanel
+@property(nonatomic, copy) void (^press)(BOOL forward);
+@end
+@implementation RoarPaneNav
+- (BOOL)canBecomeKeyWindow { return NO; }
+- (void)back:(id)s { if (self.press) self.press(NO); }
+- (void)forward:(id)s { if (self.press) self.press(YES); }
+@end
+
 @interface RoarDivider : NSView
 @property(nonatomic) BOOL stacked;
 @property(nonatomic, copy) void (^onDrag)(NSPoint screen);
@@ -846,6 +857,46 @@ void SetSplitDivider(void* window, int x, int y, int w, int h, bool stacked,
   divider.needsDisplay = YES;
 }
 
+void SetPaneNav(void* window, bool show, std::function<void(bool forward)> press) {
+  NSWindow* w = Win(window);
+  if (!w) return;
+  static NSMapTable<NSWindow*, RoarPaneNav*>* navs = [NSMapTable weakToStrongObjectsMapTable];
+  RoarPaneNav* nav = [navs objectForKey:w];
+  if (!show) {
+    if (nav) { [w removeChildWindow:nav]; [nav orderOut:nil]; }
+    return;
+  }
+  if (!nav) {
+    nav = [[RoarPaneNav alloc] initWithContentRect:NSMakeRect(0, 0, 56, 28)
+                                          styleMask:NSWindowStyleMaskBorderless | NSWindowStyleMaskNonactivatingPanel
+                                            backing:NSBackingStoreBuffered defer:NO];
+    nav.releasedWhenClosed = NO;
+    nav.opaque = NO;
+    nav.backgroundColor = [NSColor colorWithSRGBRed:0x2a / 255.0 green:0x1d / 255.0 blue:0x12 / 255.0 alpha:0xd8 / 255.0];
+    nav.hasShadow = NO;
+    nav.contentView.wantsLayer = YES;
+    nav.contentView.layer.cornerRadius = 6;
+    nav.collectionBehavior = NSWindowCollectionBehaviorTransient | NSWindowCollectionBehaviorIgnoresCycle;
+    nav.excludedFromWindowsMenu = YES;
+    for (int i = 0; i < 2; i++) {
+      NSButton* b = [NSButton buttonWithTitle:i ? @"›" : @"‹" target:nav action:i ? @selector(forward:) : @selector(back:)];
+      b.bordered = NO;
+      b.toolTip = i ? @"Forward" : @"Back";
+      b.attributedTitle = [[NSAttributedString alloc] initWithString:b.title attributes:@{
+        NSFontAttributeName : [NSFont boldSystemFontOfSize:15],
+        NSForegroundColorAttributeName : [NSColor colorWithSRGBRed:0xfb / 255.0 green:0xee / 255.0 blue:0xdd / 255.0 alpha:1]}];
+      b.frame = NSMakeRect(4 + i * 24, 2, 24, 24);
+      [nav.contentView addSubview:b];
+    }
+    [navs setObject:nav forKey:w];
+  }
+  nav.press = ^(BOOL forward) { press(forward); };
+  NSRect f = w.frame;
+  [nav setFrameOrigin:NSMakePoint(NSMinX(f) + 6, NSMaxY(f) - 6 - nav.frame.size.height)];
+  if (nav.parentWindow != w) [w addChildWindow:nav ordered:NSWindowAbove];
+  [nav orderFront:nil];
+}
+
 void SetFloating(void* window, bool floating, const std::string& title) {
   NSWindow* w = Win(window);
   if (!w) return;
@@ -886,6 +937,19 @@ void CopyText(const std::string& text) {
   NSPasteboard* pb = NSPasteboard.generalPasteboard;
   [pb clearContents];
   [pb setString:NS(text) forType:NSPasteboardTypeString];
+}
+
+bool MoveToTrash(const std::string& path) {
+  return [NSFileManager.defaultManager trashItemAtURL:[NSURL fileURLWithPath:NS(path)] resultingItemURL:nil error:nil];
+}
+
+bool UpdaterRunning() { return g_updater != nil; }
+bool AutoUpdateChecks() { return g_updater && g_updater.updater.automaticallyChecksForUpdates; }
+bool AutoUpdateDownloads() { return g_updater && g_updater.updater.automaticallyDownloadsUpdates; }
+void SetAutoUpdate(bool checks, bool downloads) {
+  if (!g_updater) return;
+  g_updater.updater.automaticallyChecksForUpdates = checks;
+  g_updater.updater.automaticallyDownloadsUpdates = checks && downloads;
 }
 
 void CheckForUpdates() {
@@ -1053,6 +1117,11 @@ void RevealInFinder(const std::string& path) {
   NSURL* url = [NSURL fileURLWithPath:NS(path)];
   if ([NSFileManager.defaultManager fileExistsAtPath:url.path])
     [NSWorkspace.sharedWorkspace activateFileViewerSelectingURLs:@[ url ]];
+}
+
+void OpenFullDiskAccessSettings() {
+  [NSWorkspace.sharedWorkspace
+      openURL:[NSURL URLWithString:@"x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles"]];
 }
 
 bool OpenInApp(void* window, const std::string& url) {

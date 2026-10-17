@@ -91,21 +91,37 @@ std::string QueryValue(const std::string& query, const std::string& name) {
   return "";
 }
 
-std::string DropParams(const std::string& query, const std::initializer_list<const char*>& names) {
+// Drops every key |drop| says yes to (given the lower-cased key).
+template <typename Pred>
+std::string DropParamsIf(const std::string& query, Pred drop_key) {
   std::string out;
   size_t pos = 0;
   while (pos <= query.size()) {
     size_t amp = query.find('&', pos);
     std::string pair = query.substr(pos, amp == std::string::npos ? std::string::npos : amp - pos);
     std::string key = Lower(pair.substr(0, pair.find('=')));
-    bool drop = false;
-    for (const char* n : names) drop = drop || key == Lower(n);
-    if (!drop && !pair.empty()) out += (out.empty() ? "" : "&") + pair;
+    if (!drop_key(key) && !pair.empty()) out += (out.empty() ? "" : "&") + pair;
     if (amp == std::string::npos) break;
     pos = amp + 1;
   }
   return out;
 }
+
+std::string DropParams(const std::string& query, const std::initializer_list<const char*>& names) {
+  return DropParamsIf(query, [&](const std::string& key) {
+    for (const char* n : names) if (key == Lower(n)) return true;
+    return false;
+  });
+}
+
+bool Matches(const std::string& key, const std::string& name) {
+  std::string n = Lower(name);
+  if (!n.empty() && n.back() == '*') return key.rfind(n.substr(0, n.size() - 1), 0) == 0;
+  return key == n;
+}
+
+constexpr const char* kTracking[] = {"utm_*", "fbclid", "gclid", "dclid", "gbraid", "wbraid", "msclkid", "yclid", "twclid",
+                                     "ttclid", "li_fat_id", "igshid", "mc_cid", "mc_eid", "_hsenc", "_hsmi", "mkt_tok", "oly_anon_id", "oly_enc_id", "vero_id"};
 
 bool IsHttp(const std::string& url) {
   std::string head = Lower(url.substr(0, 8));
@@ -133,32 +149,50 @@ std::string StripProxySuffix(const std::string& host) {
 }
 
 // One pass; returns `url` itself when there is nothing to undo.
-std::string CleanOnce(const std::string& url) {
+std::string CleanOnce(const std::string& url, const CleanOptions& o) {
   Parts p;
   if (!Parse(url, &p)) return url;
   std::string host = Lower(p.host);
 
   bool safelinks = host.find(".safelinks.protection.") != std::string::npos ||
                    (host == "statics.teams.cdn.office.net" && p.path.find("/safelinks/") != std::string::npos);
-  if (safelinks) {
+  if (safelinks && o.safelinks) {
     std::string target = QueryValue(p.query, "url");
     if (IsHttp(target)) return target;
     return url;
   }
 
-  std::string real = StripProxySuffix(host);
-  if (real == host) return url;
-  p.host = real;
-  p.query = DropParams(p.query, {"McasCtx", "McasTsid"});
+  std::string real = o.mcas ? StripProxySuffix(host) : host;
+  if (real != host) {
+    p.host = real;
+    p.query = DropParams(p.query, {"McasCtx", "McasTsid"});
+  }
+  std::string q = DropParamsIf(p.query, [&](const std::string& key) {
+    if (o.tracking) for (const char* n : kTracking) if (Matches(key, n)) return true;
+    for (const auto& n : o.params) if (Matches(key, n)) return true;
+    return false;
+  });
+  if (real == host && q == p.query) return url;
+  p.query = q;
   return Join(p);
 }
 
 }  // namespace
 
-std::string CleanLink(const std::string& url) {
+std::vector<std::string> SplitParams(const std::string& list) {
+  std::vector<std::string> out;
+  std::string cur;
+  for (char c : list + ",") {
+    if (c == ',' || std::isspace(static_cast<unsigned char>(c))) { if (!cur.empty()) out.push_back(cur), cur.clear(); }
+    else cur += c;
+  }
+  return out;
+}
+
+std::string CleanLink(const std::string& url, const CleanOptions& opts) {
   std::string current = url;
   for (int i = 0; i < 5; ++i) {
-    std::string next = CleanOnce(current);
+    std::string next = CleanOnce(current, opts);
     if (next == current) break;
     current = next;
   }
