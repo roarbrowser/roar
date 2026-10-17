@@ -209,5 +209,14 @@
       <description><![CDATA[Split view stays put: clicking another tab shows that tab alone, and clicking either split tab brings the split back. To change a pane, drag a tab onto one of the split's tabs.]]></description>
       <enclosure url="https://github.com/roarbrowser/roar/releases/download/v0.21.1/Roar-0.21.1.dmg" type="application/octet-stream" sparkle:edSignature="le+fc45gHYvc9jxrsrJqWeEmUWTpAlAFuadt3VBY2NugO7qSw3tyft/794VhUiTErseX7PoZg9ewlKH1o8ieCg==" length="234953341"/>
     </item>
+    <item>
+      <title>0.22.0</title>
+      <pubDate>Sat, 17 Oct 2026 03:51:44 +0000</pubDate>
+      <sparkle:version>2200</sparkle:version>
+      <sparkle:shortVersionString>0.22.0</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[Tabs header button sends the current page to your chosen AI (same as Ask <AI> about this page)]]></description>
+      <enclosure url="https://github.com/roarbrowser/roar/releases/download/v0.22.0/Roar-0.22.0.dmg" type="application/octet-stream" sparkle:edSignature="7XnekLpu7rjI31kxb3qD74+buJDQKVvys6q3WELPSBWgj20+i6hD2tx56+SSpVBLGcBh9x7GfpIFXfYF6nTbBA==" length="203764580"/>
+    </item>
   </channel>
 </rss>
