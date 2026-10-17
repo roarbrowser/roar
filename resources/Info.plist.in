@@ -10,8 +10,8 @@
   <key>CFBundleInfoDictionaryVersion</key><string>6.0</string>
   <key>CFBundleName</key><string>Roar</string>
   <key>CFBundlePackageType</key><string>APPL</string>
-  <key>CFBundleShortVersionString</key><string>0.23.2</string>
-  <key>CFBundleVersion</key><string>2302</string>
+  <key>CFBundleShortVersionString</key><string>0.23.3</string>
+  <key>CFBundleVersion</key><string>2303</string>
   <key>LSMinimumSystemVersion</key><string>13.0</string>
   <key>NSPrincipalClass</key><string>RoarApplication</string>
   <key>NSHighResolutionCapable</key><true/>

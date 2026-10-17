@@ -254,5 +254,14 @@
       <description><![CDATA[Settings > Agents: a connected terminal CLI can be disconnected again.]]></description>
       <enclosure url="https://github.com/roarbrowser/roar/releases/download/v0.23.2/Roar-0.23.2.dmg" type="application/octet-stream" sparkle:edSignature="OjFDeftqCPYnr/HWdLfL81sERCnhMHMSUJR7QOv5weLpYSBnsA3x2fX+OJkmbYXyy/Ii3KCivvkdnuEPUf7CAg==" length="203761152"/>
     </item>
+    <item>
+      <title>0.23.3</title>
+      <pubDate>Sat, 17 Oct 2026 04:23:53 +0000</pubDate>
+      <sparkle:version>2303</sparkle:version>
+      <sparkle:shortVersionString>0.23.3</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[Settings > Agents: your AI and its terminal agent are one setting. Click the picked AI again to unpick it; that disconnects its terminal agent, as does picking an AI without one.]]></description>
+      <enclosure url="https://github.com/roarbrowser/roar/releases/download/v0.23.3/Roar-0.23.3.dmg" type="application/octet-stream" sparkle:edSignature="+8JlNfcsG7bVXnXWrQ/EnXI53hVFd5FeJpiFb3aou4vymHFyK+4ebmhKibwKDXlHvGWI9BhydSUK+ZBMSZQ+DQ==" length="203760944"/>
+    </item>
   </channel>
 </rss>
