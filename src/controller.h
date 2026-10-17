@@ -119,6 +119,8 @@ class Controller {
   void DropGroupIfEmpty(int group);
   void CloseActiveUnlessKept();
   bool ExecuteScript(int id, const std::string& code);
+  // AppleScript `execute javascript`: refuses Roar pages, ghost tabs and spaces with agents off.
+  bool ExecuteScriptFromApp(int id, const std::string& code);
   const std::vector<Tab>& tabs() const { return tabs_; }
   int active_id() const { return active_id_; }
 
@@ -263,8 +265,13 @@ class Controller {
   void ClaudeTick();
   CefRefPtr<CefListValue> claude_ = CefListValue::Create();
   std::string claude_sig_;
-  std::map<std::string, std::string> claude_states_;  // Session id -> last state, for completion cards.
-  bool claude_hooks_ = false;
+  std::map<std::string, std::string> claude_states_;  // Session id -> last state, for its notification.
+  std::set<std::string> claude_acked_;  // Sessions answered since their state last changed.
+  bool claude_hooks_ = false;  // Any agent CLI's hooks installed.
+  std::string agent_hooks_;  // roar-mcp agent-hooks status output: "<tool> <state>" lines.
+  void SetAgentHooks(const std::string& out);
+  std::string agentmd_cache_;  // agentmd.list's last walk, for the sidebar's recent files.
+  double agentmd_cache_at_ = 0;
   void MaybeQuit();
 
   CefRefPtr<Client> client_;

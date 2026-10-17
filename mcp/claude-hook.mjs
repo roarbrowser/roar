@@ -1,7 +1,10 @@
-// Claude Code sessions in Roar's sidebar. Two modes of the roar-mcp executable:
-//   roar-mcp claude-hook                       Claude Code hook: reads the event JSON on stdin and
-//                                              writes <Roar data>/claude-sessions/<session>.json
-//   roar-mcp claude-hooks install|uninstall|status   adds/removes those hooks in ~/.claude/settings.json
+// Agent sessions (Claude Code, Codex, Gemini, Qwen, Copilot CLIs) in Roar's sidebar. Modes of roar-mcp:
+//   roar-mcp agent-hook <tool> [event]         a CLI's hook: reads the event JSON on stdin and writes
+//                                              <Roar data>/claude-sessions/<key>.json (key: the Claude
+//                                              session id, else <tool>-<session id>)
+//   roar-mcp claude-hook                       = agent-hook claude (hooks installed before 0.12 call it)
+//   roar-mcp agent-hooks install|uninstall|status [tool]   adds/removes the hooks in each CLI's config
+//   roar-mcp claude-hooks install|uninstall|status         the same for Claude Code only
 //   roar-mcp claude-ctl new <folder> [first prompt]   starts `claude` there (cmux, else tmux, else Terminal)
 //   roar-mcp claude-ctl focus|screen|send <session> [text|key:<name>]
 //                                              brings the session's terminal forward, prints its screen,
@@ -14,12 +17,39 @@ import { execFileSync } from 'node:child_process';
 
 const HOME = process.env.HOME;
 const DIR = join(process.env.ROAR_DATA_DIR || join(HOME, 'Library/Application Support/Roar'), 'claude-sessions');
-const SETTINGS = join(process.env.CLAUDE_CONFIG_DIR || join(HOME, '.claude'), 'settings.json');
 const EVENTS = ['SessionStart', 'UserPromptSubmit', 'PreToolUse', 'Notification', 'Stop', 'SessionEnd'];
+// Each CLI's user hook config. nested = Claude's event -> [{matcher, hooks:[{type,command}]}] shape;
+// own = a file of Roar's own (Copilot reads every *.json in its hooks folder).
+export const TOOLS = {
+  claude: { name: 'Claude Code', dir: () => process.env.CLAUDE_CONFIG_DIR || join(HOME, '.claude'), file: 'settings.json', events: EVENTS,
+    entry: (cmd) => ({ matcher: '', hooks: [{ type: 'command', command: cmd, async: true, timeout: 5 }] }), arg: 'claude-hook' },
+  // https://learn.chatgpt.com/docs/hooks: new hooks run only once trusted in /hooks.
+  codex: { name: 'Codex', dir: () => process.env.CODEX_HOME || join(HOME, '.codex'), file: 'hooks.json',
+    events: ['SessionStart', 'UserPromptSubmit', 'PreToolUse', 'PermissionRequest', 'Stop', 'SessionEnd'],
+    entry: (cmd) => ({ hooks: [{ type: 'command', command: cmd, timeout: 5 }] }) },
+  // https://geminicli.com/docs/hooks/reference/ (timeout in ms).
+  gemini: { name: 'Gemini CLI', dir: () => join(HOME, '.gemini'), file: 'settings.json',
+    events: ['SessionStart', 'BeforeAgent', 'BeforeTool', 'Notification', 'AfterAgent', 'SessionEnd'],
+    entry: (cmd) => ({ matcher: '*', hooks: [{ name: 'roar', type: 'command', command: cmd, timeout: 5000 }] }) },
+  // https://qwenlm.github.io/qwen-code-docs/en/users/features/hooks/ and .../configuration/settings/
+  qwen: { name: 'Qwen Code', dir: () => join(HOME, '.qwen'), file: 'settings.json',
+    events: ['SessionStart', 'UserPromptSubmit', 'PreToolUse', 'Notification', 'PermissionRequest', 'Stop', 'SessionEnd'],
+    entry: (cmd) => ({ matcher: '', hooks: [{ name: 'roar', type: 'command', command: cmd }] }) },
+  // https://docs.github.com/en/copilot/reference/copilot-cli-reference/cli-hooks-reference
+  copilot: { name: 'Copilot CLI', dir: () => process.env.COPILOT_HOME || join(HOME, '.copilot'), file: 'hooks/roar.json', own: true,
+    events: ['sessionStart', 'userPromptSubmitted', 'preToolUse', 'notification', 'agentStop', 'sessionEnd'] },
+};
 const short = (s, n) => (s = String(s || '').replace(/\s+/g, ' ').trim()).length > n ? s.slice(0, n - 1) + '…' : s;
 
 // What a tool call means in a few words.
+// Gemini/Qwen and Copilot name their built-in tools differently; mapped onto Claude's.
+const ALIASES = { write_file: 'Write', replace: 'Edit', edit: 'Edit', create: 'Write', apply_patch: 'Edit', read_file: 'Read', view: 'Read',
+  run_shell_command: 'Bash', shell: 'Bash', bash: 'Bash', exec_command: 'Bash', glob: 'Glob', grep: 'Grep', search_file_content: 'Grep',
+  google_web_search: 'WebSearch', web_fetch: 'WebFetch', web_search: 'WebSearch' };
 export function describe(tool, input = {}) {
+  tool = ALIASES[tool] || tool;
+  if (typeof input === 'string') try { input = JSON.parse(input); } catch { input = {}; }
+  input ||= {};
   const file = input.file_path || input.notebook_path || input.path;
   if (/^(Edit|MultiEdit|Write|NotebookEdit)$/.test(tool)) return `Editing ${basename(file || 'a file')}`;
   if (tool === 'Read') return `Reading ${basename(file || 'a file')}`;
@@ -33,9 +63,30 @@ export function describe(tool, input = {}) {
   return tool ? `Using ${tool}` : 'Working';
 }
 
-export function update(prev, ev, now) {
-  const s = { ...prev, id: ev.session_id, cwd: ev.cwd || prev.cwd || '', updated: now };
-  s.project = basename(s.cwd || '') || 'Claude Code';
+// One CLI's hook payload as the Claude-shaped event update() reads, or null to ignore it.
+// Copilot's payload names no event, so its hook command passes it as an argument.
+const NEEDS = /^(permission_prompt|idle_prompt|elicitation_dialog|ToolPermission)$/;
+export function normalize(tool, ev, argEvent) {
+  if (!ev || typeof ev !== 'object') return null;
+  const e = { ...ev };
+  if (tool === 'copilot') {
+    const map = { sessionStart: 'SessionStart', userPromptSubmitted: 'UserPromptSubmit', preToolUse: 'PreToolUse', notification: 'Notification', agentStop: 'Stop', sessionEnd: 'SessionEnd' };
+    Object.assign(e, { session_id: ev.sessionId, hook_event_name: map[argEvent] || '', tool_name: ev.toolName, tool_input: ev.toolArgs });
+  } else if (tool === 'gemini') {
+    e.hook_event_name = { BeforeAgent: 'UserPromptSubmit', BeforeTool: 'PreToolUse', AfterAgent: 'Stop' }[ev.hook_event_name] || ev.hook_event_name;
+  }
+  if (e.hook_event_name === 'PermissionRequest')
+    Object.assign(e, { hook_event_name: 'Notification', message: `Asks to run ${e.tool_input?.command || e.tool_name || 'a tool'}` });
+  // Only the notifications that mean "your turn"; Qwen/Copilot/Gemini also report logins and finished shells.
+  if (e.hook_event_name === 'Notification' && tool !== 'claude' && e.notification_type && !NEEDS.test(e.notification_type)) return null;
+  return e.hook_event_name && e.session_id ? e : null;
+}
+
+export const keyOf = (tool, sid) => (tool === 'claude' ? sid : `${tool}-${sid}`);
+
+export function update(prev, ev, now, tool = 'claude') {
+  const s = { ...prev, id: keyOf(tool, ev.session_id), sid: ev.session_id, tool, cwd: ev.cwd || prev.cwd || '', updated: now };
+  s.project = basename(s.cwd || '') || TOOLS[tool]?.name || tool;
   s.started ||= now;
   switch (ev.hook_event_name) {
     case 'SessionStart': return { ...s, state: 'idle', doing: 'Started' };
@@ -49,7 +100,12 @@ export function update(prev, ev, now) {
 
 const which = (bin) => (process.env.PATH || '').split(':').map((d) => join(d, bin)).find((p) => existsSync(p));
 
-// Where the session runs, found once from the hook's environment (inherited from Claude Code).
+// Terminal bundle ids by TERM_PROGRAM, for terminals that don't pass __CFBundleIdentifier on.
+const TERM_APPS = { Apple_Terminal: 'com.apple.Terminal', 'iTerm.app': 'com.googlecode.iterm2', WezTerm: 'com.github.wez.wezterm', ghostty: 'com.mitchellh.ghostty', vscode: 'com.microsoft.VSCode' };
+const SHELLS = /(^|\/)-?(sh|bash|zsh|dash|fish)$/;
+
+// Where the session runs, from the hook's environment (inherited from Claude Code). Worked out
+// again on every SessionStart, so a resumed or reattached session points at its current window.
 export function where(env = process.env) {
   const t = {};
   if (env.TMUX && env.TMUX_PANE) {
@@ -58,52 +114,96 @@ export function where(env = process.env) {
   }
   if (env.CMUX_WORKSPACE_ID && env.CMUX_SURFACE_ID)
     t.cmux = { bin: env.CMUX_BUNDLED_CLI_PATH || '/Applications/cmux.app/Contents/Resources/bin/cmux', workspace: env.CMUX_WORKSPACE_ID, surface: env.CMUX_SURFACE_ID };
-  t.app = env.__CFBundleIdentifier || '';
-  try { t.tty = execFileSync('ps', ['-o', 'tty=', '-p', String(process.ppid)], { encoding: 'utf8', timeout: 2000 }).trim(); } catch {}
+  if (env.WEZTERM_PANE) t.wezterm = { pane: env.WEZTERM_PANE };
+  if (env.KITTY_WINDOW_ID) t.kitty = { window: env.KITTY_WINDOW_ID, socket: env.KITTY_LISTEN_ON || '' };
+  t.app = env.__CFBundleIdentifier || TERM_APPS[env.TERM_PROGRAM] || (env.KITTY_WINDOW_ID ? 'net.kovidgoyal.kitty' : '');
+  try {
+    // Claude Code's own pid (Roar drops the row once it's gone): the hook's parent, past a shell.
+    const ps = (pid) => /^(\S+)\s+(\d+)\s+(.*)$/.exec(execFileSync('ps', ['-o', 'tty=,ppid=,comm=', '-p', String(pid)], { encoding: 'utf8', timeout: 2000 }).trim());
+    let pid = process.ppid, p = ps(pid);
+    for (let i = 0; i < 3 && SHELLS.test(p[3].trim()); i++) pid = +p[2], p = ps(pid);
+    t.tty = p[1];
+    t.pid = pid;
+  } catch {}
   return t;
 }
 
-function hook() {
+function hook(tool, argEvent) {
+  const now = Date.now();  // When the CLI fired this event, before stdin or locks can delay it.
   let ev;
-  try { ev = JSON.parse(readFileSync(0, 'utf8')); } catch { return; }
-  if (!ev?.session_id || !/^[\w-]+$/.test(ev.session_id)) return;
-  const file = join(DIR, ev.session_id + '.json');
+  if (!TOOLS[tool]) return;
+  try { ev = normalize(tool, JSON.parse(readFileSync(0, 'utf8')), argEvent); } catch { return; }
+  if (!ev || typeof ev.session_id !== 'string' || !/^[\w-]+$/.test(ev.session_id)) return;
+  const file = join(DIR, keyOf(tool, ev.session_id) + '.json');
   if (ev.hook_event_name === 'SessionEnd') return void rmSync(file, { force: true });
   let prev = {};
   try { prev = JSON.parse(readFileSync(file, 'utf8')); } catch {}
+  // Async hooks can finish out of order: a PreToolUse that lost the race must not undo a later Stop.
+  if (prev.updated > now) return;
   mkdirSync(DIR, { recursive: true });
-  const next = update(prev, ev, Date.now());
-  next.term ||= where();
+  const next = update(prev, ev, now, tool);
+  if (!next.term || ev.hook_event_name === 'SessionStart') next.term = where();
   next.live = !!(next.term.tmux?.pane || next.term.cmux);
-  writeFileSync(file + '.tmp', JSON.stringify(next));
+  const tmp = `${file}.${process.pid}.tmp`;  // One per hook process, so concurrent hooks never share it.
+  writeFileSync(tmp, JSON.stringify(next));
   try {
     for (const f of readdirSync(DIR)) if (f.startsWith('new-') && JSON.parse(readFileSync(join(DIR, f), 'utf8')).cwd === next.cwd) rmSync(join(DIR, f), { force: true });
   } catch {}
-  renameSync(file + '.tmp', file);  // Roar never reads half a file.
+  renameSync(tmp, file);  // Roar never reads half a file.
 }
 
-const OURS = (h) => /roar-mcp"? claude-hook$/.test(h?.command || '');
+// Ours: "<roar-mcp>" claude-hook | agent-hook <tool> [event], whatever path Roar was installed at.
+const OURS = (h) => /(roar-mcp|")"? (claude-hook|agent-hook \w+( \w+)?)$/.test(h?.command || h?.bash || '');
+const cmdFor = (t, exe, e) => `"${exe}" ${TOOLS[t].arg || `agent-hook ${t}`}${TOOLS[t].own ? ' ' + e : ''}`;
 
-function hooks(action, exe) {
+// install | uninstall | status for one CLI: merges into its config without touching anyone else's
+// hooks, and keeps the original as <file>.roar.bak once. Returns installed | not installed | absent.
+export function hooksFor(t, action, exe) {
+  const T = TOOLS[t], dir = T.dir(), file = join(dir, T.file);
+  if (!existsSync(dir)) return 'absent';
   let cfg = {};
-  if (existsSync(SETTINGS)) {
-    try { cfg = JSON.parse(readFileSync(SETTINGS, 'utf8')); }
-    catch { console.log('error: ~/.claude/settings.json is not valid JSON; not touching it'); process.exitCode = 1; return; }
+  if (existsSync(file)) {
+    try { cfg = JSON.parse(readFileSync(file, 'utf8')); }
+    catch { throw new Error(`${file.replace(HOME, '~')} is not valid JSON; not touching it`); }
   }
-  const installed = EVENTS.every((e) => cfg.hooks?.[e]?.some((m) => m.hooks?.some(OURS)));
-  if (action === 'status') return void console.log(installed ? 'installed' : 'not installed');
+  const has = (e) => T.own ? cfg.hooks?.[e]?.some(OURS) : cfg.hooks?.[e]?.some((m) => m.hooks?.some(OURS));
+  const installed = T.events.every(has);
+  if (action === 'status') return installed ? 'installed' : 'not installed';
+  if (T.own) {
+    if (action === 'install') {
+      mkdirSync(join(file, '..'), { recursive: true });
+      writeFileSync(file, JSON.stringify({ version: 1, hooks: Object.fromEntries(T.events.map((e) => [e, [{ type: 'command', bash: cmdFor(t, exe, e), timeoutSec: 5 }]])) }, null, 2) + '\n');
+      return 'installed';
+    }
+    rmSync(file, { force: true });
+    return 'not installed';
+  }
   cfg.hooks ||= {};
-  for (const e of EVENTS) {
+  for (const e of T.events) {
     const kept = (cfg.hooks[e] || []).map((m) => ({ ...m, hooks: (m.hooks || []).filter((h) => !OURS(h)) })).filter((m) => m.hooks.length);
-    if (action === 'install') kept.push({ matcher: '', hooks: [{ type: 'command', command: `"${exe}" claude-hook`, async: true, timeout: 5 }] });
+    if (action === 'install') kept.push(T.entry(cmdFor(t, exe, e)));
     if (kept.length) cfg.hooks[e] = kept; else delete cfg.hooks[e];
   }
   if (!Object.keys(cfg.hooks).length) delete cfg.hooks;
-  mkdirSync(join(SETTINGS, '..'), { recursive: true });
-  if (existsSync(SETTINGS) && !existsSync(SETTINGS + '.roar.bak')) copyFileSync(SETTINGS, SETTINGS + '.roar.bak');
-  writeFileSync(SETTINGS + '.tmp', JSON.stringify(cfg, null, 2) + '\n');
-  renameSync(SETTINGS + '.tmp', SETTINGS);
-  console.log(action === 'install' ? 'installed' : 'not installed');
+  if (existsSync(file) && !existsSync(file + '.roar.bak')) copyFileSync(file, file + '.roar.bak');
+  writeFileSync(file + '.tmp', JSON.stringify(cfg, null, 2) + '\n');
+  renameSync(file + '.tmp', file);
+  return action === 'install' ? 'installed' : 'not installed';
+}
+
+// claude-hooks: Claude Code only, as before. agent-hooks [tool]: one CLI, or every CLI set up here;
+// prints "installed" first when any CLI has them, then one "<tool> <state>" line each.
+function hooks(cmd, action, exe, only) {
+  const list = cmd === 'claude-hooks' ? ['claude'] : only ? [only] : Object.keys(TOOLS);
+  if (!list.every((t) => TOOLS[t])) return void (console.log('error: unknown tool'), process.exitCode = 1);
+  const lines = [];
+  for (const t of list) {
+    try { lines.push(`${t} ${hooksFor(t, action === 'status' ? 'status' : action, exe)}`); }
+    catch (e) { lines.push(`${t} error`); if (list.length === 1) return void (console.log('error: ' + e.message), process.exitCode = 1); }
+  }
+  // Without a tool, install/uninstall act on every CLI set up here and the summary covers them all.
+  const any = lines.some((l) => l.endsWith(' installed'));
+  console.log([any ? 'installed' : 'not installed', ...(cmd === 'claude-hooks' ? [] : lines)].join('\n'));
 }
 
 // Session files are plain JSON anyone with this user's access could write, so nothing in them
@@ -112,8 +212,11 @@ function hooks(action, exe) {
 const TMUX = ['/opt/homebrew/bin/tmux', '/usr/local/bin/tmux', '/usr/bin/tmux'].find((p) => existsSync(p));
 const CMUX = '/Applications/cmux.app/Contents/Resources/bin/cmux';
 const ok = (v, re) => typeof v === 'string' && re.test(v);
-const run1 = (bin, args) => execFileSync(bin, args, { encoding: 'utf8', timeout: 5000 });
-const osa = (script) => run1('osascript', ['-e', script]);
+const run1 = (bin, args, timeout = 5000) => execFileSync(bin, args, { encoding: 'utf8', timeout });
+// 60 s: the first AppleScript call waits on macOS's Automation prompt until the person answers.
+const osa = (script) => run1('osascript', ['-e', script], 60000);
+const CMUX_APP = 'com.cmuxterm.app';
+const WEZTERM = '/Applications/WezTerm.app/Contents/MacOS/wezterm', KITTEN = '/Applications/kitty.app/Contents/MacOS/kitten';
 const KEYS = { enter: ['Enter', 'enter'], escape: ['Escape', 'escape'], up: ['Up', 'up'], down: ['Down', 'down'], tab: ['Tab', 'tab'], 'ctrl-c': ['C-c', 'ctrl+c'] };
 
 const sq = (v) => `'${String(v).replace(/'/g, `'\\''`)}'`;  // One shell word.
@@ -128,7 +231,7 @@ function start(dir, prompt) {
   const name = basename(dir) || 'claude';
   // Until Claude's own hook runs (after it asks whether to trust the folder), a stand-in entry
   // lets Roar show the new terminal; the first real event for this folder replaces it.
-  const now = Date.now(), stub = { id: `new-${now}`, cwd: dir, project: name, state: 'needs_you', doing: 'Starting…', started: now, updated: now, live: true, term: {} };
+  const now = Date.now(), stub = { id: `new-${now}`, cwd: dir, project: name, state: 'starting', doing: `Starting in ${name}…`, started: now, updated: now, live: true, term: {} };
   if (existsSync(CMUX)) {
     const out = run1(CMUX, ['new-workspace', '--name', name, '--cwd', dir, '--command', cmd, '--focus', 'false']);
     const ws = /workspace:\d+/.exec(out)?.[0];
@@ -155,7 +258,6 @@ function ctl(action, id, arg) {
   const cx = existsSync(CMUX) && ok(t.cmux?.workspace, /^[\w:-]+$/) && ok(t.cmux?.surface ?? '', /^[\w:-]*$/) && { ...t.cmux, bin: CMUX };
   const sf = cx && cx.surface ? ['--surface', cx.surface] : [];
   const tx = tm ? ['-S', tm.socket] : [];
-  const tty = ok(t.tty, /^ttys?\d+$/) ? t.tty : '', app = ok(t.app, /^[\w.-]+$/) ? t.app : '';
   if (action === 'screen') {
     if (tm) return run1(tm.bin, [...tx, 'capture-pane', '-p', '-J', '-t', tm.pane, '-S', '-80']);
     if (cx) return run1(cx.bin, ['read-screen', '--workspace', cx.workspace, ...sf, '--lines', '80']);
@@ -168,29 +270,72 @@ function ctl(action, id, arg) {
     if (cx) return run1(cx.bin, key ? ['send-key', '--workspace', cx.workspace, ...sf, KEYS[key][1]] : ['send', '--workspace', cx.workspace, ...sf, '--', arg]);
     throw new Error('this terminal does not take input from Roar');
   }
-  // focus: the exact tab where we can, else the app. A tmux pane's cmux ids come from whichever
-  // shell started the tmux server, so they only count while that session is attached somewhere.
+  if (tm) run1(tm.bin, [...tx, 'select-window', '-t', tm.pane]), run1(tm.bin, [...tx, 'select-pane', '-t', tm.pane]);
+  return focus(s, focusTarget(s, tm, cx));
+}
+
+// The bundle id of the app a process runs under: up the parent pids to the first *.app.
+export function appOf(pid) {
+  for (let i = 0; +pid > 1 && i < 40; i++) {
+    const m = /^(\d+)\s+(.*)$/.exec(run1('ps', ['-o', 'ppid=,comm=', '-p', String(pid)]).trim());
+    if (!m) return '';
+    const app = /^(\/.+?\.app)\/Contents\//.exec(m[2])?.[1];
+    if (app) return run1('plutil', ['-extract', 'CFBundleIdentifier', 'raw', '-o', '-', join(app, 'Contents/Info.plist')]).trim();
+    pid = m[1];
+  }
+  return '';
+}
+
+const cmuxHas = (ws) => { try { return run1(CMUX, ['workspace', 'list', '--json', '--id-format', 'both']).includes(`"${ws}"`); } catch { return false; } };
+
+// Where focus goes, worked out without touching any window. An attached tmux session is shown by
+// whichever terminal its client runs in; the cmux ids stored with it came from the shell that
+// started the tmux server and count only when that client is cmux or the workspace still exists.
+export function focusTarget(s, tm, cx) {
+  const t = s.term || {};
+  let tty = ok(t.tty, /^ttys?\d+$/) ? t.tty : '', app = ok(t.app, /^[\w.-]+$/) ? t.app : '';
   if (tm) {
-    run1(tm.bin, [...tx, 'select-window', '-t', tm.pane]); run1(tm.bin, [...tx, 'select-pane', '-t', tm.pane]);
-    const attached = run1(tm.bin, [...tx, 'display', '-p', '-t', tm.pane, '#{session_attached}']).trim() !== '0';
-    if (!attached) {
-      // Detached: open a terminal on it. cmux when it's installed, else Terminal.
-      const cmd = `${tm.bin} -S ${tm.socket} attach -t ${JSON.stringify(tm.session || tm.pane)}`;
-      if (existsSync(CMUX)) run1(CMUX, ['new-workspace', '--name', s.project, '--command', cmd, '--focus', 'true']), run1('open', ['-b', 'com.cmuxterm.app']);
-      else osa(`tell application "Terminal" to do script ${JSON.stringify(cmd)}`), osa('tell application "Terminal" to activate');
-      return 'attached';
-    }
+    const tx = ['-S', tm.socket];
+    if (run1(tm.bin, [...tx, 'display', '-p', '-t', tm.pane, '#{session_attached}']).trim() === '0') return { how: 'attach' };
+    const session = run1(tm.bin, [...tx, 'display', '-p', '-t', tm.pane, '#{session_name}']).trim();
+    const [ctty, cpid] = run1(tm.bin, [...tx, 'list-clients', '-t', session, '-F', '#{client_tty} #{client_pid}']).trim().split('\n')[0].split(' ');
+    let capp = '';
+    try { capp = appOf(cpid); } catch {}
+    if (capp && capp !== CMUX_APP) return { how: 'app', app: capp, tty: ctty.replace(/^\/dev\//, '') };
+    if (cx && (capp === CMUX_APP || cmuxHas(cx.workspace))) return { how: 'cmux', workspace: cx.workspace, surface: cx.surface, app: CMUX_APP };
+    if (capp) return { how: 'app', app: capp };
+    tty = '';  // Claude's pane tty belongs to tmux, not to any terminal tab.
+  } else if (cx) return { how: 'cmux', workspace: cx.workspace, surface: cx.surface, app: CMUX_APP };
+  const wez = ok(t.wezterm?.pane, /^\d+$/) && existsSync(WEZTERM) ? t.wezterm.pane : '';
+  const kitty = ok(t.kitty?.window, /^\d+$/) && ok(t.kitty?.socket, /^unix:[\w./@-]+$/) && existsSync(KITTEN) ? t.kitty : null;
+  return { how: 'app', app, tty, wez, kitty, cwd: ok(s.cwd, /^\/[^\0]*$/) ? s.cwd : '' };
+}
+
+function focus(s, f) {
+  if (f.how === 'attach') {
+    // Detached: open a terminal on it. cmux when it's installed, else Terminal.
+    const t = s.term.tmux, cmd = `${TMUX} -S ${t.socket} attach -t ${JSON.stringify(ok(t.session, /^[\w.-]+$/) ? t.session : t.pane)}`;
+    if (existsSync(CMUX)) run1(CMUX, ['new-workspace', '--name', s.project, '--command', cmd, '--focus', 'true']), run1('open', ['-b', CMUX_APP]);
+    else osa(`tell application "Terminal" to do script ${JSON.stringify(cmd)}`), osa('tell application "Terminal" to activate');
+    return 'attached';
   }
-  if (cx) {
-    run1(cx.bin, ['select-workspace', '--workspace', cx.workspace]);
-    if (cx.surface) run1(cx.bin, ['focus-panel', '--panel', cx.surface, '--workspace', cx.workspace]);
-    return run1('open', ['-b', 'com.cmuxterm.app']), 'focused';
+  if (f.how === 'cmux') {
+    try {
+      run1(CMUX, ['select-workspace', '--workspace', f.workspace]);
+      if (f.surface) run1(CMUX, ['focus-panel', '--panel', f.surface, '--workspace', f.workspace]);
+    } catch {}  // A stale workspace: bringing cmux forward is the best left.
+    return run1('open', ['-b', f.app]), 'focused';
   }
-  if (tty && /^com\.apple\.Terminal$/.test(app))
-    return osa(`tell application "Terminal"\nrepeat with w in windows\nrepeat with x in tabs of w\nif tty of x is "/dev/${tty}" then\nset selected of x to true\nset index of w to 1\nend if\nend repeat\nend repeat\nactivate\nend tell`), 'focused';
-  if (tty && /^com\.googlecode\.iterm2$/.test(app))
-    return osa(`tell application "iTerm2"\nrepeat with w in windows\nrepeat with x in tabs of w\nrepeat with p in sessions of x\nif tty of p is "/dev/${tty}" then\nselect w\nselect x\nselect p\nend if\nend repeat\nend repeat\nend repeat\nactivate\nend tell`), 'focused';
-  if (/^com\.(microsoft\.VSCode|todesktop\.230313mzl4w4u92|exafunction\.windsurf)/.test(app) && ok(s.cwd, /^\/[^\0]*$/)) return run1('open', ['-b', app, s.cwd]), 'focused';
+  const { app, tty } = f;
+  // AppleScript brings the app forward only when a tab matched, and says whether one did.
+  const found = (out) => { if (out.trim() !== 'true') throw new Error('its terminal tab is closed'); return 'focused'; };
+  if (tty && app === 'com.apple.Terminal')
+    return found(osa(`set found to false\ntell application "Terminal"\nrepeat with w in windows\nrepeat with x in tabs of w\nif tty of x is "/dev/${tty}" then\nset selected of x to true\nset index of w to 1\nset found to true\nend if\nend repeat\nend repeat\nif found then activate\nend tell\nreturn found`));
+  if (tty && app === 'com.googlecode.iterm2')
+    return found(osa(`set found to false\ntell application "iTerm2"\nrepeat with w in windows\nrepeat with x in tabs of w\nrepeat with p in sessions of x\nif tty of p is "/dev/${tty}" then\nselect w\nselect x\nselect p\nset found to true\nend if\nend repeat\nend repeat\nend repeat\nif found then activate\nend tell\nreturn found`));
+  if (f.wez) try { run1(WEZTERM, ['cli', 'activate-pane', '--pane-id', f.wez]); } catch {}
+  if (f.kitty) try { run1(KITTEN, ['@', '--to', f.kitty.socket, 'focus-window', '--match', `id:${f.kitty.window}`]); } catch {}
+  if (/^com\.(microsoft\.VSCode|todesktop\.230313mzl4w4u92|exafunction\.windsurf)/.test(app) && f.cwd) return run1('open', ['-b', app, f.cwd]), 'focused';
   if (app) return run1('open', ['-b', app]), 'focused';
   throw new Error('no window known for this session');
 }
@@ -201,6 +346,11 @@ export function run(args, exe) {
     catch (e) { process.stdout.write('error: ' + (e.stderr?.toString().trim() || e.message)); process.exitCode = 1; }
     return;
   }
-  if (args[0] === 'claude-hook') hook();
-  else hooks(args[1] || 'status', exe);
+  if (args[0] === 'claude-hook') return hook('claude');
+  if (args[0] === 'agent-hook') {
+    hook(args[1], args[2]);
+    if (args[1] === 'gemini' || args[1] === 'qwen') process.stdout.write('{}');  // Their stdout must be JSON.
+    return;
+  }
+  hooks(args[0], args[1] || 'status', exe, args[2]);
 }

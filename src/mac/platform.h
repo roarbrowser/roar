@@ -22,8 +22,10 @@ bool CdpEnabled();
 void RelaunchAfterExit();
 // Open TCP connections to this process's CDP port: one per connected agent/CDP client.
 int CdpClientCount();
-// A macOS notification (asks for permission the first time).
-void Notify(const std::string& title, const std::string& body);
+// A macOS notification (asks for permission the first time). A non-empty |id| replaces an
+// earlier one with the same id, and Unnotify(id) takes it out of Notification Center.
+void Notify(const std::string& title, const std::string& body, const std::string& id = "");
+void Unnotify(const std::string& id);
 // The Dock icon's badge; 0 clears it.
 void SetDockBadge(int count);
 bool AppActive();

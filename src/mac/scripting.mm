@@ -28,6 +28,7 @@ using roar::Controller;
   return t ? [NSString stringWithUTF8String:t->url.c_str()] : @"";
 }
 - (void)setURL:(NSString*)url {
+  if ([[url stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceCharacterSet].lowercaseString hasPrefix:@"roar:"]) return;
   Controller::Get()->Navigate(self.tabId, url.UTF8String);
 }
 - (NSString*)title {
@@ -88,6 +89,8 @@ static int TargetTab(NSScriptCommand* command, NSString* key) {
 - (id)performDefaultImplementation {
   NSString* url = self.directParameter;
   if (![url isKindOfClass:[NSString class]]) return nil;
+  // Roar's own pages hold privileged UI; scripts may not open them.
+  if ([[url stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceCharacterSet].lowercaseString hasPrefix:@"roar:"]) return nil;
   int id = Controller::Get()->NewTab(url.UTF8String, true);
   return [RoarScriptTab withId:id];
 }
@@ -99,7 +102,7 @@ static int TargetTab(NSScriptCommand* command, NSString* key) {
 - (id)performDefaultImplementation {
   NSString* code = self.directParameter;
   if (![code isKindOfClass:[NSString class]]) return @NO;
-  return @(Controller::Get()->ExecuteScript(TargetTab(self, @"tab"), code.UTF8String));
+  return @(Controller::Get()->ExecuteScriptFromApp(TargetTab(self, @"tab"), code.UTF8String));
 }
 @end
 

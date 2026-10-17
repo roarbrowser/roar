@@ -22,12 +22,13 @@ window.__roarMailAct = (action, id) => {
   const boxOf = (r) => r.querySelector('div[role="checkbox"]');
   const checked = () => rows().filter((r) => boxOf(r)?.getAttribute('aria-checked') === 'true');
   const ids = id.split(',');
-  const findId = (i) => rows().find((r) => r.querySelector(`[data-legacy-thread-id="${i}"], [data-legacy-last-message-id="${i}"]`));
+  const findId = (i) => rows().find((r) => r.querySelector(`[data-legacy-thread-id="${CSS.escape(i)}"], [data-legacy-last-message-id="${CSS.escape(i)}"]`));
   const find = () => findId(ids[0]);
   const targets = () => ids.map(findId).filter(Boolean);
   // Whether the page still lists any of the messages in this inbox view.
   const listed = () => targets().length > 0;
   (async () => {
+    try {
     // A page that only just loaded shows the change but sends it to Google much later.
     await until(() => performance.now() > 33000, 400);
     // Gmail may open the message itself; the inbox list is where the row buttons work.
@@ -41,14 +42,16 @@ window.__roarMailAct = (action, id) => {
       if (!row) return report('Message moved; nothing was changed');
       row.scrollIntoView({ block: 'center' });
       await wait(400);
-      if (boxOf(row).getAttribute('aria-checked') !== 'true') { press(boxOf(row)); await wait(700); }
+      const box = boxOf(row);
+      if (!box) return report('Could not find the message checkbox; nothing was changed');
+      if (box.getAttribute('aria-checked') !== 'true') { press(box); await wait(700); }
     }
     const only = checked(), want = targets();
     if (only.length !== ids.length || !want.every((r) => only.includes(r))) {
-      for (const r of only) { press(boxOf(r)); await wait(500); }
+      for (const r of only) { if (boxOf(r)) press(boxOf(r)); await wait(500); }
       return report('Could not select just that message; nothing was changed');
     }
-    const wasUnread = find().classList.contains('zE');
+    const wasUnread = !!find()?.classList.contains('zE');
     // Gmail sends a change to its server on the next real click, so finish by
     // clicking the harmless Inbox link.
     const nudge = async () => {
@@ -82,5 +85,6 @@ window.__roarMailAct = (action, id) => {
     if (!move) return report('Gmail has no Move to button for it');
     press(move);
     report('Pick a label to move it');
+    } catch (e) { report('Error: ' + e.message); }
   })();
 };

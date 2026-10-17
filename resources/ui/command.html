@@ -35,7 +35,7 @@ input::placeholder { color: var(--ink-3); }
 <body>
 <div class="panel">
   <div class="field">
-    <input id="q" autocomplete="off" spellcheck="false" placeholder="Search, enter an address, or type > for commands" aria-label="Search or enter address">
+    <input id="q" autocomplete="off" spellcheck="false" placeholder="Search, enter an address, or type > for commands" aria-label="Search or enter address" role="combobox" aria-controls="list" aria-expanded="true" aria-autocomplete="list">
     <span class="route" id="route" hidden></span>
   </div>
   <div class="list" id="list" role="listbox"></div>
@@ -52,6 +52,11 @@ const COMMANDS = [
     { id: 'askLlm:claude', title: 'Claude', keys: '', words: 'llm ai anthropic' },
     { id: 'askLlm:gemini', title: 'Gemini', keys: '', words: 'llm ai google bard' },
     { id: 'askLlm:perplexity', title: 'Perplexity', keys: '', words: 'llm ai search' },
+    { id: 'askLlm:grok', title: 'Grok', keys: '', words: 'llm ai xai' },
+    { id: 'askLlm:mistral', title: 'Le Chat', keys: '', words: 'llm ai mistral' },
+    { id: 'askLlm:deepseek', title: 'DeepSeek', keys: '', words: 'llm ai' },
+    { id: 'askLlm:copilot', title: 'Copilot', keys: '', words: 'llm ai microsoft bing' },
+    { id: 'askLlm:kimi', title: 'Kimi', keys: '', words: 'llm ai moonshot' },
   ] },
   { id: 'find', title: 'Find in page', keys: '⌘F', words: 'search text match' },
   { id: 'zoomIn', title: 'Zoom in', keys: '⌘+', words: 'bigger larger magnify' },
@@ -62,7 +67,7 @@ const COMMANDS = [
   { id: 'mute', title: 'Mute or unmute tab', keys: '', words: 'sound audio silence' },
   { id: 'downloads', title: 'Show downloads', keys: '⇧⌘J', words: 'files saved progress' },
   { id: 'history', title: 'Show all history', keys: '⌘Y', words: 'browsing visited search past' },
-  { id: 'agentmd', title: 'CLAUDE.md browser', keys: '', words: 'agents.md claude md instructions memory gemini cursorrules' },
+  { id: 'agentmd', title: 'Agent files browser', keys: '', words: 'agents.md claude md instructions memory gemini cursor rules copilot windsurf cline kiro roo skills' },
   { id: 'pip', title: 'Picture in picture', keys: '⇧⌘P', words: 'video pip float' },
   { id: 'float', title: 'Float tab in a mini window', keys: '⇧⌘F', words: 'pip document always on top' },
   { id: 'split', title: 'Split view', keys: '⌘\\', words: 'side by side two tabs pane' },
@@ -102,6 +107,18 @@ let items = [];
 let sel = 0;
 let newTab = true;
 let seq = 0;
+// Only the chat apps chosen in Settings > General (askLlms).
+const ASK = COMMANDS.find((c) => c.id === 'askLlm'), ALL_LLMS = ASK.children;
+const syncLlms = () => ask({ cmd: 'state' }).then((st) => {
+  const on = ((typeof st === 'string' ? JSON.parse(st) : st).settings?.askLlms || '').split(',');
+  ASK.children = ALL_LLMS.filter((c) => on.includes(c.id.slice(7)));
+  const at = COMMANDS.indexOf(ASK);
+  if (!ASK.children.length && at >= 0) COMMANDS.splice(at, 1);
+  else if (ASK.children.length && at < 0) COMMANDS.splice(3, 0, ASK);
+}).catch(() => {});
+syncLlms();
+window.addEventListener('focus', syncLlms);  // The bar is one page shown again and again.
+
 let submenu = null;  // A command whose children are listed instead of COMMANDS.
 
 function looksLikeUrl(text) {
@@ -154,6 +171,7 @@ function render() {
   if (!items.length) {
     $('list').innerHTML = submenu || q.value.trim().startsWith('>') ? '<div class="section">No matching commands</div>'
       : '<div class="section">Type to search the web, your tabs and history. Start with &gt; for commands.</div>';
+    $('q').removeAttribute('aria-activedescendant');
     fit();
     return;
   }
@@ -165,7 +183,7 @@ function render() {
       const head = textHeader ? '' : '<div class="section">Found in page text</div>';
       textHeader = true;
       const where = it.id ? '<span class="kind">Open tab</span>' : '';
-      return `${head}<button class="item hit${i === sel ? ' sel' : ''}" data-i="${i}" role="option"><span class="icon">${iconHtml('', it.url)}</span><span class="text"><span class="title">${esc(it.title || hostOf(it.url))} <span class="url">${esc(hostOf(it.url))}</span></span><span class="snip">${highlight(it.detail, words)}</span></span>${where}</button>`;
+      return `${head}<button class="item hit${i === sel ? ' sel' : ''}" data-i="${i}" id="opt-${i}" role="option" aria-selected="${i === sel}"><span class="icon">${iconHtml('', it.url)}</span><span class="text"><span class="title">${esc(it.title || hostOf(it.url))} <span class="url">${esc(hostOf(it.url))}</span></span><span class="snip">${highlight(it.detail, words)}</span></span>${where}</button>`;
     }
     if (it.type === 'search') { icon = ICON.search; title = esc(it.title); sub = '<span class="kind">Search the web</span>'; }
     else if (it.type === 'open') { icon = ICON.open; title = esc(it.title); sub = '<span class="kind">Open address</span>'; }
@@ -175,10 +193,11 @@ function render() {
       title = esc(it.title || hostOf(it.url));
       const kind = it.detail ? 'Tab in ' + it.detail : { tab: 'Open tab', history: 'History', archived: 'Archived' }[it.type];
       sub = `<span class="kind">${kind}</span>`;
-      return `<button class="item${i === sel ? ' sel' : ''}" data-i="${i}" role="option"><span class="icon">${icon}</span><span class="text"><span class="title">${title}</span><span class="url">${esc(hostOf(it.url))}</span></span>${sub}</button>`;
+      return `<button class="item${i === sel ? ' sel' : ''}" data-i="${i}" id="opt-${i}" role="option" aria-selected="${i === sel}"><span class="icon">${icon}</span><span class="text"><span class="title">${title}</span><span class="url">${esc(hostOf(it.url))}</span></span>${sub}</button>`;
     }
-    return `<button class="item${i === sel ? ' sel' : ''}" data-i="${i}" role="option"><span class="icon">${icon}</span><span class="text"><span class="title">${title}</span></span>${sub}</button>`;
+    return `<button class="item${i === sel ? ' sel' : ''}" data-i="${i}" id="opt-${i}" role="option" aria-selected="${i === sel}"><span class="icon">${icon}</span><span class="text"><span class="title">${title}</span></span>${sub}</button>`;
   }).join('');
+  $('q').setAttribute('aria-activedescendant', 'opt-' + sel);
   fit();
 }
 

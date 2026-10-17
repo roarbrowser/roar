@@ -23,9 +23,9 @@ import { mkdirSync, readFileSync, existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { run as claudeHooks } from './claude-hook.mjs';
 
-// `roar-mcp claude-hook` / `roar-mcp claude-hooks <action>`: Claude Code sessions in the sidebar.
+// `roar-mcp agent-hook <tool>` / `agent-hooks <action> [tool]` (and the claude-* forms): agent sessions in the sidebar.
 const mode = process.argv.slice(2)[0];
-if (mode === 'claude-hook' || mode === 'claude-hooks' || mode === 'claude-ctl') { claudeHooks(process.argv.slice(2), process.execPath); process.exit(); }
+if (['claude-hook', 'claude-hooks', 'claude-ctl', 'agent-hook', 'agent-hooks'].includes(mode)) { claudeHooks(process.argv.slice(2), process.execPath); process.exit(); }
 
 // Contents/Resources/roar-mcp -> Roar.app
 const APP = process.env.ROAR_APP || join(dirname(process.execPath), '..', '..');

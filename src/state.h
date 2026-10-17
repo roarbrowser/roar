@@ -7,6 +7,7 @@
 #include <vector>
 
 #include "include/cef_values.h"
+#include "settings.h"
 
 namespace roar {
 
@@ -92,29 +93,6 @@ struct GmailFeed {
   int unread = 0;
   bool signed_out = false;  // Last refresh got 401/403.
   std::string account;  // The address the feed is for.
-};
-
-struct Settings {
-  double archive_after_hours = 12;  // 0 disables auto-archive.
-  bool onboarded = false;
-  std::string search_url = "https://duckduckgo.com/?q=";
-  std::string github_query = "is:open is:pr author:@me archived:false";
-  bool github_folder = true;
-  bool gmail_folder = true;
-  bool index_pages = true;
-  int sidebar_width = 268;
-  int pinned_columns = 0;  // Pinned tiles per row; 0 fits as many as the width allows.
-  bool pinned_centered = false;  // Centers a short last row.
-  // The CDP port, on by default; the sidebar's CDP indicator opens or closes it live.
-  bool cdp_enabled = true;
-  // Which Roar the bundled MCP server (roar-mcp.sh) drives: this one, or a hidden one on 9444.
-  bool agent_headless = false;
-  bool ask_default = true;  // Offers to become the default browser at launch until dismissed.
-  // Claude Code sessions in the sidebar; when on, launch installs the hooks once if Claude Code is set up.
-  bool claude_sidebar = true;
-  bool claude_alert_done = true, claude_alert_needs = true, claude_alert_system = true;  // ClaudeAlert cards and macOS notice.
-  bool claude_hooks_offered = false;
-  bool clean_links = true;  // Unwraps Safe Links and strips .mcas.ms from copied links (CleanLink).
 };
 
 class State {

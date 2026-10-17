@@ -93,10 +93,8 @@ void BrowserApp::OnRegisterCustomSchemes(CefRawPtr<CefSchemeRegistrar> registrar
 void BrowserApp::OnBeforeCommandLineProcessing(const CefString& process_type,
                                                CefRefPtr<CefCommandLine> command_line) {
   if (!process_type.empty()) return;
-  // CDP clients such as chrome-devtools-mcp connect without an Origin header,
-  // but allow the local DevTools front-end too.
-  if (!command_line->HasSwitch("remote-allow-origins"))
-    command_line->AppendSwitchWithValue("remote-allow-origins", "http://127.0.0.1");
+  // No remote-allow-origins: CDP clients such as chrome-devtools-mcp send no Origin
+  // header and connect anyway, while web pages (which always send one) are refused.
   // --headless means Roar's hidden mode, not Chrome's: Chrome's headless mode
   // has no native window the menu bar icon could bring forward. The hidden
   // windows keep rendering at full speed for CDP clients.

@@ -13,8 +13,6 @@ h1 { margin: 0; font: 800 34px/1 var(--round); letter-spacing: -.02em; }
 .seg button { padding: 5px 12px; border-radius: 7px; color: var(--ink-2); font-weight: 500; }
 .seg button[aria-pressed="true"] { background: var(--panel); color: var(--ink); box-shadow: 0 1px 2px rgba(0,0,0,.12); }
 .bar input { flex: 1; min-width: 0; font: 13px var(--ui); padding: 7px 10px; border-radius: 8px; border: 1px solid var(--rule); background: var(--ground); color: var(--ink); }
-.btn { background: var(--ground); border-radius: 8px; padding: 7px 12px; font-weight: 500; }
-.btn:hover { background: var(--hover); }
 ul { list-style: none; margin: 0; padding: 0; }
 ul ul { padding-left: 20px; }
 .node { display: flex; align-items: center; gap: 8px; height: 32px; padding: 0 6px; border-radius: 7px; }
@@ -46,7 +44,7 @@ ul ul { padding-left: 20px; }
     <input id="filter" type="search" placeholder="Filter" aria-label="Filter">
     <button class="btn" id="new-folder">New folder</button>
   </div>
-  <div id="list"></div>
+  <div id="list"><div class="empty">Loading…</div></div>
 </main>
 <script src="bridge.js"></script>
 <script>
@@ -168,7 +166,7 @@ const load = () => ask({ cmd: 'library.get' }).then((r) => {
   lib = typeof r === 'string' ? JSON.parse(r) : r;
   lib.bookmarks ||= []; lib.readLater ||= [];
   render();
-});
+}).catch(() => { document.getElementById('list').innerHTML = '<div class="empty">Couldn\'t load bookmarks.</div>'; });
 load();
 // Pick up items added from the menu while this page is open.
 window.addEventListener('focus', load);

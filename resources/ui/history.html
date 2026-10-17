@@ -92,7 +92,7 @@ button:focus-visible, a:focus-visible { outline: 2px solid var(--mane); outline-
       <div class="bulk" id="bulk"><span class="count" id="bulk-count"></span><button class="primary" id="bulk-open">Open in new tabs</button><button id="bulk-remove">Remove</button><button id="bulk-clear">Clear</button></div>
       <div class="keys"><kbd>/</kbd> search · <kbd>↑</kbd><kbd>↓</kbd> move · <kbd>↩</kbd> open · <kbd>⌘↩</kbd> new tab · <kbd>⌫</kbd> remove · <kbd>space</kbd> select · shift-click selects a range · click a site to see only it · <kbd>g</kbd> group by site</div>
     </div>
-    <div id="list"></div>
+    <div id="list"><div class="empty">Loading…</div></div>
   </main>
 </div>
 <script src="bridge.js"></script>
@@ -143,7 +143,7 @@ const rows = () => [...document.querySelectorAll('.entry')];
 const entry = (e) => {
   const time = new Date(e.lastVisit * 1000).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
   const host = hostOf(e.url);
-  return `<div class="entry${picked.has(e.url) ? ' picked' : ''}" data-entry="${esc(e.url)}"><input type="checkbox" class="pick" aria-label="Select" ${picked.has(e.url) ? 'checked' : ''}><span class="when">${esc(time)}</span><span class="fav">${esc((host[0] || '•').toUpperCase())}</span><a href="#" data-url="${esc(e.url)}" title="${esc(e.url)}">${esc(e.title || e.url)}</a><button class="host" data-site="${esc(host)}" title="Show only ${esc(host)}">${esc(host)}</button><button class="x" data-remove="${esc(e.url)}" aria-label="Remove from history" title="Remove from history">${x}</button></div>`;
+  return `<div class="entry${picked.has(e.url) ? ' picked' : ''}" data-entry="${esc(e.url)}"><input type="checkbox" class="pick" aria-label="Select" ${picked.has(e.url) ? 'checked' : ''}><span class="when">${esc(time)}</span><span class="fav">${esc((host[0] || '•').toUpperCase())}</span><a href="${esc(e.url)}" data-url="${esc(e.url)}" title="${esc(e.url)}">${esc(e.title || e.url)}</a><button class="host" data-site="${esc(host)}" title="Show only ${esc(host)}">${esc(host)}</button><button class="x" data-remove="${esc(e.url)}" aria-label="Remove from history" title="Remove from history">${x}</button></div>`;
 };
 // One day's entries by site, the most recently visited site first (entries arrive newest first).
 const bySite = (entries) => {
@@ -159,7 +159,9 @@ const bySite = (entries) => {
 async function load() {
   const mine = ++seq;
   const q = [$('q').value, site].filter(Boolean).join(' ');
-  const res = await ask({ cmd: 'history.list', q, limit });
+  let res;
+  try { res = await ask({ cmd: 'history.list', q, limit }); }
+  catch { if (mine === seq) $('list').innerHTML = '<div class="empty">Couldn\'t load history.</div>'; return; }
   if (mine !== seq) return;
   const more = res.total > res.entries.length;
   $('space').textContent = res.space ? `${res.space} · ${res.total} page${res.total === 1 ? '' : 's'}` : '';

@@ -5,8 +5,12 @@
 #include <cstdlib>
 #include <fstream>
 #include <sstream>
+#include <pwd.h>
 #include <sys/stat.h>
+#include <unistd.h>
+#include <vector>
 
+#include "atomic_write.h"
 #include "include/cef_parser.h"
 
 namespace roar {
@@ -38,14 +42,26 @@ void WriteJson(const std::string& dir, const std::string& name, CefRefPtr<CefDic
   auto root = CefValue::Create();
   root->SetDictionary(d);
   mkdir(dir.c_str(), 0700);
-  const std::string path = dir + "/" + name;
-  const std::string tmp = path + ".tmp";
-  {
-    std::ofstream out(tmp, std::ios::trunc);
-    out << CefWriteJSON(root, JSON_WRITER_DEFAULT).ToString();
-  }
-  chmod(tmp.c_str(), 0600);
-  std::rename(tmp.c_str(), path.c_str());
+  AtomicWrite(dir + "/" + name, CefWriteJSON(root, JSON_WRITER_DEFAULT).ToString());
+}
+
+std::string Home() {
+  const char* h = std::getenv("HOME");
+  if (h && *h) return h;
+  const passwd* pw = getpwuid(getuid());
+  return pw && pw->pw_dir ? pw->pw_dir : "";
+}
+
+// Drops the oldest ~10% once a map passes `cap`, so trimming is not a full scan per insert.
+template <typename Map, typename Time>
+void TrimOldest(Map& m, size_t cap, Time time) {
+  if (m.size() <= cap) return;
+  std::vector<typename Map::iterator> its;
+  for (auto it = m.begin(); it != m.end(); ++it) its.push_back(it);
+  size_t drop = std::min(its.size(), m.size() - cap + cap / 10);
+  std::nth_element(its.begin(), its.begin() + (drop - 1), its.end(),
+                   [&](auto a, auto b) { return time(a->second) < time(b->second); });
+  for (size_t i = 0; i < drop; ++i) m.erase(its[i]);
 }
 
 std::string Str(CefRefPtr<CefDictionaryValue> d, const char* key, const std::string& def = "") {
@@ -76,7 +92,7 @@ State& State::Get() {
 std::string State::Dir() const {
   const char* override_dir = std::getenv("ROAR_DATA_DIR");
   if (override_dir && *override_dir) return override_dir;
-  std::string dir = std::string(std::getenv("HOME")) + "/Library/Application Support/Roar";
+  std::string dir = Home() + "/Library/Application Support/Roar";
   // Extra instances (platform::InstanceName) sit beside the main data dir.
   const char* instance = std::getenv("ROAR_INSTANCE");
   return instance && *instance ? dir + "-" + instance : dir;
@@ -127,17 +143,19 @@ void State::Load() {
     seed = !pinned && (!sp || sp->GetSize() <= 1);
   }
   if (seed) {
-    std::string main = ReadFile(std::string(std::getenv("HOME")) + "/Library/Application Support/Roar/state.json");
+    std::string main = ReadFile(Home() + "/Library/Application Support/Roar/state.json");
     if (!main.empty()) text = main;
     else seed = false;
   }
   // Keeps the state of the last three launches: state.json.launch-1 is the newest.
   if (!text.empty()) {
     const std::string base = Dir() + "/state.json.launch-";
-    std::rename((base + "2").c_str(), (base + "3").c_str());
-    std::rename((base + "1").c_str(), (base + "2").c_str());
-    std::ofstream(base + "1", std::ios::trunc) << text;
-    chmod((base + "1").c_str(), 0600);
+    // Rotate only once the new copy is safely on disk.
+    if (AtomicWrite(base + "0", text)) {
+      std::rename((base + "2").c_str(), (base + "3").c_str());
+      std::rename((base + "1").c_str(), (base + "2").c_str());
+      std::rename((base + "0").c_str(), (base + "1").c_str());
+    }
   }
   CefRefPtr<CefValue> root = CefParseJSON(text, JSON_PARSER_RFC);
   if (!root || root->GetType() != VTYPE_DICTIONARY) return;
@@ -168,32 +186,23 @@ void State::Load() {
     }
   }
   if (auto s = d->GetDictionary("settings")) {
-    settings.archive_after_hours = Num(s, "archiveAfterHours", settings.archive_after_hours);
-    settings.onboarded = Bool(s, "onboarded");
-    settings.search_url = Str(s, "searchUrl", settings.search_url);
-    // Google was the old default, saved though nothing let anyone pick it.
-    if (settings.search_url == "https://www.google.com/search?q=")
+    settings.search_migrated = false;  // A file without the key predates the picker.
+    for (const auto& f : SettingFields())
+      std::visit([&](auto m) {
+        auto& v = settings.*m;
+        using T = std::decay_t<decltype(v)>;
+        if constexpr (std::is_same_v<T, bool>) v = Bool(s, f.key, v);
+        else if constexpr (std::is_same_v<T, std::string>) v = Str(s, f.key, v);
+        else v = static_cast<T>(Num(s, f.key, v));
+      }, f.member);
+    // Google was the old default, saved though nothing let anyone pick it. Move it once; after
+    // that Settings offers Google, so a saved Google is a choice.
+    if (!settings.search_migrated && settings.search_url == "https://www.google.com/search?q=")
       settings.search_url = "https://duckduckgo.com/?q=";
-    settings.github_query = Str(s, "githubQuery", settings.github_query);
+    settings.search_migrated = true;
     // The old default listed PRs in archived repos too.
     if (settings.github_query == "is:open is:pr author:@me")
       settings.github_query = "is:open is:pr author:@me archived:false";
-    settings.github_folder = Bool(s, "githubFolder", true);
-    settings.gmail_folder = Bool(s, "gmailFolder", true);
-    settings.index_pages = Bool(s, "indexPages", true);
-    settings.sidebar_width = static_cast<int>(Num(s, "sidebarWidth", settings.sidebar_width));
-    settings.pinned_columns = static_cast<int>(Num(s, "pinnedColumns", 0));
-    settings.pinned_centered = Bool(s, "pinnedCentered", false);
-    settings.clean_links = Bool(s, "cleanLinks", true);
-    settings.ask_default = Bool(s, "askDefault", true);
-    settings.claude_sidebar = Bool(s, "claudeSidebar", true);
-    settings.claude_alert_done = Bool(s, "claudeAlertDone", true);
-    settings.claude_alert_needs = Bool(s, "claudeAlertNeeds", true);
-    settings.claude_alert_system = Bool(s, "claudeAlertSystem", true);
-    settings.claude_hooks_offered = Bool(s, "claudeHooksOffered", false);
-    // "cdpOpen", not 0.5.0's "cdpEnabled": that release saved false for everyone.
-    settings.cdp_enabled = Bool(s, "cdpOpen", true);
-    settings.agent_headless = Bool(s, "agentHeadless", false);
   }
   if (auto z = d->GetDictionary("zoom")) {
     CefDictionaryValue::KeyList keys;
@@ -292,25 +301,15 @@ void State::Save() {
   }
   d->SetDictionary("history", h);
   auto s = CefDictionaryValue::Create();
-  s->SetDouble("archiveAfterHours", settings.archive_after_hours);
-  s->SetBool("onboarded", settings.onboarded);
-  s->SetString("searchUrl", settings.search_url);
-  s->SetString("githubQuery", settings.github_query);
-  s->SetBool("githubFolder", settings.github_folder);
-  s->SetBool("gmailFolder", settings.gmail_folder);
-  s->SetBool("indexPages", settings.index_pages);
-  s->SetInt("sidebarWidth", settings.sidebar_width);
-  s->SetInt("pinnedColumns", settings.pinned_columns);
-  s->SetBool("pinnedCentered", settings.pinned_centered);
-  s->SetBool("cleanLinks", settings.clean_links);
-  s->SetBool("askDefault", settings.ask_default);
-  s->SetBool("claudeSidebar", settings.claude_sidebar);
-  s->SetBool("claudeAlertDone", settings.claude_alert_done);
-  s->SetBool("claudeAlertNeeds", settings.claude_alert_needs);
-  s->SetBool("claudeAlertSystem", settings.claude_alert_system);
-  s->SetBool("claudeHooksOffered", settings.claude_hooks_offered);
-  s->SetBool("cdpOpen", settings.cdp_enabled);
-  s->SetBool("agentHeadless", settings.agent_headless);
+  for (const auto& f : SettingFields())
+    std::visit([&](auto m) {
+      const auto& v = settings.*m;
+      using T = std::decay_t<decltype(v)>;
+      if constexpr (std::is_same_v<T, bool>) s->SetBool(f.key, v);
+      else if constexpr (std::is_same_v<T, int>) s->SetInt(f.key, v);
+      else if constexpr (std::is_same_v<T, double>) s->SetDouble(f.key, v);
+      else s->SetString(f.key, v);
+    }, f.member);
   d->SetDictionary("settings", s);
   auto zl = CefDictionaryValue::Create();
   for (const auto& [host, level] : zoom) zl->SetDouble(host, level);
@@ -379,12 +378,7 @@ void State::SetPageText(int space, const std::string& url, const std::string& ti
     clipped.pop_back();
   if (!clipped.empty() && (static_cast<unsigned char>(clipped.back()) & 0x80)) clipped.pop_back();
   pages[SpaceKey(space, url)] = {title, clipped, NowSeconds(), space, url};
-  if (pages.size() > kMaxPages) {
-    auto oldest = std::min_element(pages.begin(), pages.end(), [](auto& a, auto& b) {
-      return a.second.indexed_at < b.second.indexed_at;
-    });
-    pages.erase(oldest);
-  }
+  TrimOldest(pages, kMaxPages, [](const auto& p) { return p.indexed_at; });
 }
 
 void State::RecordVisit(int space, const std::string& url, const std::string& title) {
@@ -394,12 +388,7 @@ void State::RecordVisit(int space, const std::string& url, const std::string& ti
   e.visits += 1;
   e.last_visit = NowSeconds();
   if (!title.empty()) e.title = title;
-  if (history.size() > kMaxHistory) {
-    auto oldest = std::min_element(history.begin(), history.end(), [](auto& a, auto& b) {
-      return a.second.last_visit < b.second.last_visit;
-    });
-    history.erase(oldest);
-  }
+  TrimOldest(history, kMaxHistory, [](const auto& e) { return e.last_visit; });
 }
 
 void State::AddArchived(int space, const std::string& url, const std::string& title) {

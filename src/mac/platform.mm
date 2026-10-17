@@ -433,10 +433,11 @@ int CdpClientCount() {
   return static_cast<int>(clients.size() + peers.size());
 }
 
-void Notify(const std::string& title, const std::string& body) {
+void Notify(const std::string& title, const std::string& body, const std::string& id) {
   UNUserNotificationCenter* center = UNUserNotificationCenter.currentNotificationCenter;
   NSString* t = NS(title);
   NSString* b = NS(body);
+  NSString* ident = id.empty() ? NSUUID.UUID.UUIDString : NS("roar." + id);
   [center requestAuthorizationWithOptions:UNAuthorizationOptionAlert | UNAuthorizationOptionSound
                         completionHandler:^(BOOL granted, NSError*) {
                           if (!granted) return;
@@ -444,11 +445,19 @@ void Notify(const std::string& title, const std::string& body) {
                           c.title = t;
                           c.body = b;
                           c.sound = UNNotificationSound.defaultSound;
-                          [center addNotificationRequest:[UNNotificationRequest requestWithIdentifier:NSUUID.UUID.UUIDString
+                          [center addNotificationRequest:[UNNotificationRequest requestWithIdentifier:ident
                                                                                               content:c
                                                                                               trigger:nil]
                                    withCompletionHandler:nil];
                         }];
+}
+
+void Unnotify(const std::string& id) {
+  if (id.empty()) return;
+  NSArray<NSString*>* ids = @[ NS("roar." + id) ];
+  UNUserNotificationCenter* center = UNUserNotificationCenter.currentNotificationCenter;
+  [center removePendingNotificationRequestsWithIdentifiers:ids];
+  [center removeDeliveredNotificationsWithIdentifiers:ids];
 }
 
 void SetDockBadge(int count) {
@@ -475,14 +484,17 @@ void MakeDefaultBrowser(std::function<void()> done) {
 
 void RelaunchAfterExit() {
   // Instances and scratch runs come back as themselves.
-  NSMutableString* env = [NSMutableString string];
+  // Values go in as arguments, never into the script text.
+  NSMutableArray* args = [NSMutableArray arrayWithArray:@[
+    @"/bin/sh", @"-c", @"while kill -0 \"$1\" 2>/dev/null; do sleep 0.5; done; shift; exec open -n \"$@\"", @"sh",
+    [NSString stringWithFormat:@"%d", getpid()]
+  ]];
   for (const char* key : {"ROAR_DATA_DIR", "ROAR_INSTANCE", "ROAR_CDP_PORT"})
-    if (const char* v = getenv(key)) [env appendFormat:@" --env '%s=%s'", key, v];
-  NSString* cmd = [NSString stringWithFormat:@"while kill -0 %d 2>/dev/null; do sleep 0.5; done; open -n%@ '%@'",
-                                             getpid(), env, NSBundle.mainBundle.bundlePath];
+    if (const char* v = getenv(key)) [args addObjectsFromArray:@[ @"--env", [NSString stringWithFormat:@"%s=%s", key, v] ]];
+  [args addObject:NSBundle.mainBundle.bundlePath];
   NSTask* run = [[NSTask alloc] init];
   run.executableURL = [NSURL fileURLWithPath:@"/usr/bin/nohup"];
-  run.arguments = @[ @"/bin/sh", @"-c", cmd ];
+  run.arguments = args;
   run.standardOutput = [NSFileHandle fileHandleWithNullDevice];
   run.standardError = [NSFileHandle fileHandleWithNullDevice];
   [run launchAndReturnError:nil];
@@ -637,7 +649,7 @@ void InstallMenu() {
   addCommand(tabs, @"Pin or Unpin Tab", @"pin", @"⌘D");
   addCommand(tabs, @"Mute or Unmute Tab", @"mute", @"");
   addCommand(tabs, @"Show Downloads", @"downloads", @"⇧⌘J");
-  addCommand(tabs, @"CLAUDE.md Browser", @"agentmd", @"");
+  addCommand(tabs, @"Agent Files Browser", @"agentmd", @"");
   addCommand(tabs, @"Refresh Pull Requests", @"github", @"");
   addCommand(tabs, @"Refresh Mail", @"gmail", @"");
 
@@ -929,16 +941,16 @@ void UpdateChromium(void* window) {
       show(@"Chromium update available", text, @[ @"Update", @"Later" ], ^(NSInteger choice) {
         if (choice != 0) return;
         NSString* log = [NSHomeDirectory() stringByAppendingPathComponent:@"Library/Logs/Roar-update.log"];
-        NSString* cmd = [NSString
-            stringWithFormat:@"cd '%@' && { scripts/update-cef.sh && scripts/deploy.sh; } > '%@' 2>&1 || "
-                             @"osascript -e 'display notification \"See ~/Library/Logs/Roar-update.log\" "
-                             @"with title \"Roar update failed\"'",
-                             root, log];
+        [NSFileManager.defaultManager createFileAtPath:log contents:nil attributes:nil];
+        NSFileHandle* out = [NSFileHandle fileHandleForWritingAtPath:log] ?: [NSFileHandle fileHandleWithNullDevice];
         NSTask* run = [[NSTask alloc] init];
         run.executableURL = [NSURL fileURLWithPath:@"/usr/bin/nohup"];
-        run.arguments = @[ @"/bin/bash", @"-lc", cmd ];
-        run.standardOutput = [NSFileHandle fileHandleWithNullDevice];
-        run.standardError = [NSFileHandle fileHandleWithNullDevice];
+        run.currentDirectoryURL = [NSURL fileURLWithPath:root];
+        NSString* script = @"{ scripts/update-cef.sh && scripts/deploy.sh; } || osascript -e 'display notification "
+                           @"\"See ~/Library/Logs/Roar-update.log\" with title \"Roar update failed\"'";
+        run.arguments = @[ @"/bin/bash", @"-lc", script ];
+        run.standardOutput = out;
+        run.standardError = out;
         [run launchAndReturnError:nil];
       });
     });

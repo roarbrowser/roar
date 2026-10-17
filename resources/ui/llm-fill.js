@@ -7,7 +7,12 @@ window.__roarFill = (text) => {
     '#prompt-textarea',                     // ChatGPT
     'div.ProseMirror[contenteditable=true]', // Claude
     'rich-textarea .ql-editor',             // Gemini
-    'textarea#ask-input, textarea',         // Perplexity, fallback
+    // Grok, Le Chat, DeepSeek, Copilot, Kimi: unverified against signed-in pages; the generic
+    // fallbacks below catch them if their DOM moved.
+    'textarea#userInput',                   // Copilot
+    'textarea#chat-input',                  // DeepSeek
+    '.chat-input-editor[contenteditable=true]', // Kimi
+    'textarea#ask-input, textarea',         // Perplexity, Grok, Le Chat, fallback
     '[contenteditable=true][role=textbox]',
   ];
   const fill = (box) => {

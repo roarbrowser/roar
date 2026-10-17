@@ -126,6 +126,10 @@ bool Client::OnBeforePopup(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> fr
                            CefRefPtr<CefClient>& client, CefBrowserSettings& settings,
                            CefRefPtr<CefDictionaryValue>& extra_info,
                            bool* no_javascript_access) {
+  // Only Roar's own pages may open Roar pages; cancel the popup otherwise.
+  if (target_url.ToString().rfind("roar:", 0) == 0 &&
+      browser->GetMainFrame()->GetURL().ToString().rfind(kUiOrigin, 0) != 0)
+    return true;
   // A DuckDuckGo result opens in place, even with DuckDuckGo's "open in new tab"
   // setting on; ⌘-click still asks for a background tab.
   if (target_disposition == CEF_WOD_NEW_FOREGROUND_TAB && frame && frame->IsMain() &&
