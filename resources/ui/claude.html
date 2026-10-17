@@ -63,12 +63,17 @@ async function meta() {
   attachTab = web ? web.id : 0;
   $('attach').disabled = !web || !c.live;
   $('attach').hidden = !c.live;
-  $('attach').title = web ? `Send “${web.title || web.url}”: Roar saves it as Markdown and types @file into the prompt, without Enter` : 'Open a web page in this space first';
+  $('attach').title = web ? `Send “${web.title || web.url}”: Roar saves it as Markdown and types @file into the prompt. Text in the reply box goes with it and Enter sends both; with none, no Enter` : 'Open a web page in this space first';
   $('attach-why').hidden = !!web || !c.live;
   $('attach-why').textContent = 'Open a web page in this space first: only web pages can be attached.';
 }
 let attachTab = 0;
-$('attach').onclick = () => attachTab && ask({ cmd: 'claude.sendTab', id, tab: attachTab });
+// Text in the reply box goes with the page as its prompt.
+$('attach').onclick = async () => {
+  if (!attachTab) return;
+  await ask({ cmd: 'claude.sendTab', id, tab: attachTab, text: $('text').value.trim() });
+  $('text').value = '';
+};
 
 // Shows a failed control call in the screen area; true when |out| was an error.
 const shownError = (out) => {

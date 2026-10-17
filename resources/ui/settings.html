@@ -38,6 +38,7 @@ pre { margin: 6px 0; font: 12px/1.6 var(--mono); background: var(--ground); bord
 .nomatch { display: none !important; }
 .empty { color: var(--ink-3); padding: 12px 0; }
 @media (max-width: 640px) { .wrap { grid-template-columns: 1fr; } nav { position: static; grid-auto-flow: column; overflow-x: auto; } }
+#claude-opts .hint { color: var(--ink-3); font-size: 12px; margin: 2px 0 6px; }
 </style>
 </head>
 <body>
@@ -77,6 +78,7 @@ pre { margin: 6px 0; font: 12px/1.6 var(--mono); background: var(--ground); bord
       <div class="module" data-module="claude">
         <div class="row head"><label class="name" for="claude-on"><span data-icon="claude"></span>Agent sessions<small>Your Claude Code, Codex, Gemini, Qwen and Copilot CLI sessions, what they're doing and whether they need you; never the conversation.</small></label><input type="checkbox" class="switch" id="claude-on"></div>
         <fieldset id="claude-opts"><p class="reason">Turn on Agent sessions to pick its tools and alerts.</p>
+          <p class="hint">Only connected CLIs show up in New and start from “Ask an Agent About This Page”.</p>
           <div id="agent-tools"></div>
           <div class="row"><label class="name" for="al-done">Alert me when a session finishes</label><input type="checkbox" class="switch" id="al-done" data-set="claudeAlertDone"></div>
           <div class="row"><label class="name" for="al-needs">Alert me when a session needs me</label><input type="checkbox" class="switch" id="al-needs" data-set="claudeAlertNeeds"></div>

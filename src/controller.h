@@ -133,7 +133,7 @@ class Controller {
   void ClearArchive();
   void RestoreArchived(size_t index);
   // |target| is "copy", "save", or an LLM id from kLlms to open the page in.
-  void ExtractActive(const std::string& target, int tab_id = 0);
+  void ExtractActive(const std::string& target, int tab_id = 0, const std::string& prompt = "");
   void PictureInPicture();
   void FloatActiveTab();
   void SetFaviconData(int tab_id, const std::string& url, const std::string& data);
@@ -273,9 +273,9 @@ class Controller {
   roar::AttachQueue claude_attach_;  // Tabs to attach to sessions New/Chat just started, by folder.
   // Starts the chosen agent CLI in |dir| (claude-ctl new); queues |tab| to attach once it reports,
   // and opens its full view when |open_view|. |done| gets claude-ctl's reply.
-  void AgentStart(const std::string& dir, const std::string& prompt, int tab, bool open_view,
+  void AgentStart(const std::string& dir, const std::string& prompt, std::vector<int> tabs, bool open_view,
                   std::function<void(const std::string&)> done = nullptr);
-  void AgentScratch(const std::string& prompt, int tab, bool open_view,
+  void AgentScratch(const std::string& prompt, std::vector<int> tabs, bool open_view,
                     std::function<void(const std::string&)> done = nullptr);  // AgentStart in a new <data>/scratch folder.  // Any agent CLI's hooks installed.
   std::string agent_hooks_;  // roar-mcp agent-hooks status output: "<tool> <state>" lines.
   void SetAgentHooks(const std::string& out);
@@ -366,6 +366,7 @@ class Controller {
   struct PendingExtract {
     int tab_id;
     std::string target;
+    std::string prompt;  // claude: typed after the page's @-mention, then Enter.
   };
   std::map<std::string, PendingExtract> extracts_;
   std::map<int, std::string> mail_acts_;  // Tab id -> Gmail action (delete/read/move) to run once its thread loads.

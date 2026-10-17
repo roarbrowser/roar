@@ -207,12 +207,14 @@ body.drag-active .pinned:empty::before { content: 'Drop to pin'; color: var(--in
 .cld .where { display: grid; gap: 4px; max-height: 40vh; overflow: auto; }
 .cld .pick { justify-self: start; padding: 5px 10px; border-radius: 6px; box-shadow: inset 0 0 0 1px var(--rule); }
 .cld textarea { width: 100%; box-sizing: border-box; resize: none; height: 58px; padding: 6px 8px; border: 0; border-radius: 6px; background: var(--panel); color: var(--ink); font: 12.5px var(--ui); box-shadow: inset 0 0 0 1px var(--rule); }
-.cld .incl { display: flex; gap: 6px; align-items: center; color: var(--ink-2); } .cld .incl:has(:disabled) { opacity: .5; }
+.cld .opt.tab { padding: 5px 8px; gap: 7px; } .cld .opt.tab img, .cld .opt.tab svg { width: 14px; height: 14px; flex: none; }
+#cl-step3 { display: grid; gap: 10px; } #cl-step3[hidden] { display: none; }
+#cl-tabs { max-height: 22vh; }
 .cld .acts { display: flex; gap: 6px; justify-content: flex-end; align-items: center; }
 .cld .acts span { flex: 1; color: var(--ink-3); }
 .cld .acts button { padding: 5px 12px; border-radius: 6px; } .cld .acts button:hover { background: var(--hover); }
-.cld .go { background: var(--mane, #d9822b); color: #2a1604; font-weight: 600; } .cld .go:hover { background: var(--mane, #d9822b); filter: brightness(1.06); }
-.cld button:focus-visible, .cld textarea:focus-visible, .cld .incl input:focus-visible { outline: 2px solid var(--mane, #d9822b); outline-offset: 1px; }
+.cld .go { background: var(--mane, #d9822b); color: #2a1604; font-weight: 600; } .cld .go:hover { background: var(--mane, #d9822b); filter: brightness(1.06); } .cld .go:disabled { opacity: .5; filter: none; }
+.cld button:focus-visible, .cld textarea:focus-visible, .cld textarea:focus { outline: 2px solid var(--mane, #d9822b); outline-offset: 1px; }
 .feed .badge.urgent { background: #d9822b; box-shadow: 0 0 0 2px var(--ground); }
 .mailrow { position: relative; }
 .macts { position: absolute; right: 4px; top: 50%; transform: translateY(-50%); display: none; gap: 2px; padding: 2px; border-radius: 7px; background: var(--ground); box-shadow: 0 0 0 1px var(--rule); }
@@ -364,7 +366,7 @@ body.drag-active .pinned:empty::before { content: 'Drop to pin'; color: var(--in
     <fieldset id="cl-step2" hidden><legend>Where</legend><div class="where" id="cl-where"></div></fieldset>
     <div id="cl-step3" hidden>
       <textarea id="cl-prompt" placeholder="First prompt (optional)" aria-label="First prompt"></textarea>
-      <label class="incl" title="Once the session starts, attach the web page you're looking at to its prompt"><input type="checkbox" id="cl-incl"> Include this tab</label>
+      <fieldset id="cl-tabs-f"><legend>Attach tabs</legend><div class="where" id="cl-tabs"></div></fieldset>
     </div>
     <div class="acts"><span id="cl-note" role="status"></span><button type="button" id="cl-back">Cancel</button><button class="go" id="cl-go">Next</button></div>
   </form>
@@ -521,20 +523,22 @@ window.roar = {
     };
     // "Claude is waiting for your input" → "Waiting for your input": the icon already names the tool.
     const tidy = (t) => (t || '').replace(/^(Claude|Codex|Gemini|Qwen|Copilot)( Code| CLI)? (is|has|needs) /i, (m, a, b, v) => v.toLowerCase() === 'is' ? '' : v + ' ').replace(/^./, (x) => x.toUpperCase());
-    const attachAttrs = webTab ? `title="Send the tab you're looking at: Roar saves it as Markdown and types @file into the session's prompt, without Enter"` : 'aria-disabled="true" title="Switch to a web page first: only web pages can be sent"';
+    const attachAttrs = webTab ? `title="Send the tab you're looking at, with a prompt if you like: Roar saves it as Markdown and types @file into the session's prompt"` : 'aria-disabled="true" title="Switch to a web page first: only web pages can be sent"';
     const clRow = (c) => {
       const st = needs(c) ? 'needs_you' : c.state === 'needs_you' ? 'working' : (c.state || 'idle');
       const sub = tidy(c.doing || (c.prompt || '').split('\n')[0]);
-      const open = clReplyOpen === c.id && needs(c) && c.live;
+      const open = clReplyOpen === c.id && needs(c) && c.live, sending = !open && clSendOpen === c.id && c.live;
       return `<div class="row pr cl${needs(c) ? ' needs' : ''}${c.state === 'starting' ? ' starting' : ''}${clFull[c.id]?.active ? ' active' : ''}" data-clid="${esc(c.id)}" data-cltab="${clFull[c.id]?.id || ''}" title="${esc(c.prompt || c.cwd || '')}">` +
         `<button class="clmain" aria-label="${esc(agentName(c))}: ${esc(c.project)}, ${clStates[st] || st}${sub ? ': ' + esc(sub) : ''}. Open"><span class="cl-ic">${agentIcon(c, 16)}<span class="dot ${esc(st)}" aria-hidden="true"></span></span>` +
         `<span class="label"><span class="cl-name"><b>${esc(c.project)}</b><time>${clAgo(c.updated)}</time></span><small><span class="vh">${clStates[st] || st}: </span>${esc(sub)}</small>` +
         (c.live && needs(c) && !open ? `<span class="cl-reply" data-clreply="${esc(c.id)}" role="button" tabindex="-1">Reply</span>` : '') + `</span></button>` +
         `<span class="cl-acts">${needs(c) && c.live ? `<button data-clreply="${esc(c.id)}" aria-pressed="${open}" aria-label="Reply to ${esc(c.project)}" title="Reply here">${ico.reply}</button>` : ''}` +
-        `${c.live ? `<button data-clsend="${esc(c.id)}" aria-label="Attach this tab to ${esc(c.project)}'s prompt" ${attachAttrs}>${ico.attach}</button>` : ''}` +
+        `${c.live ? `<button data-clsend="${esc(c.id)}" aria-pressed="${sending}" aria-label="Send this tab to ${esc(c.project)}" ${attachAttrs}>${ico.attach}</button>` : ''}` +
         `${c.live ? `<button data-clfocus="${esc(c.id)}" aria-label="Show ${esc(c.project)}'s terminal" title="Bring its terminal window to the front">${ico.term}</button>` : ''}` +
         `<button data-cldismiss="${esc(c.id)}" title="Hide this session" aria-label="Hide ${esc(c.project)}">${ico.hide}</button></span></div>` +
-        (open ? `<form class="clq" data-clq="${esc(c.id)}"><input placeholder="Reply to ${esc(c.project)}…" title="Empty Enter accepts the highlighted choice" autocomplete="off" spellcheck="false" aria-label="Reply to ${esc(c.project)}" value="${esc(clDraft[c.id] || '')}"><span class="clq-acts"><button type="button" data-tab aria-label="Attach this tab" ${attachAttrs}>${ico.attach}</button><button class="send" aria-label="Send">${ico.send}</button></span></form>` : '');
+        (open ? `<form class="clq" data-clq="${esc(c.id)}"><input placeholder="Reply to ${esc(c.project)}…" title="Empty Enter accepts the highlighted choice" autocomplete="off" spellcheck="false" aria-label="Reply to ${esc(c.project)}" value="${esc(clDraft[c.id] || '')}"><span class="clq-acts"><button type="button" data-tab aria-label="Attach this tab" ${attachAttrs}>${ico.attach}</button><button class="send" aria-label="Send">${ico.send}</button></span></form>` : '') +
+        // Send tab: an optional prompt goes with the page, and Enter sends both.
+        (sending ? `<form class="clq" data-clsq="${esc(c.id)}"><input placeholder="Prompt to send with this tab (optional)" title="Empty: the page goes into the prompt without Enter" autocomplete="off" spellcheck="false" aria-label="Prompt to send to ${esc(c.project)} with this tab" value="${esc(clDraft['send:' + c.id] || '')}"><span class="clq-acts"><button class="send" aria-label="Send tab" ${webTab ? '' : 'disabled'}>${ico.send}</button></span></form>` : '');
     };
     // A session started here shows at once, until its hook (or claude-ctl's stand-in) reports.
     if (clWant && (Date.now() - clWant.since > 60000 || cl.some((c) => c.cwd === clWant.dir && c.started >= clWant.since))) clWant = null;
@@ -556,11 +560,11 @@ window.roar = {
     $('cl-sendtab').setAttribute('aria-disabled', String(!webTab));
     $('cl-sendtab').title = webTab ? (clLive.length === 1 ? `Send the tab you're looking at to ${clLive[0].project}` : 'Send the tab you\'re looking at to a session') : 'Switch to a web page first: only web pages can be sent';
     // Redrawing loses focus in a reply box; put it back where it was.
-    const f = document.activeElement?.closest?.('#cl [data-clq]') && document.activeElement;
-    const fq = f && f.closest('[data-clq]').dataset.clq, fs = f && [f.selectionStart, f.selectionEnd];
+    const f = document.activeElement?.closest?.('#cl .clq') && document.activeElement;
+    const fq = f && f.closest('.clq').outerHTML.match(/data-cls?q="[^"]*"/)[0], fs = f && [f.selectionStart, f.selectionEnd];
     setHtml($('cl'), starting + (cl.map(clRow).join('') || (starting ? '' : '<div class="note">No sessions yet. Press New to start one.</div>')));
     clActive = webTab ? act.id : 0;
-    if (fq) { const i = $('cl').querySelector(`[data-clq="${CSS.escape(fq)}"] input`); if (i && i !== f) { i.focus(); i.setSelectionRange(...fs); } }
+    if (fq) { const i = $('cl').querySelector(`[${fq}] input`); if (i && i !== f) { i.focus(); i.setSelectionRange(...fs); } }
     // Recent folders for New; scratch folders are Roar's own, not projects.
     clDirs = [...new Set([...cl.map((c) => c.cwd).filter((d) => d && !/\/(scratch|chats)\/\d{4}-\d\d-\d\d-\d{4}(-\d+)?$/.test(d)), ...clDirs])].slice(0, 6);
     clFullTabs = clFull;
@@ -971,8 +975,20 @@ $('gh-qin').addEventListener('keydown', (e) => e.stopPropagation());
 $('gh-qreset').onclick = () => { $('gh-qin').value = GH_DEFAULT; ask({ cmd: 'settings.set', settings: { githubQuery: GH_DEFAULT } }); };
 // Quick reply on a session that needs you. Drafts survive the list redrawing.
 const clDraft = {};
-$('cl').addEventListener('input', (e) => { const q = e.target.closest('[data-clq]'); if (q) clDraft[q.dataset.clq] = e.target.value; });
+$('cl').addEventListener('input', (e) => {
+  const q = e.target.closest('.clq');
+  if (q) clDraft[q.dataset.clq || 'send:' + q.dataset.clsq] = e.target.value;
+});
 $('cl').addEventListener('submit', async (e) => {
+  const sq = e.target.closest('[data-clsq]');
+  if (sq) {
+    e.preventDefault();
+    if (state?.tabs && !/^https?:/.test(state.tabs.find((t) => t.active)?.url || '')) return;
+    await ask({ cmd: 'claude.sendTab', id: sq.dataset.clsq, text: sq.querySelector('input').value.trim() });
+    delete clDraft['send:' + sq.dataset.clsq];
+    clSendOpen = null;
+    return ask({ cmd: 'state' }).then(roar.render);
+  }
   const q = e.target.closest('[data-clq]');
   if (!q) return;
   e.preventDefault();
@@ -984,10 +1000,15 @@ $('cl').addEventListener('submit', async (e) => {
   clReplyOpen = null;
   ask({ cmd: 'state' }).then(roar.render);
 });
-$('cl').addEventListener('keydown', (e) => { if (e.target.closest('[data-clq]') && e.key !== 'Escape') e.stopPropagation(); });  // Typing isn't a sidebar shortcut.
+$('cl').addEventListener('keydown', (e) => {
+  if (!e.target.closest('.clq')) return;
+  if (e.key !== 'Escape') return e.stopPropagation();  // Typing isn't a sidebar shortcut.
+  clSendOpen = clReplyOpen = null;
+  ask({ cmd: 'state' }).then(roar.render);
+});  // Typing isn't a sidebar shortcut.
 // New session: a modal, type (installed CLIs) then where (a folder, or a scratch folder Roar makes)
 // and an optional first prompt. The row shows "Starting…" until the session's hook reports.
-let clWant = null, clDirs = [], clFullTabs = {}, clReplyOpen = null, clActive = 0, clLive = [], clTools = ['claude'];
+let clWant = null, clDirs = [], clFullTabs = {}, clReplyOpen = null, clSendOpen = null, clActive = 0, clLive = [], clTools = ['claude'];
 ask({ cmd: 'claude.ctl', action: 'tools' }).then((out) => {
   const got = String(out || '').split('\n').filter((t) => AGENT_TOOLS[t]);
   if (got.length) clTools = got;
@@ -1015,14 +1036,20 @@ function clStep(n) {
 }
 $('cl-new').onclick = (e) => {
   e.stopPropagation();
-  const last = clTools.includes(state?.settings?.agentTool) ? state.settings.agentTool : clTools[0];
-  $('cl-tiles').innerHTML = clTools.map((t) => clOpt('tool', t, `${agentIcon(t, 22)}<span>${esc(AGENT_TOOLS[t][0])}</span>`, t === last)).join('');
+  // Only CLIs both installed and connected in Settings > Agent sessions.
+  const tools = clTools.filter((t) => state?.claude?.tools?.[t] === 'installed');
+  const last = tools.includes(state?.settings?.agentTool) ? state.settings.agentTool : tools[0];
+  $('cl-tiles').innerHTML = tools.map((t) => clOpt('tool', t, `${agentIcon(t, 22)}<span>${esc(AGENT_TOOLS[t][0])}</span>`, t === last)).join('');
   clWhere();
   $('cl-prompt').value = '';
-  $('cl-incl').checked = !!clActive;
-  $('cl-incl').disabled = !clActive;
+  // Open web tabs to attach once the session starts (never ghost tabs); the current one is ticked.
+  const web = (state?.tabs || []).filter((t) => /^https?:/.test(t.url || '') && !t.ghost);
+  $('cl-tabs-f').hidden = !web.length;
+  $('cl-tabs').innerHTML = web.map((t) => `<label class="opt tab"><input type="checkbox" value="${t.id}"${t.id === clActive ? ' checked' : ''}>${iconHtml(t.favicon, t.url)}<span>${esc(t.title || t.url)}</span></label>`).join('');
+  if (!tools.length) $('cl-tiles').innerHTML = '<p class="note">No agent CLI is connected. Connect one in Settings › Agent sessions.</p>';
   clDlg.showModal();
   clStep(1);
+  $('cl-go').disabled = !tools.length;
 };
 $('cl-tiles').addEventListener('dblclick', (e) => e.target.closest('.opt') && clStep(2));
 $('cl-where').addEventListener('click', async (e) => {
@@ -1040,12 +1067,12 @@ clForm.onsubmit = async (e) => {
   const tool = clPicked('tool'), folder = AGENT_TOOLS[tool]?.[3] !== false;
   const where = folder ? clPicked('where') : 'scratch', prompt = $('cl-prompt').value.trim();
   if (!where) return void ($('cl-note').textContent = 'Pick a folder first.');
-  const scratch = where === 'scratch', tab = ($('cl-incl').checked && clActive) || 0;
+  const scratch = where === 'scratch', tabs = [...$('cl-tabs').querySelectorAll(':checked')].map((b) => +b.value);
   $('cl-note').textContent = 'Starting…';
   await ask({ cmd: 'settings.set', settings: { agentTool: tool } });  // claude-ctl new starts the saved CLI.
   clWant = { dir: scratch ? '' : where, tool, name: scratch ? prompt.replace(/\s+/g, ' ').slice(0, 60) || 'Scratch' : where.split('/').pop(), since: Date.now() - 2000 };
   ask({ cmd: 'state' }).then(roar.render);
-  const out = await ask({ cmd: 'claude.ctl', action: 'new', id: scratch ? '' : where, scratch, text: prompt, tab });
+  const out = await ask({ cmd: 'claude.ctl', action: 'new', id: scratch ? '' : where, scratch, text: prompt, tabs });
   if (out.startsWith('error: ')) { clWant = null; ask({ cmd: 'state' }).then(roar.render); return void ($('cl-note').textContent = out.slice(7)); }
   if (scratch) clWant = null;  // Its stand-in row (or the hook's) is already there.
   clDlg.close();
@@ -1055,11 +1082,17 @@ clForm.onsubmit = async (e) => {
 $('cl-sendtab').onclick = (e) => {
   e.stopPropagation();
   if ($('cl-sendtab').getAttribute('aria-disabled') === 'true') return;
-  if (clLive.length === 1) return ask({ cmd: 'claude.sendTab', id: clLive[0].id });
+  if (clLive.length === 1) return clOpenSend(clLive[0].id);
   const r = $('cl-sendtab').getBoundingClientRect();
   showCtx(`<div class="head">Send this tab to</div>${clLive.map((c) => `<button data-act="send" data-id="${esc(c.id)}">${agentIcon(c, 14)}${esc(c.project)}</button>`).join('')}`,
-    { clientX: r.left, clientY: r.bottom + 4 }, (act, d) => { ask({ cmd: 'claude.sendTab', id: d.id }); hideCtx(); });
+    { clientX: r.left, clientY: r.bottom + 4 }, (act, d) => { hideCtx(); clOpenSend(d.id); });
 };
+// Opens (or closes) the Send tab prompt box under a session's row.
+function clOpenSend(id) {
+  clSendOpen = clSendOpen === id ? null : id;
+  clReplyOpen = null;
+  return ask({ cmd: 'state' }).then(roar.render).then(() => $('cl').querySelector(`[data-clsq="${CSS.escape(clSendOpen || '')}"] input`)?.focus());
+}
 $('cl-btn').onclick = (e) => {
   e.stopPropagation();
   ask({ cmd: 'settings.set', settings: { agentSection: state?.settings?.agentSection === false } });
@@ -1079,9 +1112,10 @@ document.addEventListener('click', (e) => {
   const x = e.target.closest('[data-cldismiss]');
   if (x) { e.stopPropagation(); return ask({ cmd: 'claude.dismiss', id: x.dataset.cldismiss }); }
   const t = e.target.closest('[data-clsend]');
-  if (t) { e.stopPropagation(); return t.getAttribute('aria-disabled') === 'true' || ask({ cmd: 'claude.sendTab', id: t.dataset.clsend }); }
+  if (t) { e.stopPropagation(); return t.getAttribute('aria-disabled') === 'true' || clOpenSend(t.dataset.clsend); }
   const f = e.target.closest('[data-clfocus]');
   if (f) { e.stopPropagation(); return ask({ cmd: 'claude.ctl', action: 'focus', id: f.dataset.clfocus }); }
+  if (e.target.closest('[data-clsq]')) return e.stopPropagation();
   const q = e.target.closest('[data-clq]');
   if (q) {
     e.stopPropagation();
