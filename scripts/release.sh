@@ -47,8 +47,9 @@ fi
 # profile is named (xcrun notarytool store-credentials <name>; ROAR_NOTARY_PROFILE=<name>).
 NOTARIZED=0
 ROAR_NOTARY_PROFILE="${ROAR_NOTARY_PROFILE:-roar-notary}"
-if codesign -dvv "$APP" 2>&1 | grep -q "Authority=Developer ID Application" && [[ -n "${ROAR_NOTARY_PROFILE:-}" ]]; then
-  SIGN_ID="$(codesign -dvv "$APP" 2>&1 | sed -n 's/^Authority=\(Developer ID Application.*\)/\1/p' | head -1)"
+# Read the signature once: under pipefail, `codesign | grep -q` fails whenever grep exits early.
+SIGN_ID="$(codesign -dvv "$APP" 2>&1 | sed -n 's/^Authority=\(Developer ID Application.*\)/\1/p' | head -1 || true)"
+if [[ -n "$SIGN_ID" && -n "${ROAR_NOTARY_PROFILE:-}" ]]; then
   codesign --force --timestamp --sign "$SIGN_ID" "$DMG"
   xcrun notarytool submit "$DMG" --keychain-profile "$ROAR_NOTARY_PROFILE" --wait
   xcrun stapler staple "$DMG"

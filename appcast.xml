@@ -143,7 +143,7 @@
       <sparkle:version>1801</sparkle:version>
       <sparkle:shortVersionString>0.18.1</sparkle:shortVersionString>
       <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
-      <description><![CDATA[Roar is now notarized by Apple: it opens on the first launch without a trip to Privacy & Security.]]></description>
+      <description><![CDATA[Signed with the company Developer ID (notarization follows in 0.18.2).]]></description>
       <enclosure url="https://github.com/roarbrowser/roar/releases/download/v0.18.1/Roar-0.18.1.dmg" type="application/octet-stream" sparkle:edSignature="MAhft6ESkyYxNRAGbw62W/220mrtY/P+i3hGX0f+AfsPWQLYna5YVcakkJHTz39vV0BUs4DzUI3WH0G8X66bAw==" length="234996536"/>
     </item>
   </channel>
