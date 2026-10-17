@@ -4,6 +4,8 @@
 #include "arc_import.h"
 #include "agent_connect.h"
 #include "agent_files.h"
+
+#include <sys/stat.h>
 #include "atomic_write.h"
 #include "link_clean.h"
 
@@ -1963,7 +1965,8 @@ void Controller::GmailOpenTick() {
 
 std::filesystem::path AgentFilePath(const std::string& raw);
 
-// Every agent instructions file under the home folder, as JSON [{path, kind, size, mtime}].
+// Every agent instructions file under the home folder, as JSON [{path, kind, size, mtime, ctime
+// (created), atime (last opened), project, root}].
 // Skips Library, caches, dependency and build folders, and dot-folders other than agent configs.
 std::string AgentMdList() {
   namespace fs = std::filesystem;
@@ -1991,6 +1994,14 @@ std::string AgentMdList() {
     d->SetInt("size", static_cast<int>(e.file_size(ec2)));
     d->SetDouble("mtime", static_cast<double>(std::chrono::duration_cast<std::chrono::seconds>(
         e.last_write_time(ec2).time_since_epoch()).count()));
+    struct stat st;
+    if (stat(e.path().c_str(), &st) == 0) {
+      d->SetDouble("ctime", static_cast<double>(st.st_birthtimespec.tv_sec));
+      d->SetDouble("atime", static_cast<double>(st.st_atimespec.tv_sec));
+    }
+    auto [project, root] = roar::AgentFileProject(e.path().string(), home ? home : "/");
+    d->SetString("project", project);
+    d->SetString("root", root);
     list->SetDictionary(list->GetSize(), d);
   }
   auto v = CefValue::Create(); v->SetList(list);
@@ -4176,6 +4187,16 @@ bool Controller::HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> 
     if (p.empty()) return callback->Failure(0, "Not an agent instructions file"), true;
     platform::RevealInFinder(p.string());
     callback->Success("");
+  } else if (cmd == "agentmd.trash") {
+    // Bulk delete from the Agent files page: each path must still be a recognized agent file under home.
+    auto l = msg->GetList("paths");
+    int moved = 0, failed = 0;
+    for (size_t i = 0; l && i < l->GetSize() && i < 1000; ++i) {
+      auto p = AgentFilePath(l->GetString(i).ToString());
+      (!p.empty() && platform::MoveToTrash(p.string()) ? moved : failed)++;
+    }
+    agentmd_cache_.clear();
+    callback->Success(std::to_string(moved) + " " + std::to_string(failed));
   } else if (cmd == "agentmd.write") {
     namespace fs = std::filesystem;
     auto p = AgentFilePath(msg->GetString("path").ToString());

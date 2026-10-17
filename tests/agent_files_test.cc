@@ -1,6 +1,8 @@
 // Standalone check for AgentFileKind: scripts/test-agent-files.sh
 #include <cstdio>
+#include <filesystem>
 #include <string>
+#include <unistd.h>
 
 #include "agent_files.h"
 
@@ -32,6 +34,21 @@ int main() {
     std::string k = roar::AgentFileKind(c.path);
     if (k != c.kind) { ++failures; std::printf("FAIL %s: got '%s', want '%s'\n", c.path, k.c_str(), c.kind); }
   }
+  // AgentFileProject, on a scratch home: a git repo, a plain folder, home dot-folders, home itself.
+  namespace fs = std::filesystem;
+  fs::path h = fs::temp_directory_path() / ("roar-af-" + std::to_string(::getpid()));
+  fs::create_directories(h / "code/app/.git");
+  fs::create_directories(h / "code/app/.claude/commands");
+  fs::create_directories(h / "notes/sub");
+  fs::create_directories(h / ".claude/agents");
+  struct { const char* rel; const char* name; } proj[] = {
+      {"code/app/CLAUDE.md", "app"}, {"code/app/.claude/commands/a.md", "app"}, {"notes/sub/AGENTS.md", "notes"},
+      {".claude/agents/a.md", "Global"}, {"CLAUDE.md", "~"}};
+  for (auto& c : proj) {
+    auto got = roar::AgentFileProject((h / c.rel).string(), h.string()).first;
+    if (got != c.name) { ++failures; std::printf("FAIL project of %s: got '%s', want '%s'\n", c.rel, got.c_str(), c.name); }
+  }
+  fs::remove_all(h);
   std::printf(failures ? "%d failure(s)\n" : "ok\n", failures);
   return failures ? 1 : 0;
 }

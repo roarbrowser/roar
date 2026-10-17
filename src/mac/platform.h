@@ -81,6 +81,8 @@ void CopyText(const std::string& text);
 void UpdateChromium(void* window);
 // Sparkle: checks the appcast for a newer Roar release and shows its update UI.
 void CheckForUpdates();
+// Moves |path| to the user's Trash (Finder's Put Back works); false when it couldn't.
+bool MoveToTrash(const std::string& path);
 // Sparkle's own saved choices: check daily, and download+install without asking. Both false, and
 // setting does nothing, when the updater isn't running (test and headless instances).
 bool UpdaterRunning();

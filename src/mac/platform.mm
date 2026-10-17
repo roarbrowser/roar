@@ -888,6 +888,10 @@ void CopyText(const std::string& text) {
   [pb setString:NS(text) forType:NSPasteboardTypeString];
 }
 
+bool MoveToTrash(const std::string& path) {
+  return [NSFileManager.defaultManager trashItemAtURL:[NSURL fileURLWithPath:NS(path)] resultingItemURL:nil error:nil];
+}
+
 bool UpdaterRunning() { return g_updater != nil; }
 bool AutoUpdateChecks() { return g_updater && g_updater.updater.automaticallyChecksForUpdates; }
 bool AutoUpdateDownloads() { return g_updater && g_updater.updater.automaticallyDownloadsUpdates; }

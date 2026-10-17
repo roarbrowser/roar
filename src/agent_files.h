@@ -52,6 +52,22 @@ inline std::string AgentFileKind(const std::string& path) {
   return "";
 }
 
+// The project an agent file belongs to, as {name, root folder}: the nearest folder above it that
+// holds .git (never |home| itself); else "Global" for files in a dot-folder right under home
+// (~/.claude, ~/.codex, ...); else the first folder below home.
+inline std::pair<std::string, std::string> AgentFileProject(const std::string& path, const std::string& home) {
+  namespace fs = std::filesystem;
+  std::error_code ec;
+  const fs::path h(home);
+  for (fs::path d = fs::path(path).parent_path(); d.has_relative_path() && d != h && d.string().size() > h.string().size(); d = d.parent_path())
+    if (fs::exists(d / ".git", ec)) return {d.filename().string(), d.string()};
+  fs::path rel = fs::path(path).lexically_relative(h);
+  if (rel.empty() || *rel.begin() == ".." || std::distance(rel.begin(), rel.end()) < 2) return {"~", home};
+  std::string top = rel.begin()->string();
+  if (top[0] == '.') return {"Global", (h / top).string()};
+  return {top, (h / top).string()};
+}
+
 // Dot-folders the home-folder walk enters (all others are skipped).
 inline const std::set<std::string>& AgentDotDirs() {
   static const std::set<std::string> dots = {".claude", ".codex", ".gemini", ".cursor", ".config", ".github", ".windsurf",
