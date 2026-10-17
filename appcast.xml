@@ -317,5 +317,14 @@
       <description><![CDATA[Split tabs and agent sessions now show together in a Split section of the sidebar, side by side or stacked like on screen, with one button to separate them.]]></description>
       <enclosure url="https://github.com/roarbrowser/roar/releases/download/v0.24.0/Roar-0.24.0.dmg" type="application/octet-stream" sparkle:edSignature="Xpb1TlX3dyF03oXksnjPujcPiFUvlsY4aQV0TTs4H0i9/lhDVVU0Fx9vUe/Z/PdBh7twnhCMmRgtiefeu0ClDA==" length="203770825"/>
     </item>
+    <item>
+      <title>0.24.1</title>
+      <pubDate>Sat, 17 Oct 2026 16:57:50 +0000</pubDate>
+      <sparkle:version>2401</sparkle:version>
+      <sparkle:shortVersionString>0.24.1</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[Importing from Safari now opens System Settings at Full Disk Access when Roar needs it.]]></description>
+      <enclosure url="https://github.com/roarbrowser/roar/releases/download/v0.24.1/Roar-0.24.1.dmg" type="application/octet-stream" sparkle:edSignature="IccfUXWthH8nCXBchf9D/KHTvnJG0bu5qMlHAahfPLxp5qTd/w+n380YV+ZXagVKGZmJVCjj90kxEJb7kLpLCw==" length="203770959"/>
+    </item>
   </channel>
 </rss>
