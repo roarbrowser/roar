@@ -281,5 +281,14 @@
       <description><![CDATA[Split view no longer stops mouse clicks in the pages and sidebar.]]></description>
       <enclosure url="https://github.com/roarbrowser/roar/releases/download/v0.23.5/Roar-0.23.5.dmg" type="application/octet-stream" sparkle:edSignature="69LWjWf6rQZl4JjR7Kd9Xat9FPzZzpT2/7VLsvNBNcRwh8tHD9ebB/e9iweLE1EJNC2n/0K2VJIV0L7hokJUDA==" length="203760567"/>
     </item>
+    <item>
+      <title>0.23.6</title>
+      <pubDate>Sat, 17 Oct 2026 12:36:00 +0000</pubDate>
+      <sparkle:version>2306</sparkle:version>
+      <sparkle:shortVersionString>0.23.6</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[Settings: pick your AI once; it connects for Agent sessions and browsing. Agent view: scroll back through the session, and / commands work from the reply box.]]></description>
+      <enclosure url="https://github.com/roarbrowser/roar/releases/download/v0.23.6/Roar-0.23.6.dmg" type="application/octet-stream" sparkle:edSignature="1qmT8dBe3Wv86JbWXnepT2fH5HeTQgPV6AFM1nKnERFIdbZ/gAdlmk7Yl/2H7iZKHKK0B9QlBiLUrjin8piiBQ==" length="203760968"/>
+    </item>
   </channel>
 </rss>

@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle">
+  <channel>
+    <item>
+      <title>0.23.6</title>
+      <pubDate>Sat, 17 Oct 2026 12:37:50 +0000</pubDate>
+      <sparkle:version>2306</sparkle:version>
+      <sparkle:shortVersionString>0.23.6</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[Settings: pick your AI once; it connects for Agent sessions and browsing. Agent view: scroll back through the session, and / commands work from the reply box.]]></description>
+      <enclosure url="https://github.com/roarbrowser/roar/releases/download/v0.23.6/Roar-0.23.6-intel.dmg" type="application/octet-stream" sparkle:edSignature="ZWkrGajP+14FxO16W/IAcXw0DHx6iImovbrpcDMOe3s6VvaVx3rKkjqpRX0H4Z2XLen2AiqWHZXMts7p21OZDg==" length="224816493"/>
+    </item>
+  </channel>
+</rss>
