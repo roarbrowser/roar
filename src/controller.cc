@@ -4132,7 +4132,7 @@ bool Controller::HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> 
     a.url = msg->GetString("url").ToString();
     if (!StartsWith(a.url, "http://") && !StartsWith(a.url, "https://")) a.url.clear();  // Open hands it to trusted open.
     a.agent = msg->GetString("agent").ToString().substr(0, 60);
-    a.space = msg->HasKey("space") ? int_arg("space") : AgentSpace();
+    a.space = AgentSpace();  // never a caller-given space: it could name one closed to agents
     if (auto list = msg->GetList("choices"))
       for (size_t i = 0; i < list->GetSize() && i < 6; ++i) a.choices.push_back(list->GetString(i).ToString().substr(0, 60));
     bool wait = msg->HasKey("wait") && msg->GetBool("wait");

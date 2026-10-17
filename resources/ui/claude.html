@@ -17,6 +17,7 @@ pre { flex: 1; margin: 0 20px; padding: 14px 16px; overflow: auto; border-radius
 form { display: flex; gap: 8px; padding: 10px 20px 4px; }
 form input { flex: 1; min-width: 0; padding: 9px 12px; border-radius: 9px; border: 0; background: var(--ground); color: var(--ink); font: 14px var(--ui); box-shadow: inset 0 0 0 1px var(--rule); }
 #attach-why { margin: 0 20px; }
+#attach { max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 form button:not(.btn) { background: var(--mane); color: #2a1604; font-weight: 600; border-radius: 9px; padding: 0 16px; }
 .keys { display: flex; flex-wrap: wrap; gap: 6px; padding: 6px 20px 16px; }
 .keys button { background: var(--ground); border-radius: 7px; padding: 4px 10px; font: 12px var(--mono); color: var(--ink-2); }
@@ -63,6 +64,8 @@ async function meta() {
   attachTab = web ? web.id : 0;
   $('attach').disabled = !web || !c.live;
   $('attach').hidden = !c.live;
+  // Name the page in the button itself: "Send tab" alone didn't say which tab.
+  $('attach').textContent = web ? `Send “${web.title || web.url}”` : 'Send tab';
   $('attach').title = web ? `Send “${web.title || web.url}”: Roar saves it as Markdown and types @file into the prompt. Text in the reply box goes with it and Enter sends both; with none, no Enter` : 'Open a web page in this space first';
   $('attach-why').hidden = !!web || !c.live;
   $('attach-why').textContent = 'Open a web page in this space first: only web pages can be attached.';
