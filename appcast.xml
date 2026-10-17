@@ -101,5 +101,14 @@
       <description><![CDATA[Agent sessions can be collapsed and expanded from the arrow beside its name; Roar remembers which.]]></description>
       <enclosure url="https://github.com/roarbrowser/roar/releases/download/v0.15.2/Roar-0.15.2.dmg" type="application/octet-stream" sparkle:edSignature="/44iQUE2hHvyKwW5ay0qIMOxX9bPvxVa+MNoDsaHh+5D6N3n/WQXmagBA6/hfWSkrWvx+Q4H8y6B8NKPtlauDg==" length="234994759"/>
     </item>
+    <item>
+      <title>0.15.3</title>
+      <pubDate>Sat, 17 Oct 2026 02:24:31 +0000</pubDate>
+      <sparkle:version>0.15.3</sparkle:version>
+      <sparkle:shortVersionString>0.15.3</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[Agent files now opens from the { } button in the Agent sessions header instead of its own footer icon. The header's Send tab is a paperclip, so everything fits on one line.]]></description>
+      <enclosure url="https://github.com/roarbrowser/roar/releases/download/v0.15.3/Roar-0.15.3.dmg" type="application/octet-stream" sparkle:edSignature="10DH8brSKaNEu0KlrdfyWiOnCnNOc8QlR08Djr2DTEfLtwuZR8dw3mWGIH4nOoxhqLJ6+lHCdetezsNIs+sVCg==" length="234992268"/>
+    </item>
   </channel>
 </rss>
