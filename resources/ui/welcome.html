@@ -19,8 +19,12 @@ h1 .grr { color: var(--mane); }
 h2 { margin: 0; font: 700 22px var(--round); letter-spacing: -.01em; }
 p { margin: 0; color: var(--ink-2); line-height: 1.55; font-size: 14px; max-width: 58ch; }
 .controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
-.agent-row { display: flex; gap: 10px; align-items: center; min-height: 38px; border-bottom: 1px solid var(--rule); font-size: 13px; }
-.agent-row .name { flex: 1; }
+.row { display: flex; gap: 10px; align-items: center; min-height: 38px; border-bottom: 1px solid var(--rule); font-size: 13px; }
+.row .name { flex: 1; } .row small { display: block; color: var(--ink-3); font-size: 12px; }
+.tool-row .agent-icon { vertical-align: -3px; margin-right: 8px; }
+#agent-setup h3 { margin: 14px 0 0; font: 600 12.5px var(--ui); color: var(--ink-3); }
+#agent-setup select { font: 13px var(--ui); padding: 5px 9px; border-radius: 7px; border: 1px solid var(--rule); background: var(--ground); color: var(--ink); }
+#agent-setup summary { padding: 8px 0; color: var(--ink-3); font-size: 13px; } .btn.on { color: var(--ok); } .empty { color: var(--ink-3); font-size: 13px; }
 .tiles { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
 .tile { display: flex; gap: 10px; align-items: center; padding: 12px 14px; border-radius: 10px; text-align: left; box-shadow: inset 0 0 0 1px var(--rule); }
 .tile svg { width: 20px; height: 20px; flex: none; color: var(--ink-2); }
@@ -62,8 +66,8 @@ p { margin: 0; color: var(--ink-2); line-height: 1.55; font-size: 14px; max-widt
 
   <section class="step" data-step="3" aria-labelledby="h3s" hidden>
     <h2 id="h3s">Connect your agent</h2>
-    <p>Roar ships an MCP server, so Claude and other agents can open tabs, read pages, click and fill forms in the browser you're using. Connect adds Roar to that app's MCP config and keeps a .bak of the original.</p>
-    <div id="agent-clients"></div>
+    <p>Pick your AI and connect the tools you use, so they can see your pages and browse with Roar.</p>
+    <div id="agent-setup"></div>
   </section>
 
   <section class="step" data-step="4" aria-labelledby="h4s" hidden>
@@ -92,6 +96,8 @@ p { margin: 0; color: var(--ink-2); line-height: 1.55; font-size: 14px; max-widt
 </main>
 <script src="bridge.js"></script>
 <script src="module-icons.js"></script>
+<script src="cl-session.js"></script>
+<script src="agent-setup.js"></script>
 <script>
 const $ = (id) => document.getElementById(id);
 const set = (settings) => ask({ cmd: 'settings.set', settings }).then(apply);
@@ -138,30 +144,10 @@ $('imports').onclick = (e) => {
   if (b) ask({ cmd: 'run', id: 'import:' + b.dataset.import }).then(refresh);
 };
 
-// Agent apps found on this Mac, each with Connect. Others are in Settings > Agents (copy a config).
-const agentErrors = {};
-function renderAgents(list) {
-  const box = $('agent-clients');
-  const had = box.contains(document.activeElement) && document.activeElement.dataset.connect;
-  const here = (list || []).filter((c) => c.detected && c.file && !c.error).sort((a, b) => b.connected - a.connected);
-  box.innerHTML = here.map((c) => `<div class="agent-row"><span class="name">${esc(c.name)}</span>${
-    agentErrors[c.id] ? `<span class="status err" title="${esc(agentErrors[c.id])}">Couldn't connect</span>` : ''}${
-    c.connected ? '<span class="status ok">Connected</span>' : `<button class="btn" data-connect="${esc(c.id)}">Connect</button>`}</div>`).join('') ||
-    '<p class="status">No agent apps found on this Mac. Settings &gt; Agents has a config to copy for each one.</p>';
-  if (had) (box.querySelector(`[data-connect="${CSS.escape(had)}"]`) || $('next')).focus();
-}
-const loadAgents = () => ask({ cmd: 'agents.list' }).then(renderAgents);
-$('agent-clients').onclick = (e) => {
-  const b = e.target.closest('[data-connect]');
-  if (!b) return;
-  b.textContent = 'Connecting…';
-  const id = b.dataset.connect;
-  ask({ cmd: 'agents.connect', id }).then((err) => { agentErrors[id] = err || ''; return loadAgents(); });
-};
+agentSetup($('agent-setup'));
 
 show();
 refresh();
-loadAgents();
 </script>
 </body>
 </html>

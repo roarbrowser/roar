@@ -2157,6 +2157,15 @@ void Controller::ClaudeTick() {
     it = claude_states_.erase(it);
     SyncAlertBadge();
   }
+  // An ended session's full view goes with it (new-* stand-ins wait for their real session).
+  std::vector<int> ended;
+  std::string prefix = std::string(kClaudeUrl) + "?id=";
+  for (const auto& t : tabs_) {
+    if (!StartsWith(t.url, prefix)) continue;
+    std::string sid = CefURIDecode(t.url.substr(prefix.size(), t.url.find('&') - prefix.size()), false, UU_SPACES).ToString();
+    if (!sid.empty() && sid.rfind("new-", 0) != 0 && !seen.count(sid)) ended.push_back(t.id);
+  }
+  for (int id : ended) CloseTab(id);
   std::string sig = ToJson([&] { auto x = CefValue::Create(); x->SetList(list); return x; }());
   if (sig != claude_sig_) {
     claude_sig_ = sig;
@@ -2515,6 +2524,13 @@ void Controller::RunCommand(const std::string& id) {
   if (id == "quit") Quit();
   else if (id == "relaunch") {
     platform::RelaunchAfterExit();
+    Quit();
+  }
+  else if (id == "factoryReset") {
+    // Reset Roar: the whole data dir (this instance's only) goes once Roar has exited; it comes back into onboarding.
+    std::string dir = State::Get().Dir();
+    if (dir.size() < 2 || dir[0] != '/' || dir == platform::HomeDir()) return;
+    platform::RelaunchAfterExit(dir);
     Quit();
   }
   else if (id == "clean") CleanTabs();
@@ -3972,11 +3988,10 @@ bool Controller::HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> 
     });
     callback->Success("");
   } else if (cmd == "settings.reset") {
-    // Every setting back to its default; onboarding stays done. Side-effect settings go
+    // Every setting back to its default, then onboarding again. Side-effect settings go
     // through ApplySettings so CDP, GitHub and Gmail follow.
     Settings& s = State::Get().settings;
     Settings fresh;
-    fresh.onboarded = s.onboarded;
     s = fresh;
     auto d = CefDictionaryValue::Create();
     d->SetBool("cdpEnabled", fresh.cdp_enabled);
@@ -3985,6 +4000,7 @@ bool Controller::HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> 
     d->SetBool("gmailFolder", fresh.gmail_folder);
     ApplySettings(d);
     ApplySidebarWidth();
+    OpenUiPage(kWelcomeUrl);
     callback->Success(StateJson());
   } else if (cmd == "settings.set") {
     ApplySettings(msg->GetDictionary("settings"));

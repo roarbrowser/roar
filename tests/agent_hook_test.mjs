@@ -17,7 +17,12 @@ const check = (ok, what) => { if (!ok) fail++; console.log((ok ? 'ok   ' : 'FAIL
 const session = (key) => { try { return JSON.parse(readFileSync(join(DATA, 'claude-sessions', key + '.json'), 'utf8')); } catch { return null; } };
 
 // Adapters: each CLI's sample payloads -> the expected session file.
+const TR = join(HOME, 't.jsonl');
+writeFileSync(TR, '{"type":"user"}\n{"type":"custom-title","customTitle":"old"}\n{"type":"custom-title","customTitle":"Release prep","sessionId":"n1"}\n{"type":"assistant"}\n');
 const cases = [
+  // /rename: the transcript's last custom-title names the session, and it sticks without a transcript.
+  ['claude', [], { session_id: 'n1', cwd: '/w/alpha', hook_event_name: 'Stop', transcript_path: TR }, 'n1', { project: 'Release prep' }],
+  ['claude', [], { session_id: 'n1', cwd: '/w/alpha', hook_event_name: 'Stop' }, 'n1', { project: 'Release prep' }],
   ['claude', [], { session_id: 'c1', cwd: '/w/alpha', hook_event_name: 'UserPromptSubmit', prompt: 'fix it' }, 'c1', { tool: 'claude', state: 'working', prompt: 'fix it', project: 'alpha' }],
   ['claude', [], { session_id: 'c1', cwd: '/w/alpha', hook_event_name: 'PreToolUse', tool_name: 'Edit', tool_input: { file_path: '/w/alpha/x.c' } }, 'c1', { doing: 'Editing x.c' }],
   ['codex', [], { session_id: 'c1', cwd: '/w/beta', hook_event_name: 'SessionStart', model: 'gpt' }, 'codex-c1', { tool: 'codex', sid: 'c1', state: 'idle', project: 'beta' }],

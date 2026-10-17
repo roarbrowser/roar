@@ -482,16 +482,18 @@ void MakeDefaultBrowser(std::function<void()> done) {
   }];
 }
 
-void RelaunchAfterExit() {
+void RelaunchAfterExit(const std::string& wipe_dir) {
   // Instances and scratch runs come back as themselves.
   // Values go in as arguments, never into the script text.
   NSMutableArray* args = [NSMutableArray arrayWithArray:@[
-    @"/bin/sh", @"-c", @"while kill -0 \"$1\" 2>/dev/null; do sleep 0.5; done; shift; exec open -n \"$@\"", @"sh",
-    [NSString stringWithFormat:@"%d", getpid()]
+    @"/bin/sh", @"-c",
+    @"while kill -0 \"$1\" 2>/dev/null; do sleep 0.5; done; [ -n \"$2\" ] && rm -rf \"$2\"; shift 2; exec open -n \"$@\"",
+    @"sh", [NSString stringWithFormat:@"%d", getpid()], NS(wipe_dir)
   ]];
-  for (const char* key : {"ROAR_DATA_DIR", "ROAR_INSTANCE", "ROAR_CDP_PORT"})
+  for (const char* key : {"ROAR_DATA_DIR", "ROAR_INSTANCE", "ROAR_CDP_PORT", "ROAR_UI_CDP"})
     if (const char* v = getenv(key)) [args addObjectsFromArray:@[ @"--env", [NSString stringWithFormat:@"%s=%s", key, v] ]];
   [args addObject:NSBundle.mainBundle.bundlePath];
+  if (Headless()) [args addObjectsFromArray:@[ @"--args", @"--headless=new" ]];
   NSTask* run = [[NSTask alloc] init];
   run.executableURL = [NSURL fileURLWithPath:@"/usr/bin/nohup"];
   run.arguments = args;

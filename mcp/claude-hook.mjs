@@ -94,10 +94,21 @@ export const keyOf = (tool, sid) => (tool === 'claude' ? sid : `${tool}-${sid}`)
 // Harness-injected turns (<task-notification>, <system-reminder> ...) arrive as prompts; show only the person's words.
 const userText = (p) => String(p || '').replace(/<([a-z][\w-]*)[^>]*>[\s\S]*?<\/\1>/gi, '').trim();
 
+// Claude Code's /rename (or --name) appends {"type":"custom-title","customTitle":...} to the transcript; the last one wins.
+function customTitle(file) {
+  try {
+    const t = readFileSync(file, 'utf8'), i = t.lastIndexOf('"custom-title"');
+    if (i < 0) return '';
+    const end = t.indexOf('\n', i);
+    return String(JSON.parse(t.slice(t.lastIndexOf('\n', i) + 1, end < 0 ? t.length : end)).customTitle || '').trim();
+  } catch { return ''; }
+}
+
 export function update(prev, ev, now, tool = 'claude') {
   const s = { ...prev, id: keyOf(tool, ev.session_id), sid: ev.session_id, tool, cwd: ev.cwd || prev.cwd || '', updated: now };
   if (ev.hook_event_name === 'UserPromptSubmit') s.first ||= short(userText(ev.prompt), 60);
-  s.project = isScratch(s.cwd) ? scratchName(s.first) : basename(s.cwd || '') || TOOLS[tool]?.name || tool;
+  s.name = (ev.transcript_path && customTitle(ev.transcript_path)) || prev.name || '';
+  s.project = s.name || (isScratch(s.cwd) ? scratchName(s.first) : basename(s.cwd || '') || TOOLS[tool]?.name || tool);
   s.started ||= now;
   switch (ev.hook_event_name) {
     case 'SessionStart': return { ...s, state: 'idle', doing: 'Started' };

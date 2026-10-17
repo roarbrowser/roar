@@ -19,7 +19,8 @@ int CdpPort();
 // Whether this launch starts listening on CdpPort(): ROAR_CDP_PORT, headless, or the cdpEnabled setting.
 bool CdpEnabled();
 // Reopens this app bundle once this process has exited; call before quitting.
-void RelaunchAfterExit();
+// |wipe_dir| (the data dir, for Reset Roar) is deleted once this process has exited.
+void RelaunchAfterExit(const std::string& wipe_dir = "");
 // Open TCP connections to this process's CDP port: one per connected agent/CDP client.
 int CdpClientCount();
 // A macOS notification (asks for permission the first time). A non-empty |id| replaces an

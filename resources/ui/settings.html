@@ -14,7 +14,11 @@ nav { position: sticky; top: 24px; align-self: start; display: grid; gap: 2px; }
 nav a { color: var(--ink-2); text-decoration: none; padding: 6px 10px; border-radius: 7px; font-weight: 500; }
 nav a:hover, nav a[aria-current="true"] { background: var(--ground); color: var(--ink); }
 nav .tips { margin-top: 14px; font-size: 12px; color: var(--ink-3); }
-main { display: grid; gap: 30px; min-width: 0; }
+main { display: grid; gap: 30px; min-width: 0; align-content: start; }
+section[hidden] { display: none; }
+details.group { border: 1px solid var(--rule); border-radius: 10px; padding: 0 14px; margin-top: 14px; }
+details.as-more summary, details.group summary { color: var(--ink-3); }
+.btn.on { color: var(--ok); }
 section { display: grid; gap: 2px; scroll-margin-top: 20px; }
 h2 { margin: 0 0 6px; font: 700 16px var(--round); }
 h3 { margin: 14px 0 6px; font: 600 12.5px var(--ui); color: var(--ink-3); }
@@ -40,7 +44,6 @@ pre { margin: 6px 0; font: 12px/1.6 var(--mono); background: var(--ground); bord
 .empty { color: var(--ink-3); padding: 12px 0; }
 @media (max-width: 640px) { .wrap { grid-template-columns: 1fr; } nav { position: static; grid-auto-flow: column; overflow-x: auto; } }
 .status.warn { color: var(--mane-ink, #d9822b); }
-#claude-opts .hint { color: var(--ink-3); font-size: 12px; margin: 2px 0 6px; }
 </style>
 </head>
 <body>
@@ -93,31 +96,22 @@ pre { margin: 6px 0; font: 12px/1.6 var(--mono); background: var(--ground); bord
 
 
     <section id="agents"><h2>Agents</h2>
-      <div class="row"><span class="name" id="llm-label">Your AI<small>One pick for everything: “Ask about this page” (⌘T, or the button by Tabs) opens its chat site with the page filled in, and if it has a terminal CLI (Claude Code, Codex, Gemini CLI, Copilot CLI) Roar connects that one to Agent sessions and lets it browse with Roar. Click it again to unpick it and disconnect.</small></span><span class="end" id="llms" role="group" aria-labelledby="llm-label"></span></div>
-      <div id="agent-tools"></div>
-      <div class="module" data-module="claude">
-        <div class="row head"><label class="name" for="claude-on"><span data-icon="claude"></span>Agent sessions<small>Your Claude Code, Codex, Gemini, Qwen and Copilot CLI sessions, what they're doing and whether they need you; never the conversation.</small></label><input type="checkbox" class="switch" id="claude-on"></div>
-        <fieldset id="claude-opts"><p class="reason">Turn on Agent sessions to pick its tools and alerts.</p>
-          <p class="hint">Connecting adds a small Roar hook to the CLI's own settings that reports only the session's state, never the conversation. Sessions started before you connect show up after a restart.</p>
-          <div class="row"><label class="name" for="al-done">Alert me when a session finishes</label><input type="checkbox" class="switch" id="al-done" data-set="claudeAlertDone"></div>
-          <div class="row"><label class="name" for="al-needs">Alert me when a session needs me</label><input type="checkbox" class="switch" id="al-needs" data-set="claudeAlertNeeds"></div>
-          <div class="row"><label class="name" for="al-sys" title="Alerts show in the sidebar either way; this adds a macOS notification while Roar is in the background">Also send a macOS notification</label><input type="checkbox" class="switch" id="al-sys" data-set="claudeAlertSystem"></div>
-          <div class="row"><label class="name" for="af-on">Agent files row<small>A row in Agent sessions that opens CLAUDE.md, AGENTS.md, Cursor rules and similar. The { } button in its header shows or hides it too.</small></label><input type="checkbox" class="switch" id="af-on" data-set="agentFilesRow"></div>
-        </fieldset>
-      </div>
-      <h3>Agents that browse with Roar</h3>
-      <div class="module">
-        <div class="row head"><label class="name" for="cdp-on" title="Close it before a site that flags automated browsers"><span data-icon="browse"></span>Agent access<small>Lets AI agents open and use web pages through Roar. The same switch as the dot under the sidebar's settings icon.</small></label><span class="end"><button class="btn" id="cdp-relaunch" hidden>Relaunch to apply</button><input type="checkbox" class="switch" id="cdp-on" data-set="cdpEnabled"></span></div>
-        <fieldset id="agent-opts"><p class="reason">Turn on Agent access to choose where agents browse.</p>
+      <div id="agent-setup"></div>
+      <details class="group" id="agent-details"><summary>Details</summary>
+        <div class="row"><label class="name" for="cl-side">Agent sessions in the sidebar</label><input type="checkbox" class="switch" id="cl-side" data-set="claudeSidebar"></div>
+        <div class="row"><label class="name" for="al-done">Alert me when a session finishes</label><input type="checkbox" class="switch" id="al-done" data-set="claudeAlertDone"></div>
+        <div class="row"><label class="name" for="al-needs">Alert me when a session needs me</label><input type="checkbox" class="switch" id="al-needs" data-set="claudeAlertNeeds"></div>
+        <div class="row"><label class="name" for="al-sys">Also send a macOS notification</label><input type="checkbox" class="switch" id="al-sys" data-set="claudeAlertSystem"></div>
+        <div class="row"><label class="name" for="af-on">Agent files row<small>Opens CLAUDE.md, AGENTS.md, rules.</small></label><input type="checkbox" class="switch" id="af-on" data-set="agentFilesRow"></div>
+        <div class="row"><label class="name" for="cdp-on" title="Close it before a site that flags automated browsers">Agents can browse with Roar<small>Same as the dot under the sidebar's settings icon.</small></label><span class="end"><button class="btn" id="cdp-relaunch" hidden>Relaunch to apply</button><input type="checkbox" class="switch" id="cdp-on" data-set="cdpEnabled"></span></div>
+        <fieldset id="agent-opts">
           <div class="row"><span class="name" id="mode-label">Where agents browse<small id="mode-note"></small></span>
             <div class="segmented" role="group" aria-labelledby="mode-label" data-seg="agentHeadless">
               <button data-v="false">With you</button><button data-v="true">In the background</button></div></div>
-          <div class="row"><span class="name">Spaces agents can see<small>Agents only see and open tabs in the spaces turned on here, each with that space's logins. Ghost tabs are never shared.</small></span></div>
+          <div class="row"><span class="name">Spaces agents can see<small>Ghost tabs are never shared.</small></span></div>
           <div id="agent-spaces"></div>
         </fieldset>
-        <div class="row"><span class="name" title="Running open models with Ollama, llama.cpp or LM Studio? Connect an app that drives them, such as Goose, opencode, Continue, Cline, Jan or Open WebUI.">Other agent apps<small>Your AI above is already connected. Click an app here to add Roar to its MCP config (a .bak of the original is kept), or copy a config for one not on this Mac.</small></span></div>
-        <div class="row" id="agent-clients"><span class="empty">Looking for agent apps…</span></div>
-      </div>
+      </details>
     </section>
 
     <section id="privacy"><h2>Privacy</h2>
@@ -147,18 +141,22 @@ end tell</pre>
         <div class="row"><label class="name" for="au-dl">Download and install updates automatically<small>Off: Roar asks before each update.</small></label><input type="checkbox" class="switch" id="au-dl" data-set="autoUpdateDownloads"></div>
         <div class="end"><button class="btn" id="check-updates">Check for updates</button><button class="btn" id="update-chromium" title="Rebuilds Roar on the newest stable Chromium from its source checkout">Update Chromium</button></div>
       </details>
-      <div class="row"><span class="name">Reset all settings<small>Puts every setting back to its default. Tabs, spaces, bookmarks and logins stay.</small></span><button class="btn" id="reset-all">Reset…</button></div>
+      <div class="row"><span class="name">Reset settings<small>Settings back to defaults, then onboarding. Tabs, spaces, bookmarks, extensions and logins stay.</small></span><button class="btn" id="reset-all">Reset settings…</button></div>
+      <div class="row"><span class="name">Reset Roar<small>Deletes everything Roar keeps (tabs, spaces, logins, history, extensions) and starts fresh.</small></span><button class="btn" id="reset-roar">Reset Roar…</button></div>
     </section>
   </main>
 </div>
 <script src="bridge.js"></script>
 <script src="module-icons.js"></script>
 <script src="cl-session.js"></script>
+<script src="agent-setup.js"></script>
 <script>
 const $ = (id) => document.getElementById(id);
 const GH_DEFAULT = 'is:open is:pr author:@me archived:false';  // Matches Settings::github_query.
 let last = null;
-$('reset-all').onclick = () => { if (confirm('Reset every setting to its default? Tabs, spaces, bookmarks and logins stay.')) ask({ cmd: 'settings.reset' }).then(apply); };
+const setup = agentSetup($('agent-setup'));
+$('reset-all').onclick = () => { if (confirm('Reset every setting to its default? Tabs, spaces, bookmarks, extensions and logins stay.')) ask({ cmd: 'settings.reset' }).then(apply); };
+$('reset-roar').onclick = () => { if (confirm('Reset Roar? Roar quits, deletes all its tabs, spaces, logins, history and extensions, and starts fresh. This can’t be undone.')) ask({ cmd: 'run', id: 'factoryReset' }); };
 const set = (settings) => ask({ cmd: 'settings.set', settings }).then(apply);
 const refresh = () => ask({ cmd: 'state' }).then(apply);
 for (const el of document.querySelectorAll('[data-icon]')) el.innerHTML = MODULE_ICONS[el.dataset.icon];
@@ -182,24 +180,6 @@ function apply(s) {
   $('default-status').textContent = st.isDefaultBrowser ? 'Roar is your default browser.' : 'Links from other apps open elsewhere.';
   $('default-status').className = st.isDefaultBrowser ? 'status ok' : '';
   $('spaces').textContent = s.spaces.map((sp) => sp.name).join(' · ');
-  // Per CLI: hooks installed or not; a CLI with no config folder here is listed as not found.
-  const tools = s.claude?.tools || {};
-  const toolsBox = $('agent-tools'), hadTool = toolsBox.contains(document.activeElement) && document.activeElement.dataset.tool;
-  // Only the CLI of the AI picked above; picking connects it (the llms handler).
-  const cli = LLM_CLI[(st.askLlms || '').split(',')[0]], stt = cli ? tools[cli] || 'absent' : '';
-  toolsBox.innerHTML = !cli ? '<p class="hint">No terminal CLI connected; pick Claude, ChatGPT (Codex), Gemini or Copilot for Agent sessions.</p>' :
-    `<div class="row tool-row"><span class="name">${agentIcon(cli, 16)}${esc(AGENT_TOOLS[cli][0])}<small class="${stt === 'installed' ? 'status ok' : stt === 'outdated' ? 'status warn' : ''}">${
-      stt === 'absent' ? 'Not set up on this Mac' : stt === 'error' ? 'Its config isn’t valid JSON; Roar won’t touch it' :
-      stt === 'outdated' ? 'Its hooks run an old copy of Roar. Reconnect.' :
-      stt === 'installed' ? (cli === 'codex' ? 'Connected. Approve Roar’s hooks once in Codex: run /hooks.' : 'Connected') : 'Not connected'}</small></span>${
-      stt === 'installed' || stt === 'absent' || stt === 'error' ? '' : `<button class="btn" data-tool="${cli}" data-on="true">${stt === 'outdated' ? 'Reconnect' : 'Connect'}</button>`}</div>`;
-  const chosen = (st.askLlms || '').split(',')[0];
-  if (!$('llms').contains(document.activeElement))
-    $('llms').innerHTML = LLMS.map(([id, name]) => `<button class="chip" data-llm="${id}" aria-pressed="${chosen === id}">${name}</button>`).join('');
-  // Agent sessions is on only while some CLI's hooks are installed too.
-  const clOn = st.claudeSidebar !== false && !!s.claude?.hooks;
-  $('claude-on').checked = clOn;
-  $('claude-opts').disabled = !clOn;
   $('gh-on').checked = s.github.enabled;
   $('gh-opts').disabled = !s.github.enabled;
   if (document.activeElement !== $('gh-query')) $('gh-query').value = s.github.query;
@@ -209,6 +189,7 @@ function apply(s) {
   $('gm-account-row').hidden = !s.gmail.enabled || s.gmail.signedOut || !(s.gmail.accounts?.length || s.gmail.account);
   $('gm-account').textContent = (s.gmail.accounts || []).map((a) => a.address).filter(Boolean).join(', ') || s.gmail.account || '';
   $('agent-opts').disabled = !st.cdpEnabled;
+  setup.refresh();
   $('clean-opts').disabled = !st.cleanLinks;
   $('update-chromium').hidden = !st.canBuildChromium;
   $('au-check').disabled = !st.updaterOn;
@@ -233,47 +214,11 @@ document.querySelectorAll('[data-seg]').forEach((g) => g.onclick = (e) => {
   const b = e.target.closest('button[data-v]');
   if (b) set({ [g.dataset.seg]: JSON.parse(b.dataset.v) });
 });
-// Same ids and order as kLlms (controller.cc).
-const LLMS = [['chatgpt', 'ChatGPT'], ['claude', 'Claude'], ['gemini', 'Gemini'], ['perplexity', 'Perplexity'], ['grok', 'Grok'],
-  ['mistral', 'Le Chat'], ['deepseek', 'DeepSeek'], ['copilot', 'Copilot'], ['kimi', 'Kimi']];
-// The terminal CLI each chat AI comes with (AGENT_TOOLS ids).
-const LLM_CLI = { claude: 'claude', chatgpt: 'codex', gemini: 'gemini', copilot: 'copilot' };
-// The same CLI's id in agents.list (agent_connect.cc), so picking it also lets it browse with Roar.
-const CLI_MCP = { claude: 'claude-code', codex: 'codex', gemini: 'gemini', copilot: 'copilot-cli' };
-const pickedMcp = () => CLI_MCP[LLM_CLI[(last?.settings?.askLlms || '').split(',')[0]]];
-$('llms').onclick = (e) => {
-  const b = e.target.closest('[data-llm]');
-  if (!b) return;
-  // Clicking the picked AI again unpicks it.
-  const id = b.ariaPressed === 'true' ? '' : b.dataset.llm, cli = LLM_CLI[id], tools = last?.claude?.tools || {};
-  for (const x of $('llms').children) x.ariaPressed = String(!!id && x === b);
-  set({ askLlms: id });
-  const mcp = agentClients.find((c) => c.id === CLI_MCP[cli]);
-  if (mcp?.detected && mcp.file && !mcp.error && !mcp.connected) ask({ cmd: 'agents.connect', id: mcp.id }).then(loadAgents);
-  else setTimeout(() => renderAgents(agentClients), 100);
-  // One AI, one agent: connect its CLI (if set up here), disconnect every other (and stop warning about them).
-  const conn = cli && !['absent', 'error'].includes(tools[cli] || 'absent') ? cli : '';
-  const others = Object.keys(AGENT_TOOLS).filter((t) => t !== conn && tools[t] === 'installed');
-  set({ ...(conn && { agentTool: conn }), agentHooksIgnore: Object.keys(AGENT_TOOLS).filter((t) => t !== conn).join(',') });
-  Promise.all([conn && tools[conn] !== 'installed' && ask({ cmd: 'claude.hooks', tool: conn, on: true }),
-    ...others.map((t) => ask({ cmd: 'claude.hooks', tool: t, on: false }))]).then(refresh);
-};
 $('agent-spaces').onchange = (e) => {
   const b = e.target.closest('[data-space-agents]');
   if (b) ask({ cmd: 'space.agents', id: +b.dataset.spaceAgents, on: b.checked }).then(refresh);
 };
-$('agent-tools').onclick = (e) => {
-  const b = e.target.closest('[data-tool]');
-  if (!b) return;
-  const on = b.dataset.on === 'true', t = b.dataset.tool;
-  b.textContent = on ? 'Connecting…' : 'Disconnecting…';
-  // Disconnecting on purpose also stops the "can't see" warning for it; connecting brings it back.
-  const ignore = (last?.settings?.agentHooksIgnore || '').split(',').filter((x) => x && x !== t);
-  set({ agentHooksIgnore: (on ? ignore : [...ignore, t]).join(',') });
-  ask({ cmd: 'claude.hooks', tool: t, on }).then(refresh);
-};
 $('engine').onchange = () => set({ searchUrl: $('engine').value });
-$('claude-on').onchange = () => { const on = $('claude-on').checked; set({ claudeSidebar: on }); ask({ cmd: 'claude.hooks', on }).then(refresh); };
 // PRs show in one space; turning them on here while they're bound to another moves them here.
 $('gh-on').onchange = () => ($('gh-on').checked ? ask({ cmd: 'settings.set', settings: { githubFolder: false } }) : Promise.resolve()).then(() => set({ githubFolder: $('gh-on').checked }));
 $('gh-query').onchange = () => set({ githubQuery: $('gh-query').value.trim() || GH_DEFAULT });
@@ -292,50 +237,25 @@ $('update-chromium').onclick = () => ask({ cmd: 'run', id: 'updateChromium' });
 $('close').onclick = () => ask({ cmd: 'tab.closeSelf' });
 $('tips').onclick = (e) => { e.preventDefault(); ask({ cmd: 'open', text: 'roar://ui/welcome.html#tips', newTab: true }); };
 
-// Agent apps on this Mac: Connect, or copy a config for the rest. Rebuilt only after a Connect,
-// and focus then goes back to the same row.
-let agentClients = [];
-const agentErrors = {};
-function renderAgents(list) {
-  agentClients = list || [];
-  const box = $('agent-clients');
-  const had = box.contains(document.activeElement) && document.activeElement.dataset.key;
-  // Your AI's own CLI is connected by the pick above, so it isn't offered again here.
-  const rest = agentClients.filter((c) => c.id !== pickedMcp());
-  const here = rest.filter((c) => c.detected).sort((a, b) => b.connected - a.connected);
-  const away = rest.filter((c) => !c.detected);
-  const chip = (c) => c.error ? `<span class="chip status err" title="${esc(c.error)}">${esc(c.name)}: can't read its config</span>`
-    : !c.file ? `<button class="chip" data-key="p-${esc(c.id)}" data-copy="${esc(c.id)}" title="${esc(c.snippet)}">${esc(c.name)}</button>`
-    : c.connected ? `<span class="chip" aria-label="${esc(c.name)} connected">${esc(c.name)} <span class="on">✓</span></span>`
-    : `<button class="chip" data-key="c-${esc(c.id)}" data-connect="${esc(c.id)}" title="${esc(agentErrors[c.id] ? 'Couldn’t connect: ' + agentErrors[c.id] : 'Connect')}">${esc(c.name)}${agentErrors[c.id] ? ' ⚠' : ''}</button>`;
-  box.innerHTML = here.map(chip).join('') + (away.length ? `<span class="agent-row"><small class="status">Not on this Mac; click to copy a config:</small></span>` +
-    away.map(chip).join('') : '') || '<span class="empty">No other agent apps.</span>';
-  if (had) (box.querySelector(`[data-key="${CSS.escape(had)}"]`) || box.querySelector('button') || $('cdp-on')).focus();
+// Tabs: one section shown at a time; the last one opened comes back next time.
+const tabs = [...document.querySelectorAll('nav a[href^="#"]:not(.tips)')];
+function showTab(id) {
+  if (!document.getElementById(id)?.matches('main section')) id = 'general';
+  for (const sec of document.querySelectorAll('main section')) sec.hidden = sec.id !== id;
+  for (const a of tabs) a.setAttribute('aria-current', String(a.hash === '#' + id));
+  try { localStorage.setItem('settingsTab', id); } catch {}
 }
-const loadAgents = () => ask({ cmd: 'agents.list' }).then(renderAgents);
-$('agent-clients').addEventListener('click', (e) => {
-  const connect = e.target.closest('[data-connect]');
-  if (connect) {
-    connect.textContent = 'Connecting…';
-    const id = connect.dataset.connect;
-    ask({ cmd: 'agents.connect', id }).then((err) => { agentErrors[id] = err || ''; return loadAgents(); });
-  }
-  const copy = e.target.closest('[data-copy]');
-  if (copy) {
-    const c = agentClients.find((x) => x.id === copy.dataset.copy);
-    const label = copy.textContent;
-    navigator.clipboard.writeText(c.snippet).then(() => {
-      copy.textContent = 'Copied'; copy.classList.add('ok');
-      setTimeout(() => { copy.textContent = label; copy.classList.remove('ok'); }, 1500);
-    });
-  }
-});
+tabs.forEach((a) => a.addEventListener('click', (e) => { e.preventDefault(); showTab(a.hash.slice(1)); }));
+let saved = 'general';
+try { saved = localStorage.getItem('settingsTab') || saved; } catch {}
+showTab(location.hash.slice(1) || saved);
 
-// Search: hides rows (and modules, sections) whose text doesn't match. A class, not hidden,
-// so it never fights apply()'s own hidden rows.
+// Search: hides rows (and modules) whose text doesn't match across every tab, then shows a tab
+// with a match (the current one if it has any). A class, not hidden, so it never fights apply()'s own hidden rows.
 $('search').oninput = () => {
   const q = $('search').value.trim().toLowerCase();
   const miss = (el) => !!q && !el.textContent.toLowerCase().includes(q);
+  const hits = [];
   for (const sec of document.querySelectorAll('main section')) {
     for (const r of sec.querySelectorAll('.row')) {
       const head = r.closest('.module')?.querySelector('.head');
@@ -346,16 +266,15 @@ $('search').oninput = () => {
       m.classList.toggle('nomatch', !any);
       if (any) m.querySelector('.head').classList.remove('nomatch');  // Keep the module's own switch in view.
     }
-    sec.classList.toggle('nomatch', !sec.querySelector('.row:not(.nomatch)'));
+    // A match inside a closed group opens it.
+    for (const d of sec.querySelectorAll('details')) if (q && d.querySelector('.row:not(.nomatch)')) d.open = true;
+    if (q && sec.querySelector('.row:not(.nomatch)')) hits.push(sec.id);
   }
+  const cur = document.querySelector('main section:not([hidden])')?.id;
+  if (hits.length && !hits.includes(cur)) showTab(hits[0]);
 };
-document.querySelectorAll('nav a[href^="#"]:not(.tips)').forEach((a) => a.addEventListener('click', () => {
-  document.querySelectorAll('nav a').forEach((x) => x.removeAttribute('aria-current'));
-  a.setAttribute('aria-current', 'true');
-}));
 
 refresh();
-loadAgents();
 ask({ cmd: 'github.status' }).then((status) => {
   const el = $('gh-status');
   el.textContent = { ok: 'Connected through the GitHub CLI', missing: 'Install the GitHub CLI (gh) first', 'signed-out': 'Run “gh auth login” in Terminal first' }[status] || status;

@@ -40,6 +40,7 @@ struct Settings {
   bool clean_links = true;
   bool clean_safelinks = true, clean_mcas = true, clean_tracking = true;  // Which cleanups CleanLink does (CleanOptions).
   std::string clean_params;  // The user's own query parameters to drop from copied links, comma-separated.
+  std::string agent_colors;  // Each agent session's own color, JSON {sessionId: "#rrggbb"} (claude.html).
   std::string ask_llms = "chatgpt";  // The AI "Ask <AI> about this page" opens (a kLlms id; older saves list several, the first wins).  // Unwraps Safe Links and strips .mcas.ms from copied links (CleanLink).
 };
 
@@ -90,6 +91,7 @@ inline const std::vector<SettingField>& SettingFields() {
       {"cdpOpen", &Settings::cdp_enabled, false},
       {"agentHeadless", &Settings::agent_headless, true},
       {"askLlms", &Settings::ask_llms, true},
+      {"agentColors", &Settings::agent_colors, true},
   };
   return fields;
 }
