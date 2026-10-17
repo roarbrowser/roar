@@ -64,5 +64,14 @@
       <description><![CDATA[Settings in tabs with a simpler Agents tab; Reset Roar (Advanced); agent sessions take their /rename name, can have a color, show as compact rows, and close their tab when they end.]]></description>
       <enclosure url="https://github.com/roarbrowser/roar/releases/download/v0.26.0/Roar-0.26.0-intel.dmg" type="application/octet-stream" sparkle:edSignature="TLiYEqIEUljiyqMKaI0EHIy/1URhoYZGGMX0Hf371wWvZgj9Bjo2cYAufL9z/ffly4qFmk4YAxa9EvYjsnVJCA==" length="224820148"/>
     </item>
+    <item>
+      <title>0.26.1</title>
+      <pubDate>Sat, 17 Oct 2026 17:57:11 +0000</pubDate>
+      <sparkle:version>2601</sparkle:version>
+      <sparkle:shortVersionString>0.26.1</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[Agent question cards have Reply: type an answer (a code, a name) instead of picking a button.]]></description>
+      <enclosure url="https://github.com/roarbrowser/roar/releases/download/v0.26.1/Roar-0.26.1-intel.dmg" type="application/octet-stream" sparkle:edSignature="fNNVyWWZVzN4ZO4cb3PVBbcPuSM2lr+uwuyTnWnXe2yMbfEDpYVLFcYv4Io5ogZdSzaVWaqPVpnwqeJqrgnkDA==" length="224820671"/>
+    </item>
   </channel>
 </rss>
