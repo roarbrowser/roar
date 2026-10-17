@@ -92,12 +92,12 @@ pre { margin: 6px 0; font: 12px/1.6 var(--mono); background: var(--ground); bord
 
 
     <section id="agents"><h2>Agents</h2>
-      <div class="row"><span class="name" id="llm-label">Your AI<small>Press ⌘T and type “ask”: Roar opens its chat site with this page filled in, or sends the page to your terminal agent (connect it below).</small></span><span class="end" id="llms" role="radiogroup" aria-labelledby="llm-label"></span></div>
+      <div class="row"><span class="name" id="llm-label">Your AI<small>One pick for both: “Ask about this page” (⌘T, or the button by Tabs) opens its chat site with the page filled in, and if it has a terminal CLI (Claude Code, Codex, Gemini CLI, Copilot CLI) Roar connects that one to Agent sessions.</small></span><span class="end" id="llms" role="radiogroup" aria-labelledby="llm-label"></span></div>
       <h3>Coding agents in your terminal</h3>
       <div class="module" data-module="claude">
         <div class="row head"><label class="name" for="claude-on"><span data-icon="claude"></span>Agent sessions<small>Your Claude Code, Codex, Gemini, Qwen and Copilot CLI sessions, what they're doing and whether they need you; never the conversation.</small></label><input type="checkbox" class="switch" id="claude-on"></div>
         <fieldset id="claude-opts"><p class="reason">Turn on Agent sessions to pick its tools and alerts.</p>
-          <p class="hint">Connecting adds a small Roar hook to that CLI's own settings. The CLI runs it when a session starts, gets a prompt, uses a tool, needs you and stops; it writes only the session's state to Roar, never the conversation. Sessions started before you connect show up after a restart. Disconnecting removes the hook and hides that CLI's sessions at once. Only connected CLIs show up in New and in “Ask an Agent About This Page”.</p>
+          <p class="hint">Connecting adds a small Roar hook to that CLI's own settings. The CLI runs it when a session starts, gets a prompt, uses a tool, needs you and stops; it writes only the session's state to Roar, never the conversation. Sessions started before you connect show up after a restart. Picking another AI above disconnects the previous CLI, which removes its hook and hides its sessions.</p>
           <div id="agent-tools"></div>
           <div class="row"><label class="name" for="al-done">Alert me when a session finishes</label><input type="checkbox" class="switch" id="al-done" data-set="claudeAlertDone"></div>
           <div class="row"><label class="name" for="al-needs">Alert me when a session needs me</label><input type="checkbox" class="switch" id="al-needs" data-set="claudeAlertNeeds"></div>
@@ -183,16 +183,14 @@ function apply(s) {
   // Per CLI: hooks installed or not; a CLI with no config folder here is listed as not found.
   const tools = s.claude?.tools || {};
   const toolsBox = $('agent-tools'), hadTool = toolsBox.contains(document.activeElement) && document.activeElement.dataset.tool;
-  toolsBox.innerHTML = Object.keys(AGENT_TOOLS).map((t) => {
-    const stt = tools[t] || 'absent', name = esc(AGENT_TOOLS[t][0]);
-    const note = stt === 'absent' ? 'Not set up on this Mac' : stt === 'error' ? 'Its config isn’t valid JSON; Roar won’t touch it' :
-      stt === 'outdated' ? 'Its hooks run an old copy of Roar, so nothing reaches this one. Reconnect.' :
-      stt === 'installed' ? (t === 'codex' ? 'Connected. Approve Roar’s hooks once in Codex: run /hooks.' : 'Connected') : 'Not connected';
-    const btn = stt === 'installed' ? 'Disconnect' : stt === 'outdated' ? 'Reconnect' : 'Connect';
-    return `<div class="row tool-row"><span class="name">${agentIcon(t, 16)}${name}<small class="${stt === 'installed' ? 'status ok' : stt === 'outdated' ? 'status warn' : ''}">${note}</small></span>${
-      stt === 'absent' || stt === 'error' ? '' : `<button class="btn" data-tool="${t}" data-on="${stt !== 'installed'}">${btn}</button>`}</div>`;
-  }).join('');
-  if (hadTool) (toolsBox.querySelector(`[data-tool="${hadTool}"]`) || $('claude-on')).focus();
+  // Only the CLI of the AI picked above; picking connects it (the llms handler).
+  const cli = LLM_CLI[(st.askLlms || '').split(',')[0]], stt = cli ? tools[cli] || 'absent' : '';
+  toolsBox.innerHTML = !cli ? '<p class="hint">Your AI has no terminal CLI; pick Claude, ChatGPT (Codex), Gemini or Copilot for Agent sessions.</p>' :
+    `<div class="row tool-row"><span class="name">${agentIcon(cli, 16)}${esc(AGENT_TOOLS[cli][0])}<small class="${stt === 'installed' ? 'status ok' : stt === 'outdated' ? 'status warn' : ''}">${
+      stt === 'absent' ? 'Not set up on this Mac' : stt === 'error' ? 'Its config isn’t valid JSON; Roar won’t touch it' :
+      stt === 'outdated' ? 'Its hooks run an old copy of Roar. Reconnect.' :
+      stt === 'installed' ? (cli === 'codex' ? 'Connected. Approve Roar’s hooks once in Codex: run /hooks.' : 'Connected') : 'Not connected'}</small></span>${
+      stt === 'installed' || stt === 'absent' || stt === 'error' ? '' : `<button class="btn" data-tool="${cli}" data-on="true">${stt === 'outdated' ? 'Reconnect' : 'Connect'}</button>`}</div>`;
   const chosen = (st.askLlms || '').split(',')[0];
   if (!$('llms').contains(document.activeElement))
     $('llms').innerHTML = LLMS.map(([id, name]) => `<button class="chip" role="radio" data-llm="${id}" aria-checked="${chosen === id}" aria-pressed="${chosen === id}">${name}</button>`).join('');
@@ -236,11 +234,20 @@ document.querySelectorAll('[data-seg]').forEach((g) => g.onclick = (e) => {
 // Same ids and order as kLlms (controller.cc).
 const LLMS = [['chatgpt', 'ChatGPT'], ['claude', 'Claude'], ['gemini', 'Gemini'], ['perplexity', 'Perplexity'], ['grok', 'Grok'],
   ['mistral', 'Le Chat'], ['deepseek', 'DeepSeek'], ['copilot', 'Copilot'], ['kimi', 'Kimi']];
+// The terminal CLI each chat AI comes with (AGENT_TOOLS ids).
+const LLM_CLI = { claude: 'claude', chatgpt: 'codex', gemini: 'gemini', copilot: 'copilot' };
 $('llms').onclick = (e) => {
   const b = e.target.closest('[data-llm]');
   if (!b) return;
   for (const x of $('llms').children) x.setAttribute('aria-checked', x.ariaPressed = String(x === b));
-  set({ askLlms: b.dataset.llm });
+  const id = b.dataset.llm, cli = LLM_CLI[id], tools = last?.claude?.tools || {};
+  set({ askLlms: id });
+  if (!cli || ['absent', 'error'].includes(tools[cli] || 'absent')) return refresh();
+  // One AI, one agent: connect its CLI, disconnect the others (and stop warning about them).
+  const others = Object.keys(AGENT_TOOLS).filter((t) => t !== cli && tools[t] === 'installed');
+  set({ agentTool: cli, agentHooksIgnore: Object.keys(AGENT_TOOLS).filter((t) => t !== cli).join(',') });
+  Promise.all([tools[cli] !== 'installed' && ask({ cmd: 'claude.hooks', tool: cli, on: true }),
+    ...others.map((t) => ask({ cmd: 'claude.hooks', tool: t, on: false }))]).then(refresh);
 };
 $('agent-spaces').onchange = (e) => {
   const b = e.target.closest('[data-space-agents]');
