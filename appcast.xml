@@ -65,5 +65,32 @@
       <description><![CDATA[Agent sessions: a visible Send tab button, pin sessions into their own sidebar section, start a chat with any installed agent without picking a folder, and start a session with the current page attached.]]></description>
       <enclosure url="https://github.com/roarbrowser/roar/releases/download/v0.13.0/Roar-0.13.0.dmg" type="application/octet-stream" sparkle:edSignature="w+j0EwoVuoi+ZMhXRxLM1Ziv6fe7K/DGRanGBGAbtl3N7Pln3ie3es9ayW9L9YegZUVJoltpZahq69KRU/ZJAQ==" length="234924426"/>
     </item>
+    <item>
+      <title>0.14.0</title>
+      <pubDate>Sat, 17 Oct 2026 01:46:32 +0000</pubDate>
+      <sparkle:version>0.14.0</sparkle:version>
+      <sparkle:shortVersionString>0.14.0</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[Agent sessions are now one calm sidebar section above Tabs; the footer terminal button shows or hides it. Rows show only a Reply pill when a session needs you. New opens a dialog: pick the agent CLI, then a folder or a scratch folder, and an optional first prompt. Scratch sessions are named after their first prompt. Send tab lives in the section header.]]></description>
+      <enclosure url="https://github.com/roarbrowser/roar/releases/download/v0.14.0/Roar-0.14.0.dmg" type="application/octet-stream" sparkle:edSignature="75jn62omFfExabzoDEr8NwTS8/Fgz0fNxi88NcLYZVlu7/0yvqEOcq53sfnGc8tEgTBHjJezfwyT9mF8UZQ5Dw==" length="234920656"/>
+    </item>
+    <item>
+      <title>0.15.0</title>
+      <pubDate>Sat, 17 Oct 2026 02:10:19 +0000</pubDate>
+      <sparkle:version>0.15.0</sparkle:version>
+      <sparkle:shortVersionString>0.15.0</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[New agent sessions can attach any open web tabs. Send tab now takes an optional prompt that's sent along with the page. Only the agent CLIs you connect in Settings > Agent sessions appear in New and Ask an Agent About This Page.]]></description>
+      <enclosure url="https://github.com/roarbrowser/roar/releases/download/v0.15.0/Roar-0.15.0.dmg" type="application/octet-stream" sparkle:edSignature="CecrbE7ClPQZzG5xkN3LAEpK9ubJ5ZviNxUgyg4niKUoVGBObVgeH1nsCG4CffOwEcVE8stxyC+GYRGMpZX/Cg==" length="234994282"/>
+    </item>
+    <item>
+      <title>0.15.1</title>
+      <pubDate>Sat, 17 Oct 2026 02:11:32 +0000</pubDate>
+      <sparkle:version>0.15.1</sparkle:version>
+      <sparkle:shortVersionString>0.15.1</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[Agent sessions now sit below Tabs, and rows no longer flash: a session that needs you is a steady orange tint.]]></description>
+      <enclosure url="https://github.com/roarbrowser/roar/releases/download/v0.15.1/Roar-0.15.1.dmg" type="application/octet-stream" sparkle:edSignature="u0BSdTi2f8eKV1CuiWI/yk4yKNn5oHOc0l/bQRuRfPYRtPrf+oEsUQSuYvUSxS0SogC1G14F4eqD9W4SwHPnAA==" length="234994210"/>
+    </item>
   </channel>
 </rss>

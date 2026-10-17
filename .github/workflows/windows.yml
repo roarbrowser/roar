@@ -1,0 +1,34 @@
+# Builds the Windows port (scripts/build.ps1) on GitHub's Windows runners; nothing is published.
+name: Windows build
+on:
+  push:
+    branches: [windows-port]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: windows-2022
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ilammy/msvc-dev-cmd@v1.13.0
+        with:
+          arch: x64
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.2.21
+      - name: SQLite3 (vcpkg)
+        shell: pwsh
+        run: '& "$env:VCPKG_INSTALLATION_ROOT\vcpkg.exe" install sqlite3:x64-windows'
+      - name: Build
+        shell: pwsh
+        env:
+          ROAR_CMAKE_ARGS: -DCMAKE_TOOLCHAIN_FILE=C:/vcpkg/scripts/buildsystems/vcpkg.cmake -DVCPKG_TARGET_TRIPLET=x64-windows
+        run: ./scripts/build.ps1
+      - uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: roar-windows-x64-unsigned
+          path: build/src/Release
+          retention-days: 7

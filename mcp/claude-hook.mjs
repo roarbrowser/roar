@@ -21,8 +21,11 @@ import { homedir } from 'node:os';
 const WIN = process.platform === 'win32';
 const HOME = process.env.HOME || homedir();
 // Roar's data dir; %APPDATA%\Roar on Windows (src/state.cc MainDir).
-const DATA = WIN ? join(process.env.APPDATA || join(HOME, 'AppData', 'Roaming'), 'Roar') : join(HOME, 'Library/Application Support/Roar');
-const DIR = join(process.env.ROAR_DATA_DIR || DATA, 'claude-sessions');
+const DATA = process.env.ROAR_DATA_DIR || (WIN ? join(process.env.APPDATA || join(HOME, 'AppData', 'Roaming'), 'Roar') : join(HOME, 'Library/Application Support/Roar'));
+const DIR = join(DATA, 'claude-sessions');
+// Folders Roar makes for sessions with no project (Controller::AgentScratch; chats before 0.14): named by their first prompt.
+const isScratch = (cwd) => [join(DATA, 'scratch'), join(DATA, 'chats')].some((d) => String(cwd || '').startsWith(d + (WIN ? '\\' : '/')));
+const scratchName = (prompt) => short(prompt, 60) || 'Scratch';
 const EVENTS = ['SessionStart', 'UserPromptSubmit', 'PreToolUse', 'Notification', 'Stop', 'SessionEnd'];
 // Each CLI's user hook config. nested = Claude's event -> [{matcher, hooks:[{type,command}]}] shape;
 // own = a file of Roar's own (Copilot reads every *.json in its hooks folder).
@@ -92,7 +95,8 @@ export const keyOf = (tool, sid) => (tool === 'claude' ? sid : `${tool}-${sid}`)
 
 export function update(prev, ev, now, tool = 'claude') {
   const s = { ...prev, id: keyOf(tool, ev.session_id), sid: ev.session_id, tool, cwd: ev.cwd || prev.cwd || '', updated: now };
-  s.project = basename(s.cwd || '') || TOOLS[tool]?.name || tool;
+  if (ev.hook_event_name === 'UserPromptSubmit') s.first ||= short(ev.prompt, 60);
+  s.project = isScratch(s.cwd) ? scratchName(s.first) : basename(s.cwd || '') || TOOLS[tool]?.name || tool;
   s.started ||= now;
   switch (ev.hook_event_name) {
     case 'SessionStart': return { ...s, state: 'idle', doing: 'Started' };
@@ -262,11 +266,11 @@ function start(dir, prompt, tool = 'claude') {
   const bin = binOf(tool);
   if (!bin) throw new Error(`${TOOLS[tool].name} is not installed (no ${tool} command found)`);
   const cmd = [bin, ...(prompt ? CLIS[tool].args(prompt.slice(0, 2000)) : [])].map(sq).join(' ');
-  const name = basename(dir) || tool;
+  const name = isScratch(dir) ? scratchName(prompt) : basename(dir) || tool;
   if (WIN) return startWindows(dir, bin, prompt ? CLIS[tool].args(prompt.slice(0, 2000)) : [], name);
   // Until the CLI's own hook runs (Claude's after it asks whether to trust the folder), a stand-in entry
   // lets Roar show the new terminal; the first real event for this folder replaces it.
-  const now = Date.now(), stub = { id: `new-${now}`, tool, cwd: dir, project: name, state: 'starting', doing: `Starting in ${name}…`, started: now, updated: now, live: true, term: {} };
+  const now = Date.now(), stub = { id: `new-${now}`, tool, cwd: dir, project: name, state: 'starting', doing: 'Starting…', started: now, updated: now, live: true, term: {} };
   if (existsSync(CMUX)) {
     const out = run1(CMUX, ['new-workspace', '--name', name, '--cwd', dir, '--command', cmd, '--focus', 'false']);
     const ws = /workspace:\d+/.exec(out)?.[0];

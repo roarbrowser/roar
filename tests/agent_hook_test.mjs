@@ -32,6 +32,11 @@ const cases = [
   ['copilot', ['userPromptSubmitted'], { sessionId: 'p1', cwd: '/w/eps', timestamp: 1, prompt: 'add tests' }, 'copilot-p1', { tool: 'copilot', state: 'working', prompt: 'add tests' }],
   ['copilot', ['preToolUse'], { sessionId: 'p1', cwd: '/w/eps', toolName: 'bash', toolArgs: '{"command":"npm test","description":"Run tests"}' }, 'copilot-p1', { doing: 'Run tests' }],
   ['copilot', ['notification'], { sessionId: 'p1', cwd: '/w/eps', hook_event_name: 'Notification', notification_type: 'permission_prompt', message: 'Approve?' }, 'copilot-p1', { state: 'needs_you', doing: 'Approve?' }],
+  // Scratch folders are named by their first prompt, never their timestamp.
+  ['claude', [], { session_id: 's1', cwd: join(DATA, 'scratch/2026-10-16-0900'), hook_event_name: 'SessionStart' }, 's1', { project: 'Scratch' }],
+  ['claude', [], { session_id: 's1', cwd: join(DATA, 'scratch/2026-10-16-0900'), hook_event_name: 'UserPromptSubmit', prompt: '  summarise   this page ' }, 's1', { project: 'summarise this page' }],
+  ['claude', [], { session_id: 's1', cwd: join(DATA, 'scratch/2026-10-16-0900'), hook_event_name: 'UserPromptSubmit', prompt: 'now shorter' }, 's1', { project: 'summarise this page' }],
+  ['codex', [], { session_id: 's2', cwd: join(DATA, 'chats/2026-01-01-0000'), hook_event_name: 'SessionStart' }, 'codex-s2', { project: 'Scratch' }],
 ];
 for (const [tool, extra, payload, key, want] of cases) {
   const out = mcp(['agent-hook', tool, ...extra], payload);
