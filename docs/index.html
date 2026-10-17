@@ -110,8 +110,6 @@ pre { background: var(--panel); border-radius: 12px; padding: 14px 16px; overflo
 .install > li::before { content: counter(step); position: absolute; left: 0; top: 0; width: 36px; height: 36px; border-radius: 50%; background: var(--mane); color: #fff; font: 700 18px/36px var(--round); text-align: center; }
 .install h3 { margin-top: 4px; }
 .install p code { overflow-wrap: anywhere; }
-.gk { margin: 12px 0 0; max-width: 420px; }
-.gk svg { width: 100%; height: auto; display: block; }
 .manual summary { cursor: pointer; color: var(--mane-ink); font-weight: 600; }
 .manual h4 { margin: 16px 0 4px; font: 600 15px var(--round); }
 .note { color: var(--ink-2); font-size: 15px; }
@@ -330,26 +328,8 @@ footer .wrap { display: flex; flex-wrap: wrap; gap: 8px 28px; align-items: cente
         <pre><code>brew install --cask roarbrowser/tap/roar</code></pre>
       </li>
       <li>
-        <h3>First open <span class="time">1 min</span></h3>
-        <p>Releases aren't notarized yet, so the first launch says Apple can't check Roar. Click <strong>Done</strong>, then open System Settings › Privacy &amp; Security, scroll to Security and click <strong>Open Anyway</strong>. You do this once. (macOS 15 removed the old right-click › Open shortcut.)</p>
-        <figure class="gk" aria-label="Illustration: System Settings, Privacy and Security, with an Open Anyway button next to a note that Roar was blocked">
-          <svg viewBox="0 0 360 132" role="img" aria-hidden="true">
-            <rect style="fill:var(--panel);stroke:var(--rule)" x="1" y="1" width="358" height="130" rx="12" stroke-width="2"/>
-            <circle cx="18" cy="16" r="4.5" fill="#ff5f57"/><circle cx="32" cy="16" r="4.5" fill="#febc2e"/><circle cx="46" cy="16" r="4.5" fill="#28c840"/>
-            <rect style="fill:var(--rule)" x="1" y="30" width="112" height="101" opacity=".5"/>
-            <text style="fill:var(--ink-3);font-family:var(--ui)" x="12" y="52" font-size="10">General</text>
-            <rect style="fill:var(--mane)" x="6" y="60" width="102" height="18" rx="5"/>
-            <text style="font-family:var(--ui)" x="12" y="73" font-size="10" fill="#fff">Privacy &amp; Security</text>
-            <text style="fill:var(--ink-3);font-family:var(--ui)" x="12" y="96" font-size="10">Desktop &amp; Dock</text>
-            <text style="fill:var(--ink);font-family:var(--ui)" x="126" y="50" font-size="12" font-weight="600">Security</text>
-            <text style="fill:var(--ink-2);font-family:var(--ui)" x="126" y="74" font-size="10">“Roar” was blocked to</text>
-            <text style="fill:var(--ink-2);font-family:var(--ui)" x="126" y="88" font-size="10">protect your Mac.</text>
-            <rect style="fill:var(--ground);stroke:var(--mane)" x="262" y="66" width="84" height="24" rx="6" stroke-width="2.5"/>
-            <text style="fill:var(--ink);font-family:var(--ui)" x="304" y="82" font-size="10.5" font-weight="600" text-anchor="middle">Open Anyway</text>
-            <path style="stroke:var(--mane)" d="M300 122 L300 98 M293 105 L300 97 L307 105" stroke-width="2.5" fill="none" stroke-linecap="round"/>
-          </svg>
-          <figcaption class="note">An illustration, not a screenshot.</figcaption>
-        </figure>
+        <h3>First open</h3>
+        <p>Roar is signed and notarized by Apple, so it opens like any app you download: macOS asks once whether to open it. Click <strong>Open</strong>.</p>
       </li>
       <li id="agents">
         <h3>Connect your agent <span class="time">1 min</span></h3>

@@ -30,6 +30,8 @@ Features:
 - Copied links come out clean: Outlook/Teams Safe Links unwrapped, tracking parameters removed, your own list too
 - Headed or headless agent mode
 
-Limits: macOS only (Apple Silicon), early. Signed with a Developer ID but not notarized yet, so the first launch needs Open Anyway in Privacy & Security. Some .mp4 video needs a codec build.
+Signed and notarized by Apple, with Sparkle auto-updates you can turn off.
+
+Limits: macOS only (Apple Silicon for now), early.
 
 https://github.com/roarbrowser/roar

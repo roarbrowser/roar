@@ -41,7 +41,7 @@ About five minutes. Needs macOS 13 or later; no Node.js.
 brew install --cask roarbrowser/tap/roar
 ```
 
-**2. First open (1 min).** Releases aren't notarized yet, so the first launch says Apple can't check Roar. Click **Done**, open System Settings › Privacy & Security, scroll to Security and click **Open Anyway**. You do this once. macOS 15 removed the old right-click › Open shortcut.
+**2. First open.** Roar is signed and notarized by Apple, so it opens like any app you download: macOS asks once whether to open it. Click **Open**.
 
 **3. Connect your agent (1 min).** Roar's welcome page has a **Connect** button for Claude Code, Claude Desktop, Cursor, VS Code, Windsurf, Codex, Gemini CLI and others. Click yours and restart that app. The MCP server ships inside Roar and launches Roar if it isn't running (keep Allow agents to connect on).
 
@@ -219,7 +219,7 @@ nonce Roar issued to that tab.
   `scripts/build-cef-codecs.sh` builds one that does, with Roar's Chromium patches (hours for a first build, about 30 minutes incremental; the checkout needs about 100 GB).
 - The tab sound indicator follows `<audio>` and `<video>` elements on the page itself, not Web Audio or media inside cross-origin iframes.
 - Markdown extraction and Reader mode cover HTML pages; PDFs and Google Docs canvases are not handled.
-- Release builds are ad-hoc signed (not yet notarized), so macOS asks you to confirm the first launch; the first AppleScript call triggers a macOS Automation
+- The first AppleScript call triggers a macOS Automation
   prompt.
 
 ## Contributing
