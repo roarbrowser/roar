@@ -56,6 +56,7 @@ code, pre { font-family: var(--mono); font-size: 14px; }
 .cta { display: flex; flex-wrap: wrap; gap: 12px; }
 .btn { display: inline-flex; align-items: center; min-height: 48px; padding: 0 22px; border-radius: 999px; font: 700 17px var(--round); text-decoration: none; }
 .btn.primary { background: var(--mane); color: #2b1606; }
+.arch { margin-top: 12px; font-size: 15px; color: var(--ink-2); }
 .btn.ghost { color: var(--ink); box-shadow: inset 0 0 0 2px var(--rule); }
 
 .side { background: var(--panel); border-radius: 22px; padding: 14px; box-shadow: 0 1px 2px rgba(74,46,24,.08), 0 24px 60px rgba(74,46,24,.18); font-size: 14px; position: relative; }
@@ -243,9 +244,10 @@ footer .wrap { display: flex; flex-wrap: wrap; gap: 8px 28px; align-items: cente
     <h1>The open-source browser your AI agent can drive.</h1>
     <p class="sub">A Chromium sidebar browser for macOS with a built-in MCP server. Claude, Cursor or any MCP client browses in the same window you do, logins and all. Open source, so nobody can shelve it.</p>
     <div class="cta">
-      <a class="btn primary" href="https://github.com/roarbrowser/roar/releases/latest">Download for Mac</a>
+      <a class="btn primary" id="dl" href="https://github.com/roarbrowser/roar/releases/latest">Download for Mac</a>
       <a class="btn ghost" href="#agents">Connect your agent</a>
     </div>
+    <p class="arch">Also: <a id="dl-arm" href="https://github.com/roarbrowser/roar/releases/latest">Apple Silicon</a> · <a id="dl-intel" href="https://github.com/roarbrowser/roar/releases/latest">Intel</a></p>
   </div>
   <div class="side" aria-label="Illustration: Roar's sidebar while an agent works and asks you a question" role="img">
     <div class="tb"><svg class="ico" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="3" width="12" height="10" rx="2"/><path d="M6 3v10"/></svg><span></span><i class="ico">‹</i><i class="ico">›</i><i class="ico">↻</i></div>
@@ -441,6 +443,32 @@ footer .wrap { display: flex; flex-wrap: wrap; gap: 8px 28px; align-items: cente
     <span>Built on Chromium (CEF)</span>
   </div>
 </footer>
+<script>
+// Point the download buttons at the latest release's DMGs and pick this Mac's chip.
+(async () => {
+  let arch = 'arm';  // Safari hides the chip; most Macs sold since 2021 are Apple Silicon
+  try {
+    const h = await navigator.userAgentData?.getHighEntropyValues(['architecture']);
+    if (h?.architecture) arch = h.architecture === 'x86' ? 'intel' : 'arm';
+    else {
+      const gl = document.createElement('canvas').getContext('webgl');
+      const r = gl && gl.getParameter(gl.getExtension('WEBGL_debug_renderer_info')?.UNMASKED_RENDERER_WEBGL ?? gl.RENDERER);
+      if (/intel|amd|radeon/i.test(r || '')) arch = 'intel';
+    }
+  } catch {}
+  const rel = await fetch('https://api.github.com/repos/roarbrowser/roar/releases/latest').then(r => r.json()).catch(() => null);
+  const url = { arm: null, intel: null };
+  for (const a of rel?.assets || []) {
+    if (/-intel\.dmg$/.test(a.name)) url.intel = a.browser_download_url;
+    else if (/\.dmg$/.test(a.name)) url.arm = a.browser_download_url;
+  }
+  if (url.arm) document.getElementById('dl-arm').href = url.arm;
+  if (url.intel) document.getElementById('dl-intel').href = url.intel;
+  const btn = document.getElementById('dl');
+  if (url[arch]) btn.href = url[arch];
+  btn.textContent = 'Download for Mac (' + (arch === 'intel' ? 'Intel' : 'Apple Silicon') + ')';
+})();
+</script>
 <script src="demo.js"></script>
 </body>
 </html>
