@@ -119,5 +119,14 @@
       <description><![CDATA[Settings has one Agents section: coding agents in your terminal, then agents that browse with Roar, with a plain choice of where agents browse and a switch for each space they can see. Clean links I copy now lets you choose what it removes: Safe Links, the .mcas.ms proxy, tracking parameters (utm_*, fbclid, gclid…) and your own list. Agent files is a row in Agent sessions.]]></description>
       <enclosure url="https://github.com/roarbrowser/roar/releases/download/v0.16.0/Roar-0.16.0.dmg" type="application/octet-stream" sparkle:edSignature="i0nolHofkFdjVzK+oGkq2kieM/UIJZ2ksIF8HOlNoGsKTUNG+xrKWMPgXN8Lbr7sjTc1BgILMwkus10T/QWqDw==" length="234995152"/>
     </item>
+    <item>
+      <title>0.17.0</title>
+      <pubDate>Sat, 17 Oct 2026 02:37:25 +0000</pubDate>
+      <sparkle:version>1700</sparkle:version>
+      <sparkle:shortVersionString>0.17.0</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[Agent files shows in Agent sessions by default; the { } button in its header hides or shows it. Settings > Updates lets you turn automatic update checks and automatic installs on or off. Fixes updates: earlier builds all carried build number 1, so Roar never saw a release as newer. This version is the first one Check for Updates can install.]]></description>
+      <enclosure url="https://github.com/roarbrowser/roar/releases/download/v0.17.0/Roar-0.17.0.dmg" type="application/octet-stream" sparkle:edSignature="nWzvbphCCIvfCh6i0WcwXphLG94JKYE5WcIsG9ZKBrZVnjUyaNsCa/bnVvzrCtgpRCZNiC0owRpJXYKKpVjiBA==" length="235004426"/>
+    </item>
   </channel>
 </rss>
