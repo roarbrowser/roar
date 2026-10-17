@@ -57,6 +57,9 @@ SIGN_ID="${SIGN_ID:-$(awk -F'"' '/Apple Development/{print $2; exit}' <<<"$IDS")
 SIGN_HASH="$(grep -F "\"$SIGN_ID\"" <<<"$IDS" | awk '{print $2; exit}' || true)"  # no match for ad-hoc "-"
 SIGN_HASH="${SIGN_HASH:-$SIGN_ID}"
 if [[ "$SIGN_ID" == "Developer ID Application"* || "${ROAR_HARDENED:-}" == 1 ]]; then
+  # --deep skips loose dylibs in CEF's Libraries folder (SwiftShader, Vulkan, the sandbox); notarization rejects them unsigned.
+  find "$BUILD/src/Release/Roar.app/Contents/Frameworks" -path '*/Libraries/*.dylib' -type f -print0 |
+    xargs -0 codesign --force --options runtime --timestamp --sign "$SIGN_HASH"
   # --deep skips executables in Resources; roar-mcp (bun) needs the JIT entitlements too.
   for t in "$RES/roar-mcp" "$BUILD/src/Release/Roar.app"; do
     codesign --force --deep --options runtime --timestamp --entitlements "$ROOT/resources/Roar.entitlements" \
