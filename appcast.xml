@@ -155,5 +155,14 @@
       <description><![CDATA[Roar is now notarized by Apple: it opens on the first launch without a trip to Privacy & Security.]]></description>
       <enclosure url="https://github.com/roarbrowser/roar/releases/download/v0.18.2/Roar-0.18.2.dmg" type="application/octet-stream" sparkle:edSignature="FTUhy69CdNLOpMuDQVrFJwgeHPw8IFgEEiP6XkT5CKof3/k3btsUMfksYgqekou2TKa5Z1GOpOzFf+PBwLrWBQ==" length="234946845"/>
     </item>
+    <item>
+      <title>0.19.0</title>
+      <pubDate>Sat, 17 Oct 2026 03:00:52 +0000</pubDate>
+      <sparkle:version>1900</sparkle:version>
+      <sparkle:shortVersionString>0.19.0</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[Agent sessions now tell you in the sidebar when a session needs you or finishes, not only with a macOS notification while Roar is in the background. Disconnecting a CLI in Settings hides its sessions right away. If a CLI on your Mac isn't connected, or its hooks point at an old copy of Roar, a card says so with Connect, Snooze a day and Don't remind me. The full session view has a Send now key for messages Claude Code has queued.]]></description>
+      <enclosure url="https://github.com/roarbrowser/roar/releases/download/v0.19.0/Roar-0.19.0.dmg" type="application/octet-stream" sparkle:edSignature="CMrd+0u8b9FgpeIY+fkwmp7zR/gOYkKoW5miUX1LWTBmVE7BmAAXixJBX7Lp/tQEd94SFdwe++Z1Ky6NMl/pCg==" length="234948393"/>
+    </item>
   </channel>
 </rss>
