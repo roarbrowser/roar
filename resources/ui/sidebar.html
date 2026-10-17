@@ -282,6 +282,7 @@ body.drag-active .pinned:empty::before { content: 'Drop to pin'; color: var(--in
 .alert .more { font-size: 11.5px; color: var(--ink-3); padding: 2px 0; } .alert .more:hover { color: var(--ink); }
 .alert .acts { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 8px; }
 .alert .acts:empty { display: none; }
+.alert-reply input { width: 100%; box-sizing: border-box; margin-top: 8px; padding: 6px 9px; border: 0; border-radius: 6px; background: var(--ground); color: var(--ink); font: 12px var(--ui); box-shadow: inset 0 0 0 1px var(--rule); }
 .alert .acts button { padding: 4px 10px; border-radius: 6px; background: var(--hover); color: var(--ink); font: 500 12px var(--ui); }
 .alert .acts button:hover { filter: brightness(.97); }
 .alert .acts button.primary { background: var(--mane); color: #2a1604; font-weight: 600; }
@@ -503,7 +504,7 @@ window.roar = {
       const html = `<div class="who"><span>${esc(a.agent || 'Agent')}</span><span>${ago(a.time)}</span></div>
         <div class="t">${esc(a.title)}</div>${a.body ? `<div class="b">${esc(a.body)}</div>` : ''}${a.body && (a.body.length > 220 || a.body.split('\n').length > 4) ? '<button class="more" data-alert-more aria-expanded="false">more</button>' : ''}
         ${a.expired ? `<div class="gone">${esc(a.agent || 'The agent')} stopped waiting for an answer.</div>` : ''}
-        <div class="acts">${a.choices.map((c, i) => `<button class="${i === 0 ? 'primary' : ''}" data-alert-choice="${esc(c)}">${esc(c)}</button>`).join('')}${a.url ? `<button data-alert-open="${esc(a.url)}" data-alert-space="${a.space ?? -1}">Open</button>` : ''}</div>
+        <div class="acts">${a.choices.map((c, i) => `<button class="${i === 0 ? 'primary' : ''}" data-alert-choice="${esc(c)}">${esc(c)}</button>`).join('')}${a.waiting && !a.expired ? '<button data-alert-reply>Reply</button>' : ''}${a.url ? `<button data-alert-open="${esc(a.url)}" data-alert-space="${a.space ?? -1}">Open</button>` : ''}</div>
         <button class="dismiss" data-alert-dismiss aria-label="Dismiss" title="${a.waiting ? 'Dismiss without answering' : 'Dismiss'}"><svg viewBox="0 0 12 12" width="9" height="9" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="m3 3 6 6M9 3l-6 6"/></svg></button>`;
       let el = box.querySelector(`[data-alert="${a.id}"]`);
       if (!el) { el = Object.assign(document.createElement('div'), { className: 'alert' }); el.dataset.alert = a.id; box.append(el); }
@@ -630,6 +631,14 @@ document.addEventListener('click', (e) => {
     const id = +alert.dataset.alert, b = e.target.closest('button');
     if (b?.dataset.alertChoice !== undefined) return ask({ cmd: 'agent.answer', id, choice: b.dataset.alertChoice });
     if (b?.dataset.alertOpen) { ask({ cmd: 'open', text: b.dataset.alertOpen, newTab: true, ...(+b.dataset.alertSpace >= 0 ? { space: +b.dataset.alertSpace } : {}) }); return ask({ cmd: 'agent.answer', id, choice: 'opened' }); }
+    // Reply: a typed answer instead of a choice; Enter sends it.
+    if (b?.hasAttribute('data-alert-reply')) {
+      const f = Object.assign(document.createElement('form'), { className: 'alert-reply' });
+      f.innerHTML = '<input placeholder="Reply…" aria-label="Reply" autocomplete="off" spellcheck="false">';
+      f.onsubmit = (ev) => { ev.preventDefault(); const t = f.firstChild.value.trim(); if (t) ask({ cmd: 'agent.answer', id, choice: JSON.stringify({ reply: t }) }); };
+      b.closest('.acts').replaceWith(f);
+      return f.firstChild.focus();
+    }
     if (b?.hasAttribute('data-alert-dismiss')) return ask({ cmd: 'agent.answer', id, choice: '' });
     if (b?.hasAttribute('data-alert-more')) { const full = alert.classList.toggle('full'); b.textContent = full ? 'less' : 'more'; b.setAttribute('aria-expanded', full); }
     return;

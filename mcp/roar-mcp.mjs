@@ -108,7 +108,7 @@ const TOOLS = [
   },
   {
     name: 'ask_user',
-    description: 'Ask the person at Roar a question with fixed choices, shown as buttons on a sidebar card (and a macOS notification if Roar is in the background). Waits for their click and returns the chosen text, or "dismissed" / "timed out".',
+    description: 'Ask the person at Roar a question with fixed choices, shown as buttons on a sidebar card (and a macOS notification if Roar is in the background). Waits for their click and returns the chosen text, or what they typed with Reply, or "dismissed" / "timed out".',
     inputSchema: {
       type: 'object',
       properties: {
@@ -234,8 +234,9 @@ async function callOwn(id, name, args) {
       pending.add(key);
       try {
         const r = reply(await sidebarAsk({ cmd: 'agent.notify', agent, wait: true, key, title: plain(args.question, 200), body: plain(args.body, 600), url: args.url || '', choices }, secs * 1000));
-        text = Number.isInteger(r.index) && choices[r.index] !== undefined ? choices[r.index] : r.choice;
-        if (!Number.isInteger(r.index) && text !== 'opened') {
+        // Reply on the card: the person typed an answer instead of picking a choice.
+        text = typeof r.reply === 'string' ? `The person replied: ${r.reply}` : Number.isInteger(r.index) && choices[r.index] !== undefined ? choices[r.index] : r.choice;
+        if (!Number.isInteger(r.index) && typeof r.reply !== 'string' && text !== 'opened') {
           if (text === 'timed out') await expire(key);
           throw new Error(`The person did not answer (${text}).`);
         }
