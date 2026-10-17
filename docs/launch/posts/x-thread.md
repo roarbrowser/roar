@@ -10,7 +10,7 @@ Roar is the other answer: an open-source sidebar browser for macOS, built on Chr
 2/
 Bring the agent you already use. One line:
 
-claude mcp add roar -- /Applications/Roar.app/Contents/Resources/roar-mcp.sh
+claude mcp add roar -- /Applications/Roar.app/Contents/Resources/roar-mcp
 
 It wraps chrome-devtools-mcp, so Claude, Cursor or any MCP client can open pages, read them, click, fill forms, run scripts and take screenshots, logins and all.
 
@@ -29,7 +29,7 @@ It's also the Arc-style browser I use all day: spaces with separate logins, pinn
 7/
 Leaving Arc? Your spaces and pinned tabs come over on first launch. Chrome, Edge, Firefox, Safari and Dia import too.
 
-macOS only, early.
+macOS (Apple Silicon and Intel), early.
 
 8/
 We don't need a browser company to build a browser.
@@ -37,5 +37,6 @@ We don't need a browser company to build a browser.
 MIT licensed, so nobody can shelve it. The AI is whatever agent you already run.
 
 9/
-Free. Feedback and issues welcome:
+Free: https://roarbrowser.app
+Feedback and issues welcome:
 https://github.com/roarbrowser/roar

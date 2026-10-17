@@ -17,19 +17,19 @@ Why I built it: I kept pointing agents at a separate automation Chrome, then log
 How it works:
 
 - CEF binds a Chrome-style window to the first BrowserView it hosts, so Roar runs one frameless Chrome-style window per tab, attached as a macOS child window over the content area. The sidebar is an Alloy-style shell window rendering HTML from `roar://ui/`. Chrome style on the tabs is what keeps extensions, DevTools and CDP working.
-- The MCP server is `Roar.app/Contents/Resources/roar-mcp.sh`, a launcher for chrome-devtools-mcp pointed at Roar's CDP port. Setup: `claude mcp add roar -- /Applications/Roar.app/Contents/Resources/roar-mcp.sh` (self-contained, no Node.js needed).
+- The MCP server is `Roar.app/Contents/Resources/roar-mcp`, a self-contained build of chrome-devtools-mcp pointed at Roar's CDP port (no Node.js needed). The welcome page has a one-click Connect for Claude Code, Claude Desktop, Cursor, VS Code, Codex, Gemini CLI and others, or by hand: `claude mcp add roar -- /Applications/Roar.app/Contents/Resources/roar-mcp`.
 - I patch Chromium's `Target.createTarget` handler so `new_page` opens a real sidebar tab in the active space instead of a stray window. You can watch the agent, take over, or close the tab.
 - Two extra tools: `notify_user` puts a card in the sidebar, and `ask_user` shows buttons and returns your click to the agent.
 - Agents are allowed per space. Blocked spaces and ghost tabs are hidden from CDP entirely (I patch Chromium's target discovery and `/json/list` with a per-profile filter). A dot in the sidebar shows whether agents can reach the current space; one click blocks them. A setting closes the CDP port entirely, without restarting.
 - You can choose headed (agents use this window) or headless (a hidden Roar with its own profile, started on demand).
 - Roar reports the Google Chrome brand and a real window frame, and doesn't run polling scripts in pages, so it trips fewer bot checks than typical automation setups.
 
-Other bits: separate profiles per space, Chrome extensions (uBlock Origin Lite bundled), reader mode, copy page as Markdown, tabs that archive themselves, import from Arc (spaces and pinned tabs), Chrome, Edge, Firefox, Safari and Dia.
+Other bits: separate profiles per space, Chrome extensions (uBlock Origin Lite bundled), reader mode, copy page as Markdown, tabs that archive themselves, import from Arc (spaces and pinned tabs), Chrome, Edge, Firefox, Safari and Dia. Your terminal agent sessions (Claude Code, Codex, Gemini CLI, Qwen Code, Copilot CLI) also show in the sidebar with what each is doing and which need you; you can reply, send a page, or split a session next to a tab.
 
 What's rough:
 
-- macOS only, and early. Expect bugs.
-- Proprietary codecs (H.264/AAC) need a CEF built with them; the stock CEF the build script fetches plays WebM/VP9/AV1 but not many .mp4 sources.
+- macOS only (Apple Silicon and Intel), and early. Expect bugs.
+- If you build from source, proprietary codecs (H.264/AAC) need a CEF built with them; the stock CEF the build script fetches plays WebM/VP9/AV1 but not many .mp4 sources.
 - Reader mode and Markdown extraction cover HTML pages, not PDFs or Google Docs.
 - Page-text search stores visited page text unencrypted in the data dir (you can turn it off).
 

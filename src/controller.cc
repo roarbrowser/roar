@@ -1060,12 +1060,13 @@ int Controller::OpenTargetTab(const std::string& url) {
   int space = AgentSpace();
   // No space allows agents: fail createTarget rather than open one anywhere.
   if (!shell_ || space < 0) return -1;
-  bool here = space == State::Get().active_space;
-  int id = NewTab(url, here, false, 0, space);
-  // The tab's browser exists once its window does; a background space's tab
-  // gets its window now, unshown (OnTabWindowCreated shows only visible tabs).
+  // Agents' tabs open in the background; roar-mcp asks for agent.front when the agent wants it shown.
+  int id = NewTab(url, false, false, 0, space);
+  // The tab's browser exists once its window does; it gets its window now, unshown
+  // (OnTabWindowCreated shows only visible tabs).
   Tab* tab = FindTab(id);
-  if (tab && !here) ShowTabWindow(tab);
+  if (tab) ShowTabWindow(tab);
+  last_target_tab_ = id;
   auto browser = tab && tab->view ? tab->view->GetBrowser() : nullptr;
   if (browser) return browser->GetIdentifier();
   CloseTab(id);
@@ -3595,7 +3596,7 @@ bool Controller::HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> 
                  StartsWith(browser->GetMainFrame()->GetURL().ToString(), kUiOrigin);
   // The bridge page runs only what roar-mcp needs, none of which lists tabs.
   if (trusted && hint_ && hint_->GetBrowser() && hint_->GetBrowser()->IsSame(browser) && cmd != "agent.notify" &&
-      cmd != "agent.expire" && cmd != "agent.spaces" && cmd != "agent.space") {
+      cmd != "agent.expire" && cmd != "agent.spaces" && cmd != "agent.space" && cmd != "agent.front") {
     callback->Failure(403, "not available to agents");
     return true;
   }
@@ -4089,6 +4090,11 @@ bool Controller::HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> 
     auto v = CefValue::Create();
     v->SetDictionary(d);
     callback->Success(ToJson(v));
+  } else if (cmd == "agent.front") {
+    // new_page with background: false: show the tab the agent just opened.
+    Tab* t = FindTab(last_target_tab_);
+    if (t && t->space == State::Get().active_space) ActivateTab(t->id);
+    callback->Success("");
   } else if (cmd == "agent.space") {
     // The space the agent chose (ask_user or use_profile); new pages open there.
     Space* sp = State::Get().FindSpace(int_arg("id"));

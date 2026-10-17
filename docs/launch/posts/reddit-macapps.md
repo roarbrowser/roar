@@ -23,15 +23,17 @@ Features:
 - Command bar, reader mode, page to Markdown, find, history, downloads
 - Chrome extensions, uBlock Origin Lite bundled
 - Import from Arc (spaces and pinned tabs), Chrome, Edge, Firefox, Safari and Dia
-- Built-in MCP server: `claude mcp add roar -- /Applications/Roar.app/Contents/Resources/roar-mcp.sh`
+- Built-in MCP server: `claude mcp add roar -- /Applications/Roar.app/Contents/Resources/roar-mcp`
 - Agents can send you sidebar cards (`notify_user`) or ask you a question with buttons (`ask_user`)
 - Agents allowed per space; ghost tabs always off-limits; one click blocks the current space
-- Agent sessions: your Claude Code, Codex, Gemini CLI, Qwen Code and Copilot CLI sessions in the sidebar, showing what each is doing and which need you; reply, send a page with a prompt, or start a new one in a folder or a scratch folder
+- Agent sessions: your Claude Code, Codex, Gemini CLI, Qwen Code and Copilot CLI sessions in the sidebar, showing what each is doing and which need you; reply, send a page with a prompt, or start a new one in a folder or a scratch folder, or put one side by side with a page in split view
 - Copied links come out clean: Outlook/Teams Safe Links unwrapped, tracking parameters removed, your own list too
 - Headed or headless agent mode
 
 Signed and notarized by Apple, with Sparkle auto-updates you can turn off.
 
-Limits: macOS only (Apple Silicon for now), early.
+Also on Homebrew: `brew install --cask roarbrowser/tap/roar`.
+
+Limits: macOS only (Apple Silicon and Intel builds), early.
 
 https://github.com/roarbrowser/roar

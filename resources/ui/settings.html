@@ -141,6 +141,7 @@ end tell</pre>
         <div class="row"><label class="name" for="au-dl">Download and install updates automatically<small>Off: Roar asks before each update.</small></label><input type="checkbox" class="switch" id="au-dl" data-set="autoUpdateDownloads"></div>
         <div class="end"><button class="btn" id="check-updates">Check for updates</button><button class="btn" id="update-chromium" title="Rebuilds Roar on the newest stable Chromium from its source checkout">Update Chromium</button></div>
       </details>
+      <div class="row"><span class="name">Onboarding<small>The four first-run steps again. Nothing is reset.</small></span><button class="btn" id="onboarding">Show onboarding</button></div>
       <div class="row"><span class="name">Reset settings<small>Settings back to defaults, then onboarding. Tabs, spaces, bookmarks, extensions and logins stay.</small></span><button class="btn" id="reset-all">Reset settings…</button></div>
       <div class="row"><span class="name">Reset Roar<small>Deletes everything Roar keeps (tabs, spaces, logins, history, extensions) and starts fresh.</small></span><button class="btn" id="reset-roar">Reset Roar…</button></div>
     </section>
@@ -156,6 +157,7 @@ const GH_DEFAULT = 'is:open is:pr author:@me archived:false';  // Matches Settin
 let last = null;
 const setup = agentSetup($('agent-setup'));
 $('reset-all').onclick = () => { if (confirm('Reset every setting to its default? Tabs, spaces, bookmarks, extensions and logins stay.')) ask({ cmd: 'settings.reset' }).then(apply); };
+$('onboarding').onclick = () => ask({ cmd: 'open', text: 'roar://ui/welcome.html', newTab: true });
 $('reset-roar').onclick = () => { if (confirm('Reset Roar? Roar quits, deletes all its tabs, spaces, logins, history and extensions, and starts fresh. This can’t be undone.')) ask({ cmd: 'run', id: 'factoryReset' }); };
 const set = (settings) => ask({ cmd: 'settings.set', settings }).then(apply);
 const refresh = () => ask({ cmd: 'state' }).then(apply);

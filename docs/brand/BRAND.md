@@ -14,7 +14,7 @@ manager, folder **"Roar brand"**, one entry per account.
 | Tagline | The AI-native, open-source browser your agent can drive. |
 | One-liner | A Chromium sidebar browser for macOS with a built-in MCP server. |
 | Category | Web browser / developer tool / AI agent tooling |
-| Website | https://github.com/roarbrowser/roar (site: `docs/index.html`, GitHub Pages once enabled) |
+| Website | https://roarbrowser.app (GitHub Pages from `docs/`; domain on Cloudflare, auto-renew off) |
 | Contact email | roarbrowser@gmail.com |
 | License | MIT, open source |
 | Platform | macOS (Apple Silicon) |

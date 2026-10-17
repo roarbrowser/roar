@@ -7,7 +7,7 @@ on:
     branches: [main, windows-port]
   workflow_dispatch:
 permissions:
-  contents: write
+  contents: read
 concurrency:
   group: windows-${{ github.ref }}
   cancel-in-progress: true
@@ -26,6 +26,7 @@ jobs:
         with:
           ref: windows-port
           fetch-depth: 0
+          persist-credentials: false  # The merge here is local; only advance pushes.
       - name: Merge main
         shell: bash
         run: |
@@ -69,6 +70,8 @@ jobs:
     needs: build
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
         with:
