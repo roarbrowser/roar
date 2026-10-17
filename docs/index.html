@@ -467,6 +467,10 @@ footer .wrap { display: flex; flex-wrap: wrap; gap: 8px 28px; align-items: cente
   const btn = document.getElementById('dl');
   if (url[arch]) btn.href = url[arch];
   btn.textContent = 'Download for Mac (' + (arch === 'intel' ? 'Intel' : 'Apple Silicon') + ')';
+  // "Also:" offers only the other chip
+  const same = document.getElementById(arch === 'intel' ? 'dl-intel' : 'dl-arm');
+  (arch === 'intel' ? same.previousSibling : same.nextSibling).remove();  // the " · "
+  same.remove();
 })();
 </script>
 <script src="demo.js"></script>
