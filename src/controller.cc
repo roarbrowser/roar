@@ -2105,8 +2105,7 @@ void Controller::ClaudeAlert(CefRefPtr<CefDictionaryValue> d) {
   a.url = std::string(kClaudeUrl) + "?id=" + CefURIEncode(id, false).ToString();
   a.time = NowSeconds();
   a.on_answer = [this, id](const std::string&) { claude_cards_.erase(id); };
-  if (state == "idle")
-    CefPostDelayedTask(TID_UI, base::BindOnce([](int card) { Controller::Get()->ResolveAlert(card, ""); }, a.id), 30 * 1000);
+  CefPostDelayedTask(TID_UI, base::BindOnce([](int card) { Controller::Get()->ResolveAlert(card, ""); }, a.id), (state == "idle" ? 30 : 60) * 1000);
   agent_alerts_.push_back(a);
   SyncAlertBadge();
   PushSidebar();
@@ -4116,10 +4115,11 @@ bool Controller::HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> 
     for (int o : old) ResolveAlert(o, "");
     if (a.level == "needs_you" && !platform::AppActive())
       platform::Notify((a.agent.empty() ? std::string("Agent") : a.agent) + ": " + a.title, a.body, "alert:" + std::to_string(a.id));
-    // Done and info cards clear themselves (ROAR_ALERT_TTL seconds overrides the 30 seconds, for tests).
-    if (a.level != "needs_you") {
+    // Cards clear themselves: done/info after 30 s, needs-you after 60 s (ROAR_ALERT_TTL seconds overrides, for tests).
+    // Never an ask_user still waiting: dismissing it would answer for the person.
+    if (!wait) {
       const char* ttl = getenv("ROAR_ALERT_TTL");
-      int secs = ttl && atoi(ttl) > 0 ? atoi(ttl) : 30;
+      int secs = ttl && atoi(ttl) > 0 ? atoi(ttl) : a.level == "needs_you" ? 60 : 30;
       CefPostDelayedTask(TID_UI, base::BindOnce([](int id) { Controller::Get()->ResolveAlert(id, ""); }, a.id), secs * 1000);
     }
     agent_alerts_.push_back(a);
