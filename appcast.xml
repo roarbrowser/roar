@@ -173,5 +173,14 @@
       <description><![CDATA[Side by side: put an agent session next to the web page you're on, from the split icon on its row or the button in its full view. In the full view, clicking the terminal screen or just starting to type puts you in the reply box.]]></description>
       <enclosure url="https://github.com/roarbrowser/roar/releases/download/v0.20.0/Roar-0.20.0.dmg" type="application/octet-stream" sparkle:edSignature="V2diUxpoC5nrm33DiiZX/8whJMJdlAeBAQr1AAJE71zCuObS9GA2QBZ8OuAwfoUeumTU4zu192050CP5C6joAQ==" length="234949870"/>
     </item>
+    <item>
+      <title>0.20.1</title>
+      <pubDate>Sat, 17 Oct 2026 03:20:22 +0000</pubDate>
+      <sparkle:version>2001</sparkle:version>
+      <sparkle:shortVersionString>0.20.1</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[Fix: closing a tab with a "Leave site?" prompt left an orphaned window and could take Roar down. Agents connected through the Roar MCP server now know to use Roar for web tasks without being told.]]></description>
+      <enclosure url="https://github.com/roarbrowser/roar/releases/download/v0.20.1/Roar-0.20.1.dmg" type="application/octet-stream" sparkle:edSignature="dm4mRs5omKdXCDUBWniRvHl0hCrQRBtOnONyLOZiN4Q+kAVt2ojREbBVnT2QTA3WY6kNsYZw6Yr/WHATWGicDQ==" length="234952801"/>
+    </item>
   </channel>
 </rss>
