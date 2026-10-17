@@ -3182,7 +3182,14 @@ std::string Controller::StateJson() {
     d->SetBool("kept", IsKept(t));
     d->SetBool("audible", t.audible);
     d->SetBool("muted", t.muted);
-    d->SetBool("split", SplitOf(t.id) != nullptr);
+    if (SplitPair* sp = SplitOf(t.id)) {
+      d->SetBool("split", true);
+      d->SetInt("splitWith", sp->a == t.id ? sp->b : sp->a);
+      d->SetBool("splitFirst", sp->a == t.id);
+      d->SetBool("stacked", sp->stacked);
+    } else {
+      d->SetBool("split", false);
+    }
     d->SetDouble("idleSeconds", t.id == active_id_ ? 0 : std::max(0.0, now - t.last_active));
     tabs->SetDictionary(shown++, d);
   }

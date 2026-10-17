@@ -87,6 +87,12 @@ body.drag-active .pinned:empty::before { content: 'Drop to pin'; color: var(--in
 .row:hover .x, .row:focus-within .x { opacity: 1; }
 .row .x:hover { background: var(--rule); color: var(--ink); }
 .row.cool .label { color: var(--ink-3); }
+/* A split pair is one unit: two halves in a row (side by side) or attached top and bottom (stacked). */
+.split-pair { position: relative; display: flex; gap: 2px; margin: 2px 0; padding-right: 22px; border-radius: 8px; box-shadow: 0 0 0 1px var(--rule); }
+.split-pair.stacked { flex-direction: column; }
+.split-pair > .row { flex: 1 1 0; min-width: 0; margin: 0; }
+.split-pair > .unsplit-pair { position: absolute; top: 50%; right: 3px; transform: translateY(-50%); width: 18px; height: 18px; border-radius: 5px; display: grid; place-items: center; color: var(--ink-3); }
+.split-pair > .unsplit-pair:hover { background: var(--hover); color: var(--ink); }
 .row .badge.unsplit { cursor: pointer; } .row .badge.unsplit:hover { color: var(--ink); }
 .row .badge { font-size: 10px; color: var(--mane-ink); background: var(--mane-soft); border-radius: 4px; padding: 0 5px; }
 /* Cooling bar: what's left before Clean Tabs archives this tab. */
@@ -335,6 +341,10 @@ body.drag-active .pinned:empty::before { content: 'Drop to pin'; color: var(--in
     <div class="group-head"><svg class="ghost-ico" viewBox="0 0 16 16" fill="currentColor"><path d="M8 1.5a5 5 0 0 0-5 5v7.2l1.7-1.2 1.6 1.2L8 12.5l1.7 1.2 1.6-1.2 1.7 1.2V6.5a5 5 0 0 0-5-5zM6 5.6a1 1 0 1 1 0 2 1 1 0 0 1 0-2zm4 0a1 1 0 1 1 0 2 1 1 0 0 1 0-2z"/></svg><span>Ghost</span><span class="count" id="ghost-count"></span></div>
     <div class="rows" id="ghost-tabs"></div>
   </section>
+  <section id="split-group" hidden>
+    <div class="group-head"><span>Split</span><span class="count" id="split-count"></span></div>
+    <div class="rows" id="split-tabs"></div>
+  </section>
   <div id="groups"></div>
   <section id="tabs-group">
     <div class="group-head"><span>Tabs</span><span class="count" id="tab-count"></span><span class="spacer"></span><button id="ask-llm" class="af-btn" aria-label="Ask your AI about this page" hidden><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 4.5a2 2 0 012-2h7a2 2 0 012 2v5a2 2 0 01-2 2H7l-3 2.5v-2.5h0a2 2 0 01-1.5-2z"/></svg></button></div>
@@ -404,14 +414,14 @@ function ago(seconds) {
   return Math.round(seconds / 86400) + 'd';
 }
 
-function tabRow(t, limit) {
+function tabRow(t, limit, inPair) {
   const left = limit > 0 ? Math.max(0, 1 - t.idleSeconds / limit) : 1;
   const cool = limit > 0 && left < 0.25 && !t.active;
   const remaining = limit > 0 ? `Archives in ${ago(Math.max(60, limit - t.idleSeconds))}` : '';
   return `<div class="row${t.active ? ' active' : ''}${cool ? ' cool' : ''}" data-id="${t.id}" draggable="true" title="${esc(t.title)}\n${esc(t.url)}${remaining && !t.active ? '\n' + remaining : ''}">
     ${t.loading ? '<span class="spin"></span>' : t.url.startsWith('roar:') ? '<span class="lion" style="width:16px;height:16px"></span>' : iconHtml(t.favicon, t.url)}
     <span class="label">${esc(t.title || hostOf(t.url))}</span>
-    ${t.floating ? '<span class="badge">floating</span>' : ''}${t.split ? `<button class="badge unsplit" data-unsplit="${t.id}" title="Separate tabs">split ×</button>` : ''}
+    ${t.floating ? '<span class="badge">floating</span>' : ''}${t.split && !inPair ? `<button class="badge unsplit" data-unsplit="${t.id}" title="Separate tabs">split ×</button>` : ''}
     ${sndButton(t, '')}
     <button class="x" data-close="${t.id}" aria-label="Close tab">${x}</button>
     ${limit > 0 && !t.active ? `<span class="life"><i style="width:${(left * 100).toFixed(1)}%"></i></span>` : ''}
@@ -422,11 +432,17 @@ window.roar = {
   render(s) {
     state = s;
     const limit = s.settings.archiveAfterHours * 3600;
-    const ghosts = s.tabs.filter((t) => t.ghost);
+    const ghosts = s.tabs.filter((t) => t.ghost && !t.split);
     // A Claude session in full view is shown by its session row, not as a tab.
     const clFull = {};
     for (const t of s.tabs) { const m = /^roar:\/\/ui\/claude\.html\?id=([\w-]+)/.exec(t.url || ''); if (m) clFull[m[1]] = t; }
-    s = { ...s, tabs: s.tabs.filter((t) => !t.ghost && !/^roar:\/\/ui\/claude\.html/.test(t.url || '')) };
+    // Split pairs (any tab, agent views too) show together in Split; unsplit, each is back where it was.
+    const byId = Object.fromEntries(state.tabs.map((t) => [t.id, t]));
+    const pairs = state.tabs.filter((t) => t.split && t.splitFirst && byId[t.splitWith]).map((t) => [t, byId[t.splitWith]]);
+    $('split-group').hidden = !pairs.length;
+    $('split-count').textContent = pairs.length || '';
+    setHtml($('split-tabs'), pairs.map(([a, b]) => `<div class="split-pair${a.stacked ? ' stacked' : ''}">${tabRow(a, 0, true)}${tabRow(b, 0, true)}<button class="unsplit-pair" data-unsplit="${a.id}" title="Separate" aria-label="Separate split tabs">${x}</button></div>`).join(''));
+    s = { ...s, tabs: s.tabs.filter((t) => !t.ghost && !t.split && !/^roar:\/\/ui\/claude\.html/.test(t.url || '')) };
     const pinned = s.tabs.filter((t) => t.pinned);
     const open = s.tabs.filter((t) => !t.pinned && !t.group);  // Mail/PR tabs too: everything opened is a real tab.
     $('ghost-group').hidden = !ghosts.length;
