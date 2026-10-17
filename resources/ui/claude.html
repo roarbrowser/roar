@@ -91,6 +91,14 @@ const shownError = (out) => {
 };
 
 let busy = false;
+// Scales the mirrored screen so its widest line fits the pane (side by side makes it narrow).
+function fit() {
+  const pre = $('screen'), cols = Math.max(40, ...pre.textContent.split('\n').map((l) => l.length));
+  const w = pre.clientWidth - 32;  // padding
+  if (w > 0) pre.style.fontSize = Math.max(8, Math.min(12.5, w / (cols * 0.6))) + 'px';
+}
+addEventListener('resize', fit);
+
 async function screen() {
   if (busy || document.hidden || $('screen').hidden) return;
   busy = true;
@@ -98,7 +106,7 @@ async function screen() {
     let out = await clSession.ctl(id, 'screen');
     if (shownError(out)) return;
     const pre = $('screen'), atBottom = pre.scrollTop + pre.clientHeight >= pre.scrollHeight - 8;
-    if (pre.textContent !== (out = out.replace(/\s+$/, ''))) { pre.textContent = out; if (atBottom) pre.scrollTop = pre.scrollHeight; }
+    if (pre.textContent !== (out = out.replace(/\s+$/, ''))) { pre.textContent = out; fit(); if (atBottom) pre.scrollTop = pre.scrollHeight; }
   } finally { busy = false; }
 }
 

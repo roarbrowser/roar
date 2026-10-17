@@ -71,11 +71,18 @@ let agent = '';
 const listIds = new Set(), initIds = new Set();
 // Sent with the initialize reply: clients that support server instructions (Claude Code and others) put
 // them in the agent's context, so the person never has to say "use Roar".
+// Cards are read at a glance: drop code, markdown and encoded blobs agents tend to paste.
+export const plain = (s, max = 300) => {
+  s = String(s || '').replace(/```[\s\S]*?(```|$)/g, ' ').replace(/`([^`]*)`/g, '$1')
+    .replace(/\b[A-Za-z0-9+/_=-]{40,}\b/g, '…').replace(/[*_#>]+/g, '').replace(/\s+/g, ' ').trim();
+  return s.length > max ? s.slice(0, max - 1) + '…' : s;
+};
 export const INSTRUCTIONS = `Roar is the person's own web browser, already signed in to their sites, and these tools drive it.
 Use Roar whenever a task touches the web: opening, reading or checking a page, searching, logged-in sites (mail, GitHub, dashboards, docs), filling forms, or testing a local web app. Prefer it over fetching pages yourself or starting another browser, unless the person asks otherwise.
 - Pages you open appear as tabs in the person's sidebar, in the space set by use_profile. Only spaces the person allows agents in can be used; ghost tabs are never reachable.
 - Open pages in the background unless the person should see them, and close tabs you opened when you are done with them.
 - notify_user puts a card in Roar's sidebar: use level "done" when a long task finishes, "needs_you" when you are blocked.
+  Write title and body as one or two plain sentences for a person: no code, markdown, logs, paths or ids.
 - ask_user asks the person a question with buttons in Roar and waits for the answer; use it when you cannot go on without a decision.`;
 const pending = new Set();  // ask_user keys still waiting, expired in Roar on timeout or exit.
 const expire = (key) => sidebarAsk({ cmd: 'agent.expire', key }, 3000).catch(() => {});
@@ -204,14 +211,14 @@ async function callOwn(id, name, args) {
       profileReady = Promise.resolve();
       text = `New pages open in the "${pick.name}" profile.`;
     } else if (name === 'notify_user') {
-      await sidebarAsk({ cmd: 'agent.notify', agent, title: String(args.title || ''), body: String(args.body || ''), level: args.level || 'info', url: args.url || '' }, 15000);
+      await sidebarAsk({ cmd: 'agent.notify', agent, title: plain(args.title, 120), body: plain(args.body), level: args.level || 'info', url: args.url || '' }, 15000);
       text = 'Shown in Roar\'s sidebar.';
     } else {
       const secs = Math.min(Math.max(Number(args.timeout_seconds) || 600, 5), 3600);
       const key = crypto.randomUUID();
       pending.add(key);
       try {
-        text = String(await sidebarAsk({ cmd: 'agent.notify', agent, wait: true, key, title: String(args.question || ''), body: String(args.body || ''), url: args.url || '', choices: (args.choices || []).map(String) }, secs * 1000));
+        text = String(await sidebarAsk({ cmd: 'agent.notify', agent, wait: true, key, title: plain(args.question, 200), body: plain(args.body, 600), url: args.url || '', choices: (args.choices || []).map(String) }, secs * 1000));
       } finally {
         pending.delete(key);
       }
