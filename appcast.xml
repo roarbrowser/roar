@@ -200,5 +200,14 @@
       <description><![CDATA[Settings > Agents now asks one thing: which AI you use. Press ⌘T and type "ask" to ask it about the page, either its chat site with the page filled in or your terminal agent.]]></description>
       <enclosure url="https://github.com/roarbrowser/roar/releases/download/v0.21.0/Roar-0.21.0.dmg" type="application/octet-stream" sparkle:edSignature="Rb2NQCG2rijqZJBqZ9m1TbwugksRkizLB0afMZJpnU4VALJ5K35B4QFKQsmbZZaD09JjpocgQvKcv1QriQjPAg==" length="234953453"/>
     </item>
+    <item>
+      <title>0.21.1</title>
+      <pubDate>Sat, 17 Oct 2026 03:34:38 +0000</pubDate>
+      <sparkle:version>2101</sparkle:version>
+      <sparkle:shortVersionString>0.21.1</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[Split view stays put: clicking another tab shows that tab alone, and clicking either split tab brings the split back. To change a pane, drag a tab onto one of the split's tabs.]]></description>
+      <enclosure url="https://github.com/roarbrowser/roar/releases/download/v0.21.1/Roar-0.21.1.dmg" type="application/octet-stream" sparkle:edSignature="le+fc45gHYvc9jxrsrJqWeEmUWTpAlAFuadt3VBY2NugO7qSw3tyft/794VhUiTErseX7PoZg9ewlKH1o8ieCg==" length="234953341"/>
+    </item>
   </channel>
 </rss>
