@@ -326,5 +326,14 @@
       <description><![CDATA[Importing from Safari now opens System Settings at Full Disk Access when Roar needs it.]]></description>
       <enclosure url="https://github.com/roarbrowser/roar/releases/download/v0.24.1/Roar-0.24.1.dmg" type="application/octet-stream" sparkle:edSignature="IccfUXWthH8nCXBchf9D/KHTvnJG0bu5qMlHAahfPLxp5qTd/w+n380YV+ZXagVKGZmJVCjj90kxEJb7kLpLCw==" length="203770959"/>
     </item>
+    <item>
+      <title>0.25.0</title>
+      <pubDate>Sat, 17 Oct 2026 17:20:50 +0000</pubDate>
+      <sparkle:version>2500</sparkle:version>
+      <sparkle:shortVersionString>0.25.0</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[Settings > Advanced can reset every setting to its default. In agent views, scrolling up now scrolls Claude Code's own history.]]></description>
+      <enclosure url="https://github.com/roarbrowser/roar/releases/download/v0.25.0/Roar-0.25.0.dmg" type="application/octet-stream" sparkle:edSignature="kbTGOiyMzmhpprSOC5btMZ/8di3Zr+En/z2Uvh2OuKlN/tMygiAqvwF7wJUl78e7jR88FQIog52BO/YBcl3nBQ==" length="203773091"/>
+    </item>
   </channel>
 </rss>
