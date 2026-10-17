@@ -291,8 +291,8 @@ function ctl(action, id, arg, arg2) {
   const sf = cx && cx.surface ? ['--surface', cx.surface] : [];
   const tx = tm ? ['-S', tm.socket] : [];
   if (action === 'screen') {
-    if (tm) return run1(tm.bin, [...tx, 'capture-pane', '-p', '-J', '-t', tm.pane, '-S', '-80']);
-    if (cx) return run1(cx.bin, ['read-screen', '--workspace', cx.workspace, ...sf, '--lines', '80']);
+    if (tm) return run1(tm.bin, [...tx, 'capture-pane', '-p', '-J', '-t', tm.pane, '-S', '-2000']);
+    if (cx) return run1(cx.bin, ['read-screen', '--workspace', cx.workspace, ...sf, '--lines', '2000']);
     throw new Error('no live view for this terminal');
   }
   if (action === 'send') {

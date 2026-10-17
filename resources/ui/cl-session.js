@@ -15,6 +15,8 @@ const clSession = {
   // Types |text| then Enter; empty text just presses Enter (accepts the highlighted choice).
   async reply(id, text) {
     const out = text ? await this.ctl(id, 'send', text) : '';
+    // A / command opens the CLI's command menu; Enter sent at once can land before it filters to the typed command.
+    if (text.startsWith('/')) await new Promise((r) => setTimeout(r, 400));
     return this.error(out) ? out : this.ctl(id, 'send', 'key:enter');
   },
   // One key button. ⌃C interrupts only on a second press within 2 s; the first relabels the button.

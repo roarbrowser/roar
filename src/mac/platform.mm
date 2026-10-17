@@ -387,7 +387,7 @@ bool CdpEnabled() {
     NSDictionary* root = data ? [NSJSONSerialization JSONObjectWithData:data options:0 error:nil] : nil;
     id s = [root isKindOfClass:NSDictionary.class] ? root[@"settings"] : nil;
     id on = [s isKindOfClass:NSDictionary.class] ? s[@"cdpOpen"] : nil;
-    return on ? [on boolValue] : YES;
+    return on ? (bool)[on boolValue] : true;
   }();
   return on;
 }
