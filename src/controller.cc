@@ -1664,16 +1664,21 @@ void Controller::AgentStart(const std::string& dir, const std::string& prompt, i
   });
 }
 
-void Controller::AgentChat(int tab, std::function<void(const std::string&)> done) {
+void Controller::AgentScratch(const std::string& prompt, int tab, bool open_view,
+                              std::function<void(const std::string&)> done) {
   std::time_t t = std::time(nullptr);
   char name[32];
   std::strftime(name, sizeof name, "%Y-%m-%d-%H%M", std::localtime(&t));
-  std::filesystem::path base = std::filesystem::path(State::Get().Dir()) / "chats", dir = base / name;
-  for (int n = 2; std::filesystem::exists(dir); ++n) dir = base / (std::string(name) + "-" + std::to_string(n));
+  std::filesystem::path data = State::Get().Dir(), base = data / "scratch", dir = base / name;
   std::error_code ec;
+  // Before 0.14 these were <data>/chats; a live CLI keeps its cwd across the rename.
+  if (!std::filesystem::exists(base, ec) && std::filesystem::exists(data / "chats", ec))
+    std::filesystem::rename(data / "chats", base, ec);
+  for (int n = 2; std::filesystem::exists(dir); ++n) dir = base / (std::string(name) + "-" + std::to_string(n));
+  ec.clear();
   std::filesystem::create_directories(dir, ec);
-  if (ec) return ShowHint("Couldn't make a chats folder"), done ? done("error: no chats folder") : void();
-  AgentStart(dir.string(), "", tab, true, done);
+  if (ec) return ShowHint("Couldn't make a scratch folder"), done ? done("error: no scratch folder") : void();
+  AgentStart(dir.string(), prompt, tab, open_view, done);
 }
 
 void Controller::ExtractActive(const std::string& target, int tab_id) {
@@ -2426,7 +2431,7 @@ void Controller::RunCommand(const std::string& id) {
   else if (id == "copyMarkdown") ExtractActive("copy");
   else if (id == "saveMarkdown") ExtractActive("save");
   else if (StartsWith(id, "askLlm:")) ExtractActive(id.substr(7));
-  else if (id == "agentChat") AgentChat(active_id_);
+  else if (id == "agentChat") AgentScratch("", active_id_, true);
   else if (StartsWith(id, "agentSend:") && id.find_first_not_of(kSessionIdChars, 10) == std::string::npos && id.size() > 10)
     ExtractActive("claude:" + id.substr(10));  // claude: refuses ghost tabs.
   else if (id == "find") ShowFind();
@@ -3028,7 +3033,7 @@ bool Controller::OnContextMenuCommand(CefRefPtr<CefBrowser> browser, CefRefPtr<C
     return true;
   }
   if (command_id == kMenuAgent && !ghost) {
-    AgentChat(tab_id);
+    AgentScratch("", tab_id, true);
     return true;
   }
   if (command_id == kMenuSplit && HttpHost(link) != "") {
@@ -4024,14 +4029,15 @@ bool Controller::HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> 
       });
     });
   } else if (cmd == "claude.ctl") {
-    // focus | screen | send for one agent session, new (a folder) or chat (a new chats folder),
+    // focus | screen | send for one agent session, new (a folder, or a new scratch folder with scratch),
     // with the tab to attach once it reports; tools lists the installed CLIs. Replies claude-ctl's output.
     std::string action = msg->GetString("action").ToString();
-    if (action == "new" || action == "chat") {
+    if (action == "new") {
       int tab = msg->HasKey("tab") ? msg->GetInt("tab") : 0;
       auto reply = [callback](const std::string& out) { callback->Success(out); };
-      if (action == "chat") return AgentChat(tab, reply), true;
-      return AgentStart(msg->GetString("id").ToString(), msg->GetString("text").ToString(), tab, false, reply), true;
+      std::string text = msg->GetString("text").ToString();
+      if (msg->HasKey("scratch") && msg->GetBool("scratch")) return AgentScratch(text, tab, false, reply), true;
+      return AgentStart(msg->GetString("id").ToString(), text, tab, false, reply), true;
     }
     if (action == "tools") return platform::RoarMcp({"claude-ctl", "tools"}, [callback](const std::string& out) { callback->Success(out); }), true;
     if (action != "focus" && action != "screen" && action != "send") return callback->Failure(0, "bad action"), true;

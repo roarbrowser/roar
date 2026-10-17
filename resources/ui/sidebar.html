@@ -170,11 +170,6 @@ body.drag-active .pinned:empty::before { content: 'Drop to pin'; color: var(--in
 .cl-acts button:hover { background: var(--hover); color: var(--ink); }
 .cl-acts button[aria-disabled=true] { opacity: .35; cursor: default; }
 .cl-acts button[aria-pressed=true] { color: var(--mane, #d9822b); }
-.cl-chips { display: flex; gap: 4px; }
-.cl .cl-reply.cl-send { background: var(--hover); color: var(--ink-2); } .cl .cl-send[aria-disabled=true] { opacity: .45; }
-.cl-opts { display: flex; gap: 8px; align-items: center; margin: -2px 0 6px; font-size: 11.5px; color: var(--ink-2); }
-.cl-opts select { flex: 1; min-width: 0; padding: 2px 6px; border: 0; border-radius: 6px; background: var(--ground); color: var(--ink); font: 11.5px var(--ui); box-shadow: inset 0 0 0 1px var(--rule); }
-.cl-opts label { display: flex; gap: 4px; align-items: center; white-space: nowrap; } .cl-opts label:has(:disabled) { opacity: .5; }
 .cl .cl-reply { align-self: flex-start; margin-top: 4px; padding: 2px 8px; border-radius: 999px; font: 600 11px var(--ui); background: var(--mane-soft, rgba(217,130,43,.18)); color: var(--mane, #d9822b); }
 .af { gap: 8px; } .af .agent-icon { flex: none; color: var(--ink-2); }
 .cl .clmain { display: flex; align-items: flex-start; gap: 8px; flex: 1; min-width: 0; height: 100%; text-align: left; cursor: pointer; }
@@ -191,13 +186,33 @@ body.drag-active .pinned:empty::before { content: 'Drop to pin'; color: var(--in
 .clq button:hover { background: var(--hover); color: var(--ink); }
 .clq .send { background: var(--mane, #d9822b); color: #2a1604; } .clq .send:hover { background: var(--mane, #d9822b); color: #2a1604; filter: brightness(1.08); }
 .clq button:disabled, .clq button[aria-disabled=true] { opacity: .5; cursor: default; }
-.cln { display: grid; gap: 5px; margin: 0 0 8px; padding: 8px; border-radius: 8px; background: var(--hover); font-size: 12px; }
-.cln select, .cln textarea { width: 100%; box-sizing: border-box; padding: 5px 8px; border: 0; border-radius: 6px; background: var(--ground); color: var(--ink); font: 12px var(--ui); box-shadow: inset 0 0 0 1px var(--rule); }
-.cln textarea { resize: none; height: 46px; }
-.cln .dir { display: flex; gap: 5px; } .cln .dir select { flex: 1; min-width: 0; } .cln .pick { flex: 1 0 auto; padding: 4px 10px; border-radius: 6px; background: var(--ground); box-shadow: inset 0 0 0 1px var(--rule); } .cln select:not([hidden]) + .pick { flex: none; }
-.cln .acts { display: flex; gap: 5px; justify-content: flex-end; align-items: center; }
-.cln .acts span { flex: 1; color: var(--ink-3); }
-.cln .acts button { padding: 4px 10px; border-radius: 6px; } .cln .go { background: var(--mane, #d9822b); color: #2a1604; font-weight: 600; }
+.group-head button[aria-disabled=true] { opacity: .45; cursor: default; }
+#cl-group { margin-bottom: 8px; }
+.feed[aria-pressed="true"] { background: var(--hover); }
+/* New session: a centered modal, type first, then where. */
+.cld { width: calc(100% - 24px); max-width: 320px; padding: 14px; border: 0; border-radius: 12px; background: var(--ground); color: var(--ink); box-shadow: 0 0 0 1px var(--rule), 0 12px 32px rgba(0,0,0,.4); font-size: 12.5px; }
+.cld::backdrop { background: rgba(0,0,0,.35); }
+.cld h2 { margin: 0 0 10px; font-size: 13.5px; font-weight: 600; }
+.cld form { display: grid; gap: 10px; }
+.cld legend { padding: 0 0 6px; color: var(--ink-3); font-size: 11.5px; font-weight: 600; }
+.cld .tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 6px; }
+.cld .opt { position: relative; display: flex; align-items: center; gap: 8px; padding: 8px; border-radius: 8px; box-shadow: inset 0 0 0 1px var(--rule); cursor: pointer; min-width: 0; }
+.cld .tiles .opt { flex-direction: column; gap: 6px; padding: 10px 6px; text-align: center; }
+.cld .opt span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cld .opt small { display: block; color: var(--ink-3); font-size: 11px; overflow: hidden; text-overflow: ellipsis; }
+.cld .opt:hover { background: var(--hover); }
+.cld .opt input { position: absolute; opacity: 0; pointer-events: none; }
+.cld .opt:has(:checked) { background: var(--mane-soft, rgba(217,130,43,.18)); box-shadow: inset 0 0 0 1.5px var(--mane, #d9822b); }
+.cld .opt:has(:focus-visible) { outline: 2px solid var(--mane, #d9822b); outline-offset: 1px; }
+.cld .where { display: grid; gap: 4px; max-height: 40vh; overflow: auto; }
+.cld .pick { justify-self: start; padding: 5px 10px; border-radius: 6px; box-shadow: inset 0 0 0 1px var(--rule); }
+.cld textarea { width: 100%; box-sizing: border-box; resize: none; height: 58px; padding: 6px 8px; border: 0; border-radius: 6px; background: var(--panel); color: var(--ink); font: 12.5px var(--ui); box-shadow: inset 0 0 0 1px var(--rule); }
+.cld .incl { display: flex; gap: 6px; align-items: center; color: var(--ink-2); } .cld .incl:has(:disabled) { opacity: .5; }
+.cld .acts { display: flex; gap: 6px; justify-content: flex-end; align-items: center; }
+.cld .acts span { flex: 1; color: var(--ink-3); }
+.cld .acts button { padding: 5px 12px; border-radius: 6px; } .cld .acts button:hover { background: var(--hover); }
+.cld .go { background: var(--mane, #d9822b); color: #2a1604; font-weight: 600; } .cld .go:hover { background: var(--mane, #d9822b); filter: brightness(1.06); }
+.cld button:focus-visible, .cld textarea:focus-visible, .cld .incl input:focus-visible { outline: 2px solid var(--mane, #d9822b); outline-offset: 1px; }
 .feed .badge.urgent { background: #d9822b; box-shadow: 0 0 0 2px var(--ground); }
 .mailrow { position: relative; }
 .macts { position: absolute; right: 4px; top: 50%; transform: translateY(-50%); display: none; gap: 2px; padding: 2px; border-radius: 7px; background: var(--ground); box-shadow: 0 0 0 1px var(--rule); }
@@ -319,20 +334,15 @@ body.drag-active .pinned:empty::before { content: 'Drop to pin'; color: var(--in
     <div class="rows" id="ghost-tabs"></div>
   </section>
   <div id="groups"></div>
-  <section id="cl-side" aria-label="Pinned and open agent sessions" hidden>
-    <div class="group-head"><span>Agent sessions</span></div>
-    <div class="rows" id="cl-pinned"></div>
+  <section id="cl-group" aria-label="Agent sessions" hidden>
+    <div class="group-head"><span>Agent sessions</span><span class="count" id="cl-n"></span><span class="spacer"></span><button id="cl-sendtab" hidden>Send tab</button><button id="cl-new" aria-haspopup="dialog" title="Start an agent session">New</button></div>
+    <div class="rows" id="cl"></div>
   </section>
   <section id="tabs-group">
     <div class="group-head"><span>Tabs</span><span class="count" id="tab-count"></span></div>
     <div class="rows" id="tabs"></div>
   </section>
 </div>
-<section class="feed-pop" id="cl-group" aria-label="Agent sessions">
-  <div class="group-head"><span>Agent sessions</span><span class="spacer"></span><button class="cl-new" title="Start a session in a folder you pick">New</button><button id="cl-chat" title="Start a chat right away, in a new folder Roar keeps under its data folder">Chat</button></div>
-  <div class="cl-opts"><select id="cl-tool" aria-label="Agent CLI that New and Chat start" title="Agent CLI that New and Chat start"></select><label title="Once the session starts, attach the web page you're looking at to its prompt"><input type="checkbox" id="cl-incl"> Include this tab</label></div>
-  <div class="rows" id="cl"></div>
-</section>
 <section class="feed-pop" id="af-group" aria-label="Agent files">
   <div class="group-head"><span>Agent files</span><span class="spacer"></span><span class="count">Recently changed</span></div>
   <div class="rows" id="af"><div class="note">Looking…</div></div>
@@ -347,12 +357,24 @@ body.drag-active .pinned:empty::before { content: 'Drop to pin'; color: var(--in
   <div class="group-head"><span>Unread mail</span><span class="spacer"></span><button id="gm-selall" title="Select every message">Select all</button><button id="gm-delsel" title="Delete the selected messages" hidden></button><button id="gm-refresh" title="Refresh mail">Refresh</button></div>
   <div class="rows" id="gm"></div>
 </section>
+<dialog class="cld" id="cl-dlg" aria-labelledby="cl-dlg-h">
+  <form id="cl-form">
+    <h2 id="cl-dlg-h">New agent session</h2>
+    <fieldset id="cl-step1"><legend>Agent</legend><div class="tiles" id="cl-tiles"></div></fieldset>
+    <fieldset id="cl-step2" hidden><legend>Where</legend><div class="where" id="cl-where"></div></fieldset>
+    <div id="cl-step3" hidden>
+      <textarea id="cl-prompt" placeholder="First prompt (optional)" aria-label="First prompt"></textarea>
+      <label class="incl" title="Once the session starts, attach the web page you're looking at to its prompt"><input type="checkbox" id="cl-incl"> Include this tab</label>
+    </div>
+    <div class="acts"><span id="cl-note" role="status"></span><button type="button" id="cl-back">Cancel</button><button class="go" id="cl-go">Next</button></div>
+  </form>
+</dialog>
 <div class="alerts" id="alerts" role="log" aria-label="Agent alerts" aria-live="polite"></div>
 <div class="bar" id="bar">
   <div class="ext-pins" id="ext-pins"></div>
   <span class="spacer"></span>
   <button class="dlbtn" id="dl-btn" title="Downloads (⇧⌘J)" aria-label="Downloads" hidden><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2.5v8M4.5 7.5 8 11l3.5-3.5M3 13.5h10"/></svg><span class="badge" id="dl-count"></span></button>
-  <button class="feed" id="cl-btn" data-feed="cl-group" title="Agent sessions" aria-label="Agent sessions" hidden><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="1.8" y="2.8" width="12.4" height="10.4" rx="2.2"/><path d="M4.8 6.4L6.8 8l-2 1.6M8.6 10h2.6"/></svg><span class="badge" id="cl-count"></span></button>
+  <button class="feed" id="cl-btn" title="Agent sessions" aria-label="Agent sessions" aria-pressed="true" hidden><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="1.8" y="2.8" width="12.4" height="10.4" rx="2.2"/><path d="M4.8 6.4L6.8 8l-2 1.6M8.6 10h2.6"/></svg><span class="badge" id="cl-count"></span></button>
   <button class="feed" id="af-btn" data-feed="af-group" title="Agent files" aria-label="Agent files" hidden><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2.5c-1.4 0-2 .6-2 2v1.6c0 .9-.5 1.6-1.5 1.9 1 .3 1.5 1 1.5 1.9v1.6c0 1.4.6 2 2 2M10 2.5c1.4 0 2 .6 2 2v1.6c0 .9.5 1.6 1.5 1.9-1 .3-1.5 1-1.5 1.9v1.6c0 1.4-.6 2-2 2"/></svg></button>
   <button class="feed" id="gh-btn" data-feed="gh-group" title="GitHub PRs" aria-label="GitHub PRs" hidden><svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg><span class="badge" id="gh-count"></span></button>
   <button class="feed" id="gm-btn" data-feed="gm-group" title="Unread mail" aria-label="Unread mail" hidden><svg viewBox="0 0 24 18"><path fill="#4285f4" d="M1.6 18h3.8V8.7L0 4.6v11.8C0 17.3.7 18 1.6 18z"/><path fill="#34a853" d="M18.6 18h3.8c.9 0 1.6-.7 1.6-1.6V4.6l-5.4 4.1z"/><path fill="#fbbc04" d="M18.6 1.6v7.1L24 4.6V2.4c0-2-2.3-3.1-3.9-1.9z"/><path fill="#ea4335" d="M5.4 8.7V1.6L12 6.5l6.6-4.9v7.1L12 13.6z"/><path fill="#c5221f" d="M0 2.4v2.2l5.4 4.1V1.6L3.9.5C2.3-.7 0 .4 0 2.4z"/></svg><span class="badge" id="gm-count"></span></button>
@@ -494,14 +516,12 @@ window.roar = {
       attach: '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 7.5l-5.3 5.3a3.2 3.2 0 01-4.5-4.5l5.6-5.6a2.1 2.1 0 013 3L6.3 11.2a1 1 0 01-1.5-1.5L10 4.6"/></svg>',
       term: '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="1.8" y="2.8" width="12.4" height="10.4" rx="2"/><path d="M4.6 6.4l2 1.6-2 1.6M8.6 9.8h2.8"/></svg>',
       reply: '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 4.2a1.6 1.6 0 011.6-1.6h7.8a1.6 1.6 0 011.6 1.6v5a1.6 1.6 0 01-1.6 1.6H7l-3 2.6v-2.6h0a1.6 1.6 0 01-1.5-1.6z"/></svg>',
-      pin: '<svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M9.8 1.5 14.5 6.2l-1.4.4-3 3 .1 3-1.2 1.2-2.6-2.6L3 14.6 1.4 13l3.4-3.4-2.6-2.6L3.4 5.8l3 .1 3-3z"/></svg>',
       hide: '<svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8"/></svg>',
       send: '<svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 13V3.5M4 7.2L8 3.2l4 4"/></svg>',
     };
     // "Claude is waiting for your input" → "Waiting for your input": the icon already names the tool.
     const tidy = (t) => (t || '').replace(/^(Claude|Codex|Gemini|Qwen|Copilot)( Code| CLI)? (is|has|needs) /i, (m, a, b, v) => v.toLowerCase() === 'is' ? '' : v + ' ').replace(/^./, (x) => x.toUpperCase());
     const attachAttrs = webTab ? `title="Send the tab you're looking at: Roar saves it as Markdown and types @file into the session's prompt, without Enter"` : 'aria-disabled="true" title="Switch to a web page first: only web pages can be sent"';
-    const pins = (s.settings?.agentPins || '').split(',').filter(Boolean);
     const clRow = (c) => {
       const st = needs(c) ? 'needs_you' : c.state === 'needs_you' ? 'working' : (c.state || 'idle');
       const sub = tidy(c.doing || (c.prompt || '').split('\n')[0]);
@@ -509,40 +529,40 @@ window.roar = {
       return `<div class="row pr cl${needs(c) ? ' needs' : ''}${c.state === 'starting' ? ' starting' : ''}${clFull[c.id]?.active ? ' active' : ''}" data-clid="${esc(c.id)}" data-cltab="${clFull[c.id]?.id || ''}" title="${esc(c.prompt || c.cwd || '')}">` +
         `<button class="clmain" aria-label="${esc(agentName(c))}: ${esc(c.project)}, ${clStates[st] || st}${sub ? ': ' + esc(sub) : ''}. Open"><span class="cl-ic">${agentIcon(c, 16)}<span class="dot ${esc(st)}" aria-hidden="true"></span></span>` +
         `<span class="label"><span class="cl-name"><b>${esc(c.project)}</b><time>${clAgo(c.updated)}</time></span><small><span class="vh">${clStates[st] || st}: </span>${esc(sub)}</small>` +
-        (c.live ? `<span class="cl-chips">${needs(c) && !open ? `<span class="cl-reply" data-clreply="${esc(c.id)}" role="button" tabindex="-1">Reply</span>` : ''}<span class="cl-reply cl-send" data-clsend="${esc(c.id)}" role="button" tabindex="-1" ${attachAttrs}>Send tab</span></span>` : '') + `</span></button>` +
+        (c.live && needs(c) && !open ? `<span class="cl-reply" data-clreply="${esc(c.id)}" role="button" tabindex="-1">Reply</span>` : '') + `</span></button>` +
         `<span class="cl-acts">${needs(c) && c.live ? `<button data-clreply="${esc(c.id)}" aria-pressed="${open}" aria-label="Reply to ${esc(c.project)}" title="Reply here">${ico.reply}</button>` : ''}` +
         `${c.live ? `<button data-clsend="${esc(c.id)}" aria-label="Attach this tab to ${esc(c.project)}'s prompt" ${attachAttrs}>${ico.attach}</button>` : ''}` +
         `${c.live ? `<button data-clfocus="${esc(c.id)}" aria-label="Show ${esc(c.project)}'s terminal" title="Bring its terminal window to the front">${ico.term}</button>` : ''}` +
-        `<button data-clpin="${esc(c.id)}" aria-pressed="${pins.includes(c.id)}" aria-label="Pin ${esc(c.project)} to the sidebar" title="${pins.includes(c.id) ? 'Unpin: show it only here' : 'Pin: keep it in the sidebar above Tabs'}">${ico.pin}</button>` +
         `<button data-cldismiss="${esc(c.id)}" title="Hide this session" aria-label="Hide ${esc(c.project)}">${ico.hide}</button></span></div>` +
         (open ? `<form class="clq" data-clq="${esc(c.id)}"><input placeholder="Reply to ${esc(c.project)}…" title="Empty Enter accepts the highlighted choice" autocomplete="off" spellcheck="false" aria-label="Reply to ${esc(c.project)}" value="${esc(clDraft[c.id] || '')}"><span class="clq-acts"><button type="button" data-tab aria-label="Attach this tab" ${attachAttrs}>${ico.attach}</button><button class="send" aria-label="Send">${ico.send}</button></span></form>` : '');
     };
     // A session started here shows at once, until its hook (or claude-ctl's stand-in) reports.
     if (clWant && (Date.now() - clWant.since > 60000 || cl.some((c) => c.cwd === clWant.dir && c.started >= clWant.since))) clWant = null;
-    const starting = clWant ? `<div class="row pr cl starting" role="status"><span class="clmain"><span class="dot starting" aria-hidden="true"></span><span class="label">${esc(clWant.dir.split('/').pop())}<small>Starting in ${esc(clWant.dir.split('/').pop())}…</small></span></span></div>` : '';
+    const starting = clWant ? `<div class="row pr cl starting" role="status"><span class="clmain"><span class="cl-ic">${agentIcon(clWant.tool, 16)}<span class="dot starting" aria-hidden="true"></span></span><span class="label"><span class="cl-name"><b>${esc(clWant.name)}</b></span><small>Starting…</small></span></span></div>` : '';
     const clNeeds = cl.filter(needs).length;
-    const clOn = s.settings?.claudeSidebar !== false;
+    const clOn = s.settings?.claudeSidebar !== false, clAny = clOn && !!(cl.length || s.claude?.hooks || clWant);
     $('af-btn').hidden = s.settings?.agentFiles !== true;
-    $('cl-btn').hidden = !clOn || !(cl.length || s.claude?.hooks || clWant);
+    // The footer button only shows or hides the section; its badge still counts who needs you.
+    $('cl-btn').hidden = !clAny;
+    $('cl-btn').setAttribute('aria-pressed', String(s.settings?.agentSection !== false));
+    $('cl-group').hidden = !clAny || s.settings?.agentSection === false;
     $('cl-count').textContent = clNeeds || '';
     $('cl-count').classList.toggle('urgent', clNeeds > 0);
-    $('cl-btn').title = cl.length + ' agent session' + (cl.length === 1 ? '' : 's') + (clNeeds ? `, ${clNeeds} waiting for you` : '');
+    $('cl-btn').title = (s.settings?.agentSection === false ? 'Show' : 'Hide') + ' agent sessions: ' + cl.length + ' session' + (cl.length === 1 ? '' : 's') + (clNeeds ? `, ${clNeeds} waiting for you` : '');
     $('cl-btn').setAttribute('aria-label', $('cl-btn').title);
+    $('cl-n').textContent = cl.length || '';
+    clLive = cl.filter((c) => c.live);
+    $('cl-sendtab').hidden = !clLive.length;
+    $('cl-sendtab').setAttribute('aria-disabled', String(!webTab));
+    $('cl-sendtab').title = webTab ? (clLive.length === 1 ? `Send the tab you're looking at to ${clLive[0].project}` : 'Send the tab you\'re looking at to a session') : 'Switch to a web page first: only web pages can be sent';
     // Redrawing loses focus in a reply box; put it back where it was.
     const f = document.activeElement?.closest?.('#cl [data-clq]') && document.activeElement;
     const fq = f && f.closest('[data-clq]').dataset.clq, fs = f && [f.selectionStart, f.selectionEnd];
-    setHtml($('cl'), starting + (cl.map(clRow).join('') || (starting ? '' : '<div class="note">No sessions. Press Chat, or New to pick a folder.</div>')));
-    // Pinned sessions, and live ones whose full view is open, also sit in the main list; same rows.
-    const side = clOn ? cl.filter((c) => pins.includes(c.id) || (c.live && clFull[c.id])) : [];
-    $('cl-side').hidden = !side.length;
-    setHtml($('cl-pinned'), side.map(clRow).join(''));
-    clPins = pins.filter((p) => cl.some((c) => c.id === p));  // Ended sessions drop off on the next toggle.
-    if (!$('cl-incl').dataset.touched) $('cl-incl').checked = webTab;
-    $('cl-incl').disabled = !webTab;
+    setHtml($('cl'), starting + (cl.map(clRow).join('') || (starting ? '' : '<div class="note">No sessions yet. Press New to start one.</div>')));
     clActive = webTab ? act.id : 0;
-    if ($('cl-tool').value !== s.settings?.agentTool && document.activeElement !== $('cl-tool')) clToolSync(s.settings?.agentTool);
     if (fq) { const i = $('cl').querySelector(`[data-clq="${CSS.escape(fq)}"] input`); if (i && i !== f) { i.focus(); i.setSelectionRange(...fs); } }
-    clDirs = [...new Set([...cl.map((c) => c.cwd).filter(Boolean), ...clDirs])].slice(0, 8);
+    // Recent folders for New; scratch folders are Roar's own, not projects.
+    clDirs = [...new Set([...cl.map((c) => c.cwd).filter((d) => d && !/\/(scratch|chats)\/\d{4}-\d\d-\d\d-\d{4}(-\d+)?$/.test(d)), ...clDirs])].slice(0, 6);
     clFullTabs = clFull;
     const gm = s.gmail;
     const mailRow = (m) => {
@@ -555,7 +575,7 @@ window.roar = {
     $('gm-btn').hidden = !gm.enabled || gm.signedOut;
     $('gm-count').textContent = gm.unread || '';
     $('gm-btn').title = (gm.accounts || []).map((a) => `${a.address}: ${a.unread} unread`).join('\n') || 'Unread mail';
-    for (const b of document.querySelectorAll('.feed[hidden]')) $(b.dataset.feed).classList.remove('open');
+    for (const b of document.querySelectorAll('.feed[data-feed][hidden]')) $(b.dataset.feed).classList.remove('open');
     syncFeeds();
     setHtml($('gm'), gm.status
       ? (folderTab('mail') ? tabRow(folderTab('mail'), 0) : '') + `<div class="note">${esc(gm.status)}</div>`
@@ -965,69 +985,85 @@ $('cl').addEventListener('submit', async (e) => {
   ask({ cmd: 'state' }).then(roar.render);
 });
 $('cl').addEventListener('keydown', (e) => { if (e.target.closest('[data-clq]') && e.key !== 'Escape') e.stopPropagation(); });  // Typing isn't a sidebar shortcut.
-// New session: a folder (recent ones, or a chooser) and an optional first prompt. Once its hook
-// reports in, it opens under its row.
-let clWant = null, clDirs = [], clFullTabs = {}, clReplyOpen = null, clPins = [], clActive = 0, clTools = ['claude'];
-// The CLI picker lists the installed ones (claude-ctl tools), asked once.
-function clToolSync(want) {
-  $('cl-tool').innerHTML = clTools.map((t) => `<option value="${t}">${esc(AGENT_TOOLS[t]?.[0] || t)}</option>`).join('');
-  $('cl-tool').value = clTools.includes(want) ? want : clTools[0];
-}
+// New session: a modal, type (installed CLIs) then where (a folder, or a scratch folder Roar makes)
+// and an optional first prompt. The row shows "Starting…" until the session's hook reports.
+let clWant = null, clDirs = [], clFullTabs = {}, clReplyOpen = null, clActive = 0, clLive = [], clTools = ['claude'];
 ask({ cmd: 'claude.ctl', action: 'tools' }).then((out) => {
   const got = String(out || '').split('\n').filter((t) => AGENT_TOOLS[t]);
   if (got.length) clTools = got;
-  clToolSync(state?.settings?.agentTool);
 }).catch(() => {});
-$('cl-tool').onchange = () => ask({ cmd: 'settings.set', settings: { agentTool: $('cl-tool').value } });
-$('cl-incl').onchange = () => { $('cl-incl').dataset.touched = '1'; };
-const clTab = () => ($('cl-incl').checked && clActive) || 0;
-$('cl-chat').onclick = async (e) => {
-  e.stopPropagation();
-  for (const p of document.querySelectorAll('.feed-pop')) p.classList.remove('open');
-  syncFeeds();
-  await ask({ cmd: 'claude.ctl', action: 'chat', tab: clTab() });  // Opens its full view; failures show in the hint.
-};
-const clNew = document.createElement('form');
-clNew.className = 'cln';
-clNew.innerHTML = `<div class="dir"><select aria-label="Folder"></select><button type="button" class="pick">Choose a folder…</button></div><textarea placeholder="First prompt (optional)" aria-label="First prompt"></textarea>
-  <div class="acts"><span></span><button type="button" class="no">Cancel</button><button class="go">Start</button></div>`;
-const clNewSel = clNew.querySelector('select'), clNewNote = clNew.querySelector('.acts span'), clNewPick = clNew.querySelector('.pick');
-function clNewOpen(head) {
-  if (clNew.isConnected && clNew.previousElementSibling === head) return clNew.remove();
-  clNewSel.innerHTML = clDirs.map((d) => `<option value="${esc(d)}">${esc(d.split('/').pop())}  ${esc(d.replace(/^\/Users\/[^/]+/, '~'))}</option>`).join('');
-  // With no recent folders the chooser is the only way in, so it's the whole row.
-  clNewSel.hidden = !clDirs.length;
-  clNewPick.textContent = clDirs.length ? 'Other…' : 'Choose a folder…';
-  clNewNote.textContent = '';
-  head.after(clNew);
-  clNew.querySelector('textarea').focus();
+const clDlg = $('cl-dlg'), clForm = $('cl-form');
+const clPicked = (name) => clForm.querySelector(`input[name="${name}"]:checked`)?.value;
+const clOpt = (name, value, html, on) => `<label class="opt"><input type="radio" name="${name}" value="${esc(value)}"${on ? ' checked' : ''}>${html}</label>`;
+const clTilde = (d) => d.replace(/^\/Users\/[^/]+/, '~');
+function clWhere(first) {
+  const dirs = first && !clDirs.includes(first) ? [first, ...clDirs] : clDirs;
+  $('cl-where').innerHTML = `<button type="button" class="pick">Choose folder…</button>` +
+    dirs.map((d, i) => clOpt('where', d, `<span>${esc(d.split('/').pop())}<small>${esc(clTilde(d))}</small></span>`, first ? d === first : i === 0)).join('') +
+    clOpt('where', 'scratch', `<span>Scratch folder<small>A new folder Roar keeps for you</small></span>`, !first && !dirs.length);
 }
-clNewPick.onclick = async () => {
+function clStep(n) {
+  const tool = clPicked('tool'), folder = AGENT_TOOLS[tool]?.[3] !== false;
+  $('cl-step1').hidden = n !== 1;
+  $('cl-step2').hidden = n !== 2 || !folder;  // A CLI that needs no folder skips "where".
+  $('cl-step3').hidden = n !== 2;
+  $('cl-back').textContent = n === 1 ? 'Cancel' : 'Back';
+  $('cl-go').textContent = n === 1 ? 'Next' : 'Start';
+  $('cl-note').textContent = '';
+  clForm.dataset.step = n;
+  (n === 1 ? clForm.querySelector('input[name="tool"]:checked') : folder ? clForm.querySelector('input[name="where"]:checked') || $('cl-where').querySelector('.pick') : $('cl-prompt'))?.focus();
+}
+$('cl-new').onclick = (e) => {
+  e.stopPropagation();
+  const last = clTools.includes(state?.settings?.agentTool) ? state.settings.agentTool : clTools[0];
+  $('cl-tiles').innerHTML = clTools.map((t) => clOpt('tool', t, `${agentIcon(t, 22)}<span>${esc(AGENT_TOOLS[t][0])}</span>`, t === last)).join('');
+  clWhere();
+  $('cl-prompt').value = '';
+  $('cl-incl').checked = !!clActive;
+  $('cl-incl').disabled = !clActive;
+  clDlg.showModal();
+  clStep(1);
+};
+$('cl-tiles').addEventListener('dblclick', (e) => e.target.closest('.opt') && clStep(2));
+$('cl-where').addEventListener('click', async (e) => {
+  if (!e.target.closest('.pick')) return;
   const dir = await ask({ cmd: 'claude.pickFolder' });
-  if (!dir) return;
-  if (!clDirs.includes(dir)) clDirs.unshift(dir);
-  clNewSel.insertAdjacentHTML('afterbegin', `<option value="${esc(dir)}">${esc(dir.split('/').pop())}</option>`);
-  clNewSel.value = dir;
-  clNewSel.hidden = false;
-  clNewPick.textContent = 'Other…';
-};
-clNew.onsubmit = async (e) => {
+  if (dir) clWhere(dir);
+  (clForm.querySelector('input[name="where"]:checked') || e.target).focus();
+});
+$('cl-back').onclick = () => (clForm.dataset.step === '1' ? clDlg.close() : clStep(1));
+clDlg.addEventListener('close', () => $('cl-new').focus());
+clDlg.addEventListener('keydown', (e) => { if (e.key !== 'Escape') e.stopPropagation(); });  // Typing isn't a sidebar shortcut.
+clForm.onsubmit = async (e) => {
   e.preventDefault();
-  const dir = clNewSel.value, prompt = clNew.querySelector('textarea').value.trim();
-  if (!dir) return void (clNewNote.textContent = 'Pick a folder first.');
-  clNewNote.textContent = 'Starting…';
-  clWant = { dir, since: Date.now() - 2000 };
+  if (clForm.dataset.step === '1') return clStep(2);
+  const tool = clPicked('tool'), folder = AGENT_TOOLS[tool]?.[3] !== false;
+  const where = folder ? clPicked('where') : 'scratch', prompt = $('cl-prompt').value.trim();
+  if (!where) return void ($('cl-note').textContent = 'Pick a folder first.');
+  const scratch = where === 'scratch', tab = ($('cl-incl').checked && clActive) || 0;
+  $('cl-note').textContent = 'Starting…';
+  await ask({ cmd: 'settings.set', settings: { agentTool: tool } });  // claude-ctl new starts the saved CLI.
+  clWant = { dir: scratch ? '' : where, tool, name: scratch ? prompt.replace(/\s+/g, ' ').slice(0, 60) || 'Scratch' : where.split('/').pop(), since: Date.now() - 2000 };
   ask({ cmd: 'state' }).then(roar.render);
-  const out = await ask({ cmd: 'claude.ctl', action: 'new', id: dir, text: prompt, tab: clTab() });
-  if (out.startsWith('error: ')) { clWant = null; ask({ cmd: 'state' }).then(roar.render); return void (clNewNote.textContent = out.slice(7)); }
-  clWant = { dir, since: Date.now() - 2000 };
-  clNew.querySelector('textarea').value = '';
-  clNew.remove();
+  const out = await ask({ cmd: 'claude.ctl', action: 'new', id: scratch ? '' : where, scratch, text: prompt, tab });
+  if (out.startsWith('error: ')) { clWant = null; ask({ cmd: 'state' }).then(roar.render); return void ($('cl-note').textContent = out.slice(7)); }
+  if (scratch) clWant = null;  // Its stand-in row (or the hook's) is already there.
+  clDlg.close();
   ask({ cmd: 'state' }).then(roar.render);
 };
-clNew.querySelector('.no').onclick = () => clNew.remove();
-clNew.addEventListener('keydown', (e) => { if (e.key !== 'Escape') e.stopPropagation(); });
-for (const b of document.querySelectorAll('.cl-new')) b.onclick = (e) => { e.stopPropagation(); clNewOpen(b.closest('.group-head')); };
+// Header Send tab: straight to the only live session, else a short list to pick from.
+$('cl-sendtab').onclick = (e) => {
+  e.stopPropagation();
+  if ($('cl-sendtab').getAttribute('aria-disabled') === 'true') return;
+  if (clLive.length === 1) return ask({ cmd: 'claude.sendTab', id: clLive[0].id });
+  const r = $('cl-sendtab').getBoundingClientRect();
+  showCtx(`<div class="head">Send this tab to</div>${clLive.map((c) => `<button data-act="send" data-id="${esc(c.id)}">${agentIcon(c, 14)}${esc(c.project)}</button>`).join('')}`,
+    { clientX: r.left, clientY: r.bottom + 4 }, (act, d) => { ask({ cmd: 'claude.sendTab', id: d.id }); hideCtx(); });
+};
+$('cl-btn').onclick = (e) => {
+  e.stopPropagation();
+  ask({ cmd: 'settings.set', settings: { agentSection: state?.settings?.agentSection === false } });
+};
 document.addEventListener('click', (e) => {
   if (!e.target.closest('[data-unsplit]')) return;
   e.stopPropagation();
@@ -1039,12 +1075,6 @@ document.addEventListener('click', (e) => {
     e.stopPropagation();
     clReplyOpen = clReplyOpen === rp.dataset.clreply ? null : rp.dataset.clreply;
     return ask({ cmd: 'state' }).then(roar.render).then(() => $('cl').querySelector(`[data-clq="${CSS.escape(clReplyOpen || '')}"] input`)?.focus());
-  }
-  const pn = e.target.closest('[data-clpin]');
-  if (pn) {
-    e.stopPropagation();
-    const id = pn.dataset.clpin, on = !clPins.includes(id);
-    return ask({ cmd: 'settings.set', settings: { agentPins: (on ? [...clPins, id] : clPins.filter((p) => p !== id)).join(',') } });
   }
   const x = e.target.closest('[data-cldismiss]');
   if (x) { e.stopPropagation(); return ask({ cmd: 'claude.dismiss', id: x.dataset.cldismiss }); }
@@ -1206,7 +1236,7 @@ $('af').addEventListener('click', (e) => {
 // GitHub PRs and Unread mail open as popovers from their footer icons.
 function syncFeeds() {
   const bar = $('bar').getBoundingClientRect();
-  for (const b of document.querySelectorAll('.feed')) {
+  for (const b of document.querySelectorAll('.feed[data-feed]')) {
     const pop = $(b.dataset.feed);
     b.setAttribute('aria-expanded', pop.classList.contains('open'));
     pop.style.bottom = (innerHeight - bar.top + 4) + 'px';

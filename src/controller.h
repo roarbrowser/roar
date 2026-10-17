@@ -275,7 +275,8 @@ class Controller {
   // and opens its full view when |open_view|. |done| gets claude-ctl's reply.
   void AgentStart(const std::string& dir, const std::string& prompt, int tab, bool open_view,
                   std::function<void(const std::string&)> done = nullptr);
-  void AgentChat(int tab, std::function<void(const std::string&)> done = nullptr);  // AgentStart in a new <data>/chats folder.  // Any agent CLI's hooks installed.
+  void AgentScratch(const std::string& prompt, int tab, bool open_view,
+                    std::function<void(const std::string&)> done = nullptr);  // AgentStart in a new <data>/scratch folder.  // Any agent CLI's hooks installed.
   std::string agent_hooks_;  // roar-mcp agent-hooks status output: "<tool> <state>" lines.
   void SetAgentHooks(const std::string& out);
   std::string agentmd_cache_;  // agentmd.list's last walk, for the sidebar's recent files.
