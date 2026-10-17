@@ -60,7 +60,6 @@ pre { margin: 6px 0; font: 12px/1.6 var(--mono); background: var(--ground); bord
         <option value="https://www.bing.com/search?q=">Bing</option><option value="https://kagi.com/search?q=">Kagi</option>
         <option value="https://search.brave.com/search?q=">Brave Search</option><option value="https://www.startpage.com/do/search?q=">Startpage</option>
         <option value="https://www.ecosia.org/search?q=">Ecosia</option></select></div>
-      <div class="row"><span class="name" id="llm-label">Ask an LLM about page<small>Chat apps the command bar offers. Roar fills in the page and you press send.</small></span><span class="end" id="llms" role="group" aria-labelledby="llm-label"></span></div>
       <div class="row"><span class="name">Import from<small>Bookmarks, pinned tabs, spaces (Arc) and extensions</small></span><span class="end" id="imports">
         <button class="chip" data-import="arc">Arc</button><button class="chip" data-import="chrome">Chrome</button><button class="chip" data-import="safari">Safari</button>
         <button class="chip" data-import="firefox">Firefox</button><button class="chip" data-import="edge">Edge</button><button class="chip" data-import="dia">Dia</button></span></div>
@@ -93,6 +92,7 @@ pre { margin: 6px 0; font: 12px/1.6 var(--mono); background: var(--ground); bord
 
 
     <section id="agents"><h2>Agents</h2>
+      <div class="row"><span class="name" id="llm-label">Your AI<small>Press ⌘T and type “ask”: Roar opens its chat site with this page filled in, or sends the page to your terminal agent (connect it below).</small></span><span class="end" id="llms" role="radiogroup" aria-labelledby="llm-label"></span></div>
       <h3>Coding agents in your terminal</h3>
       <div class="module" data-module="claude">
         <div class="row head"><label class="name" for="claude-on"><span data-icon="claude"></span>Agent sessions<small>Your Claude Code, Codex, Gemini, Qwen and Copilot CLI sessions, what they're doing and whether they need you; never the conversation.</small></label><input type="checkbox" class="switch" id="claude-on"></div>
@@ -193,9 +193,9 @@ function apply(s) {
       stt === 'absent' || stt === 'error' ? '' : `<button class="btn" data-tool="${t}" data-on="${stt !== 'installed'}">${btn}</button>`}</div>`;
   }).join('');
   if (hadTool) (toolsBox.querySelector(`[data-tool="${hadTool}"]`) || $('claude-on')).focus();
-  const chosen = (st.askLlms || '').split(',');
+  const chosen = (st.askLlms || '').split(',')[0];
   if (!$('llms').contains(document.activeElement))
-    $('llms').innerHTML = LLMS.map(([id, name]) => `<button class="chip" data-llm="${id}" aria-pressed="${chosen.includes(id)}">${name}</button>`).join('');
+    $('llms').innerHTML = LLMS.map(([id, name]) => `<button class="chip" role="radio" data-llm="${id}" aria-checked="${chosen === id}" aria-pressed="${chosen === id}">${name}</button>`).join('');
   // Agent sessions is on only while some CLI's hooks are installed too.
   const clOn = st.claudeSidebar !== false && !!s.claude?.hooks;
   $('claude-on').checked = clOn;
@@ -239,8 +239,8 @@ const LLMS = [['chatgpt', 'ChatGPT'], ['claude', 'Claude'], ['gemini', 'Gemini']
 $('llms').onclick = (e) => {
   const b = e.target.closest('[data-llm]');
   if (!b) return;
-  b.setAttribute('aria-pressed', String(b.getAttribute('aria-pressed') !== 'true'));
-  set({ askLlms: [...$('llms').querySelectorAll('[aria-pressed=true]')].map((x) => x.dataset.llm).join(',') });
+  for (const x of $('llms').children) x.setAttribute('aria-checked', x.ariaPressed = String(x === b));
+  set({ askLlms: b.dataset.llm });
 };
 $('agent-spaces').onchange = (e) => {
   const b = e.target.closest('[data-space-agents]');

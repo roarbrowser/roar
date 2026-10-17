@@ -39,7 +39,7 @@ struct Settings {
   bool clean_links = true;
   bool clean_safelinks = true, clean_mcas = true, clean_tracking = true;  // Which cleanups CleanLink does (CleanOptions).
   std::string clean_params;  // The user's own query parameters to drop from copied links, comma-separated.
-  std::string ask_llms = "chatgpt,claude,gemini,perplexity,grok";  // Chat apps "Ask an LLM about page" lists (kLlms ids).  // Unwraps Safe Links and strips .mcas.ms from copied links (CleanLink).
+  std::string ask_llms = "chatgpt";  // The AI "Ask <AI> about this page" opens (a kLlms id; older saves list several, the first wins).  // Unwraps Safe Links and strips .mcas.ms from copied links (CleanLink).
 };
 
 // Each setting once: the JSON name it is saved under in state.json (never rename one: saved
