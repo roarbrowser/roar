@@ -3846,6 +3846,35 @@ bool Controller::HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> 
       PushSidebar();
     }
     callback->Success("");
+  } else if (cmd == "claude.beside") {
+    // A session's full view split beside a web page: the active tab, or the web tab used most
+    // recently (when the full view itself is active). Never a ghost tab.
+    std::string id = msg->GetString("id").ToString();
+    if (id.empty() || id.find_first_not_of(kSessionIdChars) != std::string::npos) return callback->Failure(0, "bad id"), true;
+    std::string view = std::string(kClaudeUrl) + "?id=" + id;
+    int space = State::Get().active_space;
+    auto usable = [&](const Tab& t) { return t.space == space && !t.ghost && !t.floating && StartsWith(t.url, "http"); };
+    Tab* web = ActiveTab();
+    if (!web || !usable(*web)) {
+      web = nullptr;
+      for (auto& t : tabs_)
+        if (usable(t) && (!web || t.last_active > web->last_active)) web = &t;
+    }
+    if (!web) return ShowHint("Open a web page first"), callback->Success(""), true;
+    int web_id = web->id, view_id = 0;
+    for (const auto& t : tabs_)
+      if (t.space == space && !t.floating && t.url == view) view_id = t.id;
+    if (!view_id) view_id = NewTab(view, true);
+    if (Tab* a = FindTab(web_id); a && FindTab(view_id)) {
+      split_a_ = web_id;
+      split_b_ = view_id;
+      split_stacked_ = false;
+      split_ratio_ = 0.5;
+      ActivateTab(view_id);
+      SyncWindows();
+      PushSidebar();
+    }
+    callback->Success("");
   } else if (cmd == "tab.unsplit") {
     Unsplit();
     callback->Success("");

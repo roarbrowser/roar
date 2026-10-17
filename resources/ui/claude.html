@@ -24,7 +24,7 @@ form button:not(.btn) { background: var(--mane); color: #2a1604; font-weight: 60
 </style>
 </head>
 <body>
-<header><span class="dot" id="dot" aria-hidden="true"></span><span id="icon"></span><h1 id="name">Agent session</h1><span class="state" id="state" role="status"></span><button class="btn" id="attach">Send tab</button><button class="btn" id="focus" title="Bring its terminal window to the front">Terminal</button></header>
+<header><span class="dot" id="dot" aria-hidden="true"></span><span id="icon"></span><h1 id="name">Agent session</h1><span class="state" id="state" role="status"></span><button class="btn" id="attach">Send tab</button><button class="btn" id="beside" title="Split this view beside the web page you used last">Side by side</button><button class="btn" id="focus" title="Bring its terminal window to the front">Terminal</button></header>
 <pre id="screen" aria-live="off"></pre>
 <form id="reply"><input id="text" placeholder="Reply… (empty Enter accepts)" autocomplete="off" spellcheck="false" aria-label="Reply"><button>Send</button></form>
 <p class="status" id="attach-why" hidden></p>
@@ -69,6 +69,14 @@ async function meta() {
 }
 let attachTab = 0;
 // Text in the reply box goes with the page as its prompt.
+$('beside').onclick = () => ask({ cmd: 'claude.beside', id });
+// The screen is read-only: a click there, or typing anywhere outside a field, goes to the reply box.
+$('screen').addEventListener('click', () => { if (!getSelection().toString() && !$('reply').hidden) $('text').focus(); });
+document.addEventListener('keydown', (e) => {
+  if ($('reply').hidden || e.metaKey || e.ctrlKey || e.altKey || e.key.length !== 1) return;
+  if (e.target.closest?.('input, textarea, select, [contenteditable]')) return;
+  $('text').focus();  // The key's character then lands in the box.
+});
 $('attach').onclick = async () => {
   if (!attachTab) return;
   await ask({ cmd: 'claude.sendTab', id, tab: attachTab, text: $('text').value.trim() });

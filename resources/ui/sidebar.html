@@ -511,6 +511,7 @@ window.roar = {
       attach: '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 7.5l-5.3 5.3a3.2 3.2 0 01-4.5-4.5l5.6-5.6a2.1 2.1 0 013 3L6.3 11.2a1 1 0 01-1.5-1.5L10 4.6"/></svg>',
       term: '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="1.8" y="2.8" width="12.4" height="10.4" rx="2"/><path d="M4.6 6.4l2 1.6-2 1.6M8.6 9.8h2.8"/></svg>',
       reply: '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 4.2a1.6 1.6 0 011.6-1.6h7.8a1.6 1.6 0 011.6 1.6v5a1.6 1.6 0 01-1.6 1.6H7l-3 2.6v-2.6h0a1.6 1.6 0 01-1.5-1.6z"/></svg>',
+      beside: '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" aria-hidden="true"><rect x="1.8" y="2.8" width="12.4" height="10.4" rx="2"/><path d="M8 2.8v10.4"/></svg>',
       hide: '<svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8"/></svg>',
       send: '<svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 13V3.5M4 7.2L8 3.2l4 4"/></svg>',
     };
@@ -527,6 +528,7 @@ window.roar = {
         (c.live && needs(c) && !open ? `<span class="cl-reply" data-clreply="${esc(c.id)}" role="button" tabindex="-1">Reply</span>` : '') + `</span></button>` +
         `<span class="cl-acts">${needs(c) && c.live ? `<button data-clreply="${esc(c.id)}" aria-pressed="${open}" aria-label="Reply to ${esc(c.project)}" title="Reply here">${ico.reply}</button>` : ''}` +
         `${c.live ? `<button data-clsend="${esc(c.id)}" aria-pressed="${sending}" aria-label="Send this tab to ${esc(c.project)}" ${attachAttrs}>${ico.attach}</button>` : ''}` +
+        `<button data-clbeside="${esc(c.id)}" aria-label="Show ${esc(c.project)} side by side with the page you're on" title="Side by side with this page">${ico.beside}</button>` +
         `${c.live ? `<button data-clfocus="${esc(c.id)}" aria-label="Show ${esc(c.project)}'s terminal" title="Bring its terminal window to the front">${ico.term}</button>` : ''}` +
         `<button data-cldismiss="${esc(c.id)}" title="Hide this session" aria-label="Hide ${esc(c.project)}">${ico.hide}</button></span></div>` +
         (open ? `<form class="clq" data-clq="${esc(c.id)}"><input placeholder="Reply to ${esc(c.project)}…" title="Empty Enter accepts the highlighted choice" autocomplete="off" spellcheck="false" aria-label="Reply to ${esc(c.project)}" value="${esc(clDraft[c.id] || '')}"><span class="clq-acts"><button type="button" data-tab aria-label="Attach this tab" ${attachAttrs}>${ico.attach}</button><button class="send" aria-label="Send">${ico.send}</button></span></form>` : '') +
@@ -1124,6 +1126,8 @@ document.addEventListener('click', (e) => {
   if (x) { e.stopPropagation(); return ask({ cmd: 'claude.dismiss', id: x.dataset.cldismiss }); }
   const t = e.target.closest('[data-clsend]');
   if (t) { e.stopPropagation(); return t.getAttribute('aria-disabled') === 'true' || clOpenSend(t.dataset.clsend); }
+  const sb = e.target.closest('[data-clbeside]');
+  if (sb) { e.stopPropagation(); return ask({ cmd: 'claude.beside', id: sb.dataset.clbeside }); }
   const f = e.target.closest('[data-clfocus]');
   if (f) { e.stopPropagation(); return ask({ cmd: 'claude.ctl', action: 'focus', id: f.dataset.clfocus }); }
   if (e.target.closest('[data-clsq]')) return e.stopPropagation();
