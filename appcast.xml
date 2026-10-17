@@ -227,5 +227,14 @@
       <description><![CDATA[Settings > Agents: picking your AI also connects its terminal agent; no separate connect list]]></description>
       <enclosure url="https://github.com/roarbrowser/roar/releases/download/v0.22.1/Roar-0.22.1.dmg" type="application/octet-stream" sparkle:edSignature="4yeLJebxfJ62hCNPKUABjH3H1lIo5S9uTH60hWmh7dJ85c6t5hJOvBb1xGS2Ssvkyd3EnoIv/kxok9X5sctOBw==" length="203759153"/>
     </item>
+    <item>
+      <title>0.23.0</title>
+      <pubDate>Sat, 17 Oct 2026 04:08:15 +0000</pubDate>
+      <sparkle:version>2300</sparkle:version>
+      <sparkle:shortVersionString>0.23.0</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[Split view: keep several splits at once, drag any tab onto any tab (rows and pinned tiles) to split, drop on the list to separate, and Separate tabs acts on that pair. Security and reliability fixes for AppleScript, Gmail actions and agent tools; accessibility labels; agent session cards no longer show internal tags.]]></description>
+      <enclosure url="https://github.com/roarbrowser/roar/releases/download/v0.23.0/Roar-0.23.0.dmg" type="application/octet-stream" sparkle:edSignature="9xS3pKgd4t6z9U3qH6Jx9DPJMlVnJK6IvQiPY5Ip0JtMiBPngDjI5OPnmNhgk38TilU+qZgx68mByzQ2VLrEDA==" length="203760761"/>
+    </item>
   </channel>
 </rss>
