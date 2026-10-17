@@ -15,7 +15,10 @@ if (-not $Sha1[$Arch]) { throw "no pinned SHA-1 for $Arch; add it from https://c
 New-Item -ItemType Directory -Force $Dest | Out-Null
 Write-Host "Downloading $Name"
 $Archive = Join-Path $Dest 'cef.tar.bz2'
-Invoke-WebRequest -UseBasicParsing -OutFile $Archive "https://cef-builds.spotifycdn.com/$($Name -replace '\+','%2B').tar.bz2"
+# curl.exe (built into Windows 10+), not Invoke-WebRequest, which stalled on this file in CI even
+# without its progress bar; drop a connection under 100 KB/s for 60 s and retry.
+curl.exe -fL --retry 5 --retry-all-errors --speed-limit 102400 --speed-time 60 -o $Archive "https://cef-builds.spotifycdn.com/$($Name -replace '\+','%2B').tar.bz2"
+if ($LASTEXITCODE) { throw "CEF download failed ($LASTEXITCODE)" }
 $Got = (Get-FileHash -Algorithm SHA1 $Archive).Hash.ToLower()
 if ($Got -ne $Sha1[$Arch]) { Remove-Item $Archive; throw "SHA-1 mismatch: $Got" }
 # tar.exe ships with Windows 10 1803+ and reads bzip2.
