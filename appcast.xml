@@ -92,5 +92,14 @@
       <description><![CDATA[Agent sessions now sit below Tabs, and rows no longer flash: a session that needs you is a steady orange tint.]]></description>
       <enclosure url="https://github.com/roarbrowser/roar/releases/download/v0.15.1/Roar-0.15.1.dmg" type="application/octet-stream" sparkle:edSignature="u0BSdTi2f8eKV1CuiWI/yk4yKNn5oHOc0l/bQRuRfPYRtPrf+oEsUQSuYvUSxS0SogC1G14F4eqD9W4SwHPnAA==" length="234994210"/>
     </item>
+    <item>
+      <title>0.15.2</title>
+      <pubDate>Sat, 17 Oct 2026 02:19:22 +0000</pubDate>
+      <sparkle:version>0.15.2</sparkle:version>
+      <sparkle:shortVersionString>0.15.2</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[Agent sessions can be collapsed and expanded from the arrow beside its name; Roar remembers which.]]></description>
+      <enclosure url="https://github.com/roarbrowser/roar/releases/download/v0.15.2/Roar-0.15.2.dmg" type="application/octet-stream" sparkle:edSignature="/44iQUE2hHvyKwW5ay0qIMOxX9bPvxVa+MNoDsaHh+5D6N3n/WQXmagBA6/hfWSkrWvx+Q4H8y6B8NKPtlauDg==" length="234994759"/>
+    </item>
   </channel>
 </rss>
