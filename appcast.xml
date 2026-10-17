@@ -128,5 +128,14 @@
       <description><![CDATA[Agent files shows in Agent sessions by default; the { } button in its header hides or shows it. Settings > Updates lets you turn automatic update checks and automatic installs on or off. Fixes updates: earlier builds all carried build number 1, so Roar never saw a release as newer. This version is the first one Check for Updates can install.]]></description>
       <enclosure url="https://github.com/roarbrowser/roar/releases/download/v0.17.0/Roar-0.17.0.dmg" type="application/octet-stream" sparkle:edSignature="nWzvbphCCIvfCh6i0WcwXphLG94JKYE5WcIsG9ZKBrZVnjUyaNsCa/bnVvzrCtgpRCZNiC0owRpJXYKKpVjiBA==" length="235004426"/>
     </item>
+    <item>
+      <title>0.18.0</title>
+      <pubDate>Sat, 17 Oct 2026 02:41:29 +0000</pubDate>
+      <sparkle:version>1800</sparkle:version>
+      <sparkle:shortVersionString>0.18.0</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[Agent files groups files by project, so it's clear which repo each one belongs to (files in ~/.claude and similar show as Global). Filter by project, agent, and by when a file was changed, created or last opened, including stale files over 3 months or a year old. Tick files and move them to the Trash in one go; Finder's Put Back undoes it.]]></description>
+      <enclosure url="https://github.com/roarbrowser/roar/releases/download/v0.18.0/Roar-0.18.0.dmg" type="application/octet-stream" sparkle:edSignature="7s4kn9Ccuty3HjTKkl6MEJj589zxQN5ok7KKS9ncJchkRbYxbLCXhnPyX6snVHWZ2hDbiMY4bcF0XtP7UjuSCQ==" length="234996767"/>
+    </item>
   </channel>
 </rss>
