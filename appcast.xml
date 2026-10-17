@@ -299,5 +299,14 @@
       <description><![CDATA[Needs-you alerts dismiss themselves after 60 seconds.]]></description>
       <enclosure url="https://github.com/roarbrowser/roar/releases/download/v0.23.7/Roar-0.23.7.dmg" type="application/octet-stream" sparkle:edSignature="VrxQ8KfTmCnHznwX/NOWtkDCu2zo/2jdrhRVrk40X58H9xVsELZMaqYW7EGkqlL0TyAsnoe3zfTnkuaW5UR1Bw==" length="203761132"/>
     </item>
+    <item>
+      <title>0.23.8</title>
+      <pubDate>Sat, 17 Oct 2026 12:48:09 +0000</pubDate>
+      <sparkle:version>2308</sparkle:version>
+      <sparkle:shortVersionString>0.23.8</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[Agent view: / suggests commands and skills as you type; Send tab lets you pick the tab, grouped by pinned and unpinned.]]></description>
+      <enclosure url="https://github.com/roarbrowser/roar/releases/download/v0.23.8/Roar-0.23.8.dmg" type="application/octet-stream" sparkle:edSignature="O9ISdtA2oXUB5MGK92wQohIol7qOYoSqJlZ4YuPCRKZgCXy0PGA83FteEeRWoktcVuGUF+dOnDDrd8hyJV93Bg==" length="203770449"/>
+    </item>
   </channel>
 </rss>
