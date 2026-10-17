@@ -83,5 +83,14 @@
       <description><![CDATA[New agent sessions can attach any open web tabs. Send tab now takes an optional prompt that's sent along with the page. Only the agent CLIs you connect in Settings > Agent sessions appear in New and Ask an Agent About This Page.]]></description>
       <enclosure url="https://github.com/roarbrowser/roar/releases/download/v0.15.0/Roar-0.15.0.dmg" type="application/octet-stream" sparkle:edSignature="CecrbE7ClPQZzG5xkN3LAEpK9ubJ5ZviNxUgyg4niKUoVGBObVgeH1nsCG4CffOwEcVE8stxyC+GYRGMpZX/Cg==" length="234994282"/>
     </item>
+    <item>
+      <title>0.15.1</title>
+      <pubDate>Sat, 17 Oct 2026 02:11:32 +0000</pubDate>
+      <sparkle:version>0.15.1</sparkle:version>
+      <sparkle:shortVersionString>0.15.1</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[Agent sessions now sit below Tabs, and rows no longer flash: a session that needs you is a steady orange tint.]]></description>
+      <enclosure url="https://github.com/roarbrowser/roar/releases/download/v0.15.1/Roar-0.15.1.dmg" type="application/octet-stream" sparkle:edSignature="u0BSdTi2f8eKV1CuiWI/yk4yKNn5oHOc0l/bQRuRfPYRtPrf+oEsUQSuYvUSxS0SogC1G14F4eqD9W4SwHPnAA==" length="234994210"/>
+    </item>
   </channel>
 </rss>
