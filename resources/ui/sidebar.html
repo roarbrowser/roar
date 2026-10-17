@@ -339,7 +339,7 @@ body.drag-active .pinned:empty::before { content: 'Drop to pin'; color: var(--in
     <div class="rows" id="tabs"></div>
   </section>
   <section id="cl-group" aria-label="Agent sessions" hidden>
-    <div class="group-head"><span>Agent sessions</span><span class="count" id="cl-n"></span><span class="spacer"></span><button id="cl-sendtab" hidden>Send tab</button><button id="cl-new" aria-haspopup="dialog" title="Start an agent session">New</button></div>
+    <div class="group-head"><button class="toggle" data-collapse="cl-group" aria-expanded="true" aria-controls="cl" aria-label="Collapse agent sessions"><svg class="chev" viewBox="0 0 10 10" fill="currentColor"><path d="M1 3h8L5 8z"/></svg>Agent sessions</button><span class="count" id="cl-n"></span><span class="spacer"></span><button id="cl-sendtab" hidden>Send tab</button><button id="cl-new" aria-haspopup="dialog" title="Start an agent session">New</button></div>
     <div class="rows" id="cl"></div>
   </section>
 </div>
@@ -636,10 +636,20 @@ document.addEventListener('click', (e) => {
   const collapse = e.target.closest('[data-collapse]');
   if (collapse) {
     const group = $(collapse.dataset.collapse);
-    group.classList.toggle('collapsed');
+    syncCollapse(group, !group.classList.contains('collapsed'));
     try { localStorage.setItem('collapsed:' + group.id, group.classList.contains('collapsed')); } catch {}
   }
 });
+// Sections with a [data-collapse] toggle remember being collapsed (per sidebar, in localStorage).
+function syncCollapse(group, collapsed) {
+  group.classList.toggle('collapsed', collapsed);
+  const b = group.querySelector('[data-collapse]');
+  b.setAttribute('aria-expanded', String(!collapsed));
+  b.setAttribute('aria-label', (collapsed ? 'Expand ' : 'Collapse ') + b.textContent.trim().toLowerCase());
+}
+for (const b of document.querySelectorAll('[data-collapse]')) {
+  try { if (localStorage.getItem('collapsed:' + b.dataset.collapse) === 'true') syncCollapse($(b.dataset.collapse), true); } catch {}
+}
 document.addEventListener('auxclick', (e) => {
   const tab = e.target.closest('.row[data-id]');
   if (tab && e.button === 1) ask({ cmd: 'tab.close', id: +tab.dataset.id });
