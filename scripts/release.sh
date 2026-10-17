@@ -87,7 +87,7 @@ git commit -q -m "Release $VERSION"
 git tag "$TAG"
 git push -q origin HEAD "$TAG"
 
-BODY="Roar-$VERSION.dmg is for Apple Silicon Macs$([[ ${#DMGS[@]} -gt 1 ]] && echo ", Roar-$VERSION-intel.dmg for Intel Macs"). Open the DMG and drag Roar to Applications."
+BODY="Roar-$VERSION.dmg is for Apple Silicon Macs$([[ ${#DMGS[@]} -gt 1 ]] && echo ", Roar-$VERSION-intel.dmg for Intel Macs" || true). Open the DMG and drag Roar to Applications."
 [[ $NOTARIZED == 1 ]] || BODY="$BODY
 
 The app is not notarized. On first launch, open System Settings › Privacy & Security and click Open Anyway, or run \`xattr -dr com.apple.quarantine /Applications/Roar.app\`."
