@@ -28,5 +28,14 @@
       <description><![CDATA[Agent view: / suggests commands and skills as you type; Send tab lets you pick the tab, grouped by pinned and unpinned.]]></description>
       <enclosure url="https://github.com/roarbrowser/roar/releases/download/v0.23.8/Roar-0.23.8-intel.dmg" type="application/octet-stream" sparkle:edSignature="MZzK1SOUQIzLpOOvUXNhzATCJ+ahZyzaThU5VS7wjNYV4k4Wub9qO06hBiKp8AWebWkeKRFEAMoV1jfcEhvHBw==" length="224812937"/>
     </item>
+    <item>
+      <title>0.24.0</title>
+      <pubDate>Sat, 17 Oct 2026 12:56:04 +0000</pubDate>
+      <sparkle:version>2400</sparkle:version>
+      <sparkle:shortVersionString>0.24.0</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[Split tabs and agent sessions now show together in a Split section of the sidebar, side by side or stacked like on screen, with one button to separate them.]]></description>
+      <enclosure url="https://github.com/roarbrowser/roar/releases/download/v0.24.0/Roar-0.24.0-intel.dmg" type="application/octet-stream" sparkle:edSignature="5Y/hM/eRIC7X1RNF9G4VxLtoZt+S/dOfK4FwEeQYfswf/iT5+I4n7y+dQKDX8LplZdbHZYwlKdgvF4tEjSsQAw==" length="224813961"/>
+    </item>
   </channel>
 </rss>
