@@ -560,7 +560,7 @@ window.roar = {
     const afOn = s.settings?.agentFilesRow !== false;
     $('af-btn').setAttribute('aria-pressed', String(afOn));
     $('af-btn').title = (afOn ? 'Hide' : 'Show') + ' the Agent files row';
-    const afRow = afOn ? `<button class="row pr cl af-row" data-agentmd title="Browse CLAUDE.md, AGENTS.md, Cursor rules and other agent instruction files"><span class="clmain"><span class="cl-ic"><svg class="agent-icon" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2.5c-1.4 0-2 .6-2 2v1.6c0 .9-.5 1.6-1.5 1.9 1 .3 1.5 1 1.5 1.9v1.6c0 1.4.6 2 2 2M10 2.5c1.4 0 2 .6 2 2v1.6c0 .9.5 1.6 1.5 1.9-1 .3-1.5 1-1.5 1.9v1.6c0 1.4-.6 2-2 2"/></svg></span><span class="label"><span class="cl-name"><b>Agent files</b></span><small>CLAUDE.md, AGENTS.md and rules</small></span></span></button>` : '';
+    const afRow = afOn ? `<div class="row pr cl af-row"><button class="clmain" data-agentmd title="Browse CLAUDE.md, AGENTS.md, Cursor rules and other agent instruction files"><span class="cl-ic"><svg class="agent-icon" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2.5c-1.4 0-2 .6-2 2v1.6c0 .9-.5 1.6-1.5 1.9 1 .3 1.5 1 1.5 1.9v1.6c0 1.4.6 2 2 2M10 2.5c1.4 0 2 .6 2 2v1.6c0 .9.5 1.6 1.5 1.9-1 .3-1.5 1-1.5 1.9v1.6c0 1.4-.6 2-2 2"/></svg></span><span class="label"><span class="cl-name"><b>Agent files</b></span><small>CLAUDE.md, AGENTS.md and rules</small></span></button><span class="cl-acts"><button data-afhide title="Hide the Agent files row (the {} button brings it back)" aria-label="Hide the Agent files row">${ico.hide}</button></span></div>` : '';
     setHtml($('cl'), starting + (cl.map(clRow).join('') || (starting || afRow ? '' : '<div class="note">No sessions yet. Press New to start one.</div>')) + afRow);
     clActive = webTab ? act.id : 0;
     if (fq) { const i = $('cl').querySelector(`[${fq}] input`); if (i && i !== f) { i.focus(); i.setSelectionRange(...fs); } }
@@ -1122,6 +1122,8 @@ document.addEventListener('click', (e) => {
     clReplyOpen = clReplyOpen === rp.dataset.clreply ? null : rp.dataset.clreply;
     return ask({ cmd: 'state' }).then(roar.render).then(() => $('cl').querySelector(`[data-clq="${CSS.escape(clReplyOpen || '')}"] input`)?.focus());
   }
+  // Same as turning off the {} button in the header.
+  if (e.target.closest('[data-afhide]')) { e.stopPropagation(); return ask({ cmd: 'settings.set', settings: { agentFilesRow: false } }); }
   const x = e.target.closest('[data-cldismiss]');
   if (x) { e.stopPropagation(); return ask({ cmd: 'claude.dismiss', id: x.dataset.cldismiss }); }
   const t = e.target.closest('[data-clsend]');
