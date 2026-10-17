@@ -26,8 +26,10 @@ Features:
 - Built-in MCP server: `claude mcp add roar -- /Applications/Roar.app/Contents/Resources/roar-mcp.sh`
 - Agents can send you sidebar cards (`notify_user`) or ask you a question with buttons (`ask_user`)
 - Agents allowed per space; ghost tabs always off-limits; one click blocks the current space
+- Agent sessions: your Claude Code, Codex, Gemini CLI, Qwen Code and Copilot CLI sessions in the sidebar, showing what each is doing and which need you; reply, send a page with a prompt, or start a new one in a folder or a scratch folder
+- Copied links come out clean: Outlook/Teams Safe Links unwrapped, tracking parameters removed, your own list too
 - Headed or headless agent mode
 
-Limits: macOS only (Apple Silicon), early, not notarized yet, some .mp4 video needs a codec build.
+Limits: macOS only (Apple Silicon), early. Signed with a Developer ID but not notarized yet, so the first launch needs Open Anyway in Privacy & Security. Some .mp4 video needs a codec build.
 
 https://github.com/roarbrowser/roar
