@@ -190,7 +190,7 @@ function apply(s) {
       stt === 'absent' ? 'Not set up on this Mac' : stt === 'error' ? 'Its config isn’t valid JSON; Roar won’t touch it' :
       stt === 'outdated' ? 'Its hooks run an old copy of Roar. Reconnect.' :
       stt === 'installed' ? (cli === 'codex' ? 'Connected. Approve Roar’s hooks once in Codex: run /hooks.' : 'Connected') : 'Not connected'}</small></span>${
-      stt === 'installed' || stt === 'absent' || stt === 'error' ? '' : `<button class="btn" data-tool="${cli}" data-on="true">${stt === 'outdated' ? 'Reconnect' : 'Connect'}</button>`}</div>`;
+      stt === 'absent' || stt === 'error' ? '' : `<button class="btn" data-tool="${cli}" data-on="${stt !== 'installed'}">${stt === 'installed' ? 'Disconnect' : stt === 'outdated' ? 'Reconnect' : 'Connect'}</button>`}</div>`;
   const chosen = (st.askLlms || '').split(',')[0];
   if (!$('llms').contains(document.activeElement))
     $('llms').innerHTML = LLMS.map(([id, name]) => `<button class="chip" data-llm="${id}" aria-pressed="${chosen === id}">${name}</button>`).join('');
