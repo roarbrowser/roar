@@ -4288,6 +4288,26 @@ bool Controller::HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> 
         cb->Success(j);
       }, cb, json));
     }, callback));
+  } else if (cmd == "claude.commands") {
+    // Names of the user's and the project's own / commands and skills, for the agent view's suggestions.
+    namespace fs = std::filesystem;
+    auto list = CefListValue::Create();
+    std::set<std::string> seen;
+    std::error_code ec;
+    for (const fs::path& base : {fs::path(platform::HomeDir()), fs::path(msg->GetString("cwd").ToString())}) {
+      if (base.empty() || !base.is_absolute()) continue;
+      for (const char* sub : {".claude/commands", ".claude/skills"})
+        for (fs::recursive_directory_iterator it(base / sub, ec), end; !ec && it != end; it.increment(ec)) {
+          if (it.depth() > 2) { it.disable_recursion_pending(); continue; }
+          const auto& p = it->path();
+          std::string name = p.filename() == "SKILL.md" ? p.parent_path().filename().string()
+              : p.extension() == ".md" && strcmp(sub, ".claude/commands") == 0 ? fs::relative(p, base / sub, ec).replace_extension().string() : "";
+          std::replace(name.begin(), name.end(), '/', ':');
+          if (!name.empty() && seen.insert(name).second) list->SetString(list->GetSize(), name);
+        }
+    }
+    auto v = CefValue::Create(); v->SetList(list);
+    callback->Success(ToJson(v));
   } else if (cmd == "agentmd.read") {
     auto p = AgentFilePath(msg->GetString("path").ToString());
     if (p.empty()) return callback->Failure(0, "Not an agent instructions file"), true;

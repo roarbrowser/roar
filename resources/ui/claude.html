@@ -17,7 +17,10 @@ pre { flex: 1; margin: 0 20px; padding: 14px 16px; overflow: auto; border-radius
 form { display: flex; gap: 8px; padding: 10px 20px 4px; }
 form input { flex: 1; min-width: 0; padding: 9px 12px; border-radius: 9px; border: 0; background: var(--ground); color: var(--ink); font: 14px var(--ui); box-shadow: inset 0 0 0 1px var(--rule); }
 #attach-why { margin: 0 20px; }
-#attach { max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#tab-menu { position: fixed; z-index: 9; max-height: 60vh; overflow-y: auto; min-width: 220px; max-width: 360px; padding: 6px; border-radius: 10px; background: var(--ground); box-shadow: 0 0 0 1px var(--rule), 0 8px 24px rgb(0 0 0 / .3); }
+#tab-menu h4 { margin: 6px 8px 4px; font: 600 11px var(--ui); color: var(--ink-3); }
+#tab-menu button { display: block; width: 100%; text-align: left; padding: 6px 8px; border-radius: 6px; color: var(--ink); font: 13px var(--ui); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#tab-menu button:hover, #tab-menu button:focus { background: var(--hover); }
 form button:not(.btn) { background: var(--mane); color: #2a1604; font-weight: 600; border-radius: 9px; padding: 0 16px; }
 .keys { display: flex; flex-wrap: wrap; gap: 6px; padding: 6px 20px 16px; }
 .keys button { background: var(--ground); border-radius: 7px; padding: 4px 10px; font: 12px var(--mono); color: var(--ink-2); }
@@ -27,8 +30,9 @@ form button:not(.btn) { background: var(--mane); color: #2a1604; font-weight: 60
 <body>
 <header><span class="dot" id="dot" aria-hidden="true"></span><span id="icon"></span><h1 id="name">Agent session</h1><span class="state" id="state" role="status"></span><button class="btn" id="attach">Send tab</button><button class="btn" id="beside" title="Split this view beside the web page you used last">Side by side</button><button class="btn" id="focus" title="Bring its terminal window to the front">Terminal</button></header>
 <pre id="screen" aria-live="off"></pre>
-<form id="reply"><input id="text" placeholder="Reply… (empty Enter accepts)" autocomplete="off" spellcheck="false" aria-label="Reply"><button>Send</button></form>
+<form id="reply"><input id="text" list="slash" placeholder="Reply… (/ for commands; empty Enter accepts)" autocomplete="off" spellcheck="false" aria-label="Reply"><datalist id="slash"></datalist><button>Send</button></form>
 <p class="status" id="attach-why" hidden></p>
+<div class="ctx" id="tab-menu" role="menu" hidden></div>
 <div class="keys" role="group" aria-label="Keys"></div>
 <script src="bridge.js"></script>
 <script src="cl-session.js"></script>
@@ -60,17 +64,30 @@ async function meta() {
   $('dot').className = 'dot ' + st;
   $('reply').hidden = $('screen').hidden = keys.hidden = !c.live;
   // This page is the active tab, so "+ This tab" means the web tab used most recently before it.
-  const web = s.tabs.filter((t) => !t.ghost && !t.active && /^https?:/.test(t.url || '')).sort((a, b) => a.idleSeconds - b.idleSeconds)[0];
-  attachTab = web ? web.id : 0;
+  webTabs = s.tabs.filter((t) => !t.ghost && !t.active && /^https?:/.test(t.url || '')).sort((a, b) => a.idleSeconds - b.idleSeconds);
+  const web = webTabs[0];
   $('attach').disabled = !web || !c.live;
   $('attach').hidden = !c.live;
-  // Name the page in the button itself: "Send tab" alone didn't say which tab.
-  $('attach').textContent = web ? `Send “${web.title || web.url}”` : 'Send tab';
-  $('attach').title = web ? `Send “${web.title || web.url}”: Roar saves it as Markdown and types @file into the prompt. Text in the reply box goes with it and Enter sends both; with none, no Enter` : 'Open a web page in this space first';
+  $('attach').title = web ? 'Pick a tab: Roar saves it as Markdown and types @file into the prompt. Text in the reply box goes with it and Enter sends both; with none, no Enter' : 'Open a web page in this space first';
   $('attach-why').hidden = !!web || !c.live;
+  if (c.cwd !== slashCwd) {
+    slashCwd = c.cwd;
+    ask({ cmd: 'claude.commands', cwd: c.cwd || '' }).then((x) => {
+      const own = typeof x === 'string' ? JSON.parse(x) : x || [];
+      $('slash').innerHTML = [...new Set([...own, ...(SLASH[c.tool || 'claude'] || [])])].map((n) => `<option value="/${esc(n)}">`).join('');
+    });
+  }
   $('attach-why').textContent = 'Open a web page in this space first: only web pages can be attached.';
 }
-let attachTab = 0;
+let webTabs = [], slashCwd;
+// Built-in / commands per CLI, offered with the user's own commands and skills.
+const SLASH = {
+  claude: ['clear', 'compact', 'context', 'cost', 'model', 'config', 'resume', 'review', 'init', 'memory', 'mcp', 'agents', 'permissions', 'hooks', 'status', 'help', 'exit', 'rewind', 'export', 'usage'],
+  codex: ['new', 'model', 'approvals', 'review', 'diff', 'compact', 'status', 'mcp', 'init', 'mention', 'quit'],
+  gemini: ['clear', 'compress', 'chat', 'memory', 'mcp', 'tools', 'stats', 'settings', 'help', 'quit'],
+  copilot: ['clear', 'model', 'mcp', 'agent', 'cwd', 'usage', 'help', 'exit'],
+};
+const esc = (t) => String(t).replace(/[&<>"]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[ch]);
 // Text in the reply box goes with the page as its prompt.
 $('beside').onclick = () => ask({ cmd: 'claude.beside', id });
 // The screen is read-only: a click there, or typing anywhere outside a field, goes to the reply box.
@@ -80,11 +97,27 @@ document.addEventListener('keydown', (e) => {
   if (e.target.closest?.('input, textarea, select, [contenteditable]')) return;
   $('text').focus();  // The key's character then lands in the box.
 });
-$('attach').onclick = async () => {
-  if (!attachTab) return;
-  await ask({ cmd: 'claude.sendTab', id, tab: attachTab, text: $('text').value.trim() });
+// Send tab asks which tab, pinned ones first.
+$('attach').onclick = () => {
+  const m = $('tab-menu');
+  if (!m.hidden) return void (m.hidden = true);
+  const group = (label, list) => list.length ? `<h4>${label}</h4>` + list.map((t) => `<button role="menuitem" data-tab="${t.id}" title="${esc(t.url)}">${esc(t.title || t.url)}</button>`).join('') : '';
+  m.innerHTML = group('Pinned', webTabs.filter((t) => t.pinned)) + group('Tabs', webTabs.filter((t) => !t.pinned));
+  const r = $('attach').getBoundingClientRect();
+  m.style.top = r.bottom + 6 + 'px';
+  m.style.right = Math.max(8, innerWidth - r.right) + 'px';
+  m.hidden = false;
+  m.querySelector('button')?.focus();
+};
+$('tab-menu').onclick = async (e) => {
+  const b = e.target.closest('[data-tab]');
+  if (!b) return;
+  $('tab-menu').hidden = true;
+  await ask({ cmd: 'claude.sendTab', id, tab: +b.dataset.tab, text: $('text').value.trim() });
   $('text').value = '';
 };
+document.addEventListener('mousedown', (e) => { if (!e.target.closest('#tab-menu, #attach')) $('tab-menu').hidden = true; });
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') $('tab-menu').hidden = true; });
 
 // Shows a failed control call in the screen area; true when |out| was an error.
 const shownError = (out) => {
