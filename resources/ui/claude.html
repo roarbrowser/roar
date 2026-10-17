@@ -90,6 +90,18 @@ const SLASH = {
 const esc = (t) => String(t).replace(/[&<>"]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[ch]);
 // Text in the reply box goes with the page as its prompt.
 $('beside').onclick = () => ask({ cmd: 'claude.beside', id });
+// Claude Code's fullscreen UI runs on the terminal's alternate screen, which has no tmux scrollback,
+// so a wheel past the mirror's own scroll range pages the session itself.
+let wheel = 0, paging = false;
+$('screen').addEventListener('wheel', async (e) => {
+  const pre = $('screen'), up = e.deltaY < 0;
+  if (up ? pre.scrollTop > 0 : pre.scrollTop + pre.clientHeight < pre.scrollHeight - 1) return;
+  e.preventDefault();
+  if ((wheel += e.deltaY) > -120 && wheel < 120 || paging) return;
+  wheel = 0; paging = true;
+  await clSession.ctl(id, 'send', up ? 'key:pgup' : 'key:pgdn');
+  paging = false; screen();
+}, { passive: false });
 // The screen is read-only: a click there, or typing anywhere outside a field, goes to the reply box.
 $('screen').addEventListener('click', () => { if (!getSelection().toString() && !$('reply').hidden) $('text').focus(); });
 document.addEventListener('keydown', (e) => {
