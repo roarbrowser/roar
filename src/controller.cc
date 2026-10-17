@@ -1337,10 +1337,7 @@ void Controller::ActivateTab(int id) {
   if (tab->floating) return DockTab(id);
   if (find_visible_ && find_tab_ != id) HideFind(false);
   if (Tab* old = ActiveTab()) old->last_active = NowSeconds();
-  // In split view, a tab picked from the same space replaces the focused pane.
-  bool in_split = split_a_ && (active_id_ == split_a_ || active_id_ == split_b_);
-  if (in_split && id != split_a_ && id != split_b_ && ActiveTab()->space == tab->space)
-    (active_id_ == split_a_ ? split_a_ : split_b_) = id;
+  // Another tab shows alone; the split stays and comes back with either of its tabs (drag a tab onto one to change a pane).
   active_id_ = id;
   State::Get().active_space = tab->space;
   tab->last_active = NowSeconds();
