@@ -2553,7 +2553,7 @@ void Controller::RunCommand(const std::string& id) {
   else if (id == "factoryReset") {
     // Reset Roar: the whole data dir (this instance's only) goes once Roar has exited; it comes back into onboarding.
     std::string dir = State::Get().Dir();
-    if (dir.size() < 2 || dir[0] != '/' || dir == platform::HomeDir()) return;
+    if (dir.size() < 4 || !std::filesystem::path(dir).is_absolute() || dir == platform::HomeDir()) return;
     platform::RelaunchAfterExit(dir);
     Quit();
   }

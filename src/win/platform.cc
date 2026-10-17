@@ -255,10 +255,14 @@ bool CdpEnabled() {
   return on;
 }
 
-void RelaunchAfterExit() {
+void RelaunchAfterExit(const std::string& wipe_dir) {
   // A detached cmd waits for this pid to go, then starts the same exe with the same env.
+  // The dir to wipe goes in through the environment, never into the script text.
+  SetEnvironmentVariableW(L"ROAR_WIPE_DIR", wipe_dir.empty() ? nullptr : W(wipe_dir).c_str());
   std::wstring script = L"/c powershell -NoProfile -Command \"Wait-Process -Id " +
-                        std::to_wstring(GetCurrentProcessId()) + L" -ErrorAction SilentlyContinue; Start-Process -FilePath '" +
+                        std::to_wstring(GetCurrentProcessId()) + L" -ErrorAction SilentlyContinue; " +
+                        L"if ($env:ROAR_WIPE_DIR) { Remove-Item -LiteralPath $env:ROAR_WIPE_DIR -Recurse -Force -ErrorAction SilentlyContinue; Remove-Item Env:ROAR_WIPE_DIR }; " +
+                        L"Start-Process -FilePath '" +
                         SelfExe() + L"'\"";
   STARTUPINFOW si{sizeof si};
   PROCESS_INFORMATION pi{};
