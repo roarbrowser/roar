@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Roar: your AI agent, in your real browser. Free for Mac and Windows</title>
-<meta name="description" content="Roar is a free, open-source browser for Mac and Windows. Claude, Cursor or Codex use it like you do, already logged in, in tabs you can watch and take over.">
+<title>Roar: your AI agent, in your real browser. Free for Mac</title>
+<meta name="description" content="Roar is a free, open-source browser for Mac. Claude, Cursor or Codex use it like you do, already logged in, in tabs you can watch and take over.">
 <link rel="canonical" href="https://roarbrowser.app/">
 <meta property="og:title" content="Roar: the open-source browser your AI agent can drive">
 <meta property="og:site_name" content="Roar">
@@ -17,10 +17,10 @@
 <meta property="og:url" content="https://roarbrowser.app/">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="Roar: your AI agent, in your real browser">
-<meta name="twitter:description" content="A free, open-source browser for Mac and Windows. Your agent uses it like you do, already logged in, in tabs you can watch and take over.">
+<meta name="twitter:description" content="A free, open-source browser for Mac. Your agent uses it like you do, already logged in, in tabs you can watch and take over.">
 <meta name="twitter:image" content="https://roarbrowser.app/media/roar-social.png">
 <script type="application/ld+json">
-{"@context":"https://schema.org","@type":"SoftwareApplication","name":"Roar","url":"https://roarbrowser.app/","description":"A free, open-source Chromium browser with a built-in MCP server, so AI agents like Claude, Cursor or Codex can drive it.","applicationCategory":"BrowserApplication","operatingSystem":"macOS, Windows","license":"https://opensource.org/licenses/MIT","downloadUrl":"https://github.com/roarbrowser/roar/releases/latest","codeRepository":"https://github.com/roarbrowser/roar","image":"https://roarbrowser.app/media/roar-social.png","offers":{"@type":"Offer","price":"0","priceCurrency":"USD"}}
+{"@context":"https://schema.org","@type":"SoftwareApplication","name":"Roar","url":"https://roarbrowser.app/","description":"A free, open-source Chromium browser with a built-in MCP server, so AI agents like Claude, Cursor or Codex can drive it.","applicationCategory":"BrowserApplication","operatingSystem":"macOS","license":"https://opensource.org/licenses/MIT","downloadUrl":"https://github.com/roarbrowser/roar/releases/latest","codeRepository":"https://github.com/roarbrowser/roar","image":"https://roarbrowser.app/media/roar-social.png","offers":{"@type":"Offer","price":"0","priceCurrency":"USD"}}
 </script>
 <link rel="icon" href="media/lion.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="media/roar-avatar.png">
@@ -275,7 +275,7 @@ try { const t = localStorage.getItem('theme'); if (t) document.documentElement.d
 <div class="wrap hero">
   <div>
     <h1>Your AI agent, in your real browser.</h1>
-    <p class="sub">Roar is a free, open-source browser for Mac and Windows. Claude, Cursor or Codex use it like you do, already logged in, in tabs you can watch and take over.</p>
+    <p class="sub">Roar is a free, open-source browser for Mac. Claude, Cursor or Codex use it like you do, already logged in, in tabs you can watch and take over.</p>
     <div class="cta">
       <a class="btn primary" id="dl" href="https://github.com/roarbrowser/roar/releases/latest">Download for Mac</a>
       <a class="btn ghost" href="#agents">Connect your agent</a>
@@ -487,7 +487,7 @@ try { const t = localStorage.getItem('theme'); if (t) document.documentElement.d
     { key: 'win-x64-zip', test: /windows-x64\.zip$/, button: 'Download for Windows (portable)', short: 'Windows portable zip (x64)' },
     { key: 'win-arm-zip', test: /windows-arm64\.zip$/, button: 'Download for Windows on ARM (portable)', short: 'Windows portable zip (ARM)' },
   ];
-  for (const b of builds) b.url = (Array.isArray(rels) ? rels : []).filter(r => !r.draft && !r.prerelease).flatMap(r => r.assets || []).find(a => b.test.test(a.name))?.browser_download_url;
+  for (const b of builds) b.url = (Array.isArray(rels) ? rels : []).filter(r => !r.draft && !r.prerelease && !/^v0\./.test(r.tag_name))  // 0.x builds carry older notices and offer; never send visitors there.flatMap(r => r.assets || []).find(a => b.test.test(a.name))?.browser_download_url;
   const have = builds.filter(b => b.url);
   if (!have.length) return;  // Keep the plain links to the releases page.
   const want = win ? (arm ? 'win-arm' : 'win-x64') : (arm ? 'mac-arm' : 'mac-intel');
