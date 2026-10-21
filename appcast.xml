@@ -11,5 +11,14 @@
       <description><![CDATA[Roar 1.0.0, the first official release.]]></description>
       <enclosure url="https://github.com/roarbrowser/roar/releases/download/v1.0.0/Roar-1.0.0.dmg" type="application/octet-stream" sparkle:edSignature="He0BS9rY1mPzWz8p62Oqkoew7AiAHeEYxu6zWLbwpFlmVQPZkxcadv0N6cv5MzVpL/JCBZO5NEvdkHGkBbJ5Bg==" length="207544931"/>
     </item>
+    <item>
+      <title>1.0.1</title>
+      <pubDate>Wed, 21 Oct 2026 22:43:51 +0000</pubDate>
+      <sparkle:version>10001</sparkle:version>
+      <sparkle:shortVersionString>1.0.1</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[H.264 video plays again through macOS VideoToolbox. The sidebar's Tabs header gets an AI rename button for ungrouped tabs. Slash commands are colored in agent chat, terminal and model chat. Settings has one agent list and a Notifications section.]]></description>
+      <enclosure url="https://github.com/roarbrowser/roar/releases/download/v1.0.1/Roar-1.0.1.dmg" type="application/octet-stream" sparkle:edSignature="KWUH3lXRYukUDFy874lFqfUzU8o5gB8Z28xXHAP3hGxnIDaYCCOndc5PHl/Dj5B7nyqeAg0Fk0wEjNf+9LMKAw==" length="207551628"/>
+    </item>
   </channel>
 </rss>
