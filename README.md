@@ -15,8 +15,7 @@
 
 <p align="center">
   <b>Download for macOS:</b> <a href="https://github.com/roarbrowser/roar/releases/latest"><b>Apple Silicon</b></a> (<code>Roar-&lt;version&gt;.dmg</code>)
-  &nbsp;·&nbsp; <a href="https://github.com/roarbrowser/roar/releases/latest"><b>Intel</b></a> (<code>Roar-&lt;version&gt;-intel.dmg</code>)
-  <br><b>Windows:</b> <a href="https://github.com/roarbrowser/roar/releases/latest">installer</a> (<code>Roar-windows-x64-setup.exe</code>, ARM64 too) or portable zip
+  <br>Intel Macs and Windows: not in the 1.0.x releases yet; build from source (see For developers).
   <br><a href="https://roarbrowser.app/">Website</a> &nbsp;·&nbsp; Open source, MIT licensed
 </p>
 
@@ -44,13 +43,13 @@
 
 About five minutes. Needs macOS 13 or later; no Node.js.
 
-**1. Download (1 min).** Get the latest `Roar-<version>.dmg` (Apple Silicon) or `Roar-<version>-intel.dmg` (Intel) from [Releases](https://github.com/roarbrowser/roar/releases/latest), open it and drag Roar onto Applications. Or:
+**1. Download (1 min).** Get the latest `Roar-<version>.dmg` (Apple Silicon; 1.0.x has no Intel DMG) from [Releases](https://github.com/roarbrowser/roar/releases/latest), open it and drag Roar onto Applications. Or:
 
 ```bash
 brew install --cask roarbrowser/tap/roar
 ```
 
-On Windows, run `Roar-windows-x64-setup.exe` (or `-arm64-setup.exe`) to install Roar into Program Files with a Start menu entry, or unzip `Roar-windows-x64.zip` anywhere and run `Roar.exe` (portable, no install). Either way your data lives in `%APPDATA%\Roar`. Windows has no auto-update yet: install each new release over the old one.
+Windows builds are paused for 1.0.x, so releases carry no Windows files; when they return: on Windows, run `Roar-windows-x64-setup.exe` (or `-arm64-setup.exe`) to install Roar into Program Files with a Start menu entry, or unzip `Roar-windows-x64.zip` anywhere and run `Roar.exe` (portable, no install). Either way your data lives in `%APPDATA%\Roar`. Windows has no auto-update yet: install each new release over the old one.
 
 **2. First open.** Roar is signed and notarized by Apple, so it opens like any app you download: macOS asks once whether to open it. Click **Open**.
 
@@ -286,13 +285,15 @@ before sending a change; UI-only edits reach the app bundle only through that sc
 
 ## Source code for open-source components
 
-Roar bundles FFmpeg (LGPL-2.1, built into the CEF framework) and uBlock Origin Lite (GPLv3).
+Roar bundles FFmpeg (LGPL-2.1, built into the CEF framework), uBlock Origin Lite (GPLv3), and in
+`roar-mcp` the Bun runtime with JavaScriptCore (LGPL-2) and TinyCC (LGPL-2.1). The written offer in the
+notices covers these and the complete CEF/Chromium source of each release.
 Each [GitHub release](https://github.com/roarbrowser/roar/releases) attaches the exact source
 for that version: `ffmpeg-<rev>.tar.gz`, `uBOL-home-<version>.tar.gz`, the uBO Lite zip and
 `roar-cef-patches.tar.gz`. For at least three years after a version's release, the source is
 also available on request from roarbrowser@gmail.com at no more than the cost of distribution.
 The full notices and this written offer ship in `Roar.app/Contents/Resources/THIRD_PARTY_NOTICES.txt`.
-For Roar 0.37.14, whose bundled notices are incomplete, see [legal/roar-0.37.14-notices-supplement.md](legal/roar-0.37.14-notices-supplement.md).
+Roar 0.37.14 is no longer offered for download, but its written offer still runs: its source (the `v0.37.14` tree, its CEF patches and FFmpeg revision) is kept and sent on request. For its complete notices, see [legal/roar-0.37.14-notices-supplement.md](legal/roar-0.37.14-notices-supplement.md).
 
 ## License
 
