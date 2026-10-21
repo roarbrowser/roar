@@ -73,6 +73,7 @@ textarea { flex: 1; resize: none; border: 0; background: none; color: var(--ink)
 </main>
 <script src="bridge.js"></script>
 <script src="chat-core.js"></script>
+<script src="slash-mark.js"></script>
 <script>
 const $ = (id) => document.getElementById(id);
 const { defaultModel, SEARCH_SYSTEM, searchMode, openRequest, addSources, CLI_PROVIDERS, pageRefusal, cliPrompt, cliParser, parseProviders, sseParser, streamDelta, requestBody, detectProviders, renderMarkdown } = chatCore;
@@ -97,7 +98,7 @@ function bubble(m) {
   const d = document.createElement('div');
   d.className = 'msg ' + m.role + (m.error ? ' error' : '');
   const chip = m.page ? `<div class="page" title="${esc(m.page.url)}">📄 <span>${esc(m.page.title || m.page.url)}</span></div>` : '';
-  d.innerHTML = chip + (m.role === 'user' || m.error ? esc(m.text) : renderMarkdown(m.text)) + sourcesHtml(m.sources);
+  d.innerHTML = chip + (m.error ? esc(m.text) : m.role === 'user' ? slashMark.html(esc(m.text)) : renderMarkdown(m.text)) + sourcesHtml(m.sources);
   return d;
 }
 // Links under a reply that used web search. Only http(s): a source URL comes from the web.
@@ -289,6 +290,7 @@ function run(p, model, mode, user, mayOpen) {
 }
 
 const grow = () => { const t = $('text'); t.style.height = 'auto'; t.style.height = Math.min(200, t.scrollHeight) + 'px'; };
+slashMark.field($('text'));
 $('text').addEventListener('input', grow);
 $('text').addEventListener('keydown', (e) => {
   if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); send(); }
