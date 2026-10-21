@@ -1,0 +1,50 @@
+diff --git a/cef/BUILD.gn b/cef/BUILD.gn
+--- a/cef/BUILD.gn
++++ b/cef/BUILD.gn
+@@ -578,6 +578,7 @@
+     "libcef/browser/chrome/extensions/chrome_extension_util.h",
+     "libcef/browser/chrome/roar_create_target.cc",
+     "libcef/browser/chrome/roar_create_target.h",
++    "libcef/browser/chrome/roar_devtools_filter.cc",
+     "libcef/browser/chrome/extensions/chrome_mime_handler_view_guest_delegate_cef.cc",
+     "libcef/browser/chrome/extensions/chrome_mime_handler_view_guest_delegate_cef.h",
+     "libcef/browser/chrome/views/browser_platform_delegate_chrome_child_window.cc",
+diff --git a/cef/libcef/browser/chrome/roar_devtools_filter.cc b/cef/libcef/browser/chrome/roar_devtools_filter.cc
+new file mode 100644
+--- /dev/null
++++ b/cef/libcef/browser/chrome/roar_devtools_filter.cc
+@@ -0,0 +1,34 @@
++// Roar: lets the embedder hide browsers from remote CDP clients (the HTTP
++// endpoints and the browser-level Target domain). Chromium side:
++// roar_devtools_target_filter.patch.
++
++#include "cef/libcef/browser/browser_host_base.h"
++#include "content/public/browser/browser_context.h"
++#include "content/public/browser/web_contents.h"
++
++namespace content {
++void RoarSetDevToolsTargetFilter(bool (*filter)(WebContents*,
++                                                BrowserContext*));
++}  // namespace content
++
++namespace {
++// Gets the browser id (0 for contents that are not a CEF browser) and the
++// profile directory; true shows the target.
++using RoarTargetFilter = bool (*)(int browser_id, const char* profile_path);
++RoarTargetFilter g_filter = nullptr;
++
++bool Allow(content::WebContents* contents, content::BrowserContext* context) {
++  auto browser =
++      contents ? CefBrowserHostBase::GetBrowserForContents(contents) : nullptr;
++  std::string path = context ? context->GetPath().value() : std::string();
++  return !g_filter ||
++         g_filter(browser ? browser->GetIdentifier() : 0, path.c_str());
++}
++}  // namespace
++
++// Exported for the embedder, which finds it with dlsym. Call on the UI thread.
++extern "C" __attribute__((visibility("default"))) void
++roar_set_devtools_target_filter(RoarTargetFilter filter) {
++  g_filter = filter;
++  content::RoarSetDevToolsTargetFilter(filter ? Allow : nullptr);
++}

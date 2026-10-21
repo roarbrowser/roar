@@ -1,0 +1,252 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Welcome to Roar</title>
+<link rel="stylesheet" href="roar.css">
+<style>
+/* First-run onboarding: five skippable steps. Everything here also lives in Settings (settings.html). */
+body { background: var(--panel); overflow-y: auto; }
+main { max-width: 620px; margin: 0 auto; padding: 64px 32px 80px; display: grid; gap: 28px; }
+header { display: grid; gap: 10px; }
+.hero { width: 76px; height: 76px; }
+h1 { margin: 0; font: 800 54px/0.95 var(--round); letter-spacing: -.035em; }
+h1 .grr { color: var(--mane); }
+.steps { display: flex; gap: 6px; list-style: none; margin: 0; padding: 0; }
+.steps li { flex: 1; height: 4px; border-radius: 2px; background: var(--rule); }
+.steps li.done { background: var(--mane); }
+.step { display: grid; gap: 14px; }
+h2 { margin: 0; font: 700 22px var(--round); letter-spacing: -.01em; }
+p { margin: 0; color: var(--ink-2); line-height: 1.55; font-size: 14px; max-width: 58ch; }
+.controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.row { display: flex; gap: 10px; align-items: center; min-height: 38px; border-bottom: 1px solid var(--rule); font-size: 13px; }
+.row .name { flex: 1; } .row small { display: block; color: var(--ink-3); font-size: 12px; }
+.tool-row .agent-icon { vertical-align: -3px; margin-right: 8px; }
+#agent-setup h3 { margin: 14px 0 0; font: 600 12.5px var(--ui); color: var(--ink-3); }
+#agent-setup select { font: 13px var(--ui); padding: 5px 9px; border-radius: 7px; border: 1px solid var(--rule); background: var(--ground); color: var(--ink); }
+#agent-setup summary { padding: 8px 0; color: var(--ink-3); font-size: 13px; } .btn.on { color: var(--ok); } .empty { color: var(--ink-3); font-size: 13px; }
+.tiles { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+.tile { display: flex; gap: 10px; align-items: center; padding: 12px 14px; border-radius: 10px; text-align: left; box-shadow: inset 0 0 0 1px var(--rule); }
+.tile svg { width: 20px; height: 20px; flex: none; color: var(--ink-2); }
+.tile span { flex: 1; } .tile small { display: block; color: var(--ink-3); font-size: 12px; }
+.tile[aria-pressed="true"] { box-shadow: inset 0 0 0 2px var(--mane); background: var(--mane-soft); }
+.tips { border-top: 1px solid var(--rule); padding-top: 18px; display: grid; gap: 10px; }
+.tips h3 { margin: 0; font: 600 14px var(--round); }
+.tips p { font-size: 13px; }
+.nav { display: flex; align-items: center; gap: 10px; }
+.nav .spacer { flex: 1; }
+.link { color: var(--ink-3); font-size: 13px; }
+.link:hover { color: var(--ink); }
+@media (max-width: 520px) { h1 { font-size: 42px; } main { padding: 40px 18px 64px; } .tiles { grid-template-columns: 1fr; } }
+/* Start browsing: the lion pops in, its mane bursts open, it roars, and the camera dives through it into the browser. */
+#roar { position: fixed; inset: 0; z-index: 10; display: grid; place-items: center; overflow: hidden;
+  background: radial-gradient(circle at 50% 46%, var(--mane-soft), var(--panel) 62%); animation: roar-bg .25s ease-out both; }
+#roar .stage { display: grid; justify-items: center; gap: 6px; transform-origin: 50% 38%; animation: roar-dive .5s 1.35s cubic-bezier(.6, 0, .9, .4) forwards; }
+#roar svg { width: min(52vmin, 380px); height: min(52vmin, 380px); overflow: visible; }
+#roar :is(.petal, .ear, .head, .jaw, .ring) { transform-box: fill-box; transform-origin: center; }
+#roar .petal { animation: roar-petal .55s calc(.12s + var(--i) * 28ms) cubic-bezier(.2, 1.7, .4, 1) both; }
+#roar .ear { animation: roar-pop .35s .3s cubic-bezier(.2, 1.8, .4, 1) both; }
+#roar .head { transform-origin: 50% 60%; animation: roar-pop .45s .05s cubic-bezier(.2, 1.6, .4, 1) both, roar-shake .4s .7s ease-in-out; }
+#roar .jaw { transform-origin: 50% 0; animation: roar-jaw .5s .65s ease-in-out both; }
+#roar .ring { fill: none; stroke: var(--mane); stroke-width: 3.5; opacity: 0; animation: roar-ring .75s calc(.7s + var(--i) * .13s) ease-out; }
+#roar .word { font: 800 clamp(28px, 6vmin, 48px) var(--round); letter-spacing: -.03em; color: var(--ink); animation: roar-rise .45s .8s cubic-bezier(.2, .9, .2, 1) both; }
+#roar .word b { color: var(--mane); }
+@keyframes roar-bg { from { opacity: 0; } }
+@keyframes roar-pop { from { transform: scale(.2); opacity: 0; } }
+@keyframes roar-petal { from { transform: translate(calc(var(--dx) * 1px), calc(var(--dy) * 1px)) scale(0); } }
+@keyframes roar-jaw { 40%, 70% { transform: scaleY(1.7); } }
+@keyframes roar-shake { 20% { transform: rotate(-4deg) scale(1.04); } 45% { transform: rotate(4deg) scale(1.04); } 70% { transform: rotate(-2deg); } }
+@keyframes roar-ring { from { opacity: 1; transform: scale(.3); } to { opacity: 0; transform: scale(4.5); } }
+@keyframes roar-rise { from { opacity: 0; transform: translateY(16px); } }
+@keyframes roar-dive { to { transform: scale(7); opacity: 0; } }
+.ring-opt { display: flex; gap: 10px; align-items: flex-start; margin-top: 14px; padding: 10px 12px; border: 1px solid var(--rule); border-radius: 10px; cursor: pointer; }
+.ring-opt small { display: block; color: var(--ink-3); margin-top: 2px; }
+.ring-opt .ring-key { flex: none; width: 8px; height: 8px; margin-top: 5px; border-radius: 50%; background: var(--mane); box-shadow: 0 0 0 1.5px var(--panel), 0 0 0 2.5px #7aa898; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <span class="lion hero" aria-hidden="true"></span>
+    <h1>Roar<span class="grr">.</span></h1>
+    <p>The open-source browser your agent can drive. Five quick steps, each one skippable; all of it is in Settings (⌘,) later.</p>
+  </header>
+  <ol class="steps" aria-hidden="true"><li></li><li></li><li></li><li></li><li></li></ol>
+
+  <section class="step" data-step="1" aria-labelledby="h1s">
+    <h2 id="h1s">Bring your stuff</h2>
+    <p>Import bookmarks, pinned tabs and extensions from the browser you're leaving. From Arc, its spaces and folders come too.</p>
+    <div class="controls" id="imports">
+      <button class="chip" data-import="arc">Arc</button><button class="chip" data-import="chrome">Chrome</button><button class="chip" data-import="safari">Safari</button>
+      <button class="chip" data-import="firefox">Firefox</button><button class="chip" data-import="edge">Edge</button><button class="chip" data-import="dia">Dia</button>
+    </div>
+  </section>
+
+  <section class="step" data-step="2" aria-labelledby="h2s" hidden>
+    <h2 id="h2s">Make Roar your default browser</h2>
+    <p>Links you click in Mail, Slack or any other app open in Roar. macOS asks you to confirm. Until then, Roar reminds you at launch.</p>
+    <div class="controls"><button class="btn primary" id="make-default">Make Roar the default</button><span class="status" id="default-status"></span></div>
+  </section>
+
+  <section class="step" data-step="3" aria-labelledby="h3s" hidden>
+    <h2 id="h3s">Connect your agent</h2>
+    <p>Pick your AI and connect the tools you use, so they can see your pages and browse with Roar.</p>
+    <p>Connecting a coding agent like Claude Code also lists its sessions in the sidebar and tells you when one needs you or finishes. No agent tools here? Skip this step.</p>
+    <div id="agent-setup"></div>
+    <label class="ring-opt"><input type="checkbox" id="ring-on"> <span class="ring-key" aria-hidden="true"></span><span><b>Let agents use this space</b><small>Agents can see and open this space's tabs. A ring around the space's dot at the bottom of the sidebar shows it's on; click the dot to turn it off any time.</small></span></label>
+  </section>
+
+  <section class="step" data-step="4" aria-labelledby="h5s" hidden>
+    <h2 id="h5s">Talk instead of typing</h2>
+    <p>Press <kbd id="dict-key">⌥⇧Space</kbd> or the mic at the bottom of the sidebar, speak, then press it again. Your words go into the text field you're in: a web page, an AI chat or an agent's reply box.</p>
+    <p>Speech becomes text on this device, with NVIDIA's open Parakeet model; no audio leaves it. The model is about <span id="dict-mb">470</span> MB and downloads once. Roar asks for the microphone the first time you dictate.</p>
+    <div class="controls"><button class="btn primary" id="dict-on">Turn on dictation</button><span class="status" id="dict-status" role="status"></span></div>
+  </section>
+
+  <section class="step" data-step="5" aria-labelledby="h4s" hidden>
+    <h2 id="h4s">Pick your sidebar modules</h2>
+    <p>Each one sits as an icon at the bottom of the sidebar. Turn any of them on or off later in Settings (the highlighted sliders). A ring on your space's dot means agents can use it; click the dot to turn that off.</p>
+    <div class="tiles" id="tiles">
+      <button class="tile" data-mod="claude"><i data-icon="claude"></i><span>AI<small>Coding agents that need you, and your Ask chats</small></span></button>
+      <button class="tile" data-mod="agentFiles"><i data-icon="agentFiles"></i><span>Agent files<small>CLAUDE.md, AGENTS.md, rules</small></span></button>
+      <button class="tile" data-mod="github"><i data-icon="github"></i><span>Pull requests<small>Yours, through the GitHub CLI</small></span></button>
+      <button class="tile" data-mod="gmail"><i data-icon="gmail"></i><span>Unread mail<small>With your Gmail login</small></span></button>
+    </div>
+    <div class="tips" id="tips">
+      <h3>Tips</h3>
+      <p><kbd>⌘T</kbd> is one bar for addresses, searches, open tabs and history. Start with <kbd>&gt;</kbd> to run a command.</p>
+      <p><b>Share a page with your agent.</b> The paperclip on an agent session sends it the page you're on, as Markdown. <b>Code</b> starts a coding agent session, with tabs attached if you like; <b>Ask</b> talks to a model directly.</p>
+      <p><b>Spaces</b> keep work and home apart, each with its own logins (<kbd>⌃1</kbd>–<kbd>⌃9</kbd>). <kbd>⌘\</kbd> puts two tabs side by side. Idle tabs drift to Archived; pinned ones stay.</p>
+    </div>
+  </section>
+
+  <div class="nav">
+    <button class="btn" id="back" hidden>Back</button>
+    <span class="spacer"></span>
+    <button class="link" id="skip">Skip</button>
+    <button class="btn primary" id="next">Next</button>
+  </div>
+</main>
+<script src="bridge.js"></script>
+<script src="module-icons.js"></script>
+<script src="cl-session.js"></script>
+<script src="agent-setup.js"></script>
+<script>
+const $ = (id) => document.getElementById(id);
+const set = (settings) => ask({ cmd: 'settings.set', settings }).then(apply);
+const refresh = () => ask({ cmd: 'state' }).then(apply);
+for (const el of document.querySelectorAll('[data-icon]')) el.outerHTML = MODULE_ICONS[el.dataset.icon];
+
+const LAST = 5;
+let step = location.hash === '#tips' ? LAST : 1;
+function show() {
+  document.querySelectorAll('.step').forEach((s) => s.hidden = +s.dataset.step !== step);
+  document.querySelectorAll('.steps li').forEach((l, i) => l.classList.toggle('done', i < step));
+  $('back').hidden = step === 1;
+  $('skip').hidden = step === LAST;
+  $('next').textContent = step === LAST ? 'Start browsing' : 'Next';
+  set({ footerTour: step === LAST });  // The sidebar points out Settings and the space dot on the last step.
+}
+// Builds the roar from lion.svg itself: its first ten circles are the mane, the next four the ears.
+async function roar() {
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  const doc = new DOMParser().parseFromString(await (await fetch('lion.svg')).text(), 'image/svg+xml');
+  const svg = doc.documentElement, g = svg.querySelector('g');
+  svg.querySelector('rect').remove();
+  svg.setAttribute('viewBox', '152 140 720 720');
+  const parts = [...g.children];
+  parts.slice(0, 10).forEach((c, i) => {
+    c.classList.add('petal');
+    c.style.cssText = `--i:${i};--dx:${50 - c.getAttribute('cx')};--dy:${54 - c.getAttribute('cy')}`;
+  });
+  parts.slice(10, 14).forEach((c) => c.classList.add('ear'));
+  const head = doc.createElementNS(svg.namespaceURI, 'g');
+  head.classList.add('head');
+  parts.slice(14).forEach((c) => head.append(c));
+  head.lastElementChild.classList.add('jaw');               // fangs
+  head.lastElementChild.previousElementSibling.classList.add('jaw'); // mouth
+  for (let i = 0; i < 3; i++) {
+    const r = doc.createElementNS(svg.namespaceURI, 'circle');
+    Object.entries({ cx: 50, cy: 70, r: 12, class: 'ring', style: `--i:${i}` }).forEach(([k, v]) => r.setAttribute(k, v));
+    g.append(r);
+  }
+  g.append(head);
+  const el = document.createElement('div');
+  el.id = 'roar';
+  el.setAttribute('aria-hidden', 'true');
+  el.innerHTML = `<div class="stage">${svg.outerHTML}<div class="word">Let's <b>roar.</b></div></div>`;
+  document.body.append(el);
+  await new Promise((ok) => setTimeout(ok, 1850));
+}
+const finish = () => set({ onboarded: true, footerTour: false }).then(() => roar().catch(() => {})).then(() => ask({ cmd: 'tab.closeSelf' }));
+// Leaving the agent step without connecting a CLI that's here counts as "Don't remind me" for its
+// sidebar warning; Settings > Agents still connects it (and clears that).
+// The welcome page's own copy of the space-dot toggle (sidebar toggleAgents): turning on also opens CDP.
+ask({ cmd: 'state' }).then((x) => { const s = typeof x === 'string' ? JSON.parse(x) : x; $('ring-on').checked = !!(s.settings?.cdpOn && s.spaces.find((sp) => sp.id === s.activeSpace)?.agents); $('ring-on').dataset.space = s.activeSpace; });
+$('ring-on').onchange = () => { const on = $('ring-on').checked;
+  (on ? ask({ cmd: 'settings.set', settings: { cdpEnabled: true } }) : Promise.resolve()).then(() => ask({ cmd: 'space.agents', id: +$('ring-on').dataset.space, on })); };
+const leaveAgents = () => step === 3 && ask({ cmd: 'state' }).then((s) => {
+  if (typeof s === 'string') s = JSON.parse(s);
+  const ignore = (s.settings.agentHooksIgnore || '').split(',').filter(Boolean);
+  const off = Object.entries(s.claude?.tools || {}).filter(([t, st]) => st === 'not installed' && !ignore.includes(t)).map(([t]) => t);
+  if (off.length) set({ agentHooksIgnore: [...ignore, ...off].join(',') });
+});
+$('next').onclick = () => (step === LAST ? finish() : (leaveAgents(), step++, show()));
+$('skip').onclick = () => { leaveAgents(); step++; show(); };
+$('back').onclick = () => { step--; show(); };
+
+// Module tiles: pressed = on. Agents also needs some CLI's hooks installed (all found here, on press).
+const modOn = (s, m) => ({ claude: s.settings.claudeSidebar !== false && !!s.claude?.hooks, agentFiles: s.settings.agentFilesRow !== false,
+  github: s.github.enabled, gmail: s.gmail.enabled })[m];
+let last = null;
+function apply(s) {
+  if (typeof s === 'string') s = JSON.parse(s);
+  last = s;
+  for (const t of document.querySelectorAll('[data-mod]')) t.setAttribute('aria-pressed', String(!!modOn(s, t.dataset.mod)));
+  $('make-default').hidden = s.settings.isDefaultBrowser;
+  $('default-status').textContent = s.settings.isDefaultBrowser ? 'Roar is your default browser.' : '';
+  $('default-status').classList.toggle('ok', s.settings.isDefaultBrowser);
+  // Dictation step: on starts the model download; Skip leaves it off.
+  const d = s.dictation || {}, pct = Math.round((d.progress || 0) * 100), on = s.settings.dictation;
+  $('dict-mb').textContent = d.modelMb || 470;
+  if (/Mac/.test(navigator.platform)) $('dict-key').textContent = (s.settings.dictationKey || '').replace(/Cmd\+/i, '⌘').replace(/Ctrl\+/i, '⌃').replace(/Alt\+/i, '⌥').replace(/Shift\+/i, '⇧');
+  else $('dict-key').textContent = s.settings.dictationKey || '';
+  $('dict-on').hidden = on;
+  if (on && d.keyTaken && d.state !== 'downloading') return void ($('dict-status').textContent = 'That shortcut is in use; pick another in Settings › Dictation');
+  $('dict-status').textContent = !on ? '' : d.state === 'downloading' ? `Dictation is on. Downloading the model: ${pct}% of ${d.modelMb} MB.`
+    : d.state === 'preparing' ? 'Dictation is on. Preparing the model…'
+    : d.state === 'error' ? d.detail || 'The model download stopped. Try again from Settings > Dictation.'
+    : d.diskMb > 0 ? 'Dictation is on and ready.' : 'Dictation is on.';
+  $('dict-status').classList.toggle('ok', on && d.state !== 'error');
+  clearTimeout(apply.t);
+  if (on && ['downloading', 'preparing', 'loading'].includes(d.state)) apply.t = setTimeout(refresh, 700);
+}
+$('dict-on').onclick = () => set({ dictation: true }).then(() => ask({ cmd: 'dictation.load' })).then(refresh);
+$('tiles').onclick = (e) => {
+  const t = e.target.closest('[data-mod]');
+  if (!t || !last) return;
+  const on = !modOn(last, t.dataset.mod);
+  if (t.dataset.mod === 'claude') { set({ claudeSidebar: on }); ask({ cmd: 'claude.hooks', on }).then(refresh); }
+  // PRs show in one space; turning them on while bound to another moves them here.
+  else if (t.dataset.mod === 'github') (on ? ask({ cmd: 'settings.set', settings: { githubFolder: false } }) : Promise.resolve()).then(() => set({ githubFolder: on }));
+  else set({ agentFiles: { agentFilesRow: on }, gmail: { gmailFolder: on } }[t.dataset.mod]);
+};
+$('make-default').onclick = () => ask({ cmd: 'browser.makeDefault' }).then(refresh);
+// Windows: Ctrl for ⌘, Alt+digit for spaces, and only browsers Roar can import there.
+if (/Windows/.test(navigator.userAgent)) {
+  for (const id of ['arc', 'safari', 'dia']) document.querySelector(`[data-import="${id}"]`)?.remove();
+  const walk = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+  for (let n; (n = walk.nextNode());) n.nodeValue = n.nodeValue.replace(/⌃(\d)/g, 'Alt+$1').replace(/⌘/g, 'Ctrl+');
+}
+$('imports').onclick = (e) => {
+  const b = e.target.closest('[data-import]');
+  if (b) ask({ cmd: 'run', id: 'import:' + b.dataset.import }).then(refresh);
+};
+
+agentSetup($('agent-setup'));
+
+show();
+refresh();
+</script>
+</body>
+</html>

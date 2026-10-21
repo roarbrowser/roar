@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Booking</title>
+<!-- Demo mock: invented brands and prices, no network calls, nothing is ever submitted. ?p=lodges|flights|safari|summary -->
+<style>
+  :root { --bg:#f6f1e7; --ink:#2a2118; --mute:#7a6b5a; --card:#fff; --line:#e4dacb; --acc:#c8641e; --ok:#2f7d4f; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:16px/1.45 -apple-system, "Segoe UI", sans-serif; background:var(--bg); color:var(--ink); }
+  header { display:flex; align-items:center; gap:14px; padding:18px 40px; background:var(--ink); color:#fff; }
+  header b { font-size:22px; letter-spacing:.3px; } header span { color:#d9c6ad; }
+  main { max-width:1100px; margin:0 auto; padding:28px 40px 60px; }
+  h1 { margin:0 0 4px; font-size:30px; } .sub { color:var(--mute); margin-bottom:22px; }
+  .grid { display:grid; grid-template-columns:repeat(3, 1fr); gap:18px; }
+  .card { background:var(--card); border:2px solid var(--line); border-radius:14px; padding:18px; transition:.35s; position:relative; }
+  .card .art { height:120px; border-radius:10px; margin-bottom:12px; }
+  .card h3 { margin:0 0 4px; font-size:19px; } .meta { color:var(--mute); font-size:14px; }
+  .price { font-size:22px; font-weight:700; margin-top:10px; }
+  .card.best { border-color:var(--ok); box-shadow:0 0 0 4px #2f7d4f22; }
+  .card.pick { border-color:var(--acc); box-shadow:0 0 0 4px #c8641e33; }
+  .card.dim { opacity:.45; }
+  .tag { position:absolute; top:12px; right:12px; background:var(--ok); color:#fff; font-size:12px; padding:3px 9px; border-radius:99px; display:none; }
+  .card.best .tag, .card.pick .tag { display:block; } .card.pick .tag { background:var(--acc); }
+  form { margin-top:26px; background:var(--card); border:2px solid var(--line); border-radius:14px; padding:22px; display:none; }
+  form.on { display:block; }
+  .row { display:grid; grid-template-columns:repeat(3, 1fr); gap:14px; margin-bottom:14px; }
+  label { font-size:13px; color:var(--mute); display:block; margin-bottom:4px; }
+  input { width:100%; font:inherit; padding:10px 12px; border:1.5px solid var(--line); border-radius:8px; }
+  input.typing { border-color:var(--acc); }
+  .pay { display:flex; align-items:center; gap:16px; margin-top:8px; }
+  .pay button { font:inherit; font-weight:600; padding:12px 22px; border:0; border-radius:10px; background:#bdb3a6; color:#fff; }
+  .stop { display:none; color:var(--acc); font-weight:600; } .stop.on { display:block; }
+  .demo { margin-top:30px; font-size:12px; color:var(--mute); }
+</style>
+</head>
+<body>
+<header><b id="brand"></b><span id="tag"></span></header>
+<main>
+  <h1 id="h"></h1><div class="sub" id="sub"></div>
+  <div class="grid" id="grid"></div>
+  <form id="form" onsubmit="return false">
+    <div class="row">
+      <div><label>Traveller</label><input id="f-name"></div>
+      <div><label>Dates</label><input id="f-dates"></div>
+      <div><label>Guests</label><input id="f-guests"></div>
+    </div>
+    <div class="pay"><button type="button" disabled>Continue to payment</button><div class="stop" id="stop">Stopped before payment. Waiting for you.</div></div>
+  </form>
+  <div class="demo">Demo site for a product video. Invented names and prices. Nothing here can be booked.</div>
+</main>
+<script>
+const P = {
+  lodges: { brand: 'Savanna Stays', tag: 'Lodges and camps', h: 'Serengeti and Ngorongoro, June 12 to 18', sub: '2 adults, 6 nights',
+    items: [['Ngorongoro Rim Lodge', 'Crater view, 4.6 stars, 212 reviews', 2880, '#9a6b3c,#d9a066'], ['Serengeti Tented Camp', 'Migration route, 4.8 stars, 340 reviews', 3120, '#6e7a3a,#c9b46a'], ['Tarangire River Inn', 'Elephant country, 4.1 stars, 98 reviews', 2140, '#7a4a2a,#c08a5a']] },
+  flights: { brand: 'SkyRoute', tag: 'Flights', h: 'New York (JFK) to Kilimanjaro (JRO)', sub: 'June 11 out, June 19 back, 2 adults',
+    items: [['1 stop via Doha', 'Leaves June 11, 22 h 10 m', 1890, '#2c3e6b,#7d93c9'], ['1 stop via Amsterdam', 'Leaves June 11, 19 h 45 m', 2240, '#1f4d5a,#6fb0bf'], ['2 stops via Addis Ababa', 'Leaves June 10, 27 h 30 m', 1610, '#4a3a6b,#a58fd0']] },
+  safari: { brand: 'Mara Trails', tag: 'Safaris and game drives', h: 'Serengeti game drives', sub: 'From Serengeti Tented Camp, June 13 to 16',
+    items: [['Sunrise Big Five drive', 'Full day, private jeep, guide', 640, '#8a5a1a,#e0b060'], ['Balloon over the plains', 'Dawn flight, breakfast', 1180, '#a04a2a,#f0a070'], ['Three-day migration safari', 'Guide, park fees, lunches', 1490, '#5a6a2a,#b8c070']] },
+  summary: { brand: 'My trip', tag: 'Tanzania, June', h: 'Trip summary', sub: 'Everything filled in. Nothing paid.', items: [] },
+};
+const page = P[new URLSearchParams(location.search).get('p')] ?? P.summary;
+document.title = `${page.brand}: ${page.h}`;
+brand.textContent = page.brand; tag.textContent = page.tag; h.textContent = page.h; sub.textContent = page.sub;
+grid.innerHTML = page.items.map(([n, m, p, g], i) => `<div class="card" data-i="${i}"><div class="tag">${i === 1 ? 'Best rated' : ''}</div><div class="art" style="background:linear-gradient(135deg,${g})"></div><h3>${n}</h3><div class="meta">${m}</div><div class="price">$${p.toLocaleString()}</div></div>`).join('');
+const cards = [...document.querySelectorAll('.card')];
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+// Called by the agent over MCP evaluate_script.
+window.compare = async () => {
+  for (const c of cards) { c.classList.add('pick'); await sleep(350); c.classList.remove('pick'); }
+  const best = page.items.map((x, i) => ({ x, i, stars: Number((x[1].match(/([\d.]+) stars/) || [])[1] || 0) })).sort((a, b) => b.stars - a.stars || a.x[2] - b.x[2]);
+  best.slice(0, 2).forEach((b) => cards[b.i].classList.add('best'));
+  return page.items.map((x) => `${x[0]}: $${x[2]}, ${x[1]}`).join('\n');
+};
+window.choose = async (name) => {
+  const i = page.items.findIndex((x) => x[0] === name);
+  cards.forEach((c, j) => { c.classList.remove('best'); c.classList.toggle('pick', j === i); c.classList.toggle('dim', j !== i); });
+  await sleep(400); form.classList.add('on'); form.scrollIntoView({ behavior: 'smooth', block: 'center' }); await sleep(500);
+  return `Chose ${name}`;
+};
+window.fill = async (fields) => {
+  for (const [id, text] of Object.entries(fields)) {
+    const el = document.getElementById(`f-${id}`); el.classList.add('typing');
+    for (const ch of text) { el.value += ch; await sleep(45); }
+    el.classList.remove('typing'); await sleep(150);
+  }
+  stop.classList.add('on');
+  return `Filled ${Object.keys(fields).join(', ')}. Stopped before payment.`;
+};
+</script>
+</body>
+</html>

@@ -1,0 +1,24 @@
+diff --git chrome/browser/devtools/remote_debugging_server.cc chrome/browser/devtools/remote_debugging_server.cc
+--- chrome/browser/devtools/remote_debugging_server.cc
++++ chrome/browser/devtools/remote_debugging_server.cc
+@@ -293,6 +293,20 @@
+   g_enable_default_user_data_dir_check_for_chromium_branding_for_testing = true;
+ }
+ #endif  // BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC) || BUILDFLAG(IS_LINUX)
++
++// Roar: lets the embedder open or close the CDP HTTP port while running
++// (found with dlsym). |port| > 0 listens on 127.0.0.1:|port|; 0 closes it,
++// dropping attached clients. Call on the UI thread. The pipe is unaffected.
++extern "C" __attribute__((visibility("default"))) void roar_devtools_http(
++    int port) {
++  content::DevToolsAgentHost::StopRemoteDebuggingServer();
++  if (port > 0 && port < 65536) {
++    content::DevToolsAgentHost::StartRemoteDebuggingServer(
++        std::make_unique<TCPServerSocketFactory>(static_cast<uint16_t>(port)),
++        base::FilePath(), base::FilePath(),
++        content::DevToolsAgentHost::RemoteDebuggingServerMode::kDefault);
++  }
++}
+ 
+ RemoteDebuggingServer::RemoteDebuggingServer() = default;
+ 

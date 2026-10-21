@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>New Tab</title>
+<link rel="stylesheet" href="roar.css">
+<style>
+body { background: var(--panel); display: grid; place-items: center; }
+main { text-align: center; display: grid; gap: 10px; color: var(--ink-3); }
+.wordmark { font-size: 44px; color: var(--ink-3); line-height: 1; }
+main { width: min(560px, calc(100vw - 32px)); }
+form { display: flex; align-items: center; gap: 10px; height: 48px; padding: 0 8px 0 16px; margin-top: 12px; border-radius: 12px; background: var(--ground); box-shadow: 0 0 0 1px var(--rule); }
+form:focus-within { box-shadow: 0 0 0 2px var(--mane); }
+form svg { width: 16px; height: 16px; flex: none; color: var(--ink-3); }
+input { flex: 1; min-width: 0; border: 0; outline: 0; background: transparent; color: var(--ink); font: 500 16px var(--ui); }
+form input:focus-visible { outline: none; }  /* The form's own ring shows focus. */
+input::placeholder { color: var(--ink-3); }
+form button { color: #2a1604; background: var(--mane); border-radius: 8px; padding: 6px 12px; font-weight: 600; }
+form button:hover { filter: brightness(1.05); }
+.hint { font-size: 12px; }
+</style>
+</head>
+<body>
+<main>
+  <span class="lion" style="width:72px;height:72px;margin:0 auto;opacity:.9" aria-hidden="true"></span>
+  <div class="wordmark">Roar</div>
+  <form id="search" role="search">
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="7" cy="7" r="4.5"/><path d="m10.5 10.5 3 3"/></svg>
+    <input id="q" name="q" autocomplete="off" spellcheck="false" placeholder="Search DuckDuckGo" aria-label="Search DuckDuckGo" autofocus>
+    <button type="submit">Search</button>
+  </form>
+  <div class="hint">Addresses, tabs and history: <kbd>⌘T</kbd></div>
+</main>
+<script src="bridge.js"></script>
+<script>
+const q = document.getElementById('q');
+document.getElementById('search').onsubmit = (e) => {
+  e.preventDefault();
+  const text = q.value.trim();
+  if (!text) return;
+  // An address opens directly; anything else is a DuckDuckGo search.
+  const isUrl = /^[a-z][\w+.-]*:\/\//i.test(text) || /^(localhost|[^\s/]+\.[a-z]{2,}|\d{1,3}(\.\d{1,3}){3})(:\d+)?(\/\S*)?$/i.test(text);
+  ask({ cmd: 'open', text: isUrl ? text : 'https://duckduckgo.com/?q=' + encodeURIComponent(text), newTab: false });
+};
+q.addEventListener('input', () => ask({ cmd: 'newtab.used' }), { once: true });  // Typed in: keep it open.
+q.focus();
+</script>
+</body>
+</html>

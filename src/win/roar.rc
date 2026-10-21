@@ -1,0 +1,2 @@
+// The first icon resource is what Explorer, the taskbar and shortcuts show for Roar.exe.
+1 ICON "../../resources/roar.ico"

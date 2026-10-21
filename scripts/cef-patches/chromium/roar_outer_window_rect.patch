@@ -1,0 +1,32 @@
+diff --git content/browser/renderer_host/render_widget_host_view_mac.h content/browser/renderer_host/render_widget_host_view_mac.h
+--- content/browser/renderer_host/render_widget_host_view_mac.h
++++ content/browser/renderer_host/render_widget_host_view_mac.h
+@@ -198,6 +198,7 @@
+ 
+   void TransformPointToRootSurface(gfx::PointF* point) override;
+   gfx::Rect GetBoundsInScreen() override;
++  gfx::Rect GetBoundsInScreenWithoutTransform() override;
+   void UpdateScreenInfo() override;
+   viz::ScopedSurfaceIdAllocator DidUpdateVisualProperties(
+       const cc::RenderFrameMetadata& metadata) override;
+diff --git content/browser/renderer_host/render_widget_host_view_mac.mm content/browser/renderer_host/render_widget_host_view_mac.mm
+--- content/browser/renderer_host/render_widget_host_view_mac.mm
++++ content/browser/renderer_host/render_widget_host_view_mac.mm
+@@ -1550,6 +1550,17 @@
+   return window_frame_in_screen_dip_;
+ }
+ 
++// Roar: each tab lives in a frameless child window of the browser window, so
++// its own frame equals the page and window.outerHeight == innerHeight, a
++// headless tell. Pages get the parent (browser) window's frame instead.
++gfx::Rect RenderWidgetHostViewMac::GetBoundsInScreenWithoutTransform() {
++  NSWindow* parent = [[GetInProcessNSView() window] parentWindow];
++  if (parent) {
++    return gfx::ScreenRectFromNSRect([parent frame]);
++  }
++  return window_frame_in_screen_dip_;
++}
++
+ blink::mojom::PointerLockResult RenderWidgetHostViewMac::LockPointer(
+     bool request_unadjusted_movement) {
+   if (pointer_locked_) {

@@ -1,0 +1,1884 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Sidebar</title>
+<link rel="stylesheet" href="roar.css">
+<style>
+body { background: var(--ground); display: flex; flex-direction: column; overflow: hidden; user-select: none; }
+.top { height: 44px; flex: none; display: flex; align-items: center; justify-content: flex-end; gap: 2px; padding: 0 10px 0 84px; -webkit-app-region: drag; }
+.top button { -webkit-app-region: no-drag; width: 26px; height: 26px; border-radius: 6px; display: grid; place-items: center; color: var(--ink-2); }
+.top button:hover:not(:disabled) { background: var(--hover); color: var(--ink); }
+.top button:disabled { opacity: .35; }
+.top svg { width: 15px; height: 15px; }
+
+.address { margin: 2px 10px 10px; height: 34px; border-radius: 9px; background: var(--panel); display: flex; align-items: center; gap: 8px; padding: 0 10px; color: var(--ink-2); box-shadow: 0 0 0 1px var(--rule); text-align: left; }
+.address:hover { color: var(--ink); }
+.address .host { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 500; }
+.address svg { width: 13px; height: 13px; flex: none; }
+
+.spaces { display: flex; align-items: center; gap: 2px; }
+.spaces:empty { display: none; }
+.spaces button { width: 16px; height: 16px; border-radius: 50%; display: grid; place-items: center; }
+.spaces button::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--ink-3); opacity: .5; }
+.spaces button:hover::before { opacity: 1; }
+.spaces button::before { background: var(--dot, var(--ink-3)); }
+.spaces button.dragging { opacity: .3; }
+.spaces button.drop-before { box-shadow: -2px 0 0 var(--mane); }
+.spaces button.drop-after { box-shadow: 2px 0 0 var(--mane); }
+.pin.drop-before { box-shadow: -2px 0 0 var(--mane); }
+.pin.drop-after { box-shadow: 2px 0 0 var(--mane); }
+.spaces button[aria-current="true"]::before { background: var(--dot, var(--mane)); opacity: 1; width: 8px; height: 8px; }
+/* Agents (CDP clients) can reach this space: a thin mint ring. The current space is the big opaque dot above, not the ring. */
+.spaces button.agents::before { box-shadow: 0 0 0 1.5px var(--ground), 0 0 0 2.5px #7aa898; }
+/* An agent is using one of this space's tabs right now: the ring breathes. */
+.spaces button.agents.busy::before { animation: ring-busy 1.6s ease-in-out infinite; }
+@keyframes ring-busy { 50% { box-shadow: 0 0 0 1.5px var(--ground), 0 0 0 4px rgba(122,168,152,.55); } }
+@media (prefers-reduced-motion: reduce) { .spaces button.agents.busy::before { animation: none; box-shadow: 0 0 0 1.5px var(--ground), 0 0 0 3px #7aa898; } }
+#settings.tour, #spaces .tour { outline: 2px solid var(--mane); outline-offset: 2px; border-radius: 6px; animation: tour 1.6s ease-in-out infinite; }
+@keyframes tour { 50% { outline-color: transparent; } }
+@media (prefers-reduced-motion: reduce) { #settings.tour, #spaces .tour { animation: none; } }
+.ring-coach { flex: none; display: flex; align-items: center; gap: 6px; margin: 0 10px; padding: 2px 0 0; color: var(--ink-3); font-size: 11px; line-height: 1.3; }
+.ring-coach span { flex: 1; }
+.ring-coach button { flex: none; width: 18px; height: 18px; border-radius: 5px; display: grid; place-items: center; color: var(--ink-3); }
+.ring-coach button:hover { background: var(--hover); color: var(--ink); }
+.space-menu .ring-key { width: 8px; height: 8px; border-radius: 50%; background: var(--ink-3); box-shadow: 0 0 0 1.5px var(--ground), 0 0 0 2.5px #7aa898; margin-left: 4px; }
+body { box-shadow: inset 3px 0 0 var(--space-color, transparent); }
+.resize { position: fixed; top: 0; right: 0; bottom: 0; width: 5px; cursor: col-resize; z-index: 10; }
+.space-menu { position: fixed; left: 8px; right: 8px; bottom: 44px; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px; box-sizing: border-box; padding: 6px; border-radius: 10px; background: var(--ground); box-shadow: 0 0 0 1px var(--rule), 0 8px 24px rgba(0,0,0,.35); z-index: 10; }
+.space-menu[hidden] { display: none; }
+.space-menu input:focus-visible, .ctx input:focus-visible { outline: 2px solid var(--mane); outline-offset: 1px; }
+.space-menu input { width: 100%; min-width: 0; box-sizing: border-box; border: 0; padding: 4px 8px; border-radius: 6px; background: var(--panel); color: var(--ink); font: 500 12.5px var(--ui); }
+.space-menu .swatches { grid-column: 1 / -1; display: flex; gap: 6px; padding: 2px 2px 0; }
+.foot .space-menu .swatches button { width: 18px; height: 18px; padding: 0; border-radius: 50%; box-shadow: inset 0 0 0 1px rgba(255,255,255,.12); }
+.foot .space-menu .swatches button[aria-pressed="true"] { box-shadow: 0 0 0 2px var(--ink); }
+.foot .space-menu #space-remove { width: auto; height: auto; }
+.foot .space-menu #space-close, .foot .space-menu #space-ai-all, .foot .space-menu #space-ai-loose { grid-column: 1 / -1; width: auto; height: auto; justify-self: start; }
+.foot .space-menu #space-agents { grid-column: 1 / -1; width: auto; height: auto; justify-self: start; display: flex; align-items: center; gap: 6px; }
+#space-agents::before { content: ""; width: 10px; height: 10px; border-radius: 3px; box-shadow: inset 0 0 0 1.5px var(--ink-3); }
+#space-agents[aria-checked="true"]::before { background: #7aa898; box-shadow: none; }
+.space-menu button { white-space: nowrap; padding: 4px 8px; border-radius: 6px; color: var(--ink-2); font-size: 12px; }
+.space-menu button:hover { color: var(--ink); background: var(--panel); }
+.foot .space-name { color: var(--ink-2); font-size: 11.5px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 90px; }
+.scroll { flex: 1; overflow-y: auto; padding: 0 6px 12px; display: flex; flex-direction: column; gap: 14px; }
+
+.pinned { --cols: 5; display: flex; flex-wrap: wrap; gap: 6px; padding: 0 4px; }
+.pinned > .pin { flex: 0 0 calc((100% - (var(--cols) - 1) * 6px) / var(--cols)); }
+.pinned.centered { justify-content: center; }
+.pinned:empty { display: none; }
+/* While a tab is dragged, an empty pinned strip shows as a drop zone. */
+body.drag-active .pinned:empty { display: flex; height: 38px; margin: 0 4px; padding: 0; border: 1px dashed var(--rule); border-radius: 10px; align-items: center; justify-content: center; }
+body.drag-active .pinned:empty::before { content: 'Drop to pin'; color: var(--ink-3); font-size: 12px; }
+.pin { min-width: 0; height: 38px; border-radius: 10px; background: var(--hover); display: grid; place-items: center; position: relative; }
+.pin:hover { background: var(--rule); }
+.pin.active { background: var(--selected); box-shadow: 0 1px 2px rgba(0,0,0,.12); }
+.pin.active::after { content: ""; position: absolute; bottom: 3px; left: 50%; width: 12px; height: 2px; margin-left: -6px; border-radius: 1px; background: var(--mane); }
+.pin .fav.letter { background: none; font-size: 13px; color: var(--ink-2); }
+.pin .lion { width: 20px; height: 20px; }
+.pin .custom { font-size: 18px; line-height: 1; }
+.pin img.custom { width: 22px; height: 22px; border-radius: 5px; object-fit: cover; }
+
+.group-head { display: flex; align-items: center; gap: 6px; padding: 0 8px 4px; color: var(--ink-3); font-size: 12px; font-weight: 600; }
+.group-head .count { font-weight: 400; font-variant-numeric: tabular-nums; }
+.group-head .spacer { flex: 1; }
+.group-head button { font-weight: 500; color: var(--ink-2); padding: 2px 6px; border-radius: 5px; }
+.group-head button:hover { background: var(--hover); color: var(--ink); }
+.group-head .toggle { display: flex; align-items: center; gap: 4px; padding: 2px 0; color: var(--ink-3); font-weight: 600; }
+.group-head .toggle:hover { background: none; color: var(--ink-2); }
+.chev { width: 9px; height: 9px; transition: transform .12s; }
+.collapsed .chev { transform: rotate(-90deg); }
+.collapsed .rows { display: none; }
+
+.rows { display: flex; flex-direction: column; gap: 1px; }
+.row { position: relative; display: flex; align-items: center; gap: 8px; height: 32px; padding: 0 6px 0 8px; border-radius: 7px; text-align: left; width: 100%; }
+.row:hover { background: var(--hover); }
+.row.active { background: var(--selected); box-shadow: 0 1px 2px rgba(0,0,0,.06); }
+.row .label { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.row .sub { color: var(--ink-3); font-size: 11px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.row .x { width: 20px; height: 20px; border-radius: 5px; display: grid; opacity: .8; place-items: center; color: var(--ink-3); flex: none; }
+.row:hover .x, .row:focus-within .x { opacity: 1; }
+.row .x:hover { background: var(--rule); color: var(--ink); }
+/* AI rename: shows on hover beside tabs, groups and sessions; spins while the agent works. */
+.ai-rn { width: 20px; height: 20px; border-radius: 5px; display: none; place-items: center; color: var(--ink-3); flex: none; }
+.row:hover .ai-rn, .row:focus-within .ai-rn, .group-head:hover .ai-rn, .ai-rn.busy { display: grid; }
+.cl-acts .ai-rn { display: grid; width: 24px; height: 24px; }
+.ai-rn:hover { background: var(--rule); color: var(--ink); }
+.ai-rn.busy svg { animation: airn 1s linear infinite; color: var(--mane, #d9822b); }
+@keyframes airn { to { transform: rotate(360deg); } }
+.ai-undo { position: fixed; left: 8px; right: 8px; bottom: 8px; z-index: 50; display: flex; gap: 8px; align-items: center; padding: 7px 10px; border-radius: 8px; background: var(--panel); color: var(--ink); border: 1px solid var(--rule); box-shadow: var(--shadow); font-size: 12px; }
+.ai-undo span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ai-undo button { color: inherit; font-weight: 600; text-decoration: underline; }
+.row.cool .label { color: var(--ink-3); }
+/* A tab an agent is driving: the same mint wrap and Agent tag the tab's own window wears. */
+.row.driven { box-shadow: inset 0 0 0 1.5px #7aa898, 0 0 10px rgba(122,168,152,.35); }
+/* Opened or touched by an agent, not active now: a thin faded mint edge and a hollow dashed ring instead of the solid tag. */
+.row.agent-was { box-shadow: inset 2px 0 0 rgba(122,168,152,.55); }
+.row .agent-was-mark { flex: none; width: 9px; height: 9px; border: 1.5px dashed #7aa898; border-radius: 50%; opacity: .85; }
+.row .agent-tag { flex: none; padding: 1px 6px; border-radius: 5px; background: #7aa898; color: #1e140c; font: 700 10px var(--ui); letter-spacing: .01em; }
+/* A split pair is one unit: two halves in a row (side by side) or attached top and bottom (stacked). */
+.split-pair { position: relative; display: flex; gap: 2px; margin: 2px 0; padding-right: 22px; border-radius: 8px; box-shadow: 0 0 0 1px var(--rule); }
+.split-pair.stacked { flex-direction: column; }
+.split-pair > .row { flex: 1 1 0; min-width: 0; margin: 0; }
+.split-pair > .unsplit-pair { position: absolute; top: 50%; right: 3px; transform: translateY(-50%); width: 18px; height: 18px; border-radius: 5px; display: grid; place-items: center; color: var(--ink-3); }
+.split-pair > .unsplit-pair:hover { background: var(--hover); color: var(--ink); }
+.row .badge.unsplit { cursor: pointer; } .row .badge.unsplit:hover { color: var(--ink); }
+.row .badge { font-size: 10px; color: var(--mane-ink); background: var(--mane-soft); border-radius: 4px; padding: 0 5px; }
+/* Cooling bar: what's left before Clean Tabs archives this tab. */
+.row .life { position: absolute; left: 34px; right: 10px; bottom: 3px; height: 2px; border-radius: 1px; background: transparent; }
+.row .life i { display: block; height: 100%; border-radius: 1px; background: var(--mane); opacity: .55; }
+.row.active .life, .row.pinned-row .life { display: none; }
+
+.fav { width: 16px; height: 16px; flex: none; display: grid; place-items: center; border-radius: 4px; overflow: hidden; }
+.fav img { width: 16px; height: 16px; }
+.fav.letter { background: var(--rule); color: var(--ink-2); font-size: 10px; font-weight: 700; font-family: var(--round); }
+/* Ghost tabs: a private, in-memory profile; their own tinted section. */
+#ghost-group { margin: 0 0 8px; padding: 2px 0 4px; border-radius: 10px; background: color-mix(in srgb, #6b5ca5 12%, transparent); }
+#ghost-group .group-head { color: #6b5ca5; gap: 6px; }
+#art-group .art-ico { width: 13px; height: 13px; margin-right: 5px; vertical-align: -2px; }
+.ghost-ico { width: 13px; height: 13px; flex: none; }
+.pin .fav { width: 18px; height: 18px; }
+.pin .fav img { width: 18px; height: 18px; }
+.spin { width: 16px; height: 16px; flex: none; border-radius: 50%; border: 2px solid var(--rule); border-top-color: var(--mane); animation: spin .8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* Tab groups: their own section beside Tabs, headed by the group's name. */
+.tgroup { margin-bottom: 8px; }
+.tgroup .group-head { cursor: default; }
+.tgroup .gname { font-weight: 600; }
+.tgroup .gdot { width: 8px; height: 8px; border-radius: 50%; background: var(--gc, var(--ink-3)); flex: none; }
+.tgroup .gname { color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tgroup .gpin { width: 10px; height: 10px; color: var(--ink-3); flex: none; }
+.tgroup .rows { margin-left: 6px; padding-left: 6px; box-shadow: inset 2px 0 0 var(--gc, var(--rule)); }
+.tgroup.collapsed .rows { display: none; }
+.tgroup .empty { color: var(--ink-3); font-size: 12px; padding: 4px 8px; }
+.drop-target { background: var(--hover); border-radius: 8px; }
+.row.dragging { opacity: .4; }
+/* The line where a dragged tab will land among the rows (rowSpot). */
+.row.drop-before { box-shadow: 0 -2px 0 var(--mane); }
+.row.drop-after { box-shadow: 0 2px 0 var(--mane); }
+/* Dropping a tab on another tab splits them; the half under the pointer picks the layout. */
+.row.split-drop { position: relative; background: var(--hover); box-shadow: inset 0 0 0 1.5px var(--mane); }
+.row.split-drop::after { content: attr(data-split-label); position: absolute; right: 8px; top: 50%; transform: translateY(-50%); padding: 2px 7px; border-radius: 6px; background: var(--mane); color: #2a1604; font: 600 11px var(--ui); pointer-events: none; }
+.pin.split-drop { background: var(--hover); box-shadow: inset 0 0 0 1.5px var(--mane); }
+.ctx { position: fixed; z-index: 20; min-width: 180px; max-width: 240px; padding: 4px; border-radius: 9px; background: var(--ground); box-shadow: 0 0 0 1px var(--rule), 0 8px 24px rgba(0,0,0,.35); display: flex; flex-direction: column; }
+.ctx[hidden] { display: none; }
+.ctx button { text-align: left; padding: 5px 8px; border-radius: 6px; color: var(--ink); font-size: 12.5px; display: flex; align-items: center; gap: 7px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ctx button:hover { background: var(--hover); }
+.ctx hr { border: 0; border-top: 1px solid var(--rule); margin: 4px 2px; }
+.ctx .head { color: var(--ink-3); font-size: 11px; padding: 4px 8px 2px; }
+.ctx .gdot { width: 8px; height: 8px; border-radius: 50%; background: var(--gc, var(--ink-3)); flex: none; }
+.ctx input { margin: 2px; border: 0; padding: 5px 8px; border-radius: 6px; background: var(--panel); color: var(--ink); font: 500 12.5px var(--ui); }
+.ctx .swatches { display: flex; gap: 6px; padding: 4px 6px; }
+.ctx .swatches button { width: 16px; height: 16px; padding: 0; border-radius: 50%; flex: none; box-shadow: inset 0 0 0 1px rgba(255,255,255,.12); }
+.ctx .swatches button[aria-pressed="true"] { box-shadow: 0 0 0 2px var(--ink); }
+
+.note { color: var(--ink-3); font-size: 12px; padding: 2px 8px 4px; }
+.note code { font: 11px var(--mono); }
+.pr .label { display: flex; flex-direction: column; line-height: 1.2; }
+.pr .label small { color: var(--ink-3); font-size: 11px; overflow: hidden; text-overflow: ellipsis; }
+.pr { height: 40px; }
+.pr .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--ok); flex: none; margin: 0 4px; }
+.mail .dot { background: var(--acct, #d9822b); }
+/* Agent sessions: the dot says working (pulsing), needs you (orange, the row pulses) or idle;
+   the same state is in the row's text for screen readers. */
+.vh { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.cl .dot.idle { background: var(--ink-3); } .cl .dot.needs_you { background: var(--mane, #d9822b); }
+/* Still, never blinking: a tinted row and an orange dot say a session needs you. */
+.cl .dot.working, .cl .dot.starting { background: var(--ok); }
+/* A session's own color (set in its full view) tints its row; needing you only bolds the name. */
+.cl.tint { background: color-mix(in srgb, var(--cl-bg) 20%, transparent); }
+.cl.needs .cl-name b { font-weight: 650; }
+/* Two lines per session: name and age, then what it's doing (wraps to two lines, never mid-word
+   on one). Actions float over the right edge on hover, so they never take width from the text. */
+.cl.pr { height: auto; min-height: 34px; padding-block: 4px; align-items: flex-start; }
+.cl .clmain { align-items: flex-start; }
+.cl .label { white-space: normal; overflow: visible; gap: 2px; }
+.cl .cl-name { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+.cl .cl-name b { flex: 1; min-width: 0; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cl .cl-name time { flex: none; color: var(--ink-3); font-size: 10.5px; font-variant-numeric: tabular-nums; }
+.cl .label small { display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; white-space: normal; overflow: hidden; line-height: 1.3; overflow-wrap: anywhere; }
+.cl.needs .label small { color: var(--ink-2); }
+.cl-ic { position: relative; flex: none; width: 16px; height: 16px; margin-top: 1px; }
+.cl-ic .agent-icon { display: block; }
+.cl-ic .ask-badge { position: absolute; right: -4px; bottom: -4px; width: 9px; height: 9px; border-radius: 3px; background: var(--ground); color: var(--ink-2); display: grid; place-items: center; }
+.cl-ic .ask-badge svg { width: 9px; height: 9px; }
+/* Code (agent sessions) and Ask (chats) subheads, shown only when both kinds are listed. */
+.cl-sub { margin: 6px 10px 2px; font: 600 10.5px var(--ui); letter-spacing: .04em; text-transform: uppercase; color: var(--ink-3); }
+.cl-ic .dot { position: absolute; right: -3px; bottom: -3px; width: 7px; height: 7px; margin: 0; box-shadow: 0 0 0 2px var(--ground); }
+.cl-acts { position: absolute; top: 5px; right: 4px; display: flex; gap: 1px; padding-left: 14px; opacity: 0; pointer-events: none; transition: opacity .12s ease-out;
+  background: linear-gradient(to right, transparent, var(--ground) 14px); }
+.cl:hover .cl-acts, .cl:focus-within .cl-acts { opacity: 1; pointer-events: auto; }
+.cl:hover .cl-name time, .cl:focus-within .cl-name time { visibility: hidden; }
+.cl-acts button { width: 24px; height: 24px; display: grid; place-items: center; border-radius: 6px; color: var(--ink-2); }
+.cl-acts button:hover { background: var(--hover); color: var(--ink); }
+.cl-acts button[aria-disabled=true] { opacity: .35; cursor: default; }
+.cl-acts button[aria-pressed=true] { color: var(--mane, #d9822b); }
+.cl .cl-reply { align-self: flex-start; margin-top: 4px; padding: 2px 8px; border-radius: 999px; font: 600 11px var(--ui); background: var(--mane-soft, rgba(217,130,43,.18)); color: var(--mane, #d9822b); }
+.af-row { width: 100%; } .af-row .agent-icon { color: var(--ink-2); }
+.cl .clmain { display: flex; align-items: flex-start; gap: 8px; flex: 1; min-width: 0; height: 100%; text-align: left; cursor: pointer; }
+.cl { cursor: pointer; }
+.cl.starting { cursor: default; opacity: .8; }
+/* A session that needs you: one reply line under its row (the full view has everything else). */
+.clq { position: relative; margin: 0 4px 8px 30px; }
+.gh-q { display: flex; gap: 4px; padding: 0 10px 8px; }
+.gh-q input { flex: 1; min-width: 0; font: 11.5px var(--mono); padding: 4px 7px; border-radius: 6px; border: 1px solid var(--rule); background: var(--ground); color: var(--ink); }
+.gh-q button { color: var(--ink-2); padding: 0 6px; font-size: 11.5px; }
+.clq input { width: 100%; box-sizing: border-box; padding: 7px 60px 7px 9px; border: 0; border-radius: 6px; background: var(--ground); color: var(--ink); font: 12px var(--ui); box-shadow: inset 0 0 0 1px var(--rule); }
+.clq .clq-acts { position: absolute; top: 3px; right: 3px; bottom: 3px; display: flex; gap: 2px; }
+.clq button { width: 26px; display: grid; place-items: center; border-radius: 5px; color: var(--ink-2); }
+.clq button:hover { background: var(--hover); color: var(--ink); }
+.clq .send { background: var(--mane, #d9822b); color: #2a1604; } .clq .send:hover { background: var(--mane, #d9822b); color: #2a1604; filter: brightness(1.08); }
+.clq button:disabled, .clq button[aria-disabled=true] { opacity: .5; cursor: default; }
+.group-head button[aria-disabled=true] { opacity: .45; cursor: default; }
+#cl-group { margin-top: 8px; }
+#cl-group .group-head { gap: 2px; } #cl-group .group-head button { white-space: nowrap; flex: none; }
+#cl-group .group-head .toggle { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; } #cl-group .group-head .count { margin-left: 4px; } #cl-group .toggle .chev { flex: none; }
+.feed[aria-pressed="true"] { background: var(--hover); }
+/* New session: a centered modal, type first, then where. */
+.cld { width: calc(100% - 24px); max-width: 320px; padding: 14px; border: 0; border-radius: 12px; background: var(--ground); color: var(--ink); box-shadow: 0 0 0 1px var(--rule), 0 12px 32px rgba(0,0,0,.4); font-size: 12.5px; }
+.cld::backdrop { background: rgba(0,0,0,.35); }
+.cld h2 { margin: 0 0 10px; font-size: 13.5px; font-weight: 600; }
+.cld form { display: grid; gap: 10px; }
+.cld legend { padding: 0 0 6px; color: var(--ink-3); font-size: 11.5px; font-weight: 600; }
+.cld .tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 6px; }
+.cld .opt { position: relative; display: flex; align-items: center; gap: 8px; padding: 8px; border-radius: 8px; box-shadow: inset 0 0 0 1px var(--rule); cursor: pointer; min-width: 0; }
+.cld .tiles .opt { flex-direction: column; gap: 6px; padding: 10px 6px; text-align: center; }
+.cld .opt span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cld .opt small { display: block; color: var(--ink-3); font-size: 11px; overflow: hidden; text-overflow: ellipsis; }
+.cld .opt:hover { background: var(--hover); }
+.cld .opt input { position: absolute; opacity: 0; pointer-events: none; }
+.cld .opt:has(:checked) { background: var(--mane-soft, rgba(217,130,43,.18)); box-shadow: inset 0 0 0 1.5px var(--mane, #d9822b); }
+.cld .opt:has(:focus-visible) { outline: 2px solid var(--mane, #d9822b); outline-offset: 1px; }
+.cld .where { display: grid; gap: 4px; max-height: 40vh; overflow: auto; }
+.cld .pick { justify-self: start; padding: 5px 10px; border-radius: 6px; box-shadow: inset 0 0 0 1px var(--rule); }
+.cld textarea { width: 100%; box-sizing: border-box; resize: none; height: 58px; padding: 6px 8px; border: 0; border-radius: 6px; background: var(--panel); color: var(--ink); font: 12.5px var(--ui); box-shadow: inset 0 0 0 1px var(--rule); }
+.cld .opt.tab { padding: 5px 8px; gap: 7px; } .cld .opt.tab img, .cld .opt.tab svg { width: 14px; height: 14px; flex: none; }
+#cl-step3 { display: grid; gap: 10px; } #cl-step3[hidden] { display: none; }
+#cl-tabs { max-height: 22vh; }
+.cld .acts { display: flex; gap: 6px; justify-content: flex-end; align-items: center; }
+.cld .acts span { flex: 1; color: var(--ink-3); }
+.cld .acts button { padding: 5px 12px; border-radius: 6px; } .cld .acts button:hover { background: var(--hover); }
+.cld .go { background: var(--mane, #d9822b); color: #2a1604; font-weight: 600; } .cld .go:hover { background: var(--mane, #d9822b); filter: brightness(1.06); } .cld .go:disabled { opacity: .5; filter: none; }
+.cld button:focus-visible, .cld textarea:focus-visible, .cld textarea:focus { outline: 2px solid var(--mane, #d9822b); outline-offset: 1px; }
+.feed .badge.urgent { background: #d9822b; box-shadow: 0 0 0 2px var(--ground); }
+.mailrow { position: relative; }
+#cl .cl-hidden { display: block; width: 100%; text-align: left; cursor: pointer; }
+.mailrow.dragging, .acct.dragging { opacity: .3; }
+.acct.drop-before { box-shadow: 0 -2px 0 var(--mane); }
+.acct.drop-after { box-shadow: 0 2px 0 var(--mane); }
+.mailrow.drop-before { box-shadow: 0 -2px 0 var(--mane); }
+.mailrow.drop-after { box-shadow: 0 2px 0 var(--mane); }
+.acct-head .selacct { font-size: 11px; color: var(--ink-3); padding: 0 4px; }
+.acct-head .selacct:hover { color: var(--ink); }
+.macts { position: absolute; right: 4px; top: 50%; transform: translateY(-50%); display: none; gap: 2px; padding: 2px; border-radius: 7px; background: var(--ground); box-shadow: 0 0 0 1px var(--rule); }
+.mailrow:hover .macts, .mailrow:focus-within .macts { display: flex; }
+.msel { flex: none; margin: 0 2px 0 8px; accent-color: var(--acct, #d9822b); }
+.mailrow:has(.msel) { display: flex; align-items: center; }
+.mailrow .row { flex: 1; min-width: 0; }
+.acct-head { cursor: pointer; }
+.acct-head:hover .who { text-decoration: underline; }
+.macts button { width: 24px; height: 24px; border-radius: 5px; font-size: 12px; line-height: 1; color: var(--ink-2); }
+.macts button:hover { background: var(--hover); color: var(--ink); }
+/* One section per Gmail account when a space has several; the account's hue
+   marks its header swatch and every message dot under it. */
+.acct-head { position: sticky; top: -4px; z-index: 1; display: flex; align-items: center; gap: 8px; margin: 6px 0 2px; padding: 7px 8px 5px; background: var(--ground); border-top: 1px solid var(--rule); font-size: 12px; }
+.acct:first-child .acct-head { margin-top: 0; border-top: 0; }
+.acct-head .swatch { width: 10px; height: 10px; border-radius: 3px; background: var(--acct); flex: none; }
+.acct-head .who { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink); font-weight: 600; }
+.acct-head .who span { color: var(--ink-3); font-weight: 400; }
+.acct-head .n { margin-left: auto; color: var(--ink-3); font-variant-numeric: tabular-nums; }
+.acct .note { padding-left: 26px; }
+
+.foot { flex: none; display: flex; align-items: center; gap: 7px; padding: 8px 14px 12px; color: var(--ink-3); font-size: 11px; border-top: 1px solid var(--rule); }
+.foot .wordmark { font-size: 15px; color: var(--ink-2); }
+.foot .brand { display: grid; grid-template-columns: auto auto; align-items: center; column-gap: 7px; }
+.foot .brand .space-name { grid-column: 1 / -1; line-height: 1.2; margin-top: 2px; }
+.foot .tools { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.foot .brand .space-name:empty { display: none; }
+.foot .spacer { flex: 1; }
+.foot button { width: 24px; height: 24px; border-radius: 6px; display: grid; place-items: center; color: var(--ink-3); }
+.foot button:hover { background: var(--hover); color: var(--ink); }
+.foot svg { width: 14px; height: 14px; }
+#settings { background: none; }
+#settings .knob { fill: var(--ground); transition: fill .15s, stroke .15s; }
+#settings:hover { background: none; color: var(--ink-2); }
+#settings:hover .knob, #settings:focus-visible .knob { fill: var(--mane); stroke: var(--mane); }
+#settings:focus-visible { outline: 2px solid var(--mane); outline-offset: 1px; }
+@media (prefers-reduced-motion: reduce) { #settings .knob { transition: none; } }
+/* Dictation: the mic sits by Settings; while it listens it fills with the mane and breathes, and a status line rides above the footer. */
+#mic[aria-pressed="true"] { background: var(--mane); color: #fff; animation: mic-breathe 1.6s ease-in-out infinite; }
+#mic[aria-pressed="true"]:hover { background: var(--mane-ink); color: #fff; }
+#mic.busy { color: var(--mane-ink); }
+#mic:focus-visible { outline: 2px solid var(--mane); outline-offset: 1px; }
+@keyframes mic-breathe { 50% { opacity: .7; } }
+.dict { flex: none; display: flex; align-items: center; gap: 8px; margin: 0 10px 6px; padding: 6px 10px; border-radius: 8px; background: var(--ground); color: var(--ink-2); font-size: 11.5px; line-height: 1.3; }
+.dict .dot { flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--mane); }
+.dict[data-state="listening"] .dot { animation: dict-dot 1s ease-in-out infinite; }
+.dict[data-state="error"] { color: var(--mane-ink); }
+.dict[data-state="error"] .dot { background: var(--mane-ink); }
+.dict .bar { flex: 1; height: 3px; border-radius: 2px; background: var(--rule); overflow: hidden; min-width: 30px; }
+.dict .bar i { display: block; height: 100%; background: var(--mane); transition: width .3s ease-out; }
+.dict kbd { font: inherit; color: var(--ink-3); }
+@keyframes dict-dot { 50% { opacity: .35; } }
+@media (prefers-reduced-motion: reduce) { #mic[aria-pressed="true"], .dict[data-state="listening"] .dot { animation: none; } .dict .bar i { transition: none; } }
+.bar { flex: none; display: flex; align-items: center; gap: 4px; padding: 6px 10px; }
+/* Agent alerts (MCP notify_user / ask_user): newest at the bottom, nearest the footer;
+   the left edge says how much it needs you. */
+.alerts { flex: none; display: flex; flex-direction: column; gap: 10px; max-height: 45vh; overflow-y: auto; padding: 4px 10px 10px; }
+.alert { flex: none; }
+.alerts:empty { display: none; }
+.alert { --edge: var(--ink-3); position: relative; padding: 9px 30px 10px 12px; border-radius: 10px; background: var(--ground); box-shadow: inset 3px 0 0 var(--edge), 0 0 0 1px var(--rule); font-size: 12.5px; }
+.alert.done { --edge: var(--ok); }
+.alert.needs_you { --edge: var(--mane); }
+.alert .who { color: var(--ink-3); font-size: 11px; display: flex; gap: 6px; }
+.alert .t { color: var(--ink); font-weight: 650; margin-top: 2px; line-height: 1.3; }
+.alert .b { color: var(--ink-2); margin-top: 3px; line-height: 1.4; white-space: pre-wrap; }
+.alert:not(.full) .b { display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
+.alert .b { user-select: text; cursor: text; } .alert .b a { color: inherit; text-decoration: underline; text-underline-offset: 2px; cursor: pointer; overflow-wrap: anywhere; }
+.alert .more { font-size: 11.5px; color: var(--ink-3); padding: 2px 0; } .alert .more:hover { color: var(--ink); }
+.alert .acts { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 8px; }
+.alert .acts:empty { display: none; }
+.alert-reply { display: flex; gap: 6px; align-items: center; }
+.alert-reply button { margin-top: 8px; }
+.alert-reply input { flex: 1; min-width: 0; width: 100%; box-sizing: border-box; margin-top: 8px; padding: 6px 9px; border: 0; border-radius: 6px; background: var(--ground); color: var(--ink); font: 12px var(--ui); box-shadow: inset 0 0 0 1px var(--rule); }
+.alert .acts button { padding: 4px 10px; border-radius: 6px; background: var(--hover); color: var(--ink); font: 500 12px var(--ui); }
+.alert .acts button:hover { filter: brightness(.97); }
+.alert .acts button.primary { background: var(--mane); color: #2a1604; font-weight: 600; }
+.alert .dismiss { position: absolute; top: 6px; right: 6px; width: 20px; height: 20px; border-radius: 5px; display: grid; place-items: center; color: var(--ink-3); }
+.alert .dismiss:hover { background: var(--hover); color: var(--ink); }
+.alerts .clear-all { align-self: flex-end; font-size: 11px; color: var(--ink-3); padding: 2px 4px; }
+.alerts .clear-all:hover { color: var(--ink); }
+.bar .spacer { flex: 1; }
+.bar:not(:has(.ext-pins:not(:empty), .feed:not([hidden]), .dlbtn:not([hidden]))) { display: none; }
+.dlbtn { position: relative; width: 28px; height: 28px; border-radius: 7px; display: grid; place-items: center; color: var(--ink-2); }
+.dlbtn:hover { background: var(--hover); color: var(--ink); }
+.dlbtn[hidden] { display: none; }
+.dlbtn svg { width: 16px; height: 16px; }
+.dlbtn .badge { position: absolute; top: 0; right: -2px; min-width: 14px; height: 14px; padding: 0 3px; border-radius: 7px; background: var(--mane); color: #fff; font: 600 9.5px/14px var(--ui); text-align: center; }
+.dlbtn .badge:empty { display: none; }
+/* Sound: shows while a tab plays audio (or is muted); click to mute. */
+.row .snd { width: 20px; height: 20px; border-radius: 5px; display: grid; place-items: center; color: var(--mane-ink); flex: none; }
+.row .snd:hover { background: var(--rule); }
+.row .snd.muted { color: var(--ink-3); }
+.snd svg { width: 13px; height: 13px; }
+.pin .snd { position: absolute; top: 2px; right: 2px; width: 16px; height: 16px; border-radius: 4px; display: grid; place-items: center; color: var(--mane-ink); background: var(--panel); }
+.pin .snd.muted { color: var(--ink-3); }
+.pin .snd svg { width: 10px; height: 10px; }
+.ext-pins { display: flex; flex-wrap: wrap; gap: 4px; }
+.feed { position: relative; width: 28px; height: 28px; border-radius: 7px; display: grid; place-items: center; }
+.feed:hover, .feed[aria-expanded="true"] { background: var(--hover); }
+.feed[hidden] { display: none; }
+.feed svg { width: 16px; height: 16px; color: var(--ink-2); }
+.feed .badge { position: absolute; top: 0; right: -2px; min-width: 14px; height: 14px; padding: 0 3px; border-radius: 7px; background: var(--mane, #d9822b); color: #fff; font: 600 9.5px/14px var(--ui); text-align: center; }
+.feed .badge:empty, .feed.no-count .badge { display: none; }
+.feed-pop { display: none; position: fixed; z-index: 15; left: 8px; right: 8px; bottom: 96px; max-height: 60vh; overflow: auto; padding: 4px; border-radius: 10px; background: var(--ground); box-shadow: 0 0 0 1px var(--rule), 0 8px 24px rgba(0,0,0,.35); }
+.feed-pop.open { display: block; }
+.group-head .af-btn { display: grid; place-items: center; padding: 3px 5px; } .group-head .af-btn[hidden] { display: none; } .group-head .af-btn[aria-disabled=true] { opacity: .45; } .group-head .af-btn[aria-pressed=false] { color: var(--ink-3); } .af-btn svg { width: 14px; height: 14px; } .af-btn[aria-expanded="true"] { background: var(--hover); color: var(--ink); }
+.ext-pins button { width: 28px; height: 28px; border-radius: 7px; display: grid; place-items: center; }
+.ext-pins button:hover { background: var(--hover); }
+.ext-pins img { width: 18px; height: 18px; }
+.ext-pins button { position: relative; }
+.ext-pins .badge { position: absolute; right: 0; bottom: 0; min-width: 12px; height: 12px; padding: 0 2px; border-radius: 6px; background: var(--mane); color: #fff; font-size: 8px; font-weight: 700; line-height: 12px; text-align: center; pointer-events: none; }
+.ext-pins .letter { font-size: 12px; font-weight: 600; color: var(--ink-2); }
+#cl-model.cl-chat { display: inline-flex; align-items: center; gap: 4px; margin-right: 6px; padding-right: 8px; border-right: 1px solid var(--rule); }
+#cl-model.cl-chat svg { width: 13px; height: 13px; }
+</style>
+</head>
+<body>
+<div class="top">
+  <button id="hide-sidebar" title="Hide sidebar (⌥⌘B)" aria-label="Hide sidebar" style="margin-right:auto"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="2" y="3" width="12" height="10" rx="2"/><path d="M6 3v10"/></svg></button>
+  <button id="back" title="Back (⌘[)" aria-label="Back"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10 3 5 8l5 5"/></svg></button>
+  <button id="forward" title="Forward (⌘])" aria-label="Forward"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m6 3 5 5-5 5"/></svg></button>
+  <button id="reload" title="Reload (⌘R)" aria-label="Reload"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M13 8a5 5 0 1 1-1.5-3.6M13 2.5v3h-3"/></svg></button>
+</div>
+<button class="address" id="address" title="Change address (⌘L)">
+  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="7" cy="7" r="4.5"/><path d="m10.5 10.5 3 3"/></svg>
+  <span class="host" id="host">Search or enter address</span>
+</button>
+<div class="resize" id="resize" title="Drag to resize"></div>
+<div class="scroll">
+  <div class="pinned" id="pinned"></div>
+  <div id="pinned-groups"></div>
+  <section id="ghost-group" hidden>
+    <div class="group-head"><svg class="ghost-ico" viewBox="0 0 16 16" fill="currentColor"><path d="M8 1.5a5 5 0 0 0-5 5v7.2l1.7-1.2 1.6 1.2L8 12.5l1.7 1.2 1.6-1.2 1.7 1.2V6.5a5 5 0 0 0-5-5zM6 5.6a1 1 0 1 1 0 2 1 1 0 0 1 0-2zm4 0a1 1 0 1 1 0 2 1 1 0 0 1 0-2z"/></svg><span>Ghost</span><span class="count" id="ghost-count"></span></div>
+    <div class="rows" id="ghost-tabs"></div>
+  </section>
+  <section id="art-group" aria-label="Artifacts" hidden>
+    <div class="group-head"><button class="toggle" data-collapse="art-group" aria-expanded="true" aria-controls="art-tabs" aria-label="Collapse Artifacts"><svg class="chev" viewBox="0 0 10 10" fill="currentColor"><path d="M1 3h8L5 8z"/></svg><svg class="art-ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="2.5" width="12" height="11" rx="2"/><path d="M2 5.5h12M6 8.5l-1.5 1.5L6 11.5M10 8.5l1.5 1.5-1.5 1.5"/></svg>Artifacts</button><span class="count" id="art-count"></span></div>
+    <div class="rows" id="art-tabs"></div>
+  </section>
+  <section id="split-group" hidden>
+    <div class="group-head"><span>Split</span><span class="count" id="split-count"></span></div>
+    <div class="rows" id="split-tabs"></div>
+  </section>
+  <div id="groups"></div>
+  <section id="tabs-group">
+    <div class="group-head"><span>Tabs</span><span class="count" id="tab-count"></span><span class="spacer"></span><button id="ask-llm" class="af-btn" aria-label="Ask your AI about this page" hidden><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 4.5a2 2 0 012-2h7a2 2 0 012 2v5a2 2 0 01-2 2H7l-3 2.5v-2.5h0a2 2 0 01-1.5-2z"/></svg></button></div>
+    <div class="rows" id="tabs"></div>
+  </section>
+  <section id="cl-group" aria-label="AI" hidden>
+    <div class="group-head"><button class="toggle" data-collapse="cl-group" aria-expanded="true" aria-controls="cl" aria-label="Collapse AI"><svg class="chev" viewBox="0 0 10 10" fill="currentColor"><path d="M1 3h8L5 8z"/></svg>AI</button><span class="count" id="cl-n"></span><span class="spacer"></span><button id="af-btn" class="af-btn" aria-label="Agent files row" aria-pressed="true"><svg aria-hidden="true" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2.5c-1.4 0-2 .6-2 2v1.6c0 .9-.5 1.6-1.5 1.9 1 .3 1.5 1 1.5 1.9v1.6c0 1.4.6 2 2 2M10 2.5c1.4 0 2 .6 2 2v1.6c0 .9.5 1.6 1.5 1.9-1 .3-1.5 1-1.5 1.9v1.6c0 1.4-.6 2-2 2"/></svg></button><button id="cl-model" class="cl-chat" title="Ask a model directly (Claude, ChatGPT, a local server…), no coding agent"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 3.5h11v7h-6l-3 2.5v-2.5h-2z"/></svg>Ask</button><button id="cl-new" aria-haspopup="dialog" title="Start a coding agent (Claude Code, Codex…) in a folder you pick or a scratch folder">Code</button></div>
+    <div class="rows" id="cl"></div>
+  </section>
+</div>
+<section class="feed-pop" id="gh-group" aria-label="GitHub PRs">
+  <div class="group-head"><span>GitHub PRs</span><span class="spacer"></span><button id="gh-qbtn" title="Change which pull requests show" aria-expanded="false" aria-controls="gh-q">Query</button><button id="gh-refresh" title="Refresh pull requests">Refresh</button></div>
+  <form class="gh-q" id="gh-q" hidden><input id="gh-qin" aria-label="GitHub search query" spellcheck="false" autocomplete="off"><button type="button" id="gh-qreset" title="Back to your open pull requests">Reset</button></form>
+  <div class="rows" id="gh"></div>
+</section>
+<section class="feed-pop" id="ol-group" aria-label="Unread Outlook mail">
+  <div class="group-head"><span>Outlook</span><span class="spacer"></span><button id="ol-open" title="Open Outlook">Open</button><button id="ol-refresh" title="Refresh mail">Refresh</button></div>
+  <div class="rows" id="olm"></div>
+</section>
+<section class="feed-pop" id="gm-group" aria-label="Unread mail">
+  <div class="group-head"><span>Unread mail</span><span class="spacer"></span><button id="gm-selall" title="Select every message">Select all</button><button id="gm-delsel" title="Delete the selected messages" hidden>Delete selected</button><button id="gm-refresh" title="Refresh mail">Refresh</button></div>
+  <div class="rows" id="gm"></div>
+</section>
+<dialog class="cld" id="cl-dlg" aria-labelledby="cl-dlg-h">
+  <form id="cl-form">
+    <h2 id="cl-dlg-h">New agent session</h2>
+    <fieldset id="cl-step1"><legend>Agent</legend><div class="tiles" id="cl-tiles"></div></fieldset>
+    <fieldset id="cl-step2" hidden><legend>Where</legend><div class="where" id="cl-where"></div></fieldset>
+    <div id="cl-step3" hidden>
+      <textarea id="cl-prompt" placeholder="First prompt (optional)" aria-label="First prompt"></textarea>
+      <fieldset id="cl-tabs-f"><legend>Attach tabs</legend><div class="where" id="cl-tabs"></div></fieldset>
+    </div>
+    <div class="acts"><span id="cl-note" role="status"></span><button type="button" id="cl-back">Cancel</button><button class="go" id="cl-go">Next</button></div>
+  </form>
+</dialog>
+<div class="alerts" id="alerts" role="log" aria-label="Agent alerts" aria-live="polite"></div>
+<div class="bar" id="bar">
+  <div class="ext-pins" id="ext-pins"></div>
+  <span class="spacer"></span>
+  <button class="dlbtn" id="dl-btn" title="Downloads (⇧⌘J)" aria-label="Downloads" hidden><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2.5v8M4.5 7.5 8 11l3.5-3.5M3 13.5h10"/></svg><span class="badge" id="dl-count"></span></button>
+  <button class="feed" id="cl-btn" title="AI" aria-label="AI" aria-pressed="true" hidden><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="1.8" y="2.8" width="12.4" height="10.4" rx="2.2"/><path d="M4.8 6.4L6.8 8l-2 1.6M8.6 10h2.6"/></svg><span class="badge" id="cl-count"></span></button>
+  <button class="feed" id="gh-btn" data-feed="gh-group" title="GitHub PRs" aria-label="GitHub PRs" hidden><svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg><span class="badge" id="gh-count"></span></button>
+  <button class="feed" id="ol-btn" title="Outlook" aria-label="Outlook" hidden><svg viewBox="0 0 24 18"><path fill="#0a64ad" d="M10 3h12.4c.9 0 1.6.7 1.6 1.6v8.8c0 .9-.7 1.6-1.6 1.6H10z"/><path fill="none" stroke="#fff" stroke-width="1.3" stroke-linejoin="round" d="M12.5 5.5 17 9l4.5-3.5"/><rect fill="#1490df" x="0" y="1" width="13" height="16" rx="2"/><circle cx="6.5" cy="9" r="3.6" fill="none" stroke="#fff" stroke-width="2"/></svg><span class="badge" id="ol-count"></span></button>
+  <button class="feed" id="gm-btn" data-feed="gm-group" title="Unread mail" aria-label="Unread mail" hidden><svg viewBox="0 0 24 18"><path fill="#4285f4" d="M1.6 18h3.8V8.7L0 4.6v11.8C0 17.3.7 18 1.6 18z"/><path fill="#34a853" d="M18.6 18h3.8c.9 0 1.6-.7 1.6-1.6V4.6l-5.4 4.1z"/><path fill="#fbbc04" d="M18.6 1.6v7.1L24 4.6V2.4c0-2-2.3-3.1-3.9-1.9z"/><path fill="#ea4335" d="M5.4 8.7V1.6L12 6.5l6.6-4.9v7.1L12 13.6z"/><path fill="#c5221f" d="M0 2.4v2.2l5.4 4.1V1.6L3.9.5C2.3-.7 0 .4 0 2.4z"/></svg><span class="badge" id="gm-count"></span></button>
+</div>
+<div class="ctx" id="ctx" hidden></div>
+<div class="dict" id="dict" role="status" aria-live="polite" hidden></div>
+<div class="foot">
+  <span class="brand"><span class="lion" style="width:22px;height:22px" aria-hidden="true"></span><span class="wordmark">Roar</span>
+  <span class="space-name" id="space-name"></span></span>
+  <span class="spaces" id="spaces" role="group" aria-label="Spaces"></span>
+  <div class="space-menu" id="space-menu" hidden><input id="space-rename" maxlength="40" aria-label="Space name" spellcheck="false"><button id="space-ai" title="Ask your agent to name this space (Shift-click: choose the agent)">Name with AI</button><button id="space-ai-all" title="Rename every tab in this space with AI; groups keep their names (Shift-click: choose the agent)">Rename all tabs with AI</button><button id="space-ai-loose" title="Rename the tabs not in a group or pinned (Shift-click: choose the agent)">Rename ungrouped tabs with AI</button><button id="space-remove" title="Archive its tabs and remove the space">Remove</button><button id="space-close" title="Close this space's tabs (pinned stay) and switch to the next space">Close all tabs</button><button id="space-agents" role="menuitemcheckbox" aria-checked="true" title="Let AI agents (CDP clients) see and open this space's tabs. A ring around the space's dot means they can.">Allow agents <span class="ring-key" aria-hidden="true"></span></button><div class="swatches" id="swatches" role="group" aria-label="Space color"></div></div>
+  <span class="spacer"></span>
+  <button id="mic" aria-pressed="false" hidden><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><rect x="5.5" y="1.8" width="5" height="8" rx="2.5"/><path d="M3.2 7.6a4.8 4.8 0 0 0 9.6 0M8 12.4v2"/></svg></button>
+  <span class="tools">
+    <button id="settings" title="Settings (⌘,)" aria-label="Settings"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M2.5 5h11M2.5 11h11"/><circle class="knob" cx="5.5" cy="5" r="1.8"/><circle class="knob" cx="10.5" cy="11" r="1.8"/></svg></button>
+  </span>
+</div>
+<script src="bridge.js"></script>
+<script src="cl-session.js"></script>
+<script src="chat-core.js"></script>
+<script src="space-dots.js"></script>
+<script src="artifact-group.js"></script>
+<script>
+const $ = (id) => document.getElementById(id);
+const SPEAKER = '<svg viewBox="0 0 16 16" fill="currentColor"><path d="M2 6h2.5L8 3v10L4.5 10H2z"/><path d="M10.5 5.5a3.5 3.5 0 0 1 0 5M12.3 3.7a6 6 0 0 1 0 8.6" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>';
+const SPEAKER_OFF = '<svg viewBox="0 0 16 16" fill="currentColor"><path d="M2 6h2.5L8 3v10L4.5 10H2z"/><path d="m10.5 6 4 4m0-4-4 4" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>';
+const sndButton = (t, cls) => (t.audible || t.muted)
+  ? `<button class="${cls} snd${t.muted ? ' muted' : ''}" data-mute="${t.id}" title="${t.muted ? 'Unmute tab' : 'Mute tab'}" aria-label="${t.muted ? 'Unmute tab' : 'Mute tab'}">${t.muted ? SPEAKER_OFF : SPEAKER}</button>` : '';
+const x = '<svg viewBox="0 0 12 12" width="10" height="10" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="m3 3 6 6M9 3l-6 6"/></svg>';
+let state = null;
+
+function ago(seconds) {
+  if (seconds < 3600) return Math.max(1, Math.round(seconds / 60)) + 'm';
+  if (seconds < 86400) return Math.round(seconds / 3600) + 'h';
+  return Math.round(seconds / 86400) + 'd';
+}
+
+// Agent-opened or agent-touched tabs say so in words, not only in color.
+function agentNote(t) {
+  if (t.agentActive) return 'An agent is using this tab now';
+  const s = Math.max(0, Date.now() / 1000 - t.agentLast);
+  return `Opened by an agent · last active ${s < 60 ? 'just now' : ago(s) + ' ago'}`;
+}
+
+function tabRow(t, limit, inPair) {
+  const left = limit > 0 ? Math.max(0, 1 - t.idleSeconds / limit) : 1;
+  const cool = limit > 0 && left < 0.25 && !t.active;
+  const remaining = limit > 0 ? `Archives in ${ago(Math.max(60, limit - t.idleSeconds))}` : '';
+  return `<div class="row${t.active ? ' active' : ''}${cool ? ' cool' : ''}${t.agentActive ? ' driven' : t.agentMark ? ' agent-was' : ''}" data-id="${t.id}" draggable="true" title="${esc(t.title)}\n${esc(t.url)}${t.agentMark ? '\n' + agentNote(t) : ''}${remaining && !t.active ? '\n' + remaining : ''}">
+    ${t.loading ? '<span class="spin"></span>' : t.url.startsWith('roar:') ? '<span class="lion" style="width:16px;height:16px"></span>' : iconHtml(t.favicon, t.url)}
+    <span class="label">${esc(t.name || t.title || hostOf(t.url))}</span>
+    ${t.agentActive ? `<span class="agent-tag" role="img" aria-label="${agentNote(t)}" title="${agentNote(t)}">Agent</span>` : t.agentMark ? `<span class="agent-was-mark" role="img" aria-label="${agentNote(t)}" title="${agentNote(t)}"></span>` : ''}${t.floating ? '<span class="badge">floating</span>' : ''}${t.split && !inPair ? `<button class="badge unsplit" data-unsplit="${t.id}" title="Separate tabs">split ×</button>` : ''}
+    ${sndButton(t, '')}${t.ghost ? '' : aiRn('tab', t.id, t.name || t.title)}
+    <button class="x" data-close="${t.id}" aria-label="Close tab">${x}</button>
+    ${limit > 0 && !t.active ? `<span class="life"><i style="width:${(left * 100).toFixed(1)}%"></i></span>` : ''}
+  </div>`;
+}
+
+window.roar = {
+  render(s) {
+    state = s;
+    aiSettle();
+    const limit = s.settings.archiveAfterHours * 3600;
+    const ghosts = s.tabs.filter((t) => t.ghost && !t.split);
+    // A Claude session in full view is shown by its session row, not as a tab.
+    const clFull = {};
+    for (const t of s.tabs) { const m = /^roar:\/\/ui\/claude\.html\?id=([\w-]+)/.exec(t.url || ''); if (m) clFull[m[1]] = t; }
+    // Split pairs (any tab, agent views too) show together in Split; unsplit, each is back where it was.
+    const byId = Object.fromEntries(state.tabs.map((t) => [t.id, t]));
+    const pairs = state.tabs.filter((t) => t.split && t.splitFirst && byId[t.splitWith]).map((t) => [t, byId[t.splitWith]]);
+    $('split-group').hidden = !pairs.length;
+    $('split-count').textContent = pairs.length || '';
+    setHtml($('split-tabs'), pairs.map(([a, b]) => `<div class="split-pair${a.stacked ? ' stacked' : ''}">${tabRow(a, 0, true)}${tabRow(b, 0, true)}<button class="unsplit-pair" data-unsplit="${a.id}" title="Separate" aria-label="Separate split tabs">${x}</button></div>`).join(''));
+    s = { ...s, tabs: s.tabs.filter((t) => !t.ghost && !t.split && !/^roar:\/\/ui\/claude\.html/.test(t.url || '')) };
+    const pinned = s.tabs.filter((t) => t.pinned);
+    // Claude Artifacts the person opened get their own section while one is open (artifact-group.js).
+    const arts = s.tabs.filter((t) => artifactGrouped(t, s.settings));
+    $('art-group').hidden = !arts.length;
+    $('art-count').textContent = arts.length || '';
+    setHtml($('art-tabs'), arts.map((t) => tabRow(t, limit)).join(''));
+    const open = s.tabs.filter((t) => !t.pinned && !t.group && !arts.includes(t));  // Mail/PR tabs too: everything opened is a real tab.
+    $('ghost-group').hidden = !ghosts.length;
+    setHtml($('ghost-tabs'), ghosts.map((t) => tabRow(t, 0)).join(''));
+    $('ghost-count').textContent = ghosts.length || '';
+    const folderTab = (f) => s.tabs.find((t) => t.folder === f && !t.pinned && !t.group);
+    // The folder's tab stands in for the link it opened; elsewhere it leads the list.
+    const folderRows = (f, items, row) => {
+      const ft = folderTab(f);
+      const at = ft ? items.findIndex((i) => i.url === ft.folderItem) : -1;
+      return (ft && at < 0 ? tabRow(ft, 0) : '') + items.map((i, n) => n === at ? tabRow(ft, 0) : row(i)).join('');
+    };
+    const groupHtml = (g) => {
+      const tabs = s.tabs.filter((t) => t.group === g.id);
+      return `<section class="tgroup${g.collapsed ? ' collapsed' : ''}" data-group="${g.id}" style="${g.color ? '--gc:' + g.color : ''}">
+        <div class="group-head" data-group-head="${g.id}"><button class="toggle" data-group-toggle="${g.id}" aria-label="${g.collapsed ? 'Expand' : 'Collapse'} group ${esc(g.name)}" aria-expanded="${!g.collapsed}"><svg class="chev" viewBox="0 0 10 10" fill="currentColor"><path d="M1 3h8L5 8z"/></svg></button><span class="gdot"></span><span class="gname">${esc(g.name)}</span><span class="count">${tabs.length || ''}</span>${aiRn('group', g.id, g.name)}${g.pinned ? '<svg class="gpin" viewBox="0 0 16 16" fill="currentColor"><path d="M9.8 1.5 14.5 6.2l-1.4.4-3 3 .1 3-1.2 1.2-2.6-2.6L3 14.6 1.4 13l3.4-3.4-2.6-2.6L3.4 5.8l3 .1 3-3z"/></svg>' : ''}</div>
+        <div class="rows">${tabs.map((t) => tabRow(t, g.pinned ? 0 : limit)).join('') || '<div class="empty">Drag tabs here</div>'}</div>
+      </section>`;
+    };
+    const groups = s.groups || [];
+    setHtml($('pinned-groups'), groups.filter((g) => g.pinned).map(groupHtml).join(''));
+    setHtml($('groups'), groups.filter((g) => !g.pinned).map(groupHtml).join(''));
+    // Spaces stay out of the way: only a name and dots in the footer, and
+    // nothing at all until a second space exists.
+    const multi = s.spaces.length > 1;
+    const cur = s.spaces.find((sp) => sp.id === s.activeSpace);
+    document.body.style.setProperty('--space-color', cur?.color || 'transparent');
+    $('space-name').style.color = cur?.color || '';
+    $('space-name').textContent = multi ? (s.spaces.find((sp) => sp.id === s.activeSpace)?.name || '') : '';
+    // One dot shows even with a single space: clicking it is how agent access is switched (space-dots.js).
+    $('spaces').innerHTML = s.spaces.map((sp, i) => { const d = spaceDot(sp, s, i);
+      return `<button data-space="${sp.id}" draggable="true"${d.ring ? ` class="agents${d.busy ? ' busy' : ''}"` : ''} aria-current="${d.active}" style="${sp.color ? '--dot:' + sp.color : ''}" title="${esc(d.title)}" aria-label="${esc(d.label)}"></button>`; }).join('');
+    layoutPins(s.settings);
+    setHtml($('pinned'), pinned.map((t) =>
+      `<button class="pin${t.active ? ' active' : ''}" data-id="${t.id}" draggable="true" title="${esc(t.title)}" aria-label="${esc(t.title)}">${pinIcon(t)}${sndButton(t, '')}</button>`).join(''));
+    setHtml($('tabs'), open.map((t) => tabRow(t, limit)).join(''));
+    $('tab-count').textContent = open.length || '';
+    // The AI chosen in Settings (askLlms; older saves listed several, the first wins), as the command bar's "Ask … about this page".
+    const llm = (s.settings?.askLlms || '').split(',')[0], askAct = s.tabs.find((t) => t.active);
+    $('ask-llm').hidden = !llm;
+    $('ask-llm').dataset.llm = llm;
+    $('ask-llm').setAttribute('aria-disabled', String(!/^https?:/.test(askAct?.url || '')));
+    $('back').disabled = !s.nav.canBack;
+    $('forward').disabled = !s.nav.canForward;
+    const url = s.nav.url || '';
+    $('host').textContent = url && !url.startsWith('roar:') ? hostOf(url) : 'Search or enter address';
+    const alerts = s.alerts || [];
+    const ago = (t) => { const m = Math.round((Date.now() / 1000 - t) / 60); return m < 1 ? 'now' : m < 60 ? m + ' min ago' : Math.round(m / 60) + ' h ago'; };
+    // Cards are kept by id and only changed ones are redrawn, so a screen reader reads each once.
+    const box = $('alerts'), keep = new Set(alerts.map((a) => String(a.id)));
+    // A card whose reply is being typed or was just sent outlives its timeout (it goes 3 s after sending).
+    for (const el of [...box.querySelectorAll('[data-alert]')]) if (!keep.has(el.dataset.alert) && !el.querySelector('.alert-reply.sreply')) el.remove();
+    let clear = box.querySelector('.clear-all');
+    if (alerts.length > 1 && !clear) box.insertAdjacentHTML('afterbegin', '<button class="clear-all" data-alert-clear>Clear all</button>');
+    else if (alerts.length <= 1 && clear) clear.remove();
+    for (const a of alerts) {
+      const link = a.url || alertLink(a.body);
+      const html = `<div class="who"><span>${esc(a.agent || 'Agent')}${alertChat(a, s) ? ' · ' + esc(alertChat(a, s)) : ''}</span><span>${ago(a.time)}</span></div>
+        <div class="t">${esc(a.title)}</div>${a.body ? `<div class="b">${linkify(a.body)}</div>` : ''}${a.body && (a.body.length > 220 || a.body.split('\n').length > 4) ? '<button class="more" data-alert-more aria-expanded="false">more</button>' : ''}
+        <div class="acts">${a.choices.map((c, i) => `<button class="${i === 0 ? 'primary' : ''}" data-alert-choice="${esc(c)}">${esc(c)}</button>`).join('')}${a.waiting ? '<button data-alert-reply>Reply</button>' : ''}${(({ reply, term } = alertSession(a, s.claude?.items, /Win/.test(navigator.platform))) => reply ? `<button data-alert-sreply="${esc(reply)}">Reply</button>` : term ? `<button data-alert-term="${esc(term)}" title="Bring its terminal window to the front">Show terminal</button>` : '')()}${a.body ? '<button data-alert-copy title="Copy the full message">Copy</button>' : ''}${link ? `<button data-alert-open="${esc(link)}" data-alert-space="${a.space ?? -1}"${a.url ? ' data-alert-answer' : ''}>Open</button>` : ''}</div>
+        <button class="dismiss" data-alert-dismiss aria-label="Dismiss" title="${a.waiting ? 'Dismiss without answering' : 'Dismiss'}"><svg viewBox="0 0 12 12" width="9" height="9" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="m3 3 6 6M9 3l-6 6"/></svg></button>`;
+      let el = box.querySelector(`[data-alert="${a.id}"]`);
+      if (!el) { el = Object.assign(document.createElement('div'), { className: 'alert' }); el.dataset.alert = a.id; box.append(el); }
+      el.classList.remove('done', 'needs_you', 'info'); el.classList.add(a.level); el.classList.toggle('auto-done', !!a.autoDone);
+      el.__body = a.body || '';
+      if (el.__html !== html && !el.querySelector('.alert-reply')) { el.innerHTML = el.__html = html; el.classList.remove('full'); }
+    }
+
+    $('dl-btn').hidden = !(s.downloads && s.downloads.count);
+    $('dl-count').textContent = (s.downloads && s.downloads.active) || '';
+    const gh = s.github;
+    $('gh-btn').hidden = !gh.enabled;
+    $('gh-count').textContent = gh.items.length || '';
+    if (document.activeElement !== $('gh-qin')) $('gh-qin').value = gh.query || '';
+    setHtml($('gh'), gh.status
+      ? (folderTab('github') ? tabRow(folderTab('github'), 0) : '') + `<div class="note">${esc(gh.status).replace(/`([^`]+)`/g, '<code>$1</code>')}</div>`
+      : gh.items.length
+        ? folderRows('github', gh.items, (p) => `<button class="row pr" data-url="${esc(p.url)}" title="${esc(p.title)}"><span class="dot"></span><span class="label">${esc(p.title)}<small>${esc(p.detail)}</small></span></button>`)
+        : folderRows('github', [], () => '') + '<div class="note">No open pull requests.</div>');
+
+    // Agent sessions (Claude Code, Codex, Gemini... hooked in from Settings): the module icon, its badge counting only the
+    // sessions that need you, and a list with those on top. A row opens the session's full view.
+    const needs = (c) => c.state === 'needs_you' && !c.acked;
+    const names = agentNames(s);
+    const cl = (s.claude?.items || []).map((c) => names[c.id] ? { ...c, project: names[c.id] } : c).sort((a, b) => needs(b) - needs(a) || b.updated - a.updated);
+    // Hidden sessions live in settings so they stay hidden after a restart; ids of gone sessions are dropped.
+    clHiddenAt = clHiddenMap(s);
+    const clPruned = clHiddenPrune(clHiddenAt, cl.map((c) => c.id));
+    if (clPruned) { clHiddenAt = clPruned; saveClHidden(); }
+    const clAgo = (ms) => { const m = Math.round((Date.now() - ms) / 60000); return m < 1 ? 'now' : m < 60 ? m + ' min' : m < 1440 ? Math.round(m / 60) + ' h' : Math.round(m / 1440) + ' d'; };
+    const clStates = { needs_you: 'Needs you', working: 'Working', idle: 'Idle', starting: 'Starting' };
+    const act = s.tabs.find((t) => t.active), webTab = act && /^https?:/.test(act.url || '');
+    const ico = {
+      attach: '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 7.5l-5.3 5.3a3.2 3.2 0 01-4.5-4.5l5.6-5.6a2.1 2.1 0 013 3L6.3 11.2a1 1 0 01-1.5-1.5L10 4.6"/></svg>',
+      term: '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="1.8" y="2.8" width="12.4" height="10.4" rx="2"/><path d="M4.6 6.4l2 1.6-2 1.6M8.6 9.8h2.8"/></svg>',
+      reply: '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 4.2a1.6 1.6 0 011.6-1.6h7.8a1.6 1.6 0 011.6 1.6v5a1.6 1.6 0 01-1.6 1.6H7l-3 2.6v-2.6h0a1.6 1.6 0 01-1.5-1.6z"/></svg>',
+      beside: '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" aria-hidden="true"><rect x="1.8" y="2.8" width="12.4" height="10.4" rx="2"/><path d="M8 2.8v10.4"/></svg>',
+      hide: '<svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8"/></svg>',
+      send: '<svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 13V3.5M4 7.2L8 3.2l4 4"/></svg>',
+    };
+    // "Claude is waiting for your input" → "Waiting for your input": the icon already names the tool.
+    const tidy = (t) => (t || '').replace(/^(Claude|Codex|Gemini|Qwen|Copilot)( Code| CLI)? (is|has|needs) /i, (m, a, b, v) => v.toLowerCase() === 'is' ? '' : v + ' ').replace(/^./, (x) => x.toUpperCase());
+    const attachAttrs = webTab ? `title="Send the tab you're looking at, with a prompt if you like: Roar saves it as Markdown and types @file into the session's prompt"` : 'aria-disabled="true" title="Switch to a web page first: only web pages can be sent"';
+    const clRow = (c) => {
+      const st = needs(c) ? 'needs_you' : c.state === 'needs_you' ? 'working' : (c.state || 'idle');
+      const sub = tidy(c.doing || (c.prompt || '').split('\n')[0]);
+      const open = false;
+      const tint = clColor(s, c.id);
+      return `<div class="row pr cl${tint ? ' tint' : ''}${needs(c) ? ' needs' : ''}${c.state === 'starting' ? ' starting' : ''}${clFull[c.id]?.active ? ' active' : ''}" data-clid="${esc(c.id)}"${tint ? ` style="--cl-bg:${tint}"` : ''} data-cltab="${clFull[c.id]?.id || ''}" title="${esc((needs(c) && c.ask) || c.prompt || c.cwd || '')}">` +
+        `<button class="clmain" aria-label="${esc(agentName(c))}: ${esc(c.project)}, ${clStates[st] || st}${sub ? ': ' + esc(sub) : ''}. Open"><span class="cl-ic">${agentIcon(c, 16)}<span class="dot ${esc(st)}" aria-hidden="true"></span></span>` +
+        `<span class="label"><span class="cl-name"><b>${esc(c.project)}</b><time>${clAgo(c.updated)}</time></span><small><span class="vh">${clStates[st] || st}: </span>${esc(sub)}</small>` +
+        `</span></button>` +
+        `<span class="cl-acts">` +
+        aiRn('session', c.id, c.project) +
+        `<button data-clbeside="${esc(c.id)}" aria-label="Show ${esc(c.project)} side by side with the page you're on" title="Side by side with this page">${ico.beside}</button>` +
+        `${c.live ? `<button data-clfocus="${esc(c.id)}" aria-label="Show ${esc(c.project)}'s terminal" title="Bring its terminal window to the front">${ico.term}</button>` : ''}` +
+        (c.live ? `<button data-clhide="${esc(c.id)}" title="${clIsHidden(c.id) ? 'Show this session again' : 'Hide (Show hidden brings it back)'}" aria-label="${clIsHidden(c.id) ? 'Unhide' : 'Hide'} ${esc(c.project)}">${ico.hide}</button></span></div>`
+          : `<button data-cldismiss="${esc(c.id)}" title="Hide this session" aria-label="Hide ${esc(c.project)}">${ico.hide}</button></span></div>`) +
+        (open ? `<form class="clq" data-clq="${esc(c.id)}"><input placeholder="Reply to ${esc(c.project)}…" title="Empty Enter accepts the highlighted choice" autocomplete="off" spellcheck="false" aria-label="Reply to ${esc(c.project)}" value="${esc(clDraft[c.id] || '')}"><span class="clq-acts"><button type="button" data-tab aria-label="Attach this tab" ${attachAttrs}>${ico.attach}</button><button class="send" aria-label="Send">${ico.send}</button></span></form>` : '') ;
+    };
+    // A session started here shows at once, until its hook (or claude-ctl's stand-in) reports.
+    if (clWant && (Date.now() - clWant.since > 60000 || cl.some((c) => c.cwd === clWant.dir && c.started >= clWant.since))) clWant = null;
+    const starting = clWant ? `<div class="row pr cl starting" role="status"><span class="clmain"><span class="cl-ic">${agentIcon(clWant.tool, 16)}<span class="dot starting" aria-hidden="true"></span></span><span class="label"><span class="cl-name"><b>${esc(clWant.name)}</b></span><small>Starting…</small></span></span></div>` : '';
+    const clNeeds = cl.filter(needs).length;
+    const clOn = s.settings?.claudeSidebar !== false, clAny = clOn && !!(cl.length || s.claude?.hooks || clWant || s.chats?.length);
+    // The footer button only shows or hides the section; its badge still counts who needs you.
+    $('cl-btn').hidden = !clAny;
+    $('cl-btn').setAttribute('aria-pressed', String(s.settings?.agentSection !== false));
+    $('cl-group').hidden = !clAny || s.settings?.agentSection === false;
+    $('cl-count').textContent = clNeeds || '';
+    $('cl-count').classList.toggle('urgent', clNeeds > 0);
+    $('cl-btn').title = (s.settings?.agentSection === false ? 'Show' : 'Hide') + ' AI: ' + cl.length + ' session' + (cl.length === 1 ? '' : 's') + (clNeeds ? `, ${clNeeds} waiting for you` : '');
+    $('cl-btn').setAttribute('aria-label', $('cl-btn').title);
+    $('cl-n').textContent = cl.length || '';
+    clLive = cl.filter((c) => c.live);
+    // Redrawing loses focus in a reply box; put it back where it was.
+    const f = document.activeElement?.closest?.('#cl .clq') && document.activeElement;
+    const fq = f && f.closest('.clq').outerHTML.match(/data-clq="[^"]*"/)[0], fs = f && [f.selectionStart, f.selectionEnd];
+    // Agent files (Settings) is one more row here: it opens the Agent files browser.
+    const hc = hiddenCounts(s);
+    for (const b of document.querySelectorAll('.feed[id]')) b.classList.toggle('no-count', !!hc[b.id]);
+    const afOn = s.settings?.agentFilesRow !== false;
+    $('af-btn').setAttribute('aria-pressed', String(afOn));
+    $('af-btn').title = (afOn ? 'Hide' : 'Show') + ' the Agent files row';
+    const afRow = afOn ? `<div class="row pr cl af-row"><button class="clmain" data-agentmd title="Browse CLAUDE.md, AGENTS.md, Cursor rules and other agent instruction files"><span class="cl-ic"><svg class="agent-icon" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2.5c-1.4 0-2 .6-2 2v1.6c0 .9-.5 1.6-1.5 1.9 1 .3 1.5 1 1.5 1.9v1.6c0 1.4.6 2 2 2M10 2.5c1.4 0 2 .6 2 2v1.6c0 .9.5 1.6 1.5 1.9-1 .3-1.5 1-1.5 1.9v1.6c0 1.4-.6 2-2 2"/></svg></span><span class="label"><span class="cl-name"><b>Agent files</b></span><small>CLAUDE.md, AGENTS.md and rules</small></span></button><span class="cl-acts"><button data-afhide title="Hide the Agent files row (the {} button brings it back)" aria-label="Hide the Agent files row">${ico.hide}</button></span></div>` : '';
+    // Hidden live sessions stay out unless Show hidden is on, or they need you again after being hidden.
+    const hiddenNow = (c) => clIsHidden(c.id) &&!(needs(c) && c.updated > (clHiddenAt[c.id] || 0));
+    const clHid = cl.filter(hiddenNow).length;
+    const clVis = clShowHidden ? cl : cl.filter((c) => !hiddenNow(c));
+    // Ask chats: one row each, like a session, its icon and name saying which model it was with.
+    const chatTool = (c) => c.brand || (/^cli-/.test(c.model || '') ? c.model.slice(4).split('|')[0] : 'model');
+    const chatIcon = (c) => AGENT_TOOLS[chatTool(c)] ? agentIcon(chatTool(c), 16) : '<svg class="agent-icon" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="var(--ink-2)" stroke-width="1.5" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 3.5h11v7h-6l-3 2.5v-2.5h-2z"/></svg>';
+    const chatWho = (c) => [c.brandName || (AGENT_TOOLS[chatTool(c)] ? agentName(chatTool(c)) : 'Model'), (c.model || '').split('|').slice(1).join('|')].filter((x) => x && x !== 'default').join(' · ');
+    const chatTab = (c) => s.tabs.find((t) => t.url === 'roar://ui/chat.html#' + c.id);
+    const chatRows = (s.chats || []).slice().sort((a, b) => b.updated - a.updated).slice(0, 8).map((c) =>
+      `<div class="row pr cl${chatTab(c)?.active ? ' active' : ''}" data-chatid="${esc(c.id)}" title="${esc(c.title)}"><button class="clmain" aria-label="${esc(chatWho(c))}: ${esc(c.title || 'Untitled')}. Open"><span class="cl-ic">${chatIcon(c)}<span class="ask-badge" aria-hidden="true"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M1.5 2.5h13v8.5h-7l-3.5 3v-3h-2.5z"/></svg></span></span>` +
+      `<span class="label"><span class="cl-name"><b>${esc(c.title || 'Untitled')}</b><time>${clAgo(c.updated)}</time></span><small>${esc(chatWho(c))}</small></span></button>` +
+      `<span class="cl-acts"><button data-chatdel="${esc(c.id)}" title="Delete this chat" aria-label="Delete ${esc(c.title)}">${ico.hide}</button></span></div>`).join('');
+    const clHidRow = clHid ? `<button class="note cl-hidden" data-clshowhidden>${clShowHidden ? 'Done showing' : 'Show'} ${clHid} hidden</button>` : '';
+    const both = (starting || clVis.length) && chatRows;
+    setHtml($('cl'), (both ? '<div class="cl-sub" aria-hidden="true">Code</div>' : '') + starting + (clVis.map(clRow).join('') + (both ? '<div class="cl-sub" aria-hidden="true">Ask</div>' : '') + chatRows || (starting || afRow ? '' : '<div class="note">No sessions yet. Press Code to start a coding agent, or Ask to talk to a model.</div>')) + clHidRow + afRow);
+    clActive = webTab ? act.id : 0;
+    if (fq) { const i = $('cl').querySelector(`[${fq}] input`); if (i && i !== f) { i.focus(); i.setSelectionRange(...fs); } }
+    // Recent folders for Code; scratch folders are Roar's own, not projects.
+    clDirs = [...new Set([...cl.map((c) => c.cwd).filter((d) => d && !/\/(scratch|chats)\/\d{4}-\d\d-\d\d-\d{4}(-\d+)?$/.test(d)), ...clDirs])].slice(0, 6);
+    clFullTabs = clFull;
+    const gm = s.gmail;
+    const mailRow = (m) => {
+      const ft = folderTab('mail');
+      if (ft && ft.folderItem === m.url) return tabRow(ft, 0);
+      return `<div class="mailrow" draggable="true" data-murl="${esc(m.url)}"><input type="checkbox" class="msel" title="Select" aria-label="Select ${esc(m.title)}" ${mailSel.has(m.url) ? 'checked' : ''}><button class="row pr mail" data-url="${esc(m.url)}" title="${esc(m.title)}"><span class="dot"></span><span class="label">${esc(m.title)}<small>${esc(m.detail)}</small></span></button><span class="macts"><button data-mact="read" title="Mark read" aria-label="Mark read">✓</button><button data-mact="move" title="Mark read, pick a label, archive" aria-label="Mark read, pick a label, archive">⇥</button><button data-mact="delete" title="Delete" aria-label="Delete">🗑</button><button data-mhide title="Hide from this list (stays in Gmail)" aria-label="Hide">−</button></span></div>`;
+    };
+    gm.items = mailView(gm.all ||= gm.items);  // gm.all keeps the raw feed for re-renders.
+    // Accounts: dragged order and hidden ones, by address; n stays Gmail's /u/n index.
+    const accts = (gm.accounts || []).map((a, n) => [a, n]).sort(([a], [b]) => acctOrder.indexOf(a.address) - acctOrder.indexOf(b.address));
+    const acctHid = accts.filter(([a]) => acctHidden.has(a.address)).length;
+    if (!acctShowHidden) gm.items = gm.items.filter((m) => !acctHidden.has(gm.accounts?.[m.account]?.address));
+    for (const u of [...mailSel]) if (!gm.items.some((m) => m.url === u)) mailSel.delete(u);
+    syncMailSel();
+    $('gm-btn').hidden = !gm.enabled || gm.signedOut;
+    $('ol-btn').hidden = !s.outlook;
+    $('ol-btn').title = s.outlook ? 'Outlook (' + s.outlook + ')' : 'Outlook';
+    // With unread mail read from Outlook the button opens a list; without it, Outlook itself.
+    const om = s.outlook && s.outlookMail;
+    if (om) $('ol-btn').dataset.feed = 'ol-group'; else { delete $('ol-btn').dataset.feed; $('ol-group').classList.remove('open'); }
+    $('ol-count').textContent = om?.unread || '';
+    if (om) setHtml($('olm'), om.items.map((m) => `<button class="row pr mail" data-url="${esc(m.url)}" title="${esc(m.title)}"><span class="dot"></span><span class="label">${esc(m.title)}<small>${esc(m.detail)}</small></span></button>`).join('') || '<div class="note">No unread mail.</div>');
+    $('gm-count').textContent = gm.unread || '';
+    $('gm-btn').title = (gm.accounts || []).map((a) => `${a.address}: ${a.unread} unread`).join('\n') || 'Unread mail';
+    for (const b of document.querySelectorAll('.feed[data-feed][hidden]')) $(b.dataset.feed).classList.remove('open');
+    syncFeeds();
+    setHtml($('gm'), gm.status
+      ? (folderTab('mail') ? tabRow(folderTab('mail'), 0) : '') + `<div class="note">${esc(gm.status)}</div>`
+      : (gm.accounts || []).length > 1
+        ? (folderTab('mail') && !gm.items.some((m) => m.url === folderTab('mail').folderItem) ? tabRow(folderTab('mail'), 0) : '') +
+          accts.filter(([a]) => acctShowHidden || !acctHidden.has(a.address)).map(([a, n]) => {
+            const at = a.address.indexOf('@');
+            const who = at < 0 ? esc(a.address) : `${esc(a.address.slice(0, at))}<span>${esc(a.address.slice(at))}</span>`;
+            const items = gm.items.filter((m) => m.account === n);
+            return `<div class="acct" style="--acct:${ACCT_HUES[n % ACCT_HUES.length]}">
+              <div class="acct-head" draggable="true" data-acct="${n}" data-addr="${esc(a.address)}" title="Open ${esc(a.address)} in a tab"><span class="swatch"></span><span class="who">${who}</span>${items.length ? `<button class="selacct" data-selacct="${n}" title="Select every message in this account">${items.every((m) => mailSel.has(m.url)) ? 'None' : 'All'}</button>` : ''}<span class="n">${a.unread || ''}</span><button class="selacct" data-accthide="${esc(a.address)}" title="${acctHidden.has(a.address) ? 'Show this account again' : 'Hide this account (Show hidden brings it back)'}">${acctHidden.has(a.address) ? 'Show' : '−'}</button></div>
+              ${items.map(mailRow).join('') || '<div class="note">No unread mail</div>'}</div>`;
+          }).join('') + (acctHid ? `<button class="note cl-hidden" data-acctshowhidden>${acctShowHidden ? 'Done showing' : 'Show'} ${acctHid} hidden account${acctHid > 1 ? 's' : ''}</button>` : '')
+        : gm.items.length
+          ? folderRows('mail', gm.items, mailRow)
+          : folderRows('mail', [], () => '') + '<div class="note">No unread mail.</div>');
+
+  },
+};
+
+// Copying a selection that runs to the edge of a clamped card body copies on to the end of the hidden text.
+document.addEventListener('copy', (e) => {
+  const sel = getSelection(), r = sel.rangeCount && sel.getRangeAt(0);
+  const n = r && r.commonAncestorContainer, b = (n?.nodeType === 1 ? n : n?.parentElement)?.closest('.alert:not(.full) .b');
+  if (!b || b.scrollHeight <= b.clientHeight || r.getBoundingClientRect().bottom < b.getBoundingClientRect().bottom - 20) return;
+  const all = r.cloneRange(); all.setEnd(b, b.childNodes.length);
+  e.clipboardData.setData('text/plain', all.toString()); e.preventDefault();
+});
+
+document.addEventListener('click', (e) => {
+  const alert = e.target.closest('[data-alert]');
+  if (alert) {
+    const id = +alert.dataset.alert, b = e.target.closest('button');
+    const lk = e.target.closest('a[data-alert-link]');
+    if (lk) { e.preventDefault(); if (String(getSelection())) return; return ask({ cmd: 'open', text: lk.dataset.alertLink, newTab: true, ...(state.alerts?.find((x) => x.id === id)?.space >= 0 ? { space: state.alerts.find((x) => x.id === id).space } : {}) }); }
+    if (b?.hasAttribute('data-alert-copy')) return navigator.clipboard.writeText(alert.__body).then(() => { b.textContent = 'Copied'; setTimeout(() => (b.textContent = 'Copy'), 1500); }, () => { b.textContent = 'Copy failed'; });
+    if (b?.dataset.alertChoice !== undefined) return ask({ cmd: 'agent.answer', id, choice: b.dataset.alertChoice });
+    if (b?.dataset.alertOpen) { ask({ cmd: 'open', text: b.dataset.alertOpen, newTab: true, ...(+b.dataset.alertSpace >= 0 ? { space: +b.dataset.alertSpace } : {}) }); // A link taken from the body is not the agent's answer target, so a waiting card stays open.
+      if (b.hasAttribute('data-alert-answer')) ask({ cmd: 'agent.answer', id, choice: 'opened' }); return; }
+    // Reply: a typed answer instead of a choice; Enter sends it.
+    if (b?.hasAttribute('data-alert-reply')) {
+      // Beside the choices, not over them, with its own Send button (Enter alone was the only way to send).
+      const f = Object.assign(document.createElement('form'), { className: 'alert-reply' });
+      f.innerHTML = '<input placeholder="Reply…" aria-label="Reply" autocomplete="off" spellcheck="false"><button type="submit" class="primary">Send</button>';
+      f.onsubmit = (ev) => { ev.preventDefault(); const t = f.firstChild.value.trim(); if (t) ask({ cmd: 'agent.answer', id, choice: JSON.stringify({ reply: t }) }); };
+      b.closest('.acts').before(f);
+      b.remove();
+      return f.firstChild.focus();
+    }
+    // A done card's Reply: types the answer into the session that posted it (as the session row's quick reply does).
+    if (b?.dataset.alertSreply) {
+      const sid = b.dataset.alertSreply, acts = b.closest('.acts');
+      const f = Object.assign(document.createElement('form'), { className: 'alert-reply sreply' });
+      f.innerHTML = '<input placeholder="Reply…" aria-label="Reply to this session" autocomplete="off" spellcheck="false"><div class="gone" role="status"></div>';
+      const [input, note] = f.children;
+      const keep = () => (state.alerts || []).some((x) => x.id === id), drop = () => { if (!keep()) alert.remove(); };
+      input.onkeydown = (ev) => { if (ev.key === 'Escape') { ev.preventDefault(); f.replaceWith(acts); drop(); } };
+      f.onsubmit = async (ev) => {
+        ev.preventDefault();
+        const t = input.value.trim();
+        if (!t || input.disabled) return;
+        input.disabled = true; note.textContent = 'Sending…';
+        const why = clSession.error(await clSession.reply(sid, t));
+        if (why) { input.disabled = false; note.textContent = 'Not sent: ' + why; return input.focus(); }
+        note.textContent = 'Sent.';
+        setTimeout(() => { if (keep()) ask({ cmd: 'agent.answer', id, choice: '' }); alert.remove(); }, 3000);
+      };
+      acts.replaceWith(f);
+      return input.focus();
+    }
+    if (b?.dataset.alertTerm) return clSession.ctl(b.dataset.alertTerm, 'focus').then((out) => { const why = clSession.error(out); if (why) b.textContent = 'Not shown: ' + why; });
+    if (b?.hasAttribute('data-alert-dismiss')) return ask({ cmd: 'agent.answer', id, choice: '' });
+    if (b?.hasAttribute('data-alert-more')) { const full = alert.classList.toggle('full'); b.textContent = full ? 'less' : 'more'; b.setAttribute('aria-expanded', full); }
+    return;
+  }
+  if (e.target.closest('[data-alert-clear]')) return ask({ cmd: 'agent.clear' });
+  const space = e.target.closest('[data-space]');
+  if (space) return spaceDotAction(+space.dataset.space, state) === 'agents' ? toggleAgents() : ask({ cmd: 'space.switch', id: +space.dataset.space });
+  const toggle = e.target.closest('[data-group-toggle], [data-group-head]');
+  if (toggle && !e.target.closest('.ctx')) {
+    const g = state.groups.find((g) => g.id === +(toggle.dataset.groupToggle || toggle.dataset.groupHead));
+    if (g) return ask({ cmd: 'group.update', id: g.id, collapsed: !g.collapsed });
+  }
+  const mute = e.target.closest('[data-mute]');
+  if (mute) { e.stopPropagation(); return ask({ cmd: 'tab.mute', id: +mute.dataset.mute }); }
+  if (e.target.closest('[data-agentmd]')) return ask({ cmd: 'run', id: 'agentmd' });
+  if (e.target.closest('#dl-btn')) return ask({ cmd: 'run', id: 'downloads' });
+  const close = e.target.closest('[data-close]');
+  if (close) { e.stopPropagation(); return ask({ cmd: 'tab.close', id: +close.dataset.close }); }
+  const tab = e.target.closest('[data-id]');
+  if (tab) return ask({ cmd: 'tab.activate', id: +tab.dataset.id });
+  const selacct = e.target.closest('[data-selacct]');
+  if (selacct) { e.stopPropagation(); return selectMail(state.gmail.items.filter((m) => m.account === +selacct.dataset.selacct)); }
+  const mhide = e.target.closest('[data-mhide]');
+  if (mhide) { e.stopPropagation(); mailHidden.add(mhide.closest('[data-murl]').dataset.murl); saveMail(); return roar.render(state); }
+  const ah = e.target.closest('[data-accthide]');
+  if (ah) { e.stopPropagation(); const a = ah.dataset.accthide; acctHidden.has(a) ? acctHidden.delete(a) : acctHidden.add(a); saveMail(); return roar.render(state); }
+  if (e.target.closest('[data-acctshowhidden]')) { e.stopPropagation(); acctShowHidden = !acctShowHidden; return roar.render(state); }
+  const acct = e.target.closest('[data-acct]');
+  if (acct) return ask({ cmd: 'open', text: `https://mail.google.com/mail/u/${acct.dataset.acct}/`, newTab: true });
+  const mact = e.target.closest('[data-mact]');
+  if (mact) {
+    e.stopPropagation();
+    const url = mact.closest('[data-murl]').dataset.murl;
+    if (mact.dataset.mact === 'delete') mailGone(url);
+    return ask({ cmd: 'mail.act', action: mact.dataset.mact, url });
+  }
+  const item = e.target.closest('#gm [data-url], #gh [data-url]');
+  if (item) return ask({ cmd: 'folder.open', folder: item.closest('#gm') ? 'mail' : 'github', url: item.dataset.url });
+  const pr = e.target.closest('[data-url]');
+  // Same tab, like a plain link; ⌘- or ⇧-click asks for a new one.
+  if (pr) return ask({ cmd: 'open', text: pr.dataset.url, newTab: e.metaKey || e.shiftKey });
+  const collapse = e.target.closest('[data-collapse]');
+  if (collapse) {
+    const group = $(collapse.dataset.collapse);
+    syncCollapse(group, !group.classList.contains('collapsed'));
+    try { localStorage.setItem('collapsed:' + group.id, group.classList.contains('collapsed')); } catch {}
+  }
+});
+// Sections with a [data-collapse] toggle remember being collapsed (per sidebar, in localStorage).
+function syncCollapse(group, collapsed) {
+  group.classList.toggle('collapsed', collapsed);
+  const b = group.querySelector('[data-collapse]');
+  b.setAttribute('aria-expanded', String(!collapsed));
+  b.setAttribute('aria-label', (collapsed ? 'Expand ' : 'Collapse ') + b.textContent.trim().toLowerCase());
+}
+for (const b of document.querySelectorAll('[data-collapse]')) {
+  // AI starts collapsed every launch (just its header and count); expanding it lasts the session.
+  if (b.dataset.collapse === 'cl-group') { syncCollapse($('cl-group'), true); continue; }
+  try { if (localStorage.getItem('collapsed:' + b.dataset.collapse) === 'true') syncCollapse($(b.dataset.collapse), true); } catch {}
+}
+document.addEventListener('auxclick', (e) => {
+  const tab = e.target.closest('.row[data-id]');
+  if (tab && e.button === 1) ask({ cmd: 'tab.close', id: +tab.dataset.id });
+});
+// Right-click a space dot: rename it (Enter) or remove it.
+let menuSpace = null;
+const hideSpaceMenu = () => { $('space-menu').hidden = true; menuSpace = null; };
+$('space-rename').onkeydown = (e) => {
+  const name = e.target.value.trim();
+  if (e.key === 'Enter' && name) ask({ cmd: 'space.rename', id: menuSpace, name }).then(() => ask({ cmd: 'state' })).then(roar.render).finally(hideSpaceMenu);
+  else if (e.key === 'Escape') hideSpaceMenu();
+};
+$('space-rename').onblur = () => setTimeout(() => { if (!$('space-menu').contains(document.activeElement)) hideSpaceMenu(); }, 150);
+$('space-remove').onmousedown = (e) => e.preventDefault();
+$('space-close').onmousedown = (e) => e.preventDefault();
+$('space-close').onclick = () => ask({ cmd: 'run', id: 'closeSpaceTabs:' + menuSpace }).finally(hideSpaceMenu);
+$('space-agents').onmousedown = (e) => e.preventDefault();
+$('space-agents').onclick = () => {
+  const on = $('space-agents').getAttribute('aria-checked') !== 'true';
+  $('space-agents').setAttribute('aria-checked', on);
+  ask({ cmd: 'space.agents', id: menuSpace, on }).then(() => ask({ cmd: 'state' })).then(roar.render);
+};
+$('space-remove').onclick = () => ask({ cmd: 'space.remove', id: menuSpace }).then(() => ask({ cmd: 'state' })).then(roar.render).finally(hideSpaceMenu);
+const hiddenCounts = (s) => { try { const m = JSON.parse(s?.settings?.hiddenCounts || '{}'); return m && typeof m === 'object' && !Array.isArray(m) ? m : {}; } catch { return {}; } };
+document.addEventListener('contextmenu', (e) => {
+  const fb = e.target.closest('#cl-btn, #gh-btn');
+  if (fb && state) {
+    e.preventDefault();
+    const hc = hiddenCounts(state), on = !hc[fb.id];
+    showCtx(`<button data-act="count" role="menuitemcheckbox" aria-checked="${on}">${on ? '✓ ' : ''}Show count</button>${fb.id === 'gh-btn' ? '<button data-act="garden">Savanna</button>' : ''}`, e, (act) => {
+      hideCtx();
+      if (act === 'garden') return openGarden();
+      on ? (hc[fb.id] = 1) : delete hc[fb.id];
+      ask({ cmd: 'settings.set', settings: { hiddenCounts: JSON.stringify(hc) } }).then(() => ask({ cmd: 'state' })).then(roar.render);
+    });
+    return;
+  }
+  if (e.target.closest('#ol-btn') && state) {
+    e.preventDefault();
+    showCtx('<button data-act="signout">Sign out of Outlook in this space</button><button data-act="hide">Hide Outlook icon</button>', e, (act) => {
+      hideCtx();
+      if (act === 'signout') return ask({ cmd: 'run', id: 'outlookSignOut' });
+      ask({ cmd: 'settings.set', settings: { outlookIcon: false } }).then(() => ask({ cmd: 'state' })).then(roar.render);
+    });
+    return;
+  }
+  if (e.target.closest('#gm-btn') && state && !state.gmail.signedOut) {
+    e.preventDefault();
+    return ask({ cmd: 'run', id: 'gmailMenu' });  // Native, so it can extend past the sidebar.
+  }
+  const dot = e.target.closest('[data-space]');
+  if (dot && state) {
+    e.preventDefault();
+    menuSpace = +dot.dataset.space;
+    $('space-rename').value = state.spaces.find((sp) => sp.id === menuSpace)?.name || '';
+    $('space-remove').hidden = menuSpace === 0;
+    $('space-ai-all').hidden = $('space-ai-loose').hidden = menuSpace !== state.activeSpace;  // the sidebar only has the active space's tabs
+    $('space-agents').setAttribute('aria-checked', state.spaces.find((sp) => sp.id === menuSpace)?.agents !== false);
+    $('space-menu').hidden = false;
+    renderSwatches();
+    $('space-rename').select();
+    return;
+  }
+  const head = e.target.closest('[data-group-head]');
+  if (head && state) { e.preventDefault(); return groupMenu(+head.dataset.groupHead, e); }
+  const tab = e.target.closest('[data-id]');
+  if (!state) return;
+  // Text fields keep Chromium's own menu (copy, paste, spelling).
+  if (!tab && e.target.closest('input, textarea, [contenteditable]')) return;
+  e.preventDefault();
+  if (!tab) return sidebarMenu(e);
+  const t = state.tabs.find((t) => t.id === +tab.dataset.id);
+  if (t) tabMenu(t, e);
+});
+
+// Right-click menus for tabs and groups.
+const ctx = $('ctx');
+// Re-assigning identical markup would drop the hovered button under the pointer mid-click.
+const setHtml = (el, html) => { if (el.__html !== html) el.innerHTML = el.__html = html; };
+// Bumped on every show/hide so a menu still awaiting data can tell it was superseded.
+let ctxSeq = 0;
+const hideCtx = () => { ctxSeq++; ctx.hidden = true; ctx.innerHTML = ''; };
+function showCtx(html, e, bind) {
+  ctxSeq++;
+  ctx.innerHTML = html;
+  ctx.setAttribute('role', 'menu');
+  ctx.querySelectorAll('button').forEach((b) => b.setAttribute('role', 'menuitem'));
+  ctx.hidden = false;
+  const r = ctx.getBoundingClientRect();
+  ctx.style.left = Math.max(4, Math.min(e.clientX, innerWidth - r.width - 4)) + 'px';
+  ctx.style.top = Math.max(4, Math.min(e.clientY, innerHeight - r.height - 4)) + 'px';
+  ctx.onclick = (ev) => {
+    const b = ev.target.closest('[data-act]');
+    if (!b) return;
+    ev.stopPropagation();
+    bind(b.dataset.act, b.dataset);
+  };
+  ctx.onkeydown = (ev) => {
+    if (ev.key !== 'ArrowDown' && ev.key !== 'ArrowUp') return;
+    const bs = [...ctx.querySelectorAll('button')];
+    if (!bs.length) return;
+    ev.preventDefault();
+    const i = bs.indexOf(document.activeElement), down = ev.key === 'ArrowDown', n = bs.length;
+    bs[i < 0 ? (down ? 0 : n - 1) : (i + (down ? 1 : n - 1)) % n].focus();
+  };
+  if (!ctx.querySelector('input')) ctx.querySelector('button')?.focus();
+}
+// Gmail account hues, picked to sit with the sidebar's warm browns.
+const ACCT_HUES = ['#d9822b', '#3f9e9a', '#c8607a', '#8f9a3c', '#7d7fd1', '#b9894f'];
+const dot = (c) => `<span class="gdot" style="${c ? '--gc:' + c : ''}"></span>`;
+// A pinned tab's custom icon is an emoji or an image; otherwise its favicon.
+function pinIcon(t) {
+  if (/^(https?:|data:image\/)/.test(t.icon || '')) return `<img class="custom" src="${esc(t.icon)}" alt="">`;
+  if (t.icon) return `<span class="custom">${esc(t.icon)}</span>`;
+  return t.url.startsWith('roar:') ? '<span class="lion"></span>' : iconHtml(t.favicon, t.url);
+}
+// Shrinks a picked image to a 64px square data: URL so state.json stays small.
+function imageIcon(file, done) {
+  const img = new Image();
+  img.onload = () => {
+    const c = document.createElement('canvas');
+    c.width = c.height = 64;
+    const s = Math.min(img.width, img.height);
+    c.getContext('2d').drawImage(img, (img.width - s) / 2, (img.height - s) / 2, s, s, 0, 0, 64, 64);
+    URL.revokeObjectURL(img.src);
+    done(c.toDataURL('image/png'));
+  };
+  img.src = URL.createObjectURL(file);
+}
+function iconMenu(t, e) {
+  showCtx(`<input id="ctx-name" maxlength="2048" placeholder="Emoji or image URL" spellcheck="false">
+    <button data-act="file">Choose image…</button>
+    ${t.icon ? '<button data-act="reset">Use site icon</button>' : ''}`, e, (act) => {
+    if (act === 'reset') ask({ cmd: 'tab.icon', id: t.id, icon: '' });
+    else if (act === 'file') {
+      const f = document.createElement('input');
+      f.type = 'file';
+      f.accept = 'image/*';
+      f.onchange = () => f.files[0] && imageIcon(f.files[0], (icon) => ask({ cmd: 'tab.icon', id: t.id, icon }));
+      f.click();
+    }
+    hideCtx();
+  });
+  const input = $('ctx-name');
+  input.value = /^data:/.test(t.icon || '') ? '' : t.icon || '';
+  input.focus();
+  input.select();
+  input.onkeydown = (ev) => {
+    if (ev.key === 'Enter') { ask({ cmd: 'tab.icon', id: t.id, icon: input.value.trim() }); hideCtx(); }
+    else if (ev.key === 'Escape') hideCtx();
+  };
+}
+async function tabMenu(t, e) {
+  // uBOL can take up to 5 s to answer; past 300 ms draw the menu without the ad-block item.
+  const seq = ctxSeq;
+  const ab = await Promise.race([ask({ cmd: 'tab.adblock', id: t.id }), new Promise((r) => setTimeout(r, 300))]).catch(() => null);
+  if (seq !== ctxSeq) return; // dismissed or another menu opened meanwhile
+  const groups = state.groups || [];
+  showCtx(`${t.pinned ? '<button data-act="unpin">Unpin tab</button><button data-act="icon">Set icon…</button>' : '<button data-act="pin">Pin tab</button>'}
+    <hr><div class="head">Add to group</div>
+    <button data-act="new">New group…</button>
+    ${groups.filter((g) => g.id !== t.group).map((g) => `<button data-act="move" data-g="${g.id}">${dot(g.color)}${esc(g.name)}</button>`).join('')}
+    ${t.group ? '<button data-act="ungroup">Remove from group</button>' : ''}
+    ${!t.ghost && state.spaces.length > 1 ? `<hr><div class="head">Move to space</div>${state.spaces.filter((sp) => sp.id !== state.activeSpace).map((sp) => `<button data-act="space" data-s="${sp.id}">${dot(sp.color)}${esc(sp.name)}</button>`).join('')}` : ''}
+    <hr>${t.agentMark ? '<button data-act="clearAgent">Clear agent mark</button>' : ''}${t.split ? '<button data-act="unsplit">Separate tabs</button>' : ''}${t.floating ? '' : '<button data-act="float">Open in floating window</button>'}
+    ${ab ? `<button data-act="adblock" role="menuitemcheckbox" aria-checked="${ab.excluded}" title="${esc(ab.site)}">${ab.excluded ? '✓ ' : ''}Don't block ads on this site</button>` : ''}
+    <button data-act="close">Close tab</button>`, e, (act, d) => {
+    if (act === 'space') ask({ cmd: 'tab.space', id: t.id, space: +d.s });
+    else if (act === 'float') ask({ cmd: 'tab.float', id: t.id });
+    else if (act === 'adblock') ask({ cmd: 'tab.adblock', id: t.id, what: 'toggle' });
+    else if (act === 'clearAgent') ask({ cmd: 'tab.clearAgent', id: t.id });
+    else if (act === 'unsplit') ask({ cmd: 'tab.unsplit', id: t.id });
+    else if (act === 'pin' || act === 'unpin') ask({ cmd: 'tab.pin', id: t.id, pinned: act === 'pin' });
+    else if (act === 'icon') return iconMenu(t, e);
+    else if (act === 'move') ask({ cmd: 'tab.group', id: t.id, group: +d.g });
+    else if (act === 'ungroup') ask({ cmd: 'tab.group', id: t.id, group: 0 });
+    else if (act === 'close') ask({ cmd: 'tab.close', id: t.id });
+    else if (act === 'new') return nameMenu('', e, (name) => ask({ cmd: 'group.create', name, color: COLORS[1 + (groups.length % (COLORS.length - 1))], tab: t.id }));
+    hideCtx();
+  });
+}
+// Right-click on empty sidebar space.
+function sidebarMenu(e) {
+  const others = state.spaces.filter((sp) => sp.id !== state.activeSpace);
+  showCtx(`<button data-act="newTab">New tab</button>
+    <button data-act="newGhostTab">New ghost tab</button>
+    <button data-act="newInstance">New window</button>
+    ${others.length ? `<hr><div class="head">Switch to space</div>${others.map((sp) => `<button data-act="space" data-s="${sp.id}">${dot(sp.color)}${esc(sp.name)}</button>`).join('')}` : '<hr>'}
+    <button data-act="newSpace">New space</button>`, e, (act, d) => {
+    if (act === 'space') ask({ cmd: 'space.switch', id: +d.s });
+    else ask({ cmd: 'run', id: act });
+    hideCtx();
+  });
+}
+function nameMenu(value, e, done) {
+  showCtx(`<input id="ctx-name" maxlength="40" placeholder="Group name" spellcheck="false">`, e, () => {});
+  const input = $('ctx-name');
+  input.value = value;
+  input.focus();
+  input.select();
+  input.onkeydown = (ev) => {
+    if (ev.key === 'Enter' && input.value.trim()) { done(input.value.trim()); hideCtx(); }
+    else if (ev.key === 'Escape') hideCtx();
+  };
+}
+function groupMenu(id, e) {
+  const g = state.groups.find((g) => g.id === id);
+  if (!g) return;
+  showCtx(`<button data-act="rename">Rename…</button><button data-act="airename" title="Shift-click: choose the agent">Rename all with AI</button>
+    <div class="swatches">${COLORS.slice(1).map((c) => `<button data-act="color" data-c="${c}" aria-pressed="${g.color === c}" style="background:${c}" title="${c}" aria-label="${COLOR_NAMES[c]}"></button>`).join('')}</div>
+    <button data-act="pin">${g.pinned ? 'Unpin group' : 'Pin group'}</button>
+    <hr><button data-act="ungroup">Ungroup tabs</button>
+    <button data-act="close">Close group</button>`, e, (act, d) => {
+    if (act === 'rename') return nameMenu(g.name, e, (name) => ask({ cmd: 'group.update', id, name }));
+    if (act === 'airename') return hideCtx(), aiRename('group:' + id, { shiftKey: lastShift, target: e.target, clientX: e.clientX, clientY: e.clientY }, true);
+    if (act === 'color') ask({ cmd: 'group.update', id, color: d.c });
+    else if (act === 'pin') ask({ cmd: 'group.update', id, pinned: !g.pinned });
+    else if (act === 'ungroup') ask({ cmd: 'group.remove', id });
+    else if (act === 'close') ask({ cmd: 'group.remove', id, closeTabs: true });
+    hideCtx();
+  });
+}
+document.addEventListener('mousedown', (e) => { if (!ctx.hidden && !ctx.contains(e.target)) hideCtx(); }, true);
+document.addEventListener('mousedown', (e) => { if (!$('space-menu').hidden && !$('space-menu').contains(e.target)) hideSpaceMenu(); }, true);
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { hideCtx(); hideSpaceMenu(); } });
+// Clicking into a tab never reaches the sidebar's document; close menus when it loses focus.
+window.addEventListener('blur', () => { hideCtx(); hideSpaceMenu(); });
+
+// Drag a tab onto a group, back into Tabs, or onto the pinned strip.
+let dragId = 0;
+document.addEventListener('dragstart', (e) => {
+  const row = e.target.closest?.('.row[data-id], .pin[data-id]');
+  if (!row) return;
+  dragId = +row.dataset.id;
+  row.classList.add('dragging');
+  // Deferred: changing layout during dragstart moves the source row and Chromium cancels the drag.
+  setTimeout(() => dragId && document.body.classList.add('drag-active'));
+  e.dataTransfer.effectAllowed = 'move';
+  // A Roar-only type: a page the tab is dropped on ignores it instead of pasting the id.
+  e.dataTransfer.setData('application/x-roar-tab', String(dragId));
+});
+document.addEventListener('dragend', (e) => {
+  // Dropped outside the sidebar (on the page, or off the window): Roar splits or unsplits.
+  if (dragId && e.dataTransfer.dropEffect === 'none' && (e.clientX < 0 || e.clientX > innerWidth || e.clientY < 0 || e.clientY > innerHeight))
+    ask({ cmd: 'tab.dropAt', id: dragId, x: e.screenX, y: e.screenY });
+  dragId = 0;
+  clearSplitMarks();
+  document.body.classList.remove('drag-active');
+  document.querySelectorAll('.dragging, .drop-target').forEach((el) => el.classList.remove('dragging', 'drop-target'));
+  clearRowMarks();
+});
+const dropZone = (el) => el.closest?.('.tgroup, #tabs-group, #pinned');
+// A pinned tile dragged over another pinned tile reorders: drop before or after it.
+const pinSpot = (e) => {
+  const pin = e.target.closest?.('#pinned .pin[data-id]');
+  const t = state.tabs.find((t) => t.id === dragId);
+  if (!pin || !t?.pinned || +pin.dataset.id === dragId) return null;
+  const r = pin.getBoundingClientRect(), f = (e.clientX - r.left) / r.width;
+  if (f > 0.25 && f < 0.75) return null;  // The middle of a tile splits (splitSpot).
+  return { pin, after: f >= 0.5 };
+};
+// The top or bottom edge of a row in the Tabs list or a group puts the dragged tab above or below it; the middle splits.
+const rowSpot = (e) => {
+  const row = e.target.closest?.('#tabs > .row[data-id], .tgroup .rows > .row[data-id]');
+  const t = state.tabs.find((t) => t.id === dragId);
+  if (!row || !t || t.ghost || +row.dataset.id === dragId) return null;
+  const r = row.getBoundingClientRect(), f = (e.clientY - r.top) / r.height;
+  if (f > 0.3 && f < 0.7) return null;
+  return { row, after: f >= 0.5 };
+};
+const clearRowMarks = () => document.querySelectorAll('.row.drop-before, .row.drop-after')
+  .forEach((el) => el.classList.remove('drop-before', 'drop-after'));
+// A tab row or pinned tile under the dragged tab (not itself, not floating): split target.
+// Rows: left half side by side, right half stacked. Tiles: only their middle, and always side by side.
+const splitSpot = (e) => {
+  const row = e.target.closest?.('.row[data-id], .pin[data-id]');
+  if (!row || +row.dataset.id === dragId) return null;
+  const a = state.tabs.find((t) => t.id === dragId), b = state.tabs.find((t) => t.id === +row.dataset.id);
+  if (!a || !b || a.floating || b.floating || a.ghost !== b.ghost) return null;  // Ghost splits only with ghost.
+  const r = row.getBoundingClientRect(), f = (e.clientX - r.left) / r.width;
+  if (row.classList.contains('pin')) return f > 0.25 && f < 0.75 ? { row, stacked: false } : null;
+  return { row, stacked: f > 0.5 };
+};
+const clearSplitMarks = () => document.querySelectorAll('.split-drop').forEach((el) => el.classList.remove('split-drop'));
+const clearPinMarks = () => document.querySelectorAll('#pinned .drop-before, #pinned .drop-after')
+  .forEach((el) => el.classList.remove('drop-before', 'drop-after'));
+document.addEventListener('dragover', (e) => {
+  clearSplitMarks();
+  clearRowMarks();
+  const at = dragId && rowSpot(e);
+  if (at) {
+    e.preventDefault();
+    document.querySelectorAll('.drop-target').forEach((el) => el.classList.remove('drop-target'));
+    clearPinMarks();
+    at.row.classList.add(at.after ? 'drop-after' : 'drop-before');
+    return;
+  }
+  const split = dragId && splitSpot(e);
+  if (split) {
+    e.preventDefault();
+    document.querySelectorAll('.drop-target').forEach((el) => el.classList.remove('drop-target'));
+    clearPinMarks();
+    split.row.dataset.splitLabel = split.stacked ? 'Split top and bottom' : 'Split side by side';
+    split.row.classList.add('split-drop');
+    return;
+  }
+  const zone = dragId && dropZone(e.target);
+  document.querySelectorAll('.drop-target').forEach((el) => el !== zone && el.classList.remove('drop-target'));
+  clearPinMarks();
+  if (!zone) return;
+  e.preventDefault();
+  const spot = pinSpot(e);
+  if (spot) spot.pin.classList.add(spot.after ? 'drop-after' : 'drop-before');
+  else zone.classList.add('drop-target');
+});
+document.addEventListener('drop', (e) => {
+  const at = dragId && rowSpot(e);
+  clearRowMarks();
+  if (at) {
+    e.preventDefault();
+    let next = at.after ? at.row.nextElementSibling : at.row;
+    if (next && +next.dataset.id === dragId) next = next.nextElementSibling;
+    const zone = at.row.closest('.tgroup');
+    if (state.tabs.find((t) => t.id === dragId)?.split) ask({ cmd: 'tab.unsplit', id: dragId });
+    return ask({ cmd: 'tab.move', id: dragId, before: +next?.dataset.id || 0, group: zone ? +zone.dataset.group : 0 });
+  }
+  const split = dragId && splitSpot(e);
+  clearSplitMarks();
+  if (split) {
+    e.preventDefault();
+    return ask({ cmd: 'tab.split', id: dragId, with: +split.row.dataset.id, stacked: split.stacked });
+  }
+  const zone = dragId && dropZone(e.target);
+  if (!zone) return;
+  e.preventDefault();
+  const t = state.tabs.find((t) => t.id === dragId);
+  const spot = pinSpot(e);
+  clearPinMarks();
+  if (spot) {
+    let next = spot.after ? spot.pin.nextElementSibling : spot.pin;
+    if (next && +next.dataset.id === dragId) next = next.nextElementSibling;
+    ask({ cmd: 'tab.move', id: dragId, before: next ? +next.dataset.id : 0 });
+  } else if (zone.id === 'pinned') { if (!t.pinned) ask({ cmd: 'tab.pin', id: dragId, pinned: true }); }
+  else if (zone.dataset.group) ask({ cmd: 'tab.group', id: dragId, group: +zone.dataset.group });
+  else if (t.pinned) ask({ cmd: 'tab.pin', id: dragId, pinned: false });
+  else if (t.group) ask({ cmd: 'tab.group', id: dragId, group: 0 });
+  // Dropped on a list rather than a tab: it leaves its split too.
+  if (t.split && !spot) ask({ cmd: 'tab.unsplit', id: dragId });
+});
+// Drag a space's dot along the footer to reorder spaces.
+let spaceDrag = null;  // A space id; space 0 is valid.
+const spaceSpot = (e) => {
+  const dot = e.target.closest?.('#spaces [data-space]');
+  if (!dot || +dot.dataset.space === spaceDrag) return null;
+  const r = dot.getBoundingClientRect();
+  return { dot, after: e.clientX > r.left + r.width / 2 };
+};
+const clearSpaceMarks = () => document.querySelectorAll('#spaces .drop-before, #spaces .drop-after')
+  .forEach((el) => el.classList.remove('drop-before', 'drop-after'));
+$('spaces').addEventListener('dragstart', (e) => {
+  const dot = e.target.closest('[data-space]');
+  if (!dot) return;
+  spaceDrag = +dot.dataset.space;
+  dot.classList.add('dragging');
+  e.dataTransfer.effectAllowed = 'move';
+  e.dataTransfer.setData('text/plain', 'space:' + spaceDrag);
+});
+$('spaces').addEventListener('dragover', (e) => {
+  const spot = spaceDrag !== null && spaceSpot(e);
+  clearSpaceMarks();
+  if (!spot) return;
+  e.preventDefault();
+  spot.dot.classList.add(spot.after ? 'drop-after' : 'drop-before');
+});
+$('spaces').addEventListener('drop', (e) => {
+  const spot = spaceDrag !== null && spaceSpot(e);
+  if (!spot) return;
+  e.preventDefault();
+  const order = state.spaces.map((sp) => sp.id).filter((id) => id !== spaceDrag);
+  const index = order.indexOf(+spot.dot.dataset.space) + (spot.after ? 1 : 0);
+  ask({ cmd: 'space.move', id: spaceDrag, index });
+});
+$('spaces').addEventListener('dragend', () => {
+  spaceDrag = null;
+  clearSpaceMarks();
+  document.querySelectorAll('#spaces .dragging').forEach((el) => el.classList.remove('dragging'));
+});
+$('address').onclick = () => ask({ cmd: 'commandbar', newTab: false });
+$('back').onclick = () => ask({ cmd: 'run', id: 'back' });
+$('forward').onclick = () => ask({ cmd: 'run', id: 'forward' });
+$('reload').onclick = () => ask({ cmd: 'run', id: 'reload' });
+$('gh-refresh').onclick = () => ask({ cmd: 'run', id: 'github' });
+$('gh-qbtn').onclick = () => { const f = $('gh-q'); f.hidden = !f.hidden; $('gh-qbtn').setAttribute('aria-expanded', String(!f.hidden)); if (!f.hidden) $('gh-qin').focus(); };
+const GH_DEFAULT = 'is:open is:pr author:@me archived:false';  // Matches Settings::github_query.
+$('gh-q').onsubmit = (e) => { e.preventDefault(); ask({ cmd: 'settings.set', settings: { githubQuery: $('gh-qin').value.trim() || GH_DEFAULT } }); };
+$('gh-qin').addEventListener('keydown', (e) => e.stopPropagation());
+$('gh-qreset').onclick = () => { $('gh-qin').value = GH_DEFAULT; ask({ cmd: 'settings.set', settings: { githubQuery: GH_DEFAULT } }); };
+// Quick reply on a session that needs you. Drafts survive the list redrawing.
+const clDraft = {};
+$('cl').addEventListener('input', (e) => {
+  const q = e.target.closest('.clq');
+  if (q) clDraft[q.dataset.clq] = e.target.value;
+});
+$('cl').addEventListener('submit', async (e) => {
+  const q = e.target.closest('[data-clq]');
+  if (!q) return;
+  e.preventDefault();
+  const id = q.dataset.clq, input = q.querySelector('input');
+  const why = clSession.error(await clSession.reply(id, input.value));
+  if (why) return;  // claude.ctl already showed the reason in the hint.
+  input.value = '';
+  delete clDraft[id];
+  clReplyOpen = null;
+  ask({ cmd: 'state' }).then(roar.render);
+});
+$('cl').addEventListener('keydown', (e) => {
+  if (!e.target.closest('.clq')) return;
+  if (e.key !== 'Escape') return e.stopPropagation();  // Typing isn't a sidebar shortcut.
+  clReplyOpen = null;
+  ask({ cmd: 'state' }).then(roar.render);
+});  // Typing isn't a sidebar shortcut.
+// Code (new session): a modal, type (installed CLIs) then where (a folder, or a scratch folder Roar makes)
+// and an optional first prompt. The row shows "Starting…" until the session's hook reports.
+let clWant = null, clDirs = [], clFullTabs = {}, clReplyOpen = null, clActive = 0, clLive = [], clTools = ['claude'];
+ask({ cmd: 'claude.ctl', action: 'tools' }).then((out) => {
+  const got = String(out || '').split('\n').filter((t) => AGENT_TOOLS[t]);
+  if (got.length) clTools = got;
+}).catch(() => {});
+const clDlg = $('cl-dlg'), clForm = $('cl-form');
+const clPicked = (name) => clForm.querySelector(`input[name="${name}"]:checked`)?.value;
+const clOpt = (name, value, html, on) => `<label class="opt"><input type="radio" name="${name}" value="${esc(value)}"${on ? ' checked' : ''}>${html}</label>`;
+const clTilde = (d) => d.replace(/^\/Users\/[^/]+/, '~');
+function clWhere(first) {
+  const dirs = first && !clDirs.includes(first) ? [first, ...clDirs] : clDirs;
+  $('cl-where').innerHTML = `<button type="button" class="pick">Choose folder…</button>` +
+    dirs.map((d, i) => clOpt('where', d, `<span>${esc(d.split('/').pop())}<small>${esc(clTilde(d))}</small></span>`, first ? d === first : i === 0)).join('') +
+    clOpt('where', 'scratch', `<span>Scratch folder<small>A new folder Roar keeps for you</small></span>`, !first && !dirs.length);
+}
+function clStep(n) {
+  const tool = clPicked('tool'), folder = AGENT_TOOLS[tool]?.[3] !== false;
+  $('cl-step1').hidden = n !== 1;
+  $('cl-step2').hidden = n !== 2 || !folder;  // A CLI that needs no folder skips "where".
+  $('cl-step3').hidden = n !== 2;
+  $('cl-back').textContent = n === 1 ? 'Cancel' : 'Back';
+  $('cl-go').textContent = n === 1 ? 'Next' : 'Start';
+  $('cl-note').textContent = '';
+  clForm.dataset.step = n;
+  (n === 1 ? clForm.querySelector('input[name="tool"]:checked') : folder ? clForm.querySelector('input[name="where"]:checked') || $('cl-where').querySelector('.pick') : $('cl-prompt'))?.focus();
+}
+$('cl-model').onclick = () => ask({ cmd: 'run', id: 'modelChat' });
+$('cl-new').onclick = (e) => {
+  e.stopPropagation();
+  // Only CLIs both installed and connected in Settings > Agents.
+  const tools = clTools.filter((t) => state?.claude?.tools?.[t] === 'installed');
+  const last = tools.includes(state?.settings?.agentTool) ? state.settings.agentTool : tools[0];
+  $('cl-tiles').innerHTML = tools.map((t) => clOpt('tool', t, `${agentIcon(t, 22)}<span>${esc(AGENT_TOOLS[t][0])}</span>`, t === last)).join('');
+  clWhere();
+  $('cl-prompt').value = '';
+  // Open web tabs to attach once the session starts (never ghost tabs); the current one is ticked.
+  const web = (state?.tabs || []).filter((t) => /^https?:/.test(t.url || '') && !t.ghost);
+  $('cl-tabs-f').hidden = !web.length;
+  $('cl-tabs').innerHTML = web.map((t) => `<label class="opt tab"><input type="checkbox" value="${t.id}"${t.id === clActive ? ' checked' : ''}>${iconHtml(t.favicon, t.url)}<span>${esc(t.title || t.url)}</span></label>`).join('');
+  if (!tools.length) $('cl-tiles').innerHTML = '<p class="note">No agent CLI is connected. Connect one in Settings › Agents.</p>';
+  clDlg.showModal();
+  clStep(1);
+  $('cl-go').disabled = !tools.length;
+};
+$('cl-tiles').addEventListener('dblclick', (e) => e.target.closest('.opt') && clStep(2));
+$('cl-where').addEventListener('click', async (e) => {
+  if (!e.target.closest('.pick')) return;
+  const dir = await ask({ cmd: 'claude.pickFolder' });
+  if (dir) clWhere(dir);
+  (clForm.querySelector('input[name="where"]:checked') || e.target).focus();
+});
+$('cl-back').onclick = () => (clForm.dataset.step === '1' ? clDlg.close() : clStep(1));
+clDlg.addEventListener('close', () => $('cl-new').focus());
+clDlg.addEventListener('keydown', (e) => { if (e.key !== 'Escape') e.stopPropagation(); });  // Typing isn't a sidebar shortcut.
+clForm.onsubmit = async (e) => {
+  e.preventDefault();
+  if (clForm.dataset.step === '1') return clStep(2);
+  const tool = clPicked('tool'), folder = AGENT_TOOLS[tool]?.[3] !== false;
+  const where = folder ? clPicked('where') : 'scratch', prompt = $('cl-prompt').value.trim();
+  if (!where) return void ($('cl-note').textContent = 'Pick a folder first.');
+  const scratch = where === 'scratch', tabs = [...$('cl-tabs').querySelectorAll(':checked')].map((b) => +b.value);
+  $('cl-note').textContent = 'Starting…';
+  await ask({ cmd: 'settings.set', settings: { agentTool: tool } });  // claude-ctl new starts the saved CLI.
+  clWant = { dir: scratch ? '' : where, tool, name: scratch ? prompt.replace(/\s+/g, ' ').slice(0, 60) || 'Scratch' : where.split('/').pop(), since: Date.now() - 2000 };
+  ask({ cmd: 'state' }).then(roar.render);
+  const out = await ask({ cmd: 'claude.ctl', action: 'new', id: scratch ? '' : where, scratch, text: prompt, tabs });
+  if (out.startsWith('error: ')) { clWant = null; ask({ cmd: 'state' }).then(roar.render); return void ($('cl-note').textContent = out.slice(7)); }
+  if (scratch) clWant = null;  // Its stand-in row (or the hook's) is already there.
+  clDlg.close();
+  ask({ cmd: 'state' }).then(roar.render);
+};
+$('ask-llm').onclick = () => {
+  if ($('ask-llm').getAttribute('aria-disabled') !== 'true') ask({ cmd: 'run', id: 'askLlm:' + $('ask-llm').dataset.llm });
+};
+var AI_RN_ICO = '<svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 1.8l1.3 3.4 3.4 1.3-3.4 1.3L8 11.2 6.7 7.8 3.3 6.5l3.4-1.3z"/><path d="M12.6 10.4l.6 1.5 1.5.6-1.5.6-.6 1.5-.6-1.5-1.5-.6 1.5-.6z"/></svg>';
+var aiBusy = {};  // "kind:id" -> {old, until}: the agent is renaming it.
+function aiRn(kind, id, name) {
+  const k = kind + ':' + id;
+  return `<button class="ai-rn${aiBusy[k] ? ' busy' : ''}" data-airn="${esc(k)}" title="${aiBusy[k] ? 'Naming this… (click to cancel)' : kind === 'group' ? 'Rename the group and all its tabs with AI (Shift-click: choose the agent)' : 'Rename with AI (Shift-click: choose the agent)'}" aria-label="Rename ${esc(name || '')} with AI">${AI_RN_ICO}</button>`;
+}
+// What the agent gets: the item's kind and id for rename_item, and what it is about.
+function aiContext(kind, id) {
+  const s = state, list = (a) => a.slice(0, 8).map((t) => `- ${t.name || t.title} (${t.url})`).join('\n');
+  if (kind === 'tab') { const t = s.tabs.find((x) => x.id === +id); return t && { name: t.name || t.title, about: `Title: ${t.title}\nURL: ${t.url}\n(Read the page in Roar if the title is not enough.)` }; }
+  if (kind === 'group') { const g = (s.groups || []).find((x) => x.id === +id); return g && { name: g.name, about: `Its tabs:\n${list(s.tabs.filter((t) => t.group === g.id))}` }; }
+  if (kind === 'space') { const sp = s.spaces.find((x) => x.id === +id); return sp && { name: sp.name, about: sp.id === s.activeSpace ? `Its open tabs:\n${list(s.tabs.filter((t) => !t.ghost))}` : 'A browser profile.' }; }
+  const c = (s.claude?.items || []).find((x) => x.id === id);
+  return c && { name: agentNames(s)[c.id] || c.project, about: `Folder: ${c.cwd || ''}\nFirst prompt: ${(c.first || c.prompt || '').slice(0, 300)}\nDoing now: ${(c.doing || '').slice(0, 200)}` };
+}
+// Menu items get no event: remember whether the last click held Shift.
+var lastShift = false;
+document.addEventListener('click', (e) => { lastShift = e.shiftKey; }, true);
+// Undo puts back what was saved: a tab's or session's own name may be "" (its title / the CLI's name).
+const aiUndoName = (kind, id, ctxt) => kind === 'tab' ? (state.tabs.find((t) => t.id === +id)?.name || '') : kind === 'session' ? (agentNames(state)[id] || '') : ctxt.name;
+const aiIdArg = (kind, id) => kind === 'session' ? JSON.stringify(id) : id;
+// bulk (a group's key): the group and every tab in it go to the agent in one request.
+// Chat providers that may get page titles and URLs (pageRefusal), detected at most once a minute.
+var aiChats = null, aiChatsAt = 0;
+async function aiChatList() {
+  if (aiChats && Date.now() - aiChatsAt < 60000) return aiChats;
+  const all = await chatCore.detectProviders([...chatCore.parseProviders(state.settings.chatProviders), ...chatCore.CLI_PROVIDERS], ask);
+  aiChats = all.filter((p) => p.models.length && !chatCore.pageRefusal(p));
+  aiChatsAt = Date.now();
+  return aiChats;
+}
+// Who renames: by default the Ask default model (settings.chatModel, else the first connected one), else the
+// first agent session in Settings > Agents order. Shift-click lists both. Resolves {p, model} | {session} | null.
+async function aiTarget(e, what) {
+  const chats = await aiChatList().catch(() => []), sessions = agentRank(state, clLive);
+  const pick = chatCore.defaultModel(chats, state.settings.chatModel || '');
+  const opts = [...chats.map((p) => { const m = pick.startsWith(p.id + '|') ? pick.slice(p.id.length + 1) : p.models[0]; return { key: 'chat:' + p.id, p, model: m, label: `${p.name} · ${m}`, ico: ico_chat }; }),
+    ...sessions.map((c) => ({ key: 'agent:' + c.id, session: c, label: c.project, ico: agentIcon(c, 14) }))];
+  const at = e?.target?.getBoundingClientRect?.() || { left: e?.clientX || 8, bottom: e?.clientY || 8 };
+  if (!opts.length) {
+    showCtx('<div class="head">Connect a chat provider in Ask, or start an agent with Code.</div>', { clientX: at.left, clientY: at.bottom + 4 }, () => {});
+    return null;
+  }
+  const first = opts.find((o) => o.p && o.p.id + '|' + o.model === pick) || opts[0];
+  if (!e?.shiftKey || opts.length === 1) return first;
+  return new Promise((done) => showCtx(`<div class="head">${esc(what)}</div>${opts.map((o) => `<button data-act="pick" data-id="${esc(o.key)}">${o.ico}${esc(o.label)}</button>`).join('')}`,
+    { clientX: at.left, clientY: at.bottom + 4 }, (act, d) => { hideCtx(); done(opts.find((o) => o.key === d.id)); }));
+}
+var ico_chat = '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 3.5h11v7h-6l-3 2.5v-2.5h-2z"/></svg>';
+// What a chat model is told about one item (key "kind:id").
+function aiItem(key) {
+  const [kind, ...r] = key.split(':'), id = r.join(':'), s = state;
+  if (kind === 'tab') { const t = s.tabs.find((x) => x.id === +id); return { key, title: t.title, url: t.url }; }
+  const c = aiContext(kind, id);
+  return { key, title: `${{ group: 'a tab group', space: 'a browser profile', session: 'a coding agent session' }[kind]} now called "${c.name}". ${c.about.replace(/\n/g, ' ')}` };
+}
+// bulk: "group:id" sends the group and its tabs, "all:space" / "ungrouped:space" just those tabs, in one request.
+async function aiRename(key, e, bulk = false) {
+  const [kind, ...rest] = key.split(':'), id = rest.join(':'), tabsOnly = kind === 'all' || kind === 'ungrouped';
+  if (aiBusy[key]?.run) return aiBusy[key].run.cancel();  // clicking a spinning button cancels it
+  const keys = (bulk ? chatCore.renameKeys(key, state.tabs) : [key]).filter((k) => !aiBusy[k]);
+  const ctxt = tabsOnly ? { name: '' } : aiContext(kind, id);
+  if (!ctxt || !keys.length) return;
+  const who = await aiTarget(e, bulk ? 'Rename all with' : 'Rename with');
+  if (!who) return;
+  if (who.session && !(who.session.mcpTools || []).includes('rename_item')) {
+    const at = e?.target?.getBoundingClientRect?.() || { left: 8, bottom: 8 };
+    return void showCtx('<div class="head">This session\'s Roar connection is out of date. Type /mcp, then reconnect roar.</div>', { clientX: at.left, clientY: at.bottom + 4 }, () => {});
+  }
+  const batch = { done: [], total: keys.length };
+  let stop;
+  const run = { cancel: () => stop(new Error('cancelled')) };
+  const stopped = new Promise((_, f) => { stop = f; });
+  let timer = setTimeout(() => stop(new Error('no answer in 30 s')), AI_RENAME_MS);
+  // Every await below races the timeout and a cancel click.
+  const race = (pr) => Promise.race([pr, stopped]);
+  for (const k of keys) { const [kk, ...r] = k.split(':'), c = aiContext(kk, r.join(':')); aiBusy[k] = { old: c.name, undo: aiUndoName(kk, r.join(':'), c), batch, run }; }
+  roar.render(state);
+  let why = '', ok = false;
+  try {
+    if (who.p) {
+      // A model, not an agent: Roar asks for the names and applies them itself.
+      const names = chatCore.parseNames(await race(chatCore.oneShot(who.p, who.model, chatCore.renamePrompt(keys.map(aiItem)), window.roarQuery)), keys);
+      const got = Object.keys(names);
+      if (!got.length) throw new Error(`${who.p.name} didn't suggest a name`);
+      for (const k of got) { const [kk, ...r] = k.split(':'); await race(ask({ cmd: 'agent.rename', kind: kk, id: kk === 'session' ? r.join(':') : +r[0], name: names[k] })); }
+      ok = true;
+    } else {
+      // An agent session: one line (a newline would submit early), then Enter via clSession.reply, then rename_item.
+      const label = { tab: 'tab', group: 'tab group', space: 'space (browser profile)', session: 'agent session' }[kind];
+      const text = (!bulk
+        ? `Roar asks you to rename a ${label}. Current name: "${ctxt.name}". ${ctxt.about} Pick a short, specific name (2 to 4 words) and apply it by calling the roar MCP tool rename_item with kind "${kind}", id ${aiIdArg(kind, id)} and your name. Do only that, then reply with the new name.`
+        : (tabsOnly ? 'Roar asks you to rename each of these tabs. Tabs: ' : `Roar asks you to rename a tab group and each of its tabs. Group id ${id}, now "${ctxt.name}". Tabs: `) +
+          keys.filter((k) => k !== key).map((k) => { const t = state.tabs.find((x) => 'tab:' + x.id === k); return `tab id ${t.id}: "${t.title}" (${t.url})`; }).join('; ') +
+          `. Pick a short, specific name (2 to 4 words) for ${tabsOnly ? '' : 'the group and for '}each tab, and apply them all in ONE call of the roar MCP tool rename_item with items: [${tabsOnly ? '' : `{kind:"group", id:${id}, name}, `}{kind:"tab", id, name}, ...]. Do only that, then reply with the names.`).replace(/\s*\n\s*/g, ' ');
+      const out = await race(clSession.reply(who.session.id, text));
+      if (clSession.error(out)) throw new Error(clSession.error(out));
+      // The agent renames through MCP; aiSettle clears each spinner when its name changes.
+      ok = true;
+      // The agent may take a while to call rename_item; give it the old 120 s, not the 30 s meant for the reply.
+      clearTimeout(timer); timer = setTimeout(() => stop(new Error('no rename in 120 s')), AI_RENAME_WAIT_MS);
+      await race(new Promise((done) => { const t = setInterval(() => { if (!keys.some((k) => aiBusy[k]?.run === run)) { clearInterval(t); done(); } }, 500); stopped.catch(() => clearInterval(t)); }));
+    }
+  } catch (err) {
+    if (err.message !== 'cancelled') why = `Couldn't rename: ${err.message}`;
+  } finally {
+    clearTimeout(timer);
+    // Give a just-applied rename a moment to reach aiSettle (it offers Undo), then clear whatever is left.
+    setTimeout(() => {
+      keys.forEach((k) => { if (aiBusy[k]?.run === run) delete aiBusy[k]; }); roar.render(state);
+      if (why) showCtx(`<div class="head">${esc(why)}</div>`, { clientX: 8, clientY: 120 }, () => {});
+    }, ok && !why ? 1500 : 0);
+  }
+}
+var AI_RENAME_MS = 30000, AI_RENAME_WAIT_MS = 120000;
+// A rename landed while we waited: stop that item's spinner and offer one Undo for its whole batch.
+function aiSettle() {
+  for (const key in aiBusy) {
+    const [kind, ...rest] = key.split(':'), id = rest.join(':'), now = aiContext(kind, id);
+    if (!now || now.name === aiBusy[key].old) continue;
+    const { undo, batch } = aiBusy[key];
+    delete aiBusy[key];
+    batch.done.push({ kind, id: kind === 'session' ? id : +id, name: undo, now: now.name });
+    document.querySelector('.ai-undo')?.remove();
+    const bar = document.createElement('div');
+    bar.className = 'ai-undo';
+    bar.setAttribute('role', 'status');
+    bar.innerHTML = `<span>${batch.total > 1 ? `Renamed ${batch.done.length} of ${batch.total}` : `Renamed to “${esc(now.name)}”`}</span><button>Undo${batch.total > 1 ? ' all' : ''}</button>`;
+    bar.querySelector('button').onclick = () => { bar.remove(); for (const d of batch.done) ask({ cmd: 'agent.rename', kind: d.kind, id: d.id, name: d.name }); batch.done = []; };
+    document.body.append(bar);
+    clearTimeout(batch.timer);
+    batch.timer = setTimeout(() => bar.remove(), 10000);
+  }
+}
+document.addEventListener('click', (e) => {
+  const b = e.target.closest('[data-airn]');
+  if (!b) return;
+  e.stopPropagation(); e.preventDefault();
+  aiRename(b.dataset.airn, e, b.dataset.airn.startsWith('group:'));
+}, true);
+$('space-ai').onclick = (e) => { const id = menuSpace; hideSpaceMenu(); aiRename('space:' + id, e); };
+for (const [b, kind] of [['space-ai-all', 'all'], ['space-ai-loose', 'ungrouped']]) $(b).onclick = (e) => { const id = menuSpace; hideSpaceMenu(); aiRename(kind + ':' + id, e, true); };
+$('af-btn').onclick = (e) => {
+  e.stopPropagation();
+  ask({ cmd: 'settings.set', settings: { agentFilesRow: state?.settings?.agentFilesRow === false } });
+};
+$('cl-btn').onclick = (e) => {
+  e.stopPropagation();
+  ask({ cmd: 'settings.set', settings: { agentSection: state?.settings?.agentSection === false } });
+};
+document.addEventListener('click', (e) => {
+  const b = e.target.closest('[data-unsplit]');
+  if (!b) return;
+  e.stopPropagation();
+  ask({ cmd: 'tab.unsplit', id: +b.dataset.unsplit || 0 });
+}, true);
+document.addEventListener('click', (e) => {
+  const rp = e.target.closest('[data-clreply]');
+  if (rp) {
+    e.stopPropagation();
+    clReplyOpen = clReplyOpen === rp.dataset.clreply ? null : rp.dataset.clreply;
+    return ask({ cmd: 'state' }).then(roar.render).then(() => $('cl').querySelector(`[data-clq="${CSS.escape(clReplyOpen || '')}"] input`)?.focus());
+  }
+  // Same as turning off the {} button in the header.
+  if (e.target.closest('[data-afhide]')) { e.stopPropagation(); return ask({ cmd: 'settings.set', settings: { agentFilesRow: false } }); }
+  const hx = e.target.closest('[data-clhide]');
+  if (hx) { e.stopPropagation(); const id = hx.dataset.clhide; clIsHidden(id) ? delete clHiddenAt[id] : (clHiddenAt[id] = Date.now()); return saveClHidden(); }
+  if (e.target.closest('[data-clshowhidden]')) { e.stopPropagation(); clShowHidden = !clShowHidden; return roar.render(state); }
+  const x = e.target.closest('[data-cldismiss]');
+  if (x) { e.stopPropagation(); return ask({ cmd: 'claude.dismiss', id: x.dataset.cldismiss }); }
+  const sb = e.target.closest('[data-clbeside]');
+  if (sb) { e.stopPropagation(); return ask({ cmd: 'claude.beside', id: sb.dataset.clbeside }); }
+  const f = e.target.closest('[data-clfocus]');
+  if (f) { e.stopPropagation(); dropDone(f.dataset.clfocus); return ask({ cmd: 'claude.ctl', action: 'focus', id: f.dataset.clfocus }); }
+  const q = e.target.closest('[data-clq]');
+  if (q) {
+    e.stopPropagation();
+    if (e.target.closest('[data-tab]:not([aria-disabled=true])')) ask({ cmd: 'claude.sendTab', id: q.dataset.clq });
+    return;
+  }
+  const del = e.target.closest('[data-chatdel]');
+  if (del) return e.stopPropagation(), ask({ cmd: 'chat.delete', id: del.dataset.chatdel });
+  const ch = e.target.closest('[data-chatid]');
+  if (ch) {
+    e.stopPropagation();
+    const t = state?.tabs?.find((x) => x.url === 'roar://ui/chat.html#' + ch.dataset.chatid);
+    return t ? ask({ cmd: 'tab.activate', id: t.id }) : ask({ cmd: 'open', text: 'roar://ui/chat.html#' + ch.dataset.chatid, newTab: true });
+  }
+  const r = e.target.closest('[data-clid]');
+  if (!r) return;
+  e.stopPropagation();
+  for (const p of document.querySelectorAll('.feed-pop')) p.classList.remove('open');
+  syncFeeds();
+  dropDone(r.dataset.clid);
+  // Every row opens its session: the full-view tab if it's open, else a new one.
+  if (r.dataset.cltab) return ask({ cmd: 'tab.activate', id: +r.dataset.cltab });
+  return ask({ cmd: 'open', text: 'roar://ui/claude.html?id=' + encodeURIComponent(r.dataset.clid), newTab: true });
+}, true);
+// Done cards go once you have seen them: doneSecs on screen while Roar is focused (hover or an open reply pauses),
+// so one that lands while you are away waits for you. Also when you open that agent's session.
+window.doneSecs = 45;  // window: tests shorten it
+const doneSeen = new WeakMap();
+const dropDone = (sid) => { for (const a of state?.alerts || []) if (a.autoDone && a.session === sid) ask({ cmd: 'agent.answer', id: a.id, choice: '' }); };
+setInterval(() => {
+  // Roar active, not this document focused: the sidebar is its own browser, so a page tab holds focus most of the time.
+  if (!(window.appActiveTest ?? state?.appActive) || document.hidden) return;  // appActiveTest: headless tests can't activate Roar
+  for (const el of document.querySelectorAll('#alerts .alert.auto-done')) {
+    if (!el.offsetParent || el.matches(':hover') || el.querySelector('.alert-reply')) continue;
+    const n = (doneSeen.get(el) || 0) + 1;
+    doneSeen.set(el, n);
+    if (n >= window.doneSecs) ask({ cmd: 'agent.answer', id: +el.dataset.alert, choice: '' });
+  }
+}, 1000);
+$('gm-refresh').onclick = $('ol-refresh').onclick = () => ask({ cmd: 'run', id: 'gmail' });
+$('ol-open').onclick = () => state?.outlook && ask({ cmd: 'open', text: `https://${state.outlook}/mail/`, newTab: true });
+// Multi-select delete: ticked messages go to Gmail in one Delete per account.
+const mailSel = new Set();
+// Agent sessions hidden by the viewer, {id: when hidden} (settings.agentHidden): one that asks for you after that comes back.
+let clHiddenAt = {}, clShowHidden = false;
+const clIsHidden = (id) => Object.hasOwn(clHiddenAt, id);
+function saveClHidden() { return ask({ cmd: 'settings.set', settings: { agentHidden: JSON.stringify(clHiddenAt) } }); }
+// The hidden list used to live in this page's localStorage; move it into settings once.
+try {
+  const old = JSON.parse(localStorage.getItem('clHidden') || 'null');
+  if (Array.isArray(old)) {
+    const at = JSON.parse(localStorage.getItem('clHiddenAt') || '{}') || {};
+    ask({ cmd: 'state' }).then((s) => {
+      clHiddenAt = clHiddenMap(s);
+      for (const id of old) clHiddenAt[id] ??= at[id] || Date.now();
+      return saveClHidden();
+    }).then(() => { localStorage.removeItem('clHidden'); localStorage.removeItem('clHiddenAt'); }).catch(() => {});
+  }
+} catch {}
+function syncMailSel() {
+  $('gm-delsel').hidden = !mailSel.size;
+  $('gm-delsel').textContent = `Delete ${mailSel.size}`;
+  const items = state?.gmail?.items || [];
+  const all = items.length > 0 && items.every((m) => mailSel.has(m.url));
+  $('gm-selall').hidden = !items.length;
+  $('gm-selall').textContent = all ? 'Select none' : 'Select all';
+}
+function selectMail(items) {
+  const all = items.every((m) => mailSel.has(m.url));
+  for (const m of items) all ? mailSel.delete(m.url) : mailSel.add(m.url);
+  roar.render(state);
+}
+$('gm-selall').onclick = (e) => { e.stopPropagation(); selectMail(state.gmail.items || []); };
+// Per-viewer mail list tweaks, keyed by message URL: hidden rows and a dragged order.
+const mailHidden = new Set(loadMail('mailHidden'));
+let mailOrder = loadMail('mailOrder');
+function loadMail(k) { try { return JSON.parse(localStorage.getItem(k)) || []; } catch { return []; } }
+const acctHidden = new Set(loadMail('acctHidden'));
+let acctOrder = loadMail('acctOrder'), acctShowHidden = false;
+function saveMail() { try { localStorage.setItem('acctHidden', JSON.stringify([...acctHidden])); localStorage.setItem('acctOrder', JSON.stringify(acctOrder)); localStorage.setItem('mailHidden', JSON.stringify([...mailHidden])); localStorage.setItem('mailOrder', JSON.stringify(mailOrder)); } catch {} }
+// Deleted rows leave at once; if Gmail kept the message, the next feed after 2 min shows it again.
+const mailDeleted = new Map();
+function mailGone(...urls) { for (const u of urls) mailDeleted.set(u, Date.now()); roar.render(state); }
+function mailView(items) {
+  const now = Date.now(), urls = new Set(items.map((m) => m.url));
+  // Forget hidden/ordered messages that left the feed, so the lists stay small.
+  let pruned = false;
+  for (const u of [...mailHidden]) if (!urls.has(u)) { mailHidden.delete(u); pruned = true; }
+  if (mailOrder.some((u) => !urls.has(u))) { mailOrder = mailOrder.filter((u) => urls.has(u)); pruned = true; }
+  if (pruned) saveMail();
+  const at = (u) => mailOrder.indexOf(u);  // New mail (-1) stays on top in feed order.
+  return items.filter((m) => !mailHidden.has(m.url) && !(now - (mailDeleted.get(m.url) || -1e9) < 120000))
+    .map((m, i) => [m, i]).sort(([a, i], [b, j]) => (at(a.url) - at(b.url)) || i - j).map(([m]) => m);
+}
+let mailDrag = null;
+$('gm').addEventListener('dragstart', (e) => {
+  const row = e.target.closest?.('.mailrow');
+  if (!row) return;
+  mailDrag = row.dataset.murl;  // A string: a state push may re-render the row mid-drag.
+  e.dataTransfer.effectAllowed = 'move';
+  setTimeout(() => row.classList.add('dragging'));
+});
+const mailDrop = () => document.querySelectorAll('#gm .drop-before, #gm .drop-after').forEach((r) => r.classList.remove('drop-before', 'drop-after'));
+$('gm').addEventListener('dragover', (e) => {
+  const row = e.target.closest('.mailrow');
+  if (!mailDrag || !row || row.dataset.murl === mailDrag) return;
+  e.preventDefault();
+  mailDrop();
+  const r = row.getBoundingClientRect();
+  row.classList.add(e.clientY < r.top + r.height / 2 ? 'drop-before' : 'drop-after');
+});
+$('gm').addEventListener('drop', (e) => {
+  const row = e.target.closest('.mailrow.drop-before, .mailrow.drop-after');
+  if (!mailDrag || !row) return;
+  e.preventDefault();
+  const from = mailDrag, to = row.dataset.murl, after = row.classList.contains('drop-after');
+  const list = state.gmail.items.map((m) => m.url).filter((u) => u !== from);
+  list.splice(list.indexOf(to) + after, 0, from);
+  mailOrder = list;
+  saveMail();
+  roar.render(state);
+});
+// Account headers drag the same way; the order is a list of addresses.
+let acctDrag = null;
+$('gm').addEventListener('dragstart', (e) => {
+  const head = e.target.closest?.('.acct-head');
+  if (!head) return;
+  acctDrag = head.dataset.addr;
+  e.dataTransfer.effectAllowed = 'move';
+  setTimeout(() => head.parentElement.classList.add('dragging'));
+});
+$('gm').addEventListener('dragover', (e) => {
+  const box = e.target.closest('.acct');
+  if (!acctDrag || !box || box.querySelector('.acct-head').dataset.addr === acctDrag) return;
+  e.preventDefault();
+  mailDrop();
+  const r = box.getBoundingClientRect();
+  box.classList.add(e.clientY < r.top + r.height / 2 ? 'drop-before' : 'drop-after');
+});
+$('gm').addEventListener('drop', (e) => {
+  const box = e.target.closest('.acct.drop-before, .acct.drop-after');
+  if (!acctDrag || !box) return;
+  e.preventDefault();
+  const addr = (b) => b.querySelector('.acct-head').dataset.addr;
+  const list = [...document.querySelectorAll('#gm .acct')].map(addr).filter((a) => a !== acctDrag);
+  list.splice(list.indexOf(addr(box)) + box.classList.contains('drop-after'), 0, acctDrag);
+  // Hidden accounts keep their old place after the shown ones.
+  acctOrder = [...list, ...acctOrder.filter((a) => !list.includes(a) && a !== acctDrag)];
+  saveMail();
+  roar.render(state);
+});
+$('gm').addEventListener('dragend', () => { acctDrag = null; });
+$('gm').addEventListener('dragend', () => { document.querySelectorAll('#gm .dragging').forEach((r) => r.classList.remove('dragging')); mailDrag = null; mailDrop(); });
+$('gm').addEventListener('change', (e) => {
+  const box = e.target.closest('.msel');
+  if (!box) return;
+  const url = box.closest('[data-murl]').dataset.murl;
+  box.checked ? mailSel.add(url) : mailSel.delete(url);
+  syncMailSel();
+  warmMail(url);
+});
+// Load the account's hidden Gmail page ahead of an action, so Gmail's startup wait
+// (~33 s) is over when Delete comes. Roar ignores repeats for a page already loading.
+$('gm').addEventListener('pointerover', (e) => { const r = e.target.closest('.macts'); if (r) warmMail(r.closest('[data-murl]').dataset.murl); });
+const warmMail = (url) => ask({ cmd: 'mail.warm', url });
+$('gm-delsel').onclick = async (e) => {
+  e.stopPropagation();
+  const byAcct = {};
+  for (const m of state.gmail.items) if (mailSel.has(m.url)) (byAcct[m.account || 0] ||= []).push(m.url);
+  mailGone(...mailSel);
+  mailSel.clear();
+  syncMailSel();
+  for (const m of document.querySelectorAll('#gm .msel')) m.checked = false;
+  // Each account has its own hidden Gmail page, so all accounts run at once.
+  for (const urls of Object.values(byAcct)) ask({ cmd: 'mail.act', action: 'delete', url: urls[0], urls });
+};
+$('hide-sidebar').onclick = () => ask({ cmd: 'run', id: 'sidebar' });
+// Pinned extensions: click opens the extension's popup page in a bubble beside
+// the button (an options-only extension opens in a tab); right-click unpins. Pin from the Extensions menu in the menu bar.
+let pinKey = null;
+// Tiles per row comes from settings, or as many 38px tiles as fit.
+let pinSettings = {};
+function layoutPins(settings) {
+  if (settings) pinSettings = settings;
+  const el = $('pinned');
+  const fit = Math.max(1, Math.floor((el.clientWidth - 8 + 6) / (38 + 6)));
+  el.style.setProperty('--cols', pinSettings.pinnedColumns || fit);
+  el.classList.toggle('centered', !!pinSettings.pinnedCentered);
+}
+addEventListener('resize', () => layoutPins());
+
+function loadPins() {
+  const key = state.activeSpace + ':' + state.settings.pinnedExtensions.join(',');
+  if (key === pinKey) return;
+  pinKey = key;
+  if (!state.settings.pinnedExtensions.length) return void ($('ext-pins').innerHTML = '');
+  ask({ cmd: 'extensions.list' }).then((r) => {
+    const list = (typeof r === 'string' ? JSON.parse(r) : r).filter((x) => x.pinned);
+    $('ext-pins').innerHTML = list.map((x) => `<button data-ext-open="${esc(x.open)}" data-ext-pin="${esc(x.id)}" ${x.popup ? 'data-ext-popup="1"' : ''} title="${esc(x.name)}">${/^data:image\//.test(x.icon || '') ? `<img src="${esc(x.icon)}" data-default="${esc(x.icon)}" alt="">` : `<span class="letter">${esc(x.name[0] || '?')}</span>`}</button>`).join('');
+    ask({ cmd: 'extensions.actions' }).then((a) => roar.actions(typeof a === 'string' ? JSON.parse(a) : a));
+  }).catch(() => { pinKey = null; });
+}
+// Live icon and badge per extension for the active tab (action_watch.cc).
+roar.actions = (all) => {
+  for (const b of $('ext-pins').querySelectorAll('[data-ext-pin]')) {
+    const a = all[b.dataset.extPin] || {};
+    const img = b.querySelector('img');
+    if (img) img.src = /^data:image\//.test(a.icon || '') ? a.icon : img.dataset.default;
+    let badge = b.querySelector('.badge');
+    if (!a.badge) { badge?.remove(); continue; }
+    if (!badge) b.append(badge = Object.assign(document.createElement('span'), { className: 'badge' }));
+    badge.textContent = a.badge;
+    badge.style.background = a.color || '';
+  }
+};
+const render0 = roar.render;
+roar.render = (s) => { render0(s); loadPins(); ringCoach(s); footerTour(s); if (s.dictation) roar.dictation(s.dictation); };
+// Onboarding's last step highlights Settings and the current space dot, once (welcome.html sets footerTour).
+function footerTour(s) {
+  const on = !!s.settings?.footerTour && !s.settings?.onboarded;
+  $('settings').classList.toggle('tour', on);
+  $('spaces').querySelector('[aria-current="true"]')?.classList.toggle('tour', on);
+}
+// First ring on the current space's dot: say once what it means and how to turn it off.
+function ringCoach(s) {
+  // A ring after onboarding arms the hint for the next disconnect (written only on change).
+  const st = s.settings || {};
+  if (st.onboarded && spaceDot(s.spaces.find((sp) => sp.id === s.activeSpace) || {}, s, 0).ring && (!st.agentsHadRing || st.agentRingSeen))
+    ask({ cmd: 'settings.set', settings: { agentsHadRing: true, agentRingSeen: false } });
+  const show = spaceRingCoach(s);
+  let el = document.querySelector('.ring-coach');
+  if (!show) return el?.remove();
+  if (el) return;
+  el = Object.assign(document.createElement('div'), { className: 'ring-coach', role: 'status' });
+  el.innerHTML = '<span>Agents can\'t reach this space. Click the dot to reconnect.</span><button type="button" title="Got it" aria-label="Got it">×</button>';
+  el.querySelector('button').onclick = () => { el.remove(); ask({ cmd: 'settings.set', settings: { agentRingSeen: true } }); };
+  $('bar').before(el);  // In the flow above the footer: covers nothing.
+}
+$('ext-pins').onclick = (e) => {
+  const b = e.target.closest('[data-ext-open]');
+  if (!b) return;
+  e.stopPropagation();
+  const r = b.getBoundingClientRect();
+  if (b.dataset.extPopup) ask({ cmd: 'extensions.popup', url: b.dataset.extOpen, x: Math.round(r.right + 6), y: Math.round(r.top) });
+  else ask({ cmd: 'open', text: b.dataset.extOpen, newTab: true });
+};
+$('ext-pins').oncontextmenu = (e) => {
+  const b = e.target.closest('[data-ext-pin]');
+  if (b) { e.preventDefault(); e.stopPropagation(); ask({ cmd: 'run', id: 'extensionPin:' + b.dataset.extPin }); }
+};
+$('settings').onclick = () => ask({ cmd: 'run', id: 'settings' });
+// Dictation: Roar pushes roar.dictation(d) on every engine change; render() carries it too.
+const keyLabel = (k) => (/Mac/.test(navigator.platform)
+  ? k.replace(/Cmd\+|Command\+|Meta\+/i, '⌘').replace(/Ctrl\+|Control\+/i, '⌃').replace(/Alt\+|Option\+|Opt\+/i, '⌥').replace(/Shift\+/i, '⇧')
+  : k);
+let dict = null;
+window.dictErrMs = 4000;  // window: tests shorten it
+roar.dictation = (d) => {
+  dict = d;
+  const on = !!d.on, key = keyLabel(state?.settings?.dictationKey || '');
+  const listening = d.state === 'listening', busy = ['loading', 'downloading', 'preparing', 'transcribing'].includes(d.state);
+  $('mic').hidden = !on;
+  $('mic').setAttribute('aria-pressed', String(listening));
+  $('mic').classList.toggle('busy', busy);
+  const label = listening ? `Stop dictation (${key})` : `Dictate (${key})`;
+  $('mic').title = label;
+  $('mic').setAttribute('aria-label', label);
+  const pct = Math.round((d.progress || 0) * 100);
+  const msg = !on ? '' : {
+    listening: `Listening. Press <kbd>${esc(key)}</kbd> to stop.`,
+    transcribing: 'Transcribing…',
+    loading: 'Starting dictation…',
+    preparing: 'Preparing the speech model. The first time can take a few minutes.',
+    downloading: `Downloading the speech model: ${pct}% of ${d.modelMb} MB <span class="bar"><i style="width:${pct}%"></i></span>`,
+    error: esc(d.detail || 'Dictation stopped.'),
+  }[d.state] || (d.keyTaken ? 'That shortcut is in use; pick another in Settings › Dictation' : '');
+  // A transient error clears 4 s after it first showed, timed per message: every render() repeats d, which used to restart the clock forever.
+  const transient = d.state === 'error' && !d.keyTaken;
+  if (!transient) roar.dictation.err = null;
+  else if (roar.dictation.err?.msg !== msg) roar.dictation.err = { msg, at: Date.now() };
+  const gone = transient && Date.now() - roar.dictation.err.at >= window.dictErrMs;
+  $('dict').hidden = !msg || gone;
+  $('dict').dataset.state = d.keyTaken && d.state === 'idle' ? 'error' : d.state;
+  $('dict').innerHTML = msg ? `<span class="dot" aria-hidden="true"></span><span>${msg}</span>` : '';
+  clearTimeout(roar.dictation.t);
+  if (transient && !gone) roar.dictation.t = setTimeout(() => roar.dictation(dict), roar.dictation.err.at + window.dictErrMs - Date.now());
+};
+$('mic').onclick = () => ask({ cmd: 'dictation.toggle' });
+// Clicking the current space's dot switches agents for it; turning on also opens CDP. The port lives in Settings.
+function toggleAgents() {
+  const on = !spaceDot(state.spaces.find((sp) => sp.id === state.activeSpace), state, 0).ring;
+  return (on && !state.settings.cdpOn ? ask({ cmd: 'settings.set', settings: { cdpEnabled: true } }) : Promise.resolve())
+    .then(() => ask({ cmd: 'space.agents', id: state.activeSpace, on }))
+    .then(() => ask({ cmd: 'state' })).then(roar.render);
+}
+function openGarden() {
+  for (const p of document.querySelectorAll('.feed-pop')) p.classList.remove('open');
+  syncFeeds();
+  ask({ cmd: 'run', id: 'open:roar://ui/garden.html' });
+}
+// GitHub PRs and Unread mail open as popovers from their footer icons.
+function syncFeeds() {
+  const bar = $('bar').getBoundingClientRect();
+  for (const b of document.querySelectorAll('.feed[data-feed]')) {
+    const pop = $(b.dataset.feed);
+    b.setAttribute('aria-expanded', pop.classList.contains('open'));
+    pop.style.bottom = (innerHeight - bar.top + 4) + 'px';
+  }
+}
+$('ol-btn').onclick = () => state?.outlook && !state.outlookMail && ask({ cmd: 'open', text: `https://${state.outlook}/mail/`, newTab: true });
+$('bar').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-feed]');
+  if (!b) return;
+  e.stopPropagation();
+  if (b.id === 'gh-btn' && (e.altKey || e.detail === 3)) return openGarden();  // Easter egg: Savanna.
+  if (b.id === 'gm-btn' || b.id === 'gh-btn' || b.id === 'ol-btn') ask({ cmd: 'run', id: b.id === 'gh-btn' ? 'github' : 'gmail' });  // Live update on every click.
+  const pop = $(b.dataset.feed), open = !pop.classList.contains('open');
+  for (const p of document.querySelectorAll('.feed-pop')) p.classList.remove('open');
+  pop.classList.toggle('open', open);
+  syncFeeds();
+  // Keyboard users land inside the popover, and Escape brings them back to its icon.
+  if (open) (pop.querySelector('button, input, [tabindex]') || pop).focus();
+});
+document.addEventListener('click', (e) => {
+  // A hide/delete click re-renders its row first, so its target is detached by now: keep the popover open.
+  if (!e.target.isConnected || (e.target.closest('.feed-pop') && !e.target.closest('[data-url]'))) return;
+  for (const p of document.querySelectorAll('.feed-pop')) p.classList.remove('open');
+  syncFeeds();
+});
+addEventListener('keydown', (e) => {
+  if (e.key !== 'Escape') return;
+  const open = document.querySelector('.feed-pop.open');
+  for (const p of document.querySelectorAll('.feed-pop')) p.classList.remove('open');
+  syncFeeds();
+  if (open) document.querySelector(`[data-feed="${open.id}"]`)?.focus();
+});
+const COLORS = ['', '#e5484d', '#f76b15', '#ffc53d', '#46a758', '#12a594', '#0090ff', '#8e4ec6', '#d6409f'];
+const COLOR_NAMES = { '#e5484d': 'Red', '#f76b15': 'Orange', '#ffc53d': 'Yellow', '#46a758': 'Green', '#12a594': 'Teal', '#0090ff': 'Blue', '#8e4ec6': 'Purple', '#d6409f': 'Pink' };
+function renderSwatches() {
+  const sp = state?.spaces.find((x) => x.id === menuSpace);
+  $('swatches').innerHTML = COLORS.map((c) => `<button data-color="${c}" aria-pressed="${(sp?.color || '') === c}" title="${c || 'Default'}" style="background:${c || 'var(--ink-3)'}"></button>`).join('');
+}
+$('swatches').addEventListener('mousedown', (e) => e.preventDefault());
+$('swatches').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-color]');
+  if (!b) return;
+  e.stopPropagation();
+  ask({ cmd: 'space.color', id: menuSpace, color: b.dataset.color }).then(() => ask({ cmd: 'state' })).then((s) => { roar.render(s); renderSwatches(); });
+});
+ask({ cmd: 'state' }).then((s) => roar.render(s)).catch(() => {});
+
+// Drag the right edge to resize the sidebar; Roar saves the width.
+$('resize').addEventListener('mousedown', (e) => {
+  e.preventDefault();
+  ask({ cmd: 'sidebar.resize' });
+});
+</script>
+</body>
+</html>

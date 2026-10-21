@@ -1,0 +1,266 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>History</title>
+<link rel="stylesheet" href="roar.css">
+<style>
+body { background: var(--panel); overflow-y: auto; overflow-x: hidden; }
+.page { box-sizing: border-box; max-width: 1000px; margin: 0 auto; padding: 44px 28px 96px; display: grid; grid-template-columns: 190px minmax(0, 1fr); gap: 0 36px; }
+h1 { grid-column: 1 / -1; margin: 0 0 22px; font: 800 34px/1 var(--round); letter-spacing: -.02em; }
+h1 small { font: 500 13px var(--ui); color: var(--ink-3); letter-spacing: 0; margin-left: 10px; }
+
+/* Day rail: every loaded day with a bar for how much was visited; the day in view is marked. */
+.rail { position: sticky; top: 20px; align-self: start; max-height: calc(100vh - 40px); overflow-y: auto; display: grid; gap: 1px; padding-bottom: 12px; }
+.rail button { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: auto 3px; gap: 4px 8px; text-align: left; padding: 7px 10px 8px; border-radius: 8px; color: var(--ink-2); font: 500 12.5px var(--ui); }
+.rail button:hover { background: var(--hover); color: var(--ink); }
+.rail button[aria-current="true"] { background: var(--ground); color: var(--ink); font-weight: 650; }
+.rail .n { color: var(--ink-3); font-size: 11px; font-variant-numeric: tabular-nums; }
+.rail .bar { grid-column: 1 / -1; height: 3px; border-radius: 2px; background: var(--rule); overflow: hidden; }
+.rail .bar i { display: block; height: 100%; background: var(--mane); border-radius: 2px; opacity: .55; }
+.rail button[aria-current="true"] .bar i { opacity: 1; }
+.rail .more { color: var(--mane-ink); }
+
+.find { position: sticky; top: 0; z-index: 2; background: var(--panel); padding: 0 0 10px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+input { flex: 1; min-width: 200px; font: 13px var(--ui); padding: 9px 12px; border-radius: 8px; border: 1px solid var(--rule); background: var(--ground); color: var(--ink); }
+input:focus { outline: 2px solid var(--mane); outline-offset: -1px; }
+.site { display: none; align-items: center; gap: 6px; padding: 5px 6px 5px 10px; border-radius: 8px; background: var(--mane-soft); color: var(--mane-ink); font: 600 12px var(--ui); }
+.site.on { display: inline-flex; }
+.site button { width: 18px; height: 18px; border-radius: 5px; display: grid; place-items: center; color: inherit; }
+.site button:hover { background: rgba(0, 0, 0, .08); }
+.keys { width: 100%; color: var(--ink-3); font-size: 11.5px; }
+.keys kbd { font: 11px var(--ui); padding: 0 4px; border-radius: 4px; background: var(--ground); box-shadow: inset 0 -1px 0 var(--rule); }
+
+.day { position: sticky; top: 72px; z-index: 1; background: var(--panel); color: var(--ink); font: 700 14px var(--round); padding: 16px 6px 6px; scroll-margin-top: 72px; }
+.day span { color: var(--ink-3); font: 500 12px var(--ui); margin-left: 8px; }
+.group-toggle { flex: none; padding: 5px 10px; border-radius: 8px; font: 500 12.5px var(--ui); color: var(--ink-2); }
+.group-toggle:hover { background: var(--hover); color: var(--ink); }
+.group-toggle[aria-pressed="true"] { background: var(--mane-soft); color: var(--mane-ink); font-weight: 600; }
+.sitehead { display: flex; align-items: center; gap: 8px; margin: 10px 0 2px; padding: 4px 6px; font: 600 13px var(--ui); color: var(--ink); }
+.sitehead .fav { width: 16px; height: 16px; flex: none; border-radius: 4px; display: grid; place-items: center; background: var(--rule); color: var(--ink-2); font: 700 9.5px var(--round); }
+.sitehead .host { padding: 2px 4px; border-radius: 5px; font: inherit; color: inherit; }
+.sitehead .host:hover { background: var(--rule); }
+.grouped .entry .host { display: none; }
+.sitehead span:last-child { color: var(--ink-3); font-weight: 500; font-size: 12px; }
+.grouped .entry { padding-left: 22px; }
+.entry { display: flex; align-items: center; gap: 10px; height: 34px; padding: 0 6px; border-radius: 7px; }
+.entry:hover, .entry.sel { background: var(--hover); }
+.entry.sel { box-shadow: inset 2px 0 0 var(--mane); }
+.entry .when { color: var(--ink-3); font-size: 11.5px; width: 56px; flex: none; font-variant-numeric: tabular-nums; }
+.entry img, .entry .fav { width: 16px; height: 16px; flex: none; border-radius: 4px; }
+.entry .fav { display: grid; place-items: center; background: var(--rule); color: var(--ink-2); font: 700 9.5px var(--round); }
+.entry a { flex: 1; min-width: 0; color: var(--ink); text-decoration: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.entry .host { color: var(--ink-3); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 32%; padding: 2px 6px; border-radius: 5px; }
+.entry .host:hover { background: var(--rule); color: var(--ink); }
+.entry .x { width: 22px; height: 22px; border-radius: 5px; color: var(--ink-3); display: grid; place-items: center; flex: none; visibility: hidden; }
+.entry:hover .x, .entry.sel .x { visibility: visible; }
+.entry .x:hover { background: var(--rule); color: var(--ink); }
+.empty { color: var(--ink-3); padding: 24px 6px; }
+.pick { width: 15px; height: 15px; min-width: 0; padding: 0; flex: none; margin: 0; accent-color: var(--mane); opacity: 0; }
+.entry:hover .pick, .entry.sel .pick, .pick:checked, .picking .pick { opacity: 1; }
+.entry.picked { background: var(--mane-soft); }
+.bulk { display: none; width: 100%; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 8px; background: var(--ground); font-size: 12.5px; color: var(--ink-2); }
+.bulk.on { display: flex; }
+.bulk .count { font-weight: 600; color: var(--ink); margin-right: auto; }
+.bulk button { padding: 5px 10px; border-radius: 6px; font: 500 12.5px var(--ui); color: var(--ink-2); }
+.bulk button:hover { background: var(--hover); color: var(--ink); }
+.bulk .primary { background: var(--mane); color: #2a1604; font-weight: 600; }
+.bulk .primary:hover { background: var(--mane); filter: brightness(1.05); color: #2a1604; }
+.older { margin: 18px 6px 0; padding: 8px 14px; border-radius: 8px; background: var(--ground); color: var(--ink-2); font: 500 12.5px var(--ui); }
+.older:hover { background: var(--hover); color: var(--ink); }
+button:focus-visible, a:focus-visible { outline: 2px solid var(--mane); outline-offset: 1px; }
+
+/* Narrow: the rail becomes a strip of days above the list. */
+@media (max-width: 720px) {
+  .page { grid-template-columns: minmax(0, 1fr); padding: 32px 16px 72px; }
+  .rail { position: static; display: flex; overflow-x: auto; max-height: none; gap: 4px; padding-bottom: 10px; }
+  .rail button { flex: none; min-width: 96px; }
+  .day { top: 72px; }
+}
+@media (prefers-reduced-motion: no-preference) { html { scroll-behavior: smooth; } }
+</style>
+</head>
+<body>
+<div class="page">
+  <h1>History<small id="space"></small></h1>
+  <nav class="rail" id="rail" aria-label="Days"></nav>
+  <main>
+    <div class="find">
+      <input id="q" type="search" autocomplete="off" placeholder="Search titles and addresses" aria-label="Search history">
+      <button class="group-toggle" id="group" aria-pressed="false" title="Group each day's pages by site">Group by site</button>
+      <span class="site" id="site"><span id="site-name"></span><button id="site-clear" aria-label="Show every site" title="Show every site"><svg viewBox="0 0 12 12" width="9" height="9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="m3 3 6 6M9 3l-6 6"/></svg></button></span>
+      <div class="bulk" id="bulk"><span class="count" id="bulk-count"></span><button class="primary" id="bulk-open">Open in new tabs</button><button id="bulk-remove">Remove</button><button id="bulk-clear">Clear</button></div>
+      <div class="keys"><kbd>/</kbd> search · <kbd>↑</kbd><kbd>↓</kbd> move · <kbd>↩</kbd> open · <kbd>⌘↩</kbd> new tab · <kbd>⌫</kbd> remove · <kbd>space</kbd> select · shift-click selects a range · click a site to see only it · <kbd>g</kbd> group by site</div>
+    </div>
+    <div id="list"><div class="empty">Loading…</div></div>
+  </main>
+</div>
+<script src="bridge.js"></script>
+<script>
+const $ = (id) => document.getElementById(id);
+const x = '<svg viewBox="0 0 12 12" width="10" height="10" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="m3 3 6 6M9 3l-6 6"/></svg>';
+const PAGE = 500;
+let limit = PAGE, site = '', seq = 0, sel = -1, anchor = -1;
+let grouped = false;
+try { grouped = localStorage.getItem('historyGrouped') === '1'; } catch {}
+const picked = new Set();
+function syncBulk() {
+  for (const r of rows()) {
+    const on = picked.has(r.dataset.entry);
+    r.classList.toggle('picked', on);
+    r.querySelector('.pick').checked = on;
+  }
+  $('list').classList.toggle('picking', picked.size > 0);
+  $('bulk').classList.toggle('on', picked.size > 0);
+  $('bulk-count').textContent = `${picked.size} selected`;
+}
+function pick(i, range) {
+  const all = rows();
+  if (range && anchor >= 0) {
+    const on = !picked.has(all[i].dataset.entry);
+    for (let j = Math.min(anchor, i); j <= Math.max(anchor, i); ++j) on ? picked.add(all[j].dataset.entry) : picked.delete(all[j].dataset.entry);
+  } else {
+    const url = all[i].dataset.entry;
+    picked.has(url) ? picked.delete(url) : picked.add(url);
+    anchor = i;
+  }
+  syncBulk();
+}
+$('bulk-open').onclick = () => { for (const url of picked) ask({ cmd: 'open', text: url, newTab: true }); picked.clear(); syncBulk(); };
+$('bulk-remove').onclick = async () => { for (const url of picked) await ask({ cmd: 'history.remove', url }); picked.clear(); load(); };
+$('bulk-clear').onclick = () => { picked.clear(); syncBulk(); };
+const dayKey = (t) => { const d = new Date(t * 1000); return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`; };
+const dayLabel = (t, short) => {
+  const d = new Date(t * 1000), now = new Date();
+  const days = Math.round((new Date(now.getFullYear(), now.getMonth(), now.getDate()) - new Date(d.getFullYear(), d.getMonth(), d.getDate())) / 864e5);
+  if (days === 0) return 'Today';
+  if (days === 1) return 'Yesterday';
+  const year = d.getFullYear() === now.getFullYear() ? undefined : 'numeric';
+  return d.toLocaleDateString(undefined, short ? { weekday: 'short', month: 'short', day: 'numeric', year }
+                                               : { weekday: 'long', month: 'long', day: 'numeric', year });
+};
+const rows = () => [...document.querySelectorAll('.entry')];
+const entry = (e) => {
+  const time = new Date(e.lastVisit * 1000).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+  const host = hostOf(e.url);
+  return `<div class="entry${picked.has(e.url) ? ' picked' : ''}" data-entry="${esc(e.url)}"><input type="checkbox" class="pick" aria-label="Select" ${picked.has(e.url) ? 'checked' : ''}><span class="when">${esc(time)}</span><span class="fav">${esc((host[0] || '•').toUpperCase())}</span><a href="${esc(e.url)}" data-url="${esc(e.url)}" title="${esc(e.url)}">${esc(e.title || e.url)}</a><button class="host" data-site="${esc(host)}" title="Show only ${esc(host)}">${esc(host)}</button><button class="x" data-remove="${esc(e.url)}" aria-label="Remove from history" title="Remove from history">${x}</button></div>`;
+};
+// One day's entries by site, the most recently visited site first (entries arrive newest first).
+const bySite = (entries) => {
+  const sites = new Map();
+  for (const e of entries) {
+    const h = hostOf(e.url);
+    if (!sites.has(h)) sites.set(h, []);
+    sites.get(h).push(e);
+  }
+  return [...sites];
+};
+
+async function load() {
+  const mine = ++seq;
+  const q = [$('q').value, site].filter(Boolean).join(' ');
+  let res;
+  try { res = await ask({ cmd: 'history.list', q, limit }); }
+  catch { if (mine === seq) $('list').innerHTML = '<div class="empty">Couldn\'t load history.</div>'; return; }
+  if (mine !== seq) return;
+  const more = res.total > res.entries.length;
+  $('space').textContent = res.space ? `${res.space} · ${res.total} page${res.total === 1 ? '' : 's'}` : '';
+  $('site').classList.toggle('on', !!site);
+  $('site-name').textContent = site;
+  $('group').setAttribute('aria-pressed', grouped);
+  $('list').classList.toggle('grouped', grouped);
+  // Group by day, newest first.
+  const days = [];
+  for (const e of res.entries) {
+    const k = dayKey(e.lastVisit);
+    if (!days.length || days[days.length - 1].key !== k) days.push({ key: k, when: e.lastVisit, entries: [] });
+    days[days.length - 1].entries.push(e);
+  }
+  const most = Math.max(1, ...days.map((d) => d.entries.length));
+  $('rail').innerHTML = days.map((d) =>
+    `<button data-day="${d.key}"><span>${esc(dayLabel(d.when, true))}</span><span class="n">${d.entries.length}</span><span class="bar"><i style="width:${Math.max(6, d.entries.length / most * 100)}%"></i></span></button>`).join('') +
+    (more ? '<button class="more" data-older>Show older days</button>' : '');
+  $('list').innerHTML = days.map((d) =>
+    `<section data-day-list="${d.key}"><div class="day" id="d-${d.key}">${esc(dayLabel(d.when))}<span>${d.entries.length} page${d.entries.length === 1 ? '' : 's'}</span></div>` +
+    (grouped ? bySite(d.entries).map(([host, list]) =>
+      `<div class="sitehead"><span class="fav">${esc((host[0] || '•').toUpperCase())}</span><button class="host" data-site="${esc(host)}" title="Show only ${esc(host)}">${esc(host || 'Other')}</button><span>${list.length}</span></div>` +
+      list.map(entry).join('')).join('') : d.entries.map(entry).join('')) + '</section>').join('') +
+    (more ? '<button class="older" data-older>Show older days</button>' : '') ||
+    `<div class="empty">${$('q').value || site ? 'Nothing matches. Try fewer words or clear the site filter.' : 'No history in this space yet. Pages you visit show up here.'}</div>`;
+  sel = Math.min(sel, rows().length - 1);
+  syncBulk();
+  mark();
+  spy();
+}
+
+// Keyboard selection.
+function mark(scroll) {
+  rows().forEach((r, i) => r.classList.toggle('sel', i === sel));
+  if (scroll && rows()[sel]) rows()[sel].scrollIntoView({ block: 'nearest' });
+}
+// The rail marks the day at the top of the list.
+function spy() {
+  let current = null;
+  for (const s of document.querySelectorAll('[data-day-list]')) {
+    if (s.getBoundingClientRect().top - 90 <= 0) current = s.dataset.dayList;
+    else break;
+  }
+  current ||= document.querySelector('[data-day-list]')?.dataset.dayList;
+  for (const b of document.querySelectorAll('[data-day]')) {
+    const on = b.dataset.day === current;
+    if (on && b.getAttribute('aria-current') !== 'true') b.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    b.setAttribute('aria-current', on);
+  }
+}
+addEventListener('scroll', spy, { passive: true });
+
+let typing;
+$('q').addEventListener('input', () => { clearTimeout(typing); limit = PAGE; sel = -1; typing = setTimeout(load, 120); });
+$('group').onclick = () => {
+  grouped = !grouped;
+  try { localStorage.setItem('historyGrouped', grouped ? '1' : '0'); } catch {}
+  sel = -1;
+  load();
+};
+$('site-clear').onclick = () => { site = ''; limit = PAGE; sel = -1; load(); };
+document.addEventListener('click', async (e) => {
+  const box = e.target.closest('.pick');
+  if (box) { e.preventDefault(); return pick(rows().indexOf(box.closest('.entry')), e.shiftKey); }
+  const rm = e.target.closest('[data-remove]');
+  if (rm) { await ask({ cmd: 'history.remove', url: rm.dataset.remove }); return load(); }
+  const s = e.target.closest('[data-site]');
+  if (s) { site = s.dataset.site; limit = PAGE; sel = -1; scrollTo(0, 0); return load(); }
+  const day = e.target.closest('[data-day]');
+  if (day) return $('d-' + day.dataset.day)?.scrollIntoView({ block: 'start' });
+  if (e.target.closest('[data-older]')) { limit += PAGE; return load(); }
+  const a = e.target.closest('[data-url]');
+  if (a) { e.preventDefault(); ask({ cmd: 'open', text: a.dataset.url, newTab: e.metaKey || e.shiftKey }); }
+});
+document.addEventListener('keydown', async (e) => {
+  const inSearch = document.activeElement === $('q');
+  if (e.key === '/' && !inSearch) { e.preventDefault(); $('q').focus(); $('q').select(); return; }
+  if (e.key === 'g' && !inSearch && !e.metaKey && !e.ctrlKey && !e.altKey) { e.preventDefault(); return $('group').click(); }
+  if (e.key === 'Escape' && picked.size) { picked.clear(); return syncBulk(); }
+  if (e.key === 'Escape') {
+    if (inSearch && $('q').value) { $('q').value = ''; limit = PAGE; return load(); }
+    if (site) { site = ''; return load(); }
+    return $('q').blur();
+  }
+  const n = rows().length;
+  if (!n) return;
+  if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+    e.preventDefault();
+    if (inSearch) $('q').blur();
+    sel = Math.max(0, Math.min(n - 1, sel + (e.key === 'ArrowDown' ? 1 : -1)));
+    return mark(true);
+  }
+  if (sel < 0 || inSearch && e.key !== 'Enter') return;
+  if (e.key === ' ') { e.preventDefault(); pick(sel, e.shiftKey); return; }
+  const url = rows()[sel].dataset.entry;
+  if (e.key === 'Enter') { e.preventDefault(); ask({ cmd: 'open', text: url, newTab: e.metaKey || e.shiftKey }); }
+  else if (e.key === 'Backspace' || e.key === 'Delete') { e.preventDefault(); await ask({ cmd: 'history.remove', url }); load(); }
+});
+load();
+</script>
+</body>
+</html>

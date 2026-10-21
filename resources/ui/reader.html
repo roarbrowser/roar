@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src roar://ui; style-src 'unsafe-inline' roar://ui; img-src http: https: data:">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Reader</title>
+<link rel="stylesheet" href="roar.css">
+<style>
+body { background: var(--panel); overflow-y: auto; }
+article { box-sizing: border-box; max-width: 680px; margin: 0 auto; padding: 56px 28px 120px; font: 18px/1.7 Charter, "Iowan Old Style", Georgia, serif; color: var(--ink); }
+article h1 { font: 800 36px/1.15 var(--round); letter-spacing: -.02em; margin: 0 0 8px; }
+article h2, article h3, article h4 { font-family: var(--round); line-height: 1.25; margin: 1.8em 0 .5em; }
+article h2 { font-size: 26px; } article h3 { font-size: 21px; } article h4 { font-size: 18px; }
+article p { margin: 0 0 1.1em; }
+article a { color: var(--mane-ink); text-underline-offset: 2px; }
+article img { max-width: 100%; height: auto; border-radius: 8px; }
+article blockquote { margin: 1.2em 0; padding: 0 0 0 18px; border-left: 3px solid var(--mane); color: var(--ink-2); }
+article pre { background: var(--ground); padding: 14px 16px; border-radius: 8px; overflow-x: auto; font: 13.5px/1.55 var(--mono); }
+article code { font: .86em var(--mono); background: var(--ground); padding: 1px 5px; border-radius: 4px; }
+article pre code { background: none; padding: 0; font-size: inherit; }
+article hr { border: 0; border-top: 1px solid var(--rule); margin: 2em 0; }
+article ul, article ol { padding-left: 1.4em; margin: 0 0 1.1em; }
+article table { border-collapse: collapse; font: 15px/1.5 var(--ui); margin: 1.2em 0; display: block; overflow-x: auto; }
+article th, article td { border: 1px solid var(--rule); padding: 6px 10px; text-align: left; }
+.source { font: 13px var(--ui); color: var(--ink-3); margin: 0 0 32px; }
+.source a { color: var(--ink-3); }
+.empty { font: 14px var(--ui); color: var(--ink-3); }
+</style>
+</head>
+<body>
+<main><article id="out"><p class="empty">Loading…</p></article></main>
+<script src="bridge.js"></script>
+<script src="reader.js"></script>
+</body>
+</html>

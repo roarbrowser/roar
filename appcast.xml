@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle">
+  <channel>
+    <title>Roar</title>
+    <item>
+      <title>1.0.0</title>
+      <pubDate>Wed, 21 Oct 2026 16:41:03 +0000</pubDate>
+      <sparkle:version>10000</sparkle:version>
+      <sparkle:shortVersionString>1.0.0</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[Roar 1.0.0, the first official release.]]></description>
+      <enclosure url="https://github.com/roarbrowser/roar/releases/download/v1.0.0/Roar-1.0.0.dmg" type="application/octet-stream" sparkle:edSignature="He0BS9rY1mPzWz8p62Oqkoew7AiAHeEYxu6zWLbwpFlmVQPZkxcadv0N6cv5MzVpL/JCBZO5NEvdkHGkBbJ5Bg==" length="207544931"/>
+    </item>
+  </channel>
+</rss>

@@ -1,0 +1,49 @@
+diff --git a/cef/libcef/browser/chrome/chrome_browser_delegate.cc b/cef/libcef/browser/chrome/chrome_browser_delegate.cc
+index 3c4eead6f..62819371a 100644
+--- a/cef/libcef/browser/chrome/chrome_browser_delegate.cc
++++ b/cef/libcef/browser/chrome/chrome_browser_delegate.cc
+@@ -223,12 +223,14 @@ std::unique_ptr<content::WebContents> ChromeBrowserDelegate::AddWebContents(
+ 
+ void ChromeBrowserDelegate::OnWebContentsCreated(
+     content::WebContents* new_contents) {
++  // Create the browser host first: setting the delegate creates and announces
++  // the DevTools target, whose type ("page") depends on the host existing.
++  SetAsDelegate(new_contents, /*set_delegate=*/true);
++
+   // Necessary to receive LoadingStateChanged calls during initial navigation.
+   // This will be called again in Browser::SetAsDelegate, which should be
+   // fine.
+   new_contents->SetDelegate(BrowserWebContentsDelegate::From(browser_.get()));
+-
+-  SetAsDelegate(new_contents, /*set_delegate=*/true);
+ }
+ 
+ void ChromeBrowserDelegate::SetAsDelegate(content::WebContents* web_contents,
+diff --git a/cef/libcef/browser/chrome/extensions/chrome_extension_util.cc b/cef/libcef/browser/chrome/extensions/chrome_extension_util.cc
+index ae13b2262..6edb99921 100644
+--- a/cef/libcef/browser/chrome/extensions/chrome_extension_util.cc
++++ b/cef/libcef/browser/chrome/extensions/chrome_extension_util.cc
+@@ -71,4 +71,9 @@ bool IsAlloyContents(content::WebContents* contents, bool primary_only) {
+   return false;
+ }
+ 
++bool IsBrowserContents(content::WebContents* contents) {
++  auto browser = CefBrowserHostBase::GetBrowserForContents(contents);
++  return browser && browser->GetWebContents() == contents;
++}
++
+ }  // namespace cef
+diff --git a/cef/libcef/browser/chrome/extensions/chrome_extension_util.h b/cef/libcef/browser/chrome/extensions/chrome_extension_util.h
+index 74a22cd5f..32a82df4e 100644
+--- a/cef/libcef/browser/chrome/extensions/chrome_extension_util.h
++++ b/cef/libcef/browser/chrome/extensions/chrome_extension_util.h
+@@ -25,6 +25,9 @@ bool GetAlloyTabById(int tab_id,
+ // If |primary_only| is false then guest contents will also be matched.
+ bool IsAlloyContents(content::WebContents* contents, bool primary_only);
+ 
++// Returns true if |contents| is the main WebContents of any CEF browser.
++bool IsBrowserContents(content::WebContents* contents);
++
+ }  // namespace cef
+ 
+ #endif  // CEF_LIBCEF_BROWSER_CHROME_EXTENSIONS_CHROME_EXTENSION_UTIL_H_

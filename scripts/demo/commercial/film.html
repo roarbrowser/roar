@@ -1,0 +1,213 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Roar commercial</title>
+<!-- Every visual state is a pure function of seek(t); render.mjs steps t frame by frame. Images come from capture.mjs (2x). -->
+<style>
+:root { --ground: #1e140c; --ink: #fbeedd; --ink2: #d9c6ae; --mane: #ff9a2e; --sun: #ffc72c; --mint: #7aa898; --panel: #2a1d12; --rule: #3d2b1c; }
+* { margin: 0; box-sizing: border-box; }
+html, body { width: 1920px; height: 1080px; overflow: hidden; background: var(--ground); color: var(--ink);
+  font-family: ui-rounded, "SF Pro Rounded", -apple-system, sans-serif; }
+.abs { position: absolute; left: 0; top: 0; will-change: transform, opacity; }
+#bg { width: 1920px; height: 1080px; background: radial-gradient(90% 80% at 50% 45%, #3a2412 0%, var(--ground) 65%); }
+#glow { width: 1400px; height: 1400px; border-radius: 50%; background: radial-gradient(circle, rgba(255,154,46,.22), transparent 62%); }
+.type { font-weight: 850; letter-spacing: -.035em; line-height: .95; white-space: nowrap; }
+.type em { font-style: normal; color: var(--mane); }
+#bubble { width: 1180px; padding: 46px 58px; border-radius: 40px; background: var(--panel); box-shadow: 0 0 0 2px var(--rule), 0 40px 120px rgba(0,0,0,.55); transform-origin: 0 0; }
+#bubble .who { font: 700 30px ui-rounded, -apple-system, sans-serif; color: var(--sun); margin-bottom: 18px; }
+#bubble .txt { font-size: 66px; font-weight: 750; letter-spacing: -.02em; line-height: 1.12; min-height: 150px; }
+#bubble .caret { display: inline-block; width: 5px; height: 62px; background: var(--mane); vertical-align: -8px; margin-left: 4px; }
+#world { transform-origin: 0 0; }
+#win { width: 2040px; height: 1122px; border-radius: 22px; overflow: hidden; background: #1a120b; box-shadow: 0 0 0 2px #3a2a1b, 0 60px 160px rgba(0,0,0,.7); }
+#win img, .layer img { display: block; }
+.sb { width: 268px; height: 1122px; }
+#page { left: 268px; top: 8px; width: 1764px; height: 1106px; border-radius: 12px; overflow: hidden; background: #120c07; }
+#page img { position: absolute; left: 0; top: 0; width: 1772px; height: 1106px; }
+.ring { border-radius: 14px; box-shadow: 0 0 0 4px var(--mint), 0 0 40px rgba(122,168,152,.8); }
+.pulse { border-radius: 50%; border: 6px solid var(--sun); }
+#wipe { width: 6px; height: 1106px; background: var(--sun); box-shadow: 0 0 40px 10px rgba(255,199,44,.6); }
+.cap { padding: 22px 40px; border-radius: 26px; background: rgba(30,20,12,.9); box-shadow: 0 0 0 2px var(--rule), 0 24px 70px rgba(0,0,0,.55);
+  font-size: 60px; font-weight: 800; letter-spacing: -.02em; white-space: nowrap; }
+.cap b { color: var(--mane); }
+.card, #menuRing, #press, #bubble { transform-origin: 0 0; } .card { border-radius: 30px; box-shadow: 0 40px 120px rgba(0,0,0,.7); }
+#press { border-radius: 14px; background: rgba(255,255,255,.35); }
+#lion { width: 300px; height: 300px; }
+#lion svg { width: 100%; height: 100%; }
+#end h1 { font-size: 170px; font-weight: 850; letter-spacing: -.045em; text-align: center; }
+#end p { font-size: 50px; color: var(--ink2); text-align: center; margin-top: 6px; }
+#end .url { margin: 40px auto 0; width: max-content; padding: 20px 52px; border-radius: 999px; background: var(--mane); color: var(--ground); font-size: 66px; font-weight: 850; }
+#fine { font-size: 34px; color: #e8d6bd; letter-spacing: .01em; }
+</style>
+<div id="bg" class="abs"></div>
+<div id="glow" class="abs"></div>
+
+<div id="world" class="abs">
+  <div id="win" class="abs">
+    <img id="sbBefore" class="abs sb" src="cap/sidebar-before.png">
+    <img id="sbAgent" class="abs sb" src="cap/sidebar-agent.png">
+    <img id="sbAsk" class="abs sb" src="cap/sidebar-ask.png">
+    <img id="sbDone" class="abs sb" src="cap/sidebar-done.png">
+    <img id="sbMenu" class="abs sb" src="cap/sidebar-spacemenu.png">
+    <div id="row" class="abs ring" style="left:6px;top:206px;width:256px;height:34px"></div>
+    <div id="page" class="abs">
+      <img id="pgDay" src="cap/page-lion.png">
+      <img id="pgRoar" src="cap/page-lion-roar.png">
+      <img id="pgNight" src="cap/page-lion-night.png">
+      <div id="wipe" class="abs"></div>
+    </div>
+    <div id="pulse" class="abs pulse" style="width:120px;height:120px"></div>
+  </div>
+</div>
+
+<div id="t1a" class="abs type" style="font-size:210px;width:1920px;text-align:center">Your agent.</div>
+<div id="t1b" class="abs type" style="font-size:150px;width:1920px;text-align:center">meets <em>your browser.</em></div>
+
+<div id="bubble" class="abs"><div class="who">you ▸ your agent</div><div class="txt"><span id="typed"></span><span id="caret" class="caret"></span></div></div>
+
+<div id="cap1" class="abs cap">It opens a <b>real tab.</b></div>
+<div id="cap2" class="abs cap">It <b>clicks</b> like you would.</div>
+<div id="cap3" class="abs cap">It <b>tests</b> what it built.</div>
+<div id="cap4" class="abs cap">It <b>asks</b> before it ships.</div>
+<div id="cap5" class="abs cap"><b>Done.</b> In the tab you're watching.</div>
+<div id="cap6" class="abs cap">Agents see <b>only the spaces you allow.</b></div>
+
+<img id="askCard" class="abs card" src="cap/alert-ask.png" style="width:540px">
+<div id="press" class="abs"></div>
+<img id="doneCard" class="abs card" src="cap/alert-done.png" style="width:540px">
+<img id="menuCard" class="abs card" src="cap/space-menu-on.png" style="width:536px;clip-path:inset(0 0 13% 0)">
+<img id="menuOff" class="abs card" src="cap/space-menu-off.png" style="width:536px;clip-path:inset(0 0 13% 0)">
+<div id="menuRing" class="abs ring"></div>
+
+<div id="t9a" class="abs type" style="font-size:150px">Any <em>MCP</em> agent.</div>
+<div id="t9b" class="abs type" style="font-size:96px;color:var(--ink2)">Built in. No extension.</div>
+
+<div id="end" class="abs" style="width:1920px">
+  <div id="lion" style="margin:0 auto"></div>
+  <h1>Roar</h1>
+  <p>The Mac browser your agent can drive.</p>
+  <div class="url">roarbrowser.app</div>
+</div>
+<div id="fine" class="abs">Free and open source (MIT) · macOS · Real Roar UI and agent actions; the Lion Den app's code edits are staged for the demo</div>
+
+<script>
+// --- timing helpers: all pure functions of t ---
+const clamp = (x, a = 0, b = 1) => Math.min(b, Math.max(a, x));
+const p = (t, a, b) => clamp((t - a) / (b - a));
+const lerp = (a, b, k) => a + (b - a) * k;
+const out = (k) => 1 - Math.pow(1 - k, 3);           // slowing arrival
+const inn = (k) => k * k * k;                          // accelerating exit
+const io = (k) => k < .5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2;
+const $ = (id) => document.getElementById(id);
+function put(id, { x = 0, y = 0, s = 1, o = 1, r = 0, blur = 0 } = {}) {
+  const e = $(id);
+  e.style.opacity = o;
+  e.style.display = o <= 0.001 ? 'none' : '';
+  e.style.transform = `translate(${x}px,${y}px) scale(${s}) rotate(${r}deg)`;
+  e.style.filter = blur > 0.05 ? `blur(${blur}px)` : '';
+}
+// A visible window [a, b]: fade in over `fin`, out over `fout`.
+const vis = (t, a, b, fin = .25, fout = .25) => Math.min(p(t, a, a + fin), 1 - p(t, b - fout, b));
+
+// Camera over the Roar window (window css px): [t, cx, cy, zoom]; eased between keys.
+const CAM = [
+  [4.6, 1020, 640, .66], [5.6, 1020, 561, .86], [8.4, 1000, 561, .92],
+  [9.2, 473, 427, 2.5], [11.0, 500, 430, 2.65],
+  [11.8, 640, 487, 2.1], [14.2, 700, 487, 2.2],
+  [15.0, 700, 600, .92], [21.0, 680, 600, .97], [22.0, 300, 900, 1.25], [25.0, 300, 900, 1.3],
+];
+function cam(t) {
+  let i = CAM.findIndex((k) => k[0] > t);
+  if (i === -1) return CAM.at(-1).slice(1);
+  if (i === 0) return CAM[0].slice(1);
+  const [a, b] = [CAM[i - 1], CAM[i]], k = io(p(t, a[0], b[0]));
+  return [lerp(a[1], b[1], k), lerp(a[2], b[2], k), lerp(a[3], b[3], k)];
+}
+const PROMPT = 'Build Lion Den, then test it in my browser.';
+document.getElementById('lion').innerHTML = window.LION ?? '';
+
+function capAt(id, t, a, b) {
+  const k = out(p(t, a, a + .45)), x = 1 - p(t, b - .3, b);
+  put(id, { x: 120, y: 900 + (1 - k) * 60 - (1 - x) * 30, o: Math.min(k, x), blur: (1 - k) * 10 });
+}
+
+window.seek = function (t) {
+  // Background glow drifts all film long so no frame is static.
+  put('glow', { x: 260 + Math.sin(t * .35) * 120, y: -160 + Math.cos(t * .27) * 80, o: .9 });
+
+  // S1 0-2.6: hook type, centred; frame 0 is already a finished composition.
+  const ex1 = inn(p(t, 2.15, 2.6)), drift1 = 1 + p(t, 0, 2.6) * .05;
+  put('t1a', { x: 0, y: 300, s: drift1 + ex1 * 5, o: 1 - ex1, blur: ex1 * 18 });
+  const k1 = out(p(t, .7, 1.4));
+  put('t1b', { x: (1 - k1) * 500, y: 560, s: drift1 + ex1 * 5, o: k1 * (1 - ex1), blur: (1 - k1) * 14 + ex1 * 18 });
+
+  // S3-S8: the Roar window under one camera.
+  const wo = vis(t, 4.6, 24.95, .5, .45);
+  const [cx, cy, z] = cam(t);
+  const rise = (1 - out(p(t, 4.6, 5.6))) * 300;
+  const sx = (wx) => 960 + (wx - cx) * z, sy = (wy) => 540 + (wy - cy) * z + rise;
+  $('world').style.opacity = wo; $('world').style.display = wo <= 0 ? 'none' : '';
+  $('world').style.transform = `translate(${960 - cx * z}px,${540 - cy * z + rise}px) scale(${z})`;
+
+  // S2 2.6-5.8: the prompt types with a slow push, then flies into the tab row it becomes.
+  const kb = out(p(t, 2.45, 2.9)), fly = io(p(t, 5.0, 5.8));
+  const bs = lerp((.92 + kb * .08) * (1 + p(t, 2.9, 5.0) * .06), 256 * z / 1180, fly);
+  put('bubble', { x: lerp(370 - p(t, 2.9, 5.0) * 35, sx(6), fly), y: lerp(330 + (1 - kb) * 50 - p(t, 2.9, 5.0) * 10, sy(206), fly), s: bs, o: kb * (1 - p(t, 5.65, 5.85)) });
+  const n = Math.round(PROMPT.length * p(t, 2.9, 4.4));
+  $('typed').textContent = PROMPT.slice(0, n);
+  $('caret').style.opacity = t < 4.9 && (Math.floor(t * 3) % 2 === 0 || n < PROMPT.length) ? 1 : 0;
+
+  const sw = (a) => p(t, a, a + .3);
+  const g = io(p(t, 15.0, 15.8)) * (1 - io(p(t, 20.4, 21.2)));
+  $('sbAgent').style.opacity = sw(5.6);
+  // While the enlarged card is up, the sidebar shows no second copy of it.
+  $('sbAsk').style.opacity = sw(14.6) * (1 - g); $('sbDone').style.opacity = sw(18.2) * (1 - g); $('sbMenu').style.opacity = sw(21.2);
+  $('row').style.opacity = vis(t, 5.65, 7.9, .15, .4) * (.6 + .4 * Math.sin(t * 9) ** 2);
+  $('row').style.transform = `translateX(${(1 - out(p(t, 5.65, 6.0))) * -40}px)`;
+  // The page fills in top-down as the tab arrives: no empty window.
+  const reveal = io(p(t, 4.8, 5.6));
+  $('pgDay').style.clipPath = `inset(0 0 ${(1 - reveal) * 100}% 0)`;
+  $('pgRoar').style.opacity = vis(t, 10.0, 11.6, .12, .4);
+  const w = io(p(t, 12.0, 13.8));
+  $('pgNight').style.clipPath = `inset(0 ${(1 - w) * 100}% 0 0)`;
+  $('pgNight').style.opacity = t < 12 ? 0 : 1;
+  put('wipe', { x: w * 1764 - 3, o: vis(t, 12.0, 13.9, .1, .2) });
+  const pk = p(t, 9.8, 10.5);
+  put('pulse', { x: 473 - 60, y: 427 - 60, s: .4 + pk * 1.6, o: pk > 0 && pk < 1 ? 1 - pk : 0 });
+
+  capAt('cap1', t, 5.7, 8.4); capAt('cap2', t, 8.5, 11.4); capAt('cap3', t, 11.5, 14.4);
+  capAt('cap4', t, 14.5, 18.0); capAt('cap5', t, 18.1, 21.0); capAt('cap6', t, 21.1, 25.0);
+
+  // S6-S7: the ask card grows out of the sidebar, drifts, gets Ship it pressed, then becomes the done card.
+  const bump = 1 - .035 * Math.sin(Math.PI * p(t, 16.85, 17.15));
+  const cs = lerp(z * 272 / 540, 1.6, g) * (1 + .05 * p(t, 15.8, 20.4)) * bump, u = 540 / 272 * cs;
+  const cardX = lerp(sx(-2), 960 - 272 * 1.6 * 540 / 272 / 2 * (cs / 1.6), g), cardY = lerp(sy(902.3), 330, g);
+  put('askCard', { x: cardX, y: cardY, s: cs, o: vis(t, 14.8, 18.25, .2, .25) });
+  put('doneCard', { x: cardX, y: cardY + 8 * u, s: cs, o: vis(t, 18.25, 21.2, .3, .5) });
+  const pr = vis(t, 16.85, 17.4, .06, .3);
+  $('press').style.width = 57 * u + 'px'; $('press').style.height = 22 * u + 'px';
+  put('press', { x: cardX + 24 * u, y: cardY + 79 * u, o: pr * .9 });
+
+  // S8: a space no agent has used; its menu fills ~65% of the frame and Allow agents switches off.
+  const m = io(p(t, 21.4, 22.2));
+  const msEnd = 2.6 * (1 + .04 * p(t, 22.2, 25.0));
+  const ms = lerp(z * 284 / 536, msEnd, m), mu = 536 / 284 * ms;
+  const mx = lerp(sx(-8), 960 - 284 * mu / 2, m), my = lerp(sy(937.6), 150, m);
+  const mo = vis(t, 21.3, 24.9, .3, .4), off = p(t, 23.0, 23.15);
+  put('menuCard', { x: mx, y: my, s: ms, o: mo * (1 - off) });
+  put('menuOff', { x: mx, y: my, s: ms, o: mo * off });
+  const mr = $('menuRing'); mr.style.width = 100 * mu + 'px'; mr.style.height = 24 * mu + 'px';
+  put('menuRing', { x: mx + 24 * mu, y: my + 88 * mu, o: vis(t, 22.4, 25.0, .3, .4) * (.6 + .4 * Math.sin(t * 7) ** 2) });
+
+  // S9 25.5-27.4: type wall, entering only after the window has gone.
+  const k9 = out(p(t, 24.95, 25.45)), e9 = inn(p(t, 27.0, 27.4));
+  put('t9a', { x: 200 - (1 - k9) * 400 + p(t, 24.9, 27.4) * 50, y: 330, o: k9 * (1 - e9), blur: (1 - k9) * 12, s: 1 + e9 * .2 });
+  const k9b = out(p(t, 25.2, 25.7));
+  put('t9b', { x: 210 + (1 - k9b) * 400 - p(t, 25.2, 27.4) * 40, y: 540, o: k9b * (1 - e9), blur: (1 - k9b) * 12 });
+
+  // S10 27.4-30: end card with a slow push.
+  const ke = out(p(t, 27.4, 28.1));
+  put('end', { x: 0, y: 200 + (1 - ke) * 40 - p(t, 27.4, 30) * 12, s: 1 + p(t, 27.4, 30) * .03, o: ke, blur: (1 - ke) * 10 });
+  put('fine', { x: 960 - 800, y: 942, o: p(t, 27.9, 28.4) });
+  $('fine').style.width = '1600px'; $('fine').style.textAlign = 'center';
+};
+seek(0);
+</script>

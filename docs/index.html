@@ -1,0 +1,538 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Roar: your AI agent, in your real browser. Free for Mac and Windows</title>
+<meta name="description" content="Roar is a free, open-source browser for Mac and Windows. Claude, Cursor or Codex use it like you do, already logged in, in tabs you can watch and take over.">
+<link rel="canonical" href="https://roarbrowser.app/">
+<meta property="og:title" content="Roar: the open-source browser your AI agent can drive">
+<meta property="og:site_name" content="Roar">
+<meta property="og:type" content="website">
+<meta property="og:image:width" content="1280">
+<meta property="og:image:height" content="640">
+<meta property="og:image:alt" content="The Roar lion beside the tagline: the open-source browser your AI agent can drive.">
+<meta property="og:description" content="The open-source browser your AI agent can drive.">
+<meta property="og:image" content="https://roarbrowser.app/media/roar-social.png">
+<meta property="og:url" content="https://roarbrowser.app/">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Roar: your AI agent, in your real browser">
+<meta name="twitter:description" content="A free, open-source browser for Mac and Windows. Your agent uses it like you do, already logged in, in tabs you can watch and take over.">
+<meta name="twitter:image" content="https://roarbrowser.app/media/roar-social.png">
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"SoftwareApplication","name":"Roar","url":"https://roarbrowser.app/","description":"A free, open-source Chromium browser with a built-in MCP server, so AI agents like Claude, Cursor or Codex can drive it.","applicationCategory":"BrowserApplication","operatingSystem":"macOS, Windows","license":"https://opensource.org/licenses/MIT","downloadUrl":"https://github.com/roarbrowser/roar/releases/latest","codeRepository":"https://github.com/roarbrowser/roar","image":"https://roarbrowser.app/media/roar-social.png","offers":{"@type":"Offer","price":"0","priceCurrency":"USD"}}
+</script>
+<link rel="icon" href="media/lion.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="media/roar-avatar.png">
+<style>
+:root {
+  --ground: #fff1e2; --panel: #fff9f0; --ink: #4a2e18; --ink-2: #7a5a40; --ink-3: #a5876c;
+  --rule: #f0dcc4; --mane: #ff7a00; --mane-ink: #b04f00; --mane-soft: #ffe2b8; --sun: #ffc72c;
+  --round: ui-rounded, "SF Pro Rounded", -apple-system, "Helvetica Neue", sans-serif;
+  --ui: -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif;
+  --mono: ui-monospace, "SF Mono", Menlo, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme=light]) {
+    --ground: #1e140c; --panel: #2a1d12; --ink: #fbeedd; --ink-2: #d2b89c; --ink-3: #9c8068;
+    --rule: #3d2b1c; --mane: #ff9a2e; --mane-ink: #ffc72c; --mane-soft: #4a2c10;
+    color-scheme: dark;
+  }
+}
+:root[data-theme=dark] {
+    --ground: #1e140c; --panel: #2a1d12; --ink: #fbeedd; --ink-2: #d2b89c; --ink-3: #9c8068;
+    --rule: #3d2b1c; --mane: #ff9a2e; --mane-ink: #ffc72c; --mane-soft: #4a2c10;
+    color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html { overflow-x: clip; }
+body { margin: 0; background: var(--ground); color: var(--ink); font: 17px/1.55 var(--ui); -webkit-font-smoothing: antialiased; }
+a { color: var(--mane-ink); text-underline-offset: 3px; }
+a:focus-visible, button:focus-visible, video:focus-visible { outline: 3px solid var(--mane); outline-offset: 3px; border-radius: 6px; }
+.wrap { max-width: 1080px; margin: 0 auto; padding: 0 24px; }
+h1, h2, h3 { font-family: var(--round); line-height: 1.05; margin: 0; letter-spacing: -.02em; }
+h2 { font-size: clamp(28px, 4vw, 40px); margin-bottom: 20px; }
+h3 { font-size: 20px; margin-bottom: 6px; letter-spacing: -.01em; }
+p { margin: 0 0 14px; max-width: 62ch; }
+code, pre { font-family: var(--mono); font-size: 14px; }
+
+/* Header */
+.top { display: flex; align-items: center; justify-content: space-between; padding-top: 24px; }
+.brand { display: flex; align-items: center; gap: 10px; font: 700 22px var(--round); color: var(--ink); text-decoration: none; }
+.brand img { width: 40px; height: 40px; }
+
+.nav { display: flex; align-items: center; gap: 18px; }
+.theme { width: 36px; height: 36px; border: 0; border-radius: 50%; background: transparent; color: var(--ink-2); cursor: pointer; box-shadow: inset 0 0 0 2px var(--rule); font: 18px/1 var(--ui); }
+.theme:hover { color: var(--mane-ink); }
+.theme::before { content: "☾"; }
+:root[data-theme=dark] .theme::before { content: "☀︎"; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme=light]) .theme::before { content: "☀︎"; } }
+
+/* Hero: the one bold move. A huge rounded headline beside a short looping clip from the safari film. */
+.hero { display: grid; grid-template-columns: 1.1fr 1fr; gap: 48px; align-items: center; padding-top: 56px; padding-bottom: 72px; }
+.hero h1 { font-size: clamp(44px, 7vw, 88px); font-weight: 800; line-height: .95; }
+.hero .sub { font-size: 20px; color: var(--ink-2); margin: 24px 0 32px; }
+.cta { display: flex; flex-wrap: wrap; gap: 12px; }
+.btn { display: inline-flex; align-items: center; min-height: 48px; padding: 0 22px; border-radius: 999px; font: 700 17px var(--round); text-decoration: none; }
+.btn.primary { background: var(--mane); color: #2b1606; }
+.arch { margin-top: 12px; font-size: 15px; color: var(--ink-2); }
+/* Windows' installer/portable choices, in a small menu so Mac visitors see them without clutter. */
+.os-menu { display: inline-block; position: relative; }
+.os-menu summary { cursor: pointer; color: var(--mane-ink); text-decoration: underline; list-style: none; }
+.os-menu summary::-webkit-details-marker { display: none; }
+.os-menu summary::after { content: " ▾"; }
+.trust { margin: 14px 0 0; font: 600 16px var(--round); }
+.starter { display: flex; align-items: center; gap: 8px; margin-top: 14px; max-width: 520px; padding: 6px 6px 6px 14px; border-radius: 12px; background: var(--panel); box-shadow: inset 0 0 0 1px var(--rule); font-size: 15px; }
+.starter span { color: var(--ink-2); flex: none; }
+.starter code { flex: 1; min-width: 0; font-size: 14px; color: var(--ink); overflow-wrap: anywhere; }
+.starter button { flex: none; min-height: 36px; padding: 0 14px; border: 0; border-radius: 999px; background: var(--rule); color: var(--ink); font: 600 14px var(--round); cursor: pointer; }
+.stars { display: inline-flex; align-items: center; gap: 8px; height: 36px; padding: 0 14px; border-radius: 999px; background: var(--panel); color: var(--ink); box-shadow: inset 0 0 0 2px var(--rule); font: 600 14px var(--round); text-decoration: none; white-space: nowrap; }
+.stars:hover, .theme:hover { box-shadow: inset 0 0 0 2px var(--mane); }
+.stars:hover { color: var(--mane-ink); }
+.stars:focus-visible, .theme:focus-visible { outline: 3px solid var(--mane); outline-offset: 2px; }
+.hero .video { box-shadow: 0 1px 2px rgba(74,46,24,.08), 0 24px 60px rgba(74,46,24,.18); }
+.os-menu div { position: absolute; z-index: 5; left: 0; top: calc(100% + 6px); min-width: 210px; padding: 6px; background: var(--panel); border-radius: 12px; box-shadow: 0 0 0 1px var(--rule), 0 12px 32px rgba(74,46,24,.18); }
+.os-menu a { display: block; padding: 8px 10px; border-radius: 8px; white-space: nowrap; }
+.os-menu a:hover, .os-menu a:focus-visible { background: var(--ground); }
+.btn.ghost { color: var(--ink); box-shadow: inset 0 0 0 2px var(--rule); }
+
+.tab { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 10px; color: var(--ink-2); }
+.tab b { width: 16px; height: 16px; border-radius: 5px; background: var(--rule); flex: none; }
+.tab.on { background: var(--ground); color: var(--ink); font-weight: 600; }
+.tab.on b { background: var(--mane); }
+.card { --edge: var(--mane); position: relative; margin-top: 14px; background: var(--ground); border-radius: 10px; padding: 9px 30px 10px 12px; box-shadow: inset 3px 0 0 var(--edge), 0 0 0 1px var(--rule); font-size: 13px; }
+.card.done { --edge: #2f9e5b; }
+.card .who { display: flex; gap: 6px; color: var(--ink-3); font-size: 11.5px; }
+.card .q { color: var(--ink); font-weight: 650; margin-top: 2px; line-height: 1.35; }
+.card .b { color: var(--ink-2); margin-top: 3px; line-height: 1.4; }
+.card .row { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 8px; }
+.card .row > * { padding: 4px 10px; border: 0; border-radius: 6px; background: var(--rule); color: var(--ink); font: 500 12.5px var(--ui); }
+.card .row > :first-child { background: var(--mane); color: #2a1604; font-weight: 600; }
+.card .x { position: absolute; top: 6px; right: 8px; color: var(--ink-3); font-size: 14px; line-height: 1; }
+@media (prefers-reduced-motion: no-preference) {
+  .card { animation: arrive .6s 1s cubic-bezier(.2,.9,.3,1.3) both; }
+  @keyframes arrive { from { opacity: 0; transform: translateY(12px) scale(.96); } }
+}
+
+/* Sections */
+/* Lion theming: the app icon's lion head, used sparingly. It marks each section break and watches faintly from behind the hero. */
+::selection { background: var(--mane-soft); color: var(--ink); }
+section { padding: 64px 0; border-top: 2px solid var(--rule); position: relative; }
+section::before { content: ""; position: absolute; top: -16px; left: 50%; width: 30px; height: 30px; margin-left: -15px; background: url(media/lion-head.svg) center / contain no-repeat; z-index: 1; }
+section::after { content: ""; position: absolute; top: -24px; left: 50%; width: 48px; height: 48px; margin-left: -24px; border-radius: 50%; background: var(--ground); }
+.hero { position: relative; isolation: isolate; }
+.hero::before { content: ""; position: absolute; z-index: -1; right: -60px; top: 50%; width: 560px; height: 560px; margin-top: -280px; background: url(media/lion-head.svg) center / contain no-repeat; opacity: .07; filter: saturate(.6); pointer-events: none; }
+@media (max-width: 820px) { .hero::before { width: 340px; height: 340px; margin-top: -170px; right: 0; } }
+.video { aspect-ratio: 16 / 9; border-radius: 18px; overflow: hidden; background: var(--panel); display: grid; place-items: center; }
+.video video { width: 100%; height: 100%; display: block; object-fit: cover; }
+.video .missing { text-align: center; color: var(--ink-3); padding: 24px; }
+.video .missing img { width: 72px; opacity: .8; }
+
+.steps > *, .cols > *, .hero > * { min-width: 0; }
+.steps { display: grid; grid-template-columns: 1fr 1fr; gap: 32px; }
+pre { background: var(--panel); border-radius: 12px; padding: 14px 16px; overflow-x: auto; margin: 8px 0 12px; white-space: pre; }
+.time { display: inline-block; font: 600 13px var(--round); color: var(--mane-ink); background: var(--mane-soft); border-radius: 999px; padding: 2px 10px; margin-left: 6px; vertical-align: 2px; }
+.install { list-style: none; counter-reset: step; padding: 0; margin: 16px 0 0; display: grid; gap: 28px; }
+.install > li { counter-increment: step; position: relative; padding-left: 52px; min-width: 0; }
+.install > li::before { content: counter(step); position: absolute; left: 0; top: 0; width: 36px; height: 36px; border-radius: 50%; background: var(--mane); color: #fff; font: 700 18px/36px var(--round); text-align: center; }
+.install h3 { margin-top: 4px; }
+.install p code { overflow-wrap: anywhere; }
+.manual summary { cursor: pointer; color: var(--mane-ink); font-weight: 600; }
+.manual h4 { margin: 16px 0 4px; font: 600 15px var(--round); }
+.note { color: var(--ink-2); font-size: 15px; }
+
+.cols { display: grid; grid-template-columns: 1fr 1fr; gap: 48px; }
+.list { list-style: none; padding: 0; margin: 18px 0 0; }
+.list li { padding: 0 0 22px; max-width: 46ch; }
+.list strong { display: block; font-family: var(--round); }
+.list span { color: var(--ink-2); }
+
+table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 15px; }
+th, td { text-align: left; padding: 13px 14px; border-bottom: 1px solid var(--rule); vertical-align: top; }
+.tablewrap { overflow-x: auto; margin-top: 28px; }
+.cmp { min-width: 760px; }
+.cmp.short { min-width: 0; }
+.full summary { cursor: pointer; color: var(--mane-ink); font-weight: 600; margin-top: 18px; }
+.cmp thead th { text-wrap: balance; font: 700 15px/1.25 var(--round); color: var(--ink-2); border-bottom: 2px solid var(--ink); padding-bottom: 10px; vertical-align: bottom; }
+.cmp th[scope=row] { font: 600 16px var(--round); position: sticky; left: 0; background: var(--ground); white-space: nowrap; }
+.cmp td.y { color: var(--ink); font-weight: 600; }
+.cmp td.p { color: var(--ink-2); }
+.cmp td.n, .cmp td.u { color: var(--ink-3); }
+.cmp tr.roar > * { background: var(--mane-soft); color: var(--ink); font-weight: 700; border-bottom: 0; padding-top: 18px; padding-bottom: 18px; }
+.cmp tr.roar th { font-size: 19px; box-shadow: inset 5px 0 0 var(--mane); border-radius: 12px 0 0 12px; }
+.cmp tr.roar td:last-child { border-radius: 0 12px 12px 0; }
+.cmp tr.grp th { font: 600 14px var(--ui); color: var(--ink-3); padding: 28px 14px 8px; border-bottom: 1px solid var(--rule); position: static; background: none; }
+.src { margin-top: 10px; color: var(--ink-2); font-size: 14px; }
+.src summary { cursor: pointer; color: var(--ink-3); }
+.src ul { padding-left: 18px; margin: 10px 0 0; }
+.src li { margin: 4px 0; }
+.asof { color: var(--ink-3); font-size: 14px; margin-top: 12px; }
+.quip { font: 700 clamp(20px, 3vw, 26px)/1.3 var(--round); margin-top: 28px; max-width: 30ch; }
+
+/* Live demo: a scripted agent drives a mock Roar window. */
+.picks { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 18px; }
+.picks button { font: 600 15px var(--round); color: var(--ink-2); background: none; border: 0; box-shadow: inset 0 0 0 2px var(--rule); border-radius: 999px; padding: 8px 16px; cursor: pointer; }
+.picks button[aria-pressed=true] { background: var(--mane); color: #2b1606; box-shadow: none; }
+.duo { display: grid; grid-template-columns: minmax(0, 330px) minmax(0, 1fr); gap: 20px; align-items: stretch; }
+.term { display: flex; flex-direction: column; background: #1b1410; color: #e9dccb; border-radius: 16px; overflow: hidden; box-shadow: 0 24px 60px rgba(74,46,24,.18); }
+.term .bar { display: flex; align-items: center; gap: 6px; padding: 10px 14px; background: #2a1f17; color: #a5876c; font: 600 12px var(--ui); }
+.term .bar i { width: 10px; height: 10px; border-radius: 50%; background: #4a3a2c; }
+.term .bar span { margin-left: 8px; }
+.term .out { flex: 1; display: flex; flex-direction: column; justify-content: flex-end; gap: 6px; padding: 12px 14px 16px; font: 12.5px/1.5 var(--mono); overflow: hidden; min-height: 200px; max-height: 470px; }
+.term .out div { animation: arrive .3s both; overflow-wrap: anywhere; }
+.term .me { color: #fff; } .term .me::before { content: "> "; color: #a5876c; }
+.term .tool::before { content: "⏺ "; color: #3fa34d; } .term .tool b { color: #ffc72c; font-weight: 600; }
+.term .tool small { display: block; padding-left: 18px; color: #8a7360; font-size: 12px; } .term .tool small::before { content: "⎿ "; }
+.term .ai::before { content: "⏺ "; color: #e9dccb; }
+.stage { position: relative; display: grid; grid-template-columns: 210px 1fr; background: var(--panel); border-radius: 22px; overflow: hidden; font-size: 14px; box-shadow: 0 1px 2px rgba(74,46,24,.08), 0 24px 60px rgba(74,46,24,.18); }
+.stage .sb { display: flex; flex-direction: column; padding: 14px; border-right: 1px solid var(--rule); min-width: 0; }
+.stage .slot { margin-top: auto; } .stage .slot .card { animation: arrive .5s cubic-bezier(.2,.9,.3,1.3) both; }
+.sfoot { display: flex; align-items: center; gap: 8px; margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--rule); } .sfoot img { width: 18px; } .sfoot b { font: 700 14px var(--round); } .sfoot span { flex: 1; } .sfoot .dot { width: 7px; height: 7px; border-radius: 50%; background: #7aa898; }
+.clg { margin-bottom: 12px; }
+.clr { display: flex; align-items: center; gap: 9px; padding: 6px 10px; border-radius: 10px; cursor: default; }
+.clr.open { background: var(--ground); }
+.clr i { width: 8px; height: 8px; border-radius: 50%; flex: none; background: var(--ink-3); }
+.clr i.working { background: #2f9e5b; animation: pulse 1.4s ease-in-out infinite; } .clr i.needs { background: var(--mane); }
+@keyframes pulse { 50% { opacity: .35; } }
+.clr span { min-width: 0; display: flex; flex-direction: column; line-height: 1.25; }
+.clr small { color: var(--ink-3); font-size: 11.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.clp { margin: 2px 0 6px; padding: 6px; border-radius: 9px; background: var(--ground); animation: arrive .35s both; }
+.clp pre { margin: 0; padding: 7px 8px; border-radius: 6px; background: #15100c; color: #eadfd2; font: 10.5px/1.4 var(--mono); white-space: pre-wrap; }
+.clp .in { margin-top: 6px; padding: 6px 8px; border-radius: 6px; box-shadow: inset 0 0 0 1px var(--rule); color: var(--ink-3); font-size: 12px; min-height: 1.4em; }
+.clp .in.typing { color: var(--ink); }
+.clp .keys { display: flex; gap: 3px; margin-top: 5px; } .clp .keys b { padding: 1px 7px; border-radius: 5px; background: var(--panel); font: 400 11px var(--mono); color: var(--ink-2); }
+.stage .tabs .tab i { margin-left: auto; font-style: normal; color: var(--ink-3); opacity: .7; }
+.stage .tabs .tab { animation: arrive .5s cubic-bezier(.2,.9,.3,1.3) both; }
+.stage .pg { background: var(--ground); display: flex; flex-direction: column; min-width: 0; }
+.url { margin: 12px; padding: 7px 14px; border-radius: 999px; background: var(--panel); color: var(--ink-2); font: 13px var(--mono); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.view { position: relative; min-height: 310px; padding: 4px 18px 18px; }
+.view > * { animation: arrive .45s cubic-bezier(.2,.9,.3,1.2) both; }
+.field { display: flex; gap: 12px; align-items: center; background: var(--panel); border-radius: 10px; padding: 10px 12px; margin-bottom: 8px; }
+.field label { color: var(--ink-3); width: 44px; flex: none; }
+.field span { font-weight: 600; min-height: 1.4em; }
+.field.typing span::after { content: ""; display: inline-block; width: 2px; height: 1.1em; margin-left: 1px; vertical-align: -2px; background: var(--mane); animation: blink 1s steps(1) infinite; }
+.go { display: inline-block; margin-top: 4px; padding: 9px 22px; border-radius: 999px; background: var(--mane); color: #2b1606; font: 700 14px var(--round); }
+.row2 { display: flex; justify-content: space-between; gap: 10px; background: var(--panel); border-radius: 10px; padding: 11px 12px; margin-bottom: 8px; transition: box-shadow .3s, opacity .4s, transform .4s, max-height .4s .2s, margin .4s .2s, padding .4s .2s; max-height: 60px; overflow: hidden; }
+.row2 em { font-style: normal; color: var(--ink-3); }
+.row2.pick { box-shadow: inset 0 0 0 2px var(--mane); }
+.row2.gone { opacity: 0; transform: translateX(40px); max-height: 0; margin: 0; padding-top: 0; padding-bottom: 0; }
+.tag { font: 600 12px var(--round); color: var(--mane-ink); background: var(--mane-soft); border-radius: 999px; padding: 1px 8px; }
+.diff div { font: 13px/1.7 var(--mono); padding: 0 10px; white-space: pre; overflow: hidden; text-overflow: ellipsis; }
+.diff .a { background: rgba(63,163,77,.14); } .diff .d { background: rgba(214,69,65,.12); }
+.diff .bubble { font: 600 14px/1.45 var(--ui); white-space: normal; margin: 6px 0 6px 24px; padding: 10px 12px; }
+.bubble { margin: 8px 0 0 24px; background: var(--panel); border-radius: 12px; padding: 10px 12px; box-shadow: inset 3px 0 0 var(--mane); }
+.done { text-align: center; padding-top: 48px; }
+.done b { display: block; font: 800 30px var(--round); margin-bottom: 6px; }
+.stage .card button { cursor: pointer; transition: transform .15s; }
+.press { transform: scale(.93); }
+.cursor { position: absolute; left: -15px; top: -15px; width: 30px; height: 30px; border-radius: 50%; z-index: 5; pointer-events: none; background: rgba(255,122,0,.18); box-shadow: 0 0 0 2px rgba(255,122,0,.55); opacity: 0; transition: transform .75s cubic-bezier(.45,.05,.2,1), opacity .3s; }
+.cursor.on { opacity: 1; }
+.cursor.click::after { content: ""; position: absolute; inset: 0; border-radius: 50%; border: 2px solid var(--mane); animation: ripple .5s ease-out; }
+@keyframes ripple { from { transform: scale(.3); opacity: 1; } to { transform: scale(1.6); opacity: 0; } }
+@keyframes blink { 50% { opacity: 0; } }
+.reveal { opacity: 0; transform: translateY(24px); transition: opacity .7s, transform .7s cubic-bezier(.2,.8,.2,1); }
+.reveal.in { opacity: 1; transform: none; }
+.card.swap { animation: arrive .5s both; }
+@media (prefers-reduced-motion: reduce) { .reveal { opacity: 1; transform: none; } .cursor { transition: none; } .stage *, .stage *::after { animation: none !important; } }
+@media (max-width: 820px) { .duo { grid-template-columns: 1fr; } .term .out { min-height: 0; height: 190px; } }
+@media (max-width: 640px) {
+  .stage { grid-template-columns: 1fr; }
+  .stage .slot { margin-top: 10px; } .sfoot { display: none; }
+  .stage .sb { border-right: 0; border-bottom: 1px solid var(--rule); }
+  .stage .tabs { display: flex; gap: 4px; overflow: hidden; }
+  .stage .tabs .tab { flex: none; padding: 6px 8px; }
+  .view { min-height: 280px; padding: 4px 12px 14px; }
+}
+
+footer { border-top: 2px solid var(--rule); padding: 32px 0 48px; color: var(--ink-2); font-size: 15px; }
+footer .wrap { display: flex; flex-wrap: wrap; gap: 8px 28px; align-items: center; }
+
+@media (max-width: 820px) {
+  .hero, .steps, .cols { grid-template-columns: 1fr; }
+  .hero { padding-top: 32px; padding-bottom: 56px; gap: 40px; }
+  section { padding: 48px 0; }
+}
+@media (max-width: 420px) {
+  .wrap { padding: 0 16px; }
+  body { font-size: 16px; }
+  .hero .sub { font-size: 18px; }
+  th, td { padding: 10px 6px; font-size: 14px; }
+}
+</style>
+<script>
+// Saved theme applies before paint; storage can be blocked, so fall back to the system setting.
+try { const t = localStorage.getItem('theme'); if (t) document.documentElement.dataset.theme = t } catch {}
+</script>
+</head>
+<body>
+<header class="wrap top">
+  <a class="brand" href="./"><img src="media/lion.svg" alt="">Roar</a>
+  <nav class="nav"><a class="stars" href="https://github.com/roarbrowser/roar" aria-label="Star Roar on GitHub"><svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg><span>Star on GitHub</span></a><button class="theme" type="button" aria-label="Switch to dark mode"></button></nav>
+</header>
+
+<main>
+<div class="wrap hero">
+  <div>
+    <h1>Your AI agent, in your real browser.</h1>
+    <p class="sub">Roar is a free, open-source browser for Mac and Windows. Claude, Cursor or Codex use it like you do, already logged in, in tabs you can watch and take over.</p>
+    <div class="cta">
+      <a class="btn primary" id="dl" href="https://github.com/roarbrowser/roar/releases/latest">Download for Mac</a>
+      <a class="btn ghost" href="#agents">Connect your agent</a>
+    </div>
+    <p class="arch"><a href="https://github.com/roarbrowser/roar/releases/latest">Other downloads</a></p>
+    <p class="trust">It can ask you before it acts. One click cuts it off.</p>
+    <p class="starter"><span>Try:</span><code id="starter">Open my inbox in Roar and summarize what's unread.</code><button type="button" id="copy">Copy</button></p>
+  </div>
+  <div class="video">
+    <video id="hero-clip" muted loop autoplay playsinline preload="auto" poster="media/roar-hero-clip.jpg" src="media/roar-hero-clip.mp4" aria-label="Clip: an agent works in Roar's sidebar and asks before it pays"></video>
+    <script>// Reduced motion: show the poster only.
+    if (matchMedia('(prefers-reduced-motion: reduce)').matches) { const v = document.getElementById('hero-clip'); v.removeAttribute('autoplay'); v.pause(); v.preload = 'none' }</script>
+  </div>
+</div>
+
+<section aria-labelledby="safari-h">
+  <div class="wrap">
+    <h2 id="safari-h">One sentence, a whole safari booked</h2>
+    <div class="video"><video id="safari" controls playsinline preload="none" src="media/roar-safari-web.mp4" poster="media/roar-safari.jpg" aria-label="Roar in 45 seconds: an agent books a safari from one sentence, and asks before it pays"></video></div>
+  </div>
+</section>
+
+
+<section aria-labelledby="demo-h">
+  <div class="wrap">
+    <h2 id="demo-h">Watch an agent work</h2>
+    <p class="note">A scripted illustration of what an MCP agent can do in Roar. Left: your agent (here Claude Code). Right: Roar, where it works. Pick a job, or answer its question yourself in Roar’s sidebar.</p>
+    <div class="picks" role="group" aria-label="Demo">
+      <button type="button" aria-pressed="true">Compare flights</button>
+      <button type="button" aria-pressed="false">Clear my inbox</button>
+      <button type="button" aria-pressed="false">Review a pull request</button>
+      <button type="button" aria-pressed="false">Steer your sessions</button>
+    </div>
+    <div class="duo">
+      <div class="term" aria-label="Your agent's terminal"><div class="bar"><i></i><i></i><i></i><span>Claude Code</span></div><div class="out" aria-live="polite"></div></div>
+      <div class="stage" aria-label="Roar, driven by the agent">
+        <div class="sb"><div class="dots" style="display:flex;gap:6px;padding:2px 4px 12px"><i style="width:11px;height:11px;border-radius:50%;background:var(--rule)"></i><i style="width:11px;height:11px;border-radius:50%;background:var(--rule)"></i><i style="width:11px;height:11px;border-radius:50%;background:var(--rule)"></i></div><div class="clg" hidden><div class="ghead" style="font-size:12.5px;color:var(--ink-3);padding:0 10px 4px;display:flex">Claude Code<span style="flex:1"></span>New</div><div class="clrows"></div></div><div class="ghead" style="font-size:12.5px;color:var(--ink-3);padding:0 10px 4px">Tabs</div><div class="tabs"></div><div class="slot"></div><div class="sfoot"><img src="media/lion.svg" alt=""><b>Roar</b><span></span><i class="dot"></i></div></div>
+        <div class="pg"><div class="url"></div><div class="view"></div></div>
+        <div class="cursor" aria-hidden="true"></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section aria-labelledby="install-h">
+  <div class="wrap">
+    <h2 id="install-h">Install</h2>
+    <p class="note">About five minutes, start to finish. Needs macOS 13 or later, or Windows; no Node.js.</p>
+    <p class="note">Don't have an agent yet? Install <a href="https://claude.com/claude-code">Claude Code</a>, <a href="https://cursor.com">Cursor</a> or <a href="https://developers.openai.com/codex">Codex</a> first; any of them works.</p>
+    <ol class="install">
+      <li>
+        <h3>Download <span class="time">1 min</span></h3>
+        <p>Get <a href="https://github.com/roarbrowser/roar/releases/latest">the latest DMG</a>, open it and drag Roar onto Applications. Or use Homebrew:</p>
+        <pre><code>brew install --cask roarbrowser/tap/roar</code></pre>
+      </li>
+      <li>
+        <h3>First open</h3>
+        <p>Roar is signed and notarized by Apple, so it opens like any app you download: macOS asks once whether to open it. Click <strong>Open</strong>.</p>
+      </li>
+      <li id="agents">
+        <h3>Connect your agent <span class="time">1 min</span></h3>
+        <p>Roar's welcome page has a <strong>Connect</strong> button for Claude Code, Claude Desktop, Cursor, VS Code, Windsurf, Codex, Gemini CLI and others. Click yours, then restart that app. The server ships inside Roar and launches Roar if it isn't running (keep Allow agents to connect on).</p>
+        <details class="manual">
+          <summary>Set it up by hand</summary>
+          <p>The server is <code>/Applications/Roar.app/Contents/Resources/roar-mcp</code>, a stdio MCP server.</p>
+          <h4>Claude Code</h4>
+          <pre><code>claude mcp add --scope user roar -- /Applications/Roar.app/Contents/Resources/roar-mcp</code></pre>
+          <h4>Codex</h4>
+          <pre><code>codex mcp add roar -- /Applications/Roar.app/Contents/Resources/roar-mcp</code></pre>
+          <h4>Gemini CLI</h4>
+          <pre><code>gemini mcp add roar /Applications/Roar.app/Contents/Resources/roar-mcp</code></pre>
+          <h4>VS Code</h4>
+          <pre><code>code --add-mcp '{"name":"roar","command":"/Applications/Roar.app/Contents/Resources/roar-mcp"}'</code></pre>
+          <h4>Claude Desktop, Cursor, Windsurf and most others</h4>
+          <p>Add this to the client's MCP config: <code>~/Library/Application Support/Claude/claude_desktop_config.json</code>, <code>~/.cursor/mcp.json</code> or <code>~/.codeium/windsurf/mcp_config.json</code>.</p>
+          <pre><code>{
+  "mcpServers": {
+    "roar": { "command": "/Applications/Roar.app/Contents/Resources/roar-mcp" }
+  }
+}</code></pre>
+        </details>
+      </li>
+    </ol>
+  </div>
+</section>
+
+<section aria-labelledby="feat-h">
+  <div class="wrap">
+    <h2 id="feat-h">What's inside</h2>
+    <div class="cols">
+      <div>
+        <h3>What your agent gets</h3>
+        <ul class="list">
+          <li><strong>Real tabs</strong><span>Pages your agent opens land in your sidebar. Watch, take over or close them.</span></li>
+          <li><strong>It asks you first</strong><span>Cards in the sidebar; your click goes back to the agent.</span></li>
+          <li><strong>Your sessions, beside your tabs</strong><span>See each Claude Code session, reply, or send it the page you’re on.</span></li>
+          <li><strong>Only where you allow</strong><span>One click on the sidebar dot blocks the space you’re in. Ghost tabs are always off-limits.</span></li>
+          <li><strong>Headless if you’d rather</strong><span>Agents can use a hidden Roar with its own profile.</span></li>
+        </ul>
+      </div>
+      <div>
+        <h3>What you get</h3>
+        <ul class="list">
+          <li><strong>Spaces in a vertical sidebar</strong><span>Each space has its own tabs and its own logins.</span></li>
+          <li><strong>Pinned tabs, groups and split view</strong><span>Two tabs side by side when you need them.</span></li>
+          <li><strong>Tabs that tidy themselves</strong><span>They archive after 6 hours to a week.</span></li>
+          <li><strong>Command bar and reader mode</strong><span>⌘T searches tabs, history and page text. uBlock Origin Lite is built in.</span></li>
+          <li><strong>Leave Arc in one step</strong><span>Your spaces and pinned tabs come over on first launch. Chrome, Safari, Firefox, Edge and Dia import too.</span></li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section aria-labelledby="cmp-h">
+  <div class="wrap">
+    <h2 id="cmp-h">Roar vs the rest</h2>
+    <p>The new AI browsers ship their own assistant and keep the source closed. Roar is the other answer: MIT licensed, no built-in assistant, and your own agent plugged in over MCP.</p>
+    <div class="tablewrap">
+      <table class="cmp short">
+        <thead><tr><th scope="col">Browser</th><th scope="col">Open source</th><th scope="col">Your agent drives it</th></tr></thead>
+        <tbody>
+          <tr class="roar"><th scope="row">Roar</th><td>Yes, MIT</td><td>Yes, built in</td></tr>
+          <tr><th scope="row">Dia</th><td class="n">No</td><td class="n">No official path</td></tr>
+          <tr><th scope="row">Comet</th><td class="n">No</td><td class="n">No official path</td></tr>
+          <tr><th scope="row">Opera Neon</th><td class="n">No</td><td class="y">Yes, MCP Connector</td></tr>
+          <tr><th scope="row">Genspark</th><td class="n">No</td><td class="u">—</td></tr>
+          <tr><th scope="row">Chrome</th><td class="n">No</td><td class="p">Separate setup</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <details class="full">
+      <summary>Full comparison: built-in AI, vertical tabs and 12 browsers</summary>
+    <div class="tablewrap">
+        <table class="cmp">
+          <thead><tr><th scope="col">Browser</th><th scope="col">Open source</th><th scope="col">Built-in AI</th><th scope="col">Your agent can drive it</th><th scope="col">Vertical tabs</th></tr></thead>
+          <tbody>
+            <tr class="roar"><th scope="row">Roar</th><td>Yes, MIT</td><td>None. Bring your own</td><td>Yes, built-in MCP server</td><td>Yes, with spaces</td></tr>
+            <tr class="grp"><th scope="rowgroup" colspan="5">AI browsers</th></tr>
+            <tr><th scope="row">Dia</th><td class="n">No</td><td class="n">Dia's assistant</td><td class="n">No official MCP path</td><td class="p">Optional, since July 2025</td></tr>
+            <tr><th scope="row">ChatGPT Atlas</th><td class="n">No</td><td class="n">ChatGPT</td><td class="n">No official MCP path</td><td class="n">Had them; OpenAI announced Atlas's discontinuation in July 2026</td></tr>
+            <tr><th scope="row">ChatGPT desktop app</th><td class="n">No</td><td class="n">ChatGPT</td><td class="u">—</td><td class="u">—</td></tr>
+            <tr><th scope="row">Perplexity Comet</th><td class="n">No</td><td class="n">Perplexity</td><td class="n">No official MCP path</td><td class="u">—</td></tr>
+            <tr><th scope="row">Genspark</th><td class="n">No</td><td class="n">Genspark</td><td class="u">—</td><td class="u">—</td></tr>
+            <tr><th scope="row">Opera Neon</th><td class="n">No</td><td class="n">Neon AI, paid plan</td><td class="y">Yes, MCP Connector</td><td class="u">—</td></tr>
+            <tr class="grp"><th scope="rowgroup" colspan="5">Everyday browsers</th></tr>
+            <tr><th scope="row">Chrome</th><td class="n">No, only Chromium is</td><td class="n">Gemini</td><td class="p">Separate setup (chrome-devtools-mcp)</td><td class="p">Optional, since April 2026</td></tr>
+            <tr><th scope="row">Edge</th><td class="n">No</td><td class="n">Copilot</td><td class="n">No official one</td><td class="p">Optional, since 2021</td></tr>
+            <tr><th scope="row">Brave</th><td class="y">Yes, MPL 2.0</td><td class="n">Leo</td><td class="n">No, community add-ons only</td><td class="p">Optional, since 2023</td></tr>
+            <tr><th scope="row">Firefox</th><td class="y">Yes, MPL 2.0</td><td class="n">Chatbot sidebar, your pick of provider</td><td class="n">No</td><td class="p">Optional, since March 2025</td></tr>
+            <tr><th scope="row">Safari</th><td class="n">No</td><td class="n">Apple Intelligence</td><td class="n">No</td><td class="n">No</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </details>
+    <p class="asof">Checked October 17, 2026. A dash means we couldn't confirm it from the maker or the press.</p>
+    <details class="src">
+      <summary>Sources</summary>
+      <ul>
+        <li>Dia vertical tabs: <a href="https://alternativeto.net/news/2025/7/vertical-tabs-and-faster-sidebar-interaction-now-available-in-dia-browser/">AlternativeTo, July 8, 2025</a></li>
+        <li>ChatGPT Atlas vertical tabs: <a href="https://www.macrumors.com/2025/11/20/chatgpt-atlas-update-vertical-tabs/">MacRumors, November 20, 2025</a>; shutdown, folded into the ChatGPT desktop app: <a href="https://9to5mac.com/2026/07/09/openai-is-discontinuing-chatgpt-atlas-its-standalone-desktop-browser/">9to5Mac, July 9, 2026</a></li>
+        <li>Genspark: <a href="https://www.genspark.ai/">genspark.ai</a></li>
+        <li>Comet: <a href="https://www.perplexity.ai/comet">perplexity.ai/comet</a></li>
+        <li>Opera Neon MCP Connector, free plan: <a href="https://operaneon.com/news/your-ai-agents-can-use-opera-neon-free-of-charge">Opera, August 12, 2026</a></li>
+        <li>Chrome vertical tabs: <a href="https://blog.google/products-and-platforms/products/chrome/new-chrome-productivity-features/">Google, April 7, 2026</a>; chrome-devtools-mcp: <a href="https://github.com/ChromeDevTools/chrome-devtools-mcp">GitHub</a></li>
+        <li>Edge vertical tabs: <a href="https://explore.microsoft.com/en-us/edge/features/vertical-tabs">Microsoft</a></li>
+        <li>Brave license: <a href="https://github.com/brave/brave-browser/blob/master/LICENSE">GitHub</a>; vertical tabs: <a href="https://brave.com/blog/vertical-tabs/">Brave, May 31, 2023</a></li>
+        <li>Firefox vertical tabs: <a href="https://www.firefox.com/en-US/firefox/136.0/releasenotes/">Firefox 136 release notes, March 4, 2025</a></li>
+      </ul>
+    </details>
+    <p class="quip">We don't need a browser company to build a browser.</p>
+  </div>
+</section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <a href="https://github.com/roarbrowser/roar">github.com/roarbrowser/roar</a>
+    <span>MIT License</span>
+    <span>Built on Chromium (CEF)</span>
+  </div>
+</footer>
+<script>
+// Point the download button at this computer's build (Mac chip or Windows); the rest go under "Other downloads"
+// in case the guess is wrong.
+(async () => {
+  const win = /Windows/.test(navigator.userAgent);
+  let arm = !win;  // Safari hides the chip; most Macs sold since 2021 are Apple Silicon. Most Windows PCs are x64.
+  try {
+    const h = await navigator.userAgentData?.getHighEntropyValues(['architecture']);
+    if (h?.architecture) arm = h.architecture === 'arm';
+    else if (!win) {
+      const gl = document.createElement('canvas').getContext('webgl');
+      const r = gl && gl.getParameter(gl.getExtension('WEBGL_debug_renderer_info')?.UNMASKED_RENDERER_WEBGL ?? gl.RENDERER);
+      if (/intel|amd|radeon/i.test(r || '')) arm = false;
+    }
+  } catch {}
+  // Windows gets the releases list if the API call below fails (rate limit); the latest release can lack Windows files.
+  if (win) Object.assign(document.getElementById('dl'), { href: 'https://github.com/roarbrowser/roar/releases', textContent: `Download for Windows${arm ? ' on ARM' : ''}` });
+  // Several releases: Windows files land on a release hours after its Mac ones, so each build comes from the newest release that has it.
+  const rels = await fetch('https://api.github.com/repos/roarbrowser/roar/releases?per_page=30').then(r => r.json()).catch(() => []);
+  const builds = [
+    { key: 'mac-arm', test: /^Roar-[\d.]+\.dmg$/, button: 'Download for Mac (Apple Silicon)', short: 'Mac (Apple Silicon)' },
+    { key: 'mac-intel', test: /-intel\.dmg$/, button: 'Download for Mac (Intel)', short: 'Mac (Intel)' },
+    // Installers first; the portable zips stay listed (and stand in on releases made before the installers).
+    { key: 'win-x64', test: /windows-x64-setup\.exe$/, button: 'Download for Windows', short: 'Windows (x64)' },
+    { key: 'win-arm', test: /windows-arm64-setup\.exe$/, button: 'Download for Windows on ARM', short: 'Windows (ARM)' },
+    { key: 'win-x64-zip', test: /windows-x64\.zip$/, button: 'Download for Windows (portable)', short: 'Windows portable zip (x64)' },
+    { key: 'win-arm-zip', test: /windows-arm64\.zip$/, button: 'Download for Windows on ARM (portable)', short: 'Windows portable zip (ARM)' },
+  ];
+  for (const b of builds) b.url = (Array.isArray(rels) ? rels : []).filter(r => !r.draft && !r.prerelease).flatMap(r => r.assets || []).find(a => b.test.test(a.name))?.browser_download_url;
+  const have = builds.filter(b => b.url);
+  if (!have.length) return;  // Keep the plain links to the releases page.
+  const want = win ? (arm ? 'win-arm' : 'win-x64') : (arm ? 'mac-arm' : 'mac-intel');
+  const pick = have.find(b => b.key === want) || have.find(b => b.key.startsWith(win ? 'win' : 'mac')) || have[0];
+  const btn = document.getElementById('dl');
+  btn.href = pick.url;
+  btn.textContent = pick.button;
+  // Every other build sits in one "Other downloads" menu.
+  const others = have.filter(b => b !== pick);
+  if (!others.length) return;
+  const menu = Object.assign(document.createElement('details'), { className: 'os-menu' });
+  menu.append(Object.assign(document.createElement('summary'), { textContent: 'Other downloads' }));
+  const list = document.createElement('div');
+  list.append(...others.map(b => Object.assign(document.createElement('a'), { href: b.url, textContent: b.short })));
+  menu.append(list);
+  document.addEventListener('click', (e) => { if (!menu.contains(e.target)) menu.open = false; });
+  menu.addEventListener('keydown', (e) => { if (e.key === 'Escape') { menu.open = false; menu.firstChild.focus(); } });
+  document.querySelector('.arch').replaceChildren(menu);
+})();
+</script>
+<script>
+document.getElementById('copy').addEventListener('click', async (e) => {
+  try { await navigator.clipboard.writeText(document.getElementById('starter').textContent); e.target.textContent = 'Copied' }
+  catch { e.target.textContent = 'Select and copy' }
+  setTimeout(() => { e.target.textContent = 'Copy' }, 1600)
+});
+</script>
+<script src="demo.js"></script>
+<script>
+// Star count is a nicety: on any API failure (rate limit, offline) the badge keeps "Star on GitHub".
+fetch('https://api.github.com/repos/roarbrowser/roar').then(r => r.ok ? r.json() : null).then(d => {
+  if (d && Number.isFinite(d.stargazers_count)) document.querySelector('.stars span').textContent = `★ ${d.stargazers_count.toLocaleString('en-US')}`
+}).catch(() => {})
+</script>
+<script>
+(() => {
+  const b = document.querySelector('.theme'), root = document.documentElement
+  const isDark = () => (root.dataset.theme || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')) === 'dark'
+  const label = () => b.setAttribute('aria-label', isDark() ? 'Switch to light mode' : 'Switch to dark mode')
+  label()
+  b.addEventListener('click', () => {
+    root.dataset.theme = isDark() ? 'light' : 'dark'
+    try { localStorage.setItem('theme', root.dataset.theme) } catch {}
+    label()
+  })
+})()
+</script>
+</body>
+</html>
