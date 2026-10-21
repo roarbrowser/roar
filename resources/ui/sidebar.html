@@ -413,7 +413,7 @@ body.drag-active .pinned:empty::before { content: 'Drop to pin'; color: var(--in
   </section>
   <div id="groups"></div>
   <section id="tabs-group">
-    <div class="group-head"><span>Tabs</span><span class="count" id="tab-count"></span><span class="spacer"></span><button id="ask-llm" class="af-btn" aria-label="Ask your AI about this page" hidden><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 4.5a2 2 0 012-2h7a2 2 0 012 2v5a2 2 0 01-2 2H7l-3 2.5v-2.5h0a2 2 0 01-1.5-2z"/></svg></button></div>
+    <div class="group-head"><span>Tabs</span><span class="count" id="tab-count"></span><span id="loose-ai"></span><span class="spacer"></span><button id="ask-llm" class="af-btn" aria-label="Ask your AI about this page" hidden><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 4.5a2 2 0 012-2h7a2 2 0 012 2v5a2 2 0 01-2 2H7l-3 2.5v-2.5h0a2 2 0 01-1.5-2z"/></svg></button></div>
     <div class="rows" id="tabs"></div>
   </section>
   <section id="cl-group" aria-label="AI" hidden>
@@ -568,6 +568,7 @@ window.roar = {
       `<button class="pin${t.active ? ' active' : ''}" data-id="${t.id}" draggable="true" title="${esc(t.title)}" aria-label="${esc(t.title)}">${pinIcon(t)}${sndButton(t, '')}</button>`).join(''));
     setHtml($('tabs'), open.map((t) => tabRow(t, limit)).join(''));
     $('tab-count').textContent = open.length || '';
+    setHtml($('loose-ai'), aiRn('ungrouped', s.activeSpace, 'ungrouped tabs'));
     // The AI chosen in Settings (askLlms; older saves listed several, the first wins), as the command bar's "Ask … about this page".
     const llm = (s.settings?.askLlms || '').split(',')[0], askAct = s.tabs.find((t) => t.active);
     $('ask-llm').hidden = !llm;
@@ -1351,9 +1352,11 @@ $('ask-llm').onclick = () => {
 };
 var AI_RN_ICO = '<svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 1.8l1.3 3.4 3.4 1.3-3.4 1.3L8 11.2 6.7 7.8 3.3 6.5l3.4-1.3z"/><path d="M12.6 10.4l.6 1.5 1.5.6-1.5.6-.6 1.5-.6-1.5-1.5-.6 1.5-.6z"/></svg>';
 var aiBusy = {};  // "kind:id" -> {old, until}: the agent is renaming it.
+// A tabs-only bulk key ("ungrouped:space") is never in aiBusy itself: its run is any of its tabs' run.
+function aiRunning(key) { return /^(all|ungrouped):/.test(key) && chatCore.renameKeys(key, state.tabs).map((k) => aiBusy[k]?.run).find(Boolean); }
 function aiRn(kind, id, name) {
-  const k = kind + ':' + id;
-  return `<button class="ai-rn${aiBusy[k] ? ' busy' : ''}" data-airn="${esc(k)}" title="${aiBusy[k] ? 'Naming this… (click to cancel)' : kind === 'group' ? 'Rename the group and all its tabs with AI (Shift-click: choose the agent)' : 'Rename with AI (Shift-click: choose the agent)'}" aria-label="Rename ${esc(name || '')} with AI">${AI_RN_ICO}</button>`;
+  const k = kind + ':' + id, busy = aiBusy[k] || aiRunning(k);
+  return `<button class="ai-rn${busy ? ' busy' : ''}" data-airn="${esc(k)}" title="${busy ? 'Naming this… (click to cancel)' : kind === 'group' ? 'Rename the group and all its tabs with AI (Shift-click: choose the agent)' : kind === 'ungrouped' ? 'Rename the tabs not in a group with AI (Shift-click: choose the agent)' : 'Rename with AI (Shift-click: choose the agent)'}" aria-label="Rename ${esc(name || '')} with AI">${AI_RN_ICO}</button>`;
 }
 // What the agent gets: the item's kind and id for rename_item, and what it is about.
 function aiContext(kind, id) {
@@ -1408,7 +1411,8 @@ function aiItem(key) {
 // bulk: "group:id" sends the group and its tabs, "all:space" / "ungrouped:space" just those tabs, in one request.
 async function aiRename(key, e, bulk = false) {
   const [kind, ...rest] = key.split(':'), id = rest.join(':'), tabsOnly = kind === 'all' || kind === 'ungrouped';
-  if (aiBusy[key]?.run) return aiBusy[key].run.cancel();  // clicking a spinning button cancels it
+  const running = aiBusy[key]?.run || aiRunning(key);
+  if (running) return running.cancel();  // clicking a spinning button cancels it
   const keys = (bulk ? chatCore.renameKeys(key, state.tabs) : [key]).filter((k) => !aiBusy[k]);
   const ctxt = tabsOnly ? { name: '' } : aiContext(kind, id);
   if (!ctxt || !keys.length) return;
@@ -1487,7 +1491,7 @@ document.addEventListener('click', (e) => {
   const b = e.target.closest('[data-airn]');
   if (!b) return;
   e.stopPropagation(); e.preventDefault();
-  aiRename(b.dataset.airn, e, b.dataset.airn.startsWith('group:'));
+  aiRename(b.dataset.airn, e, /^(group|ungrouped):/.test(b.dataset.airn));
 }, true);
 $('space-ai').onclick = (e) => { const id = menuSpace; hideSpaceMenu(); aiRename('space:' + id, e); };
 for (const [b, kind] of [['space-ai-all', 'all'], ['space-ai-loose', 'ungrouped']]) $(b).onclick = (e) => { const id = menuSpace; hideSpaceMenu(); aiRename(kind + ':' + id, e, true); };
