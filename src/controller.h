@@ -14,6 +14,7 @@
 #include "start_tab.h"
 #include "agent_queue.h"
 #include "dictation.h"
+#include "notify_prefs.h"
 #include <memory>
 #include <functional>
 #include <deque>
@@ -369,7 +370,8 @@ class Controller {
     std::string owner;     // The roar-mcp connection's pid: its cards go when it ends, and its newer card supersedes them.
     std::string chat;      // The agent's folder name, when the sidebar finds no session for |pid|.
     double until = 0;      // When the card clears itself; 0: it waits (ask_user, Roar's own cards).
-    bool auto_done = false;  // A done card the sidebar clears after it was on screen a while (Settings: autoDismissDone).
+    bool auto_done = false;  // A done card the sidebar clears after auto_secs on screen (Settings > Notifications).
+    int auto_secs = 0;
     std::vector<std::string> choices;
     double time = 0;
     CefRefPtr<Callback> answer;  // ask_user waits on this until the user picks.
@@ -394,6 +396,11 @@ class Controller {
   void SyncDivider();
   void SyncPaneNav(Tab* tab);
   void AskDefaultBrowser();
+  void TimeAlert(AgentAlert& a, const NotifyPref& p);  // Sets how |a| clears itself (NotifyTiming).
+ public:
+  // An opt-in notification of |type| (notify_prefs.h): a sidebar card, and a macOS one while Roar is in the background.
+  void Notice(const std::string& type, const std::string& title, const std::string& body);
+ private:
   void SyncAlertBadge();
   void ClaudeAlert(CefRefPtr<CefDictionaryValue> d);
   std::map<std::string, int> claude_cards_;  // Session id -> its needs-you/done sidebar card.

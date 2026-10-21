@@ -19,6 +19,7 @@
 #include <vector>
 
 #include "atomic_write.h"
+#include "notify_prefs.h"
 #include "include/cef_parser.h"
 
 namespace roar {
@@ -188,7 +189,8 @@ void State::Load() {
     }
   }
   CefRefPtr<CefValue> root = CefParseJSON(text, JSON_PARSER_RFC);
-  if (!root || root->GetType() != VTYPE_DICTIONARY) return;
+  // A first launch saves the per-type notification defaults too, so a restored backup matches.
+  if (!root || root->GetType() != VTYPE_DICTIONARY) return void(settings.notifications = NotifyMigrate(settings));
   CefRefPtr<CefDictionaryValue> d = root->GetDictionary();
 
   if (auto list = d->GetList("tabs")) {
@@ -233,6 +235,7 @@ void State::Load() {
     // The old global "no counts" becomes each footer button's own setting.
     if (!settings.sidebar_counts && settings.hidden_counts.empty()) settings.hidden_counts = R"({"cl-btn":1,"gh-btn":1,"gm-btn":1})";
     settings.sidebar_counts = true;
+    if (settings.notifications.empty()) settings.notifications = NotifyMigrate(settings);
     // The old default listed PRs in archived repos too.
     if (settings.github_query == "is:open is:pr author:@me")
       settings.github_query = "is:open is:pr author:@me archived:false";

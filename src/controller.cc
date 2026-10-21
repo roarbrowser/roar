@@ -2175,6 +2175,7 @@ void Controller::AgentStart(const std::string& dir, const std::string& prompt, s
                     [this, dir, tabs, open_view, done](const std::string& out) {
     if (StartsWith(out, "error:")) {
       ShowHint("Agent session: " + out.substr(std::min<size_t>(out.size(), 7)));
+      Notice("error", "Agent session didn't start", out.substr(std::min<size_t>(out.size(), 7)));
     } else {
       if (!tabs.empty()) claude_attach_[dir] = {tabs, NowSeconds()};
       // A new-* stand-in id: the full view follows the session that replaces it by its folder.
@@ -2314,6 +2315,33 @@ void Controller::AskDefaultBrowser() {
   };
   agent_alerts_.push_back(a);
   PushSidebar();
+}
+
+void Controller::TimeAlert(AgentAlert& a, const NotifyPref& p) {
+  const char* ttl = getenv("ROAR_ALERT_TTL");
+  CardTiming t = NotifyTiming(p, a.level, ttl ? atoi(ttl) : 0);
+  a.auto_done = t.screen;
+  a.auto_secs = t.screen ? t.secs : 0;
+  if (t.screen) CapDoneCard(a.id);  // Screen time can stall while Roar is unfocused: a hard wall-clock cap.
+  if (t.screen || !t.secs) return;
+  a.until = a.time + t.secs;
+  CefPostDelayedTask(TID_UI, base::BindOnce([](int id) { Controller::Get()->ResolveAlert(id, ""); }, a.id), t.secs * 1000);
+}
+
+void Controller::Notice(const std::string& type, const std::string& title, const std::string& body) {
+  NotifyPref p = NotifyGet(State::Get().settings.notifications, type);
+  if (!p.on) return;
+  AgentAlert a;
+  a.id = next_alert_id_++;
+  a.agent = "Roar";
+  a.title = title;
+  a.body = body;
+  a.level = "info";
+  a.time = NowSeconds();
+  TimeAlert(a, p);
+  agent_alerts_.push_back(a);
+  PushSidebar();
+  if (p.mac && !platform::AppActive()) platform::Notify("Roar: " + title, body, "alert:" + std::to_string(a.id));
 }
 
 void Controller::SyncAlertBadge() {
@@ -2639,8 +2667,9 @@ void Controller::ClaudeAlert(CefRefPtr<CefDictionaryValue> d) {
   if (auto c = claude_cards_.find(id); c != claude_cards_.end()) { int card = c->second; claude_cards_.erase(c); ResolveAlert(card, ""); }
   SyncAlertBadge();
   const auto& set = State::Get().settings;
-  bool want = state == "idle" ? set.claude_alert_done : state == "needs_you" && set.claude_alert_needs;
-  if (!set.claude_sidebar || !want) return;
+  if (state != "idle" && state != "needs_you") return;
+  NotifyPref pref = NotifyGet(set.notifications, state == "idle" ? "sessionDone" : "sessionNeeds");
+  if (!set.claude_sidebar || !pref.on) return;
   static const std::map<std::string, std::string> kNames = {{"codex", "Codex"}, {"gemini", "Gemini CLI"}, {"qwen", "Qwen Code"}, {"copilot", "Copilot CLI"}};
   auto name = kNames.find(d->GetString("tool").ToString());
   std::string tool = name == kNames.end() ? std::string("Claude Code") : name->second;
@@ -2658,12 +2687,11 @@ void Controller::ClaudeAlert(CefRefPtr<CefDictionaryValue> d) {
   a.time = NowSeconds();
   a.session = id;
   a.on_answer = [this, id](const std::string&) { claude_cards_.erase(id); };
-  if (state == "idle" && State::Get().settings.auto_dismiss_done) a.auto_done = true, CapDoneCard(a.id);
-  else CefPostDelayedTask(TID_UI, base::BindOnce([](int card) { Controller::Get()->ResolveAlert(card, ""); }, a.id), (state == "idle" ? 30 : 60) * 1000);
+  TimeAlert(a, pref);
   agent_alerts_.push_back(a);
   SyncAlertBadge();
   PushSidebar();
-  if (!set.claude_alert_system || platform::AppActive()) return;
+  if (!pref.mac || platform::AppActive()) return;
   platform::Notify(tool + ": " + title, body, "claude:" + id);
 }
 
@@ -2808,7 +2836,10 @@ void Controller::ImportBrowser(const std::string& browser) {
   auto profiles = library::ReadBrowser(browser, &error);
   // Safari's files are readable only with Full Disk Access, which only the user can grant.
   if (profiles.empty() && error.find("Full Disk Access") != std::string::npos) platform::OpenFullDiskAccessSettings();
-  if (profiles.empty()) return ShowHint(label + ": " + (error.empty() ? "nothing found" : error));
+  if (profiles.empty()) {
+    if (!error.empty()) Notice("error", "Import from " + label + " failed", error);
+    return ShowHint(label + ": " + (error.empty() ? "nothing found" : error));
+  }
 
   State& state = State::Get();
   int extensions = 0, bookmarks = 0, pinned = 0, reading = 0;
@@ -2880,7 +2911,10 @@ void Controller::ImportArc() {
   text << in.rdbuf();
   std::string error;
   auto spaces = arc::Parse(text.str(), &error);
-  if (spaces.empty()) return ShowHint("Arc: " + (error.empty() ? "nothing found" : error));
+  if (spaces.empty()) {
+    if (!error.empty()) Notice("error", "Import from Arc failed", error);
+    return ShowHint("Arc: " + (error.empty() ? "nothing found" : error));
+  }
 
   State& state = State::Get();
   int added_spaces = 0, pinned = 0, grouped = 0;
@@ -3636,10 +3670,12 @@ void Controller::OnDownloadUpdated(CefRefPtr<CefDownloadItem> item,
     platform::QuarantineDownload(d->path, d->ghost ? "" : d->url);  // No ghost URL on disk.
     d->name = d->path.substr(d->path.rfind('/') + 1);
     ShowHint("Downloaded " + d->name);
+    Notice("download", "Downloaded " + d->name, "In your Downloads folder.");
   } else if (d->canceled) {
     ShowHint("Canceled " + d->name);
   } else if (d->failed) {
     ShowHint("Download failed: " + d->name);
+    Notice("error", "Download failed", d->name);
   }
   PushSidebar();
 }
@@ -3865,6 +3901,7 @@ std::string Controller::StateJson() {
     d->SetBool("ask", !a.key.empty());
     d->SetDouble("until", a.until);
     d->SetBool("autoDone", a.auto_done);
+    d->SetInt("autoSecs", a.auto_secs);
     d->SetBool("alive", !a.owner.empty() && !PidGone(atoi(a.owner.c_str())));
     alerts->SetDictionary(alerts->GetSize(), d);
   }
@@ -4722,6 +4759,7 @@ bool Controller::HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> 
     Settings& s = State::Get().settings;
     Settings fresh;
     s = fresh;
+    s.notifications = NotifyMigrate(fresh);
     auto d = CefDictionaryValue::Create();
     d->SetBool("cdpEnabled", fresh.cdp_enabled);
     d->SetBool("githubFolder", fresh.github_folder);
@@ -4822,7 +4860,8 @@ bool Controller::HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> 
     Tab* t = FindTab(last_target_tab_);
     if (t && t->space == State::Get().active_space) ActivateTab(t->id);
     // Roar in the background stays there (FocusTab): a sidebar card says the tab is up instead.
-    if (t && !platform::AppActive()) {
+    NotifyPref pref = NotifyGet(State::Get().settings.notifications, "agentPage");
+    if (t && !platform::AppActive() && pref.on) {
       AgentAlert a;
       a.id = next_alert_id_++;
       a.title = "Your agent opened a page for you";
@@ -4830,7 +4869,7 @@ bool Controller::HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> 
       a.level = "info";
       a.space = t->space;
       a.time = NowSeconds();
-      CefPostDelayedTask(TID_UI, base::BindOnce([](int id) { Controller::Get()->ResolveAlert(id, ""); }, a.id), 30 * 1000);
+      TimeAlert(a, pref);
       agent_alerts_.push_back(a);
       SyncAlertBadge();
       PushSidebar();
@@ -4957,15 +4996,18 @@ bool Controller::HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> 
     a.key = msg->GetString("key").ToString();
     a.pid = msg->GetType("pid") == VTYPE_INT ? msg->GetInt("pid") : 0;
     a.time = NowSeconds();
+    // ask_user always shows (it waits on the person); notify_user follows Settings > Notifications.
+    NotifyPref pref = NotifyGet(State::Get().settings.notifications, a.level == "needs_you" ? "agentNeeds" : "agentDone");
+    if (!wait && !pref.on) return callback->Success("0"), true;
     // A session's newer alert replaces its older needs-you card (never an ask_user still waiting).
     // Matched by connection: one CLI name (agent) covers every session of that CLI.
     std::vector<int> old;
     for (const auto& o : agent_alerts_)
       if ((!a.owner.empty() ? o.owner == a.owner : !a.agent.empty() && o.agent == a.agent) && (o.level == "needs_you" || o.level == "done") && !o.answer && !o.on_answer) old.push_back(o.id);
     for (int o : old) ResolveAlert(o, "");
-    if (a.level == "needs_you" && !platform::AppActive())
+    if (pref.mac && !platform::AppActive())
       platform::Notify((a.agent.empty() ? std::string("Agent") : a.agent) + ": " + a.title, a.body, "alert:" + std::to_string(a.id));
-    // Cards clear themselves: done/info after 30 s, needs-you after 60 s (ROAR_ALERT_TTL seconds overrides, for tests).
+    // Cards clear themselves as Settings > Notifications says (ROAR_ALERT_TTL seconds overrides timers, for tests).
     // Never an ask_user still waiting: dismissing it would answer for the person.
     // An ask_user whose request is gone (a client that never sent cancel) would wait forever: it goes
     // 10 s after roar-mcp's own timeout, capped at 10 minutes when none came.
@@ -4974,13 +5016,7 @@ bool Controller::HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> 
       secs = secs > 0 ? std::min(secs, 3600) + 10 : 600;
       CefPostDelayedTask(TID_UI, base::BindOnce([](int id) { Controller::Get()->ResolveAlert(id, "timed out"); }, a.id), secs * 1000);
     }
-    if (!wait && a.level == "done" && State::Get().settings.auto_dismiss_done) a.auto_done = true, CapDoneCard(a.id);
-    else if (!wait) {
-      const char* ttl = getenv("ROAR_ALERT_TTL");
-      int secs = ttl && atoi(ttl) > 0 ? atoi(ttl) : a.level == "needs_you" ? 60 : 30;
-      a.until = a.time + secs;
-      CefPostDelayedTask(TID_UI, base::BindOnce([](int id) { Controller::Get()->ResolveAlert(id, ""); }, a.id), secs * 1000);
-    }
+    if (!wait) TimeAlert(a, pref);
     agent_alerts_.push_back(a);
     SyncAlertBadge();
     PushSidebar();
@@ -5096,6 +5132,7 @@ bool Controller::HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> 
         std::string why = out.substr(6);
         why.erase(0, why.find_first_not_of(' '));
         ShowHint("Agent session: " + (why.empty() ? std::string("that didn't work") : why));
+        Notice("error", "Agent session", why.empty() ? std::string("That didn't work.") : why);
       }
       callback->Success(out);
     });

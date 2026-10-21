@@ -49,6 +49,7 @@ constexpr const char* kHelper = "roar-dictate";
 }  // namespace
 
 void Controller::DictationSet(const std::string& state, const std::string& detail) {
+  if (state == "error" && !detail.empty() && (dictation_state_ != "error" || dictation_detail_ != detail)) Notice("dictation", "Dictation stopped", detail);
   dictation_state_ = state;
   dictation_detail_ = detail;
   auto sidebar = sidebar_ ? sidebar_->GetBrowser() : nullptr;

@@ -105,7 +105,7 @@ const alertChat = (a, s) => {
 };
 // Why a card is still up, for Settings' diagnostics.
 const alertWhy = (a, now = Date.now() / 1000) => a.waiting ? (a.owner && !a.alive ? 'Waiting, but its connection is gone (clears within a second)' : 'Waiting for your answer')
-  : a.autoDone ? 'Done: clears after 45 s on screen while Roar is focused, or when you open its session'
+  : a.autoDone ? `Done: clears after ${a.autoSecs || 45} s on screen while Roar is focused, or when you open its session`
   : a.until ? `Clears itself in ${Math.max(0, Math.round(a.until - now))} s` : a.owner && !a.alive ? 'Its connection is gone' : 'Roar\'s own card: stays until you answer it';
 // Card body links: http(s) only, trailing punctuation left out. linkify escapes every piece it emits.
 const URL_RE = /https?:\/\/[^\s<>"'`]+[^\s<>"'`.,;:!?)\]}]/g;

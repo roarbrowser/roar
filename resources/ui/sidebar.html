@@ -1547,9 +1547,9 @@ document.addEventListener('click', (e) => {
   if (r.dataset.cltab) return ask({ cmd: 'tab.activate', id: +r.dataset.cltab });
   return ask({ cmd: 'open', text: 'roar://ui/claude.html?id=' + encodeURIComponent(r.dataset.clid), newTab: true });
 }, true);
-// Done cards go once you have seen them: doneSecs on screen while Roar is focused (hover or an open reply pauses),
-// so one that lands while you are away waits for you. Also when you open that agent's session.
-window.doneSecs = 45;  // window: tests shorten it
+// Done cards go once you have seen them: autoSecs (Settings > Notifications) on screen while Roar is focused
+// (hover or an open reply pauses), so one that lands while you are away waits for you. Also when you open that agent's session.
+window.doneSecs = 0;  // window: tests shorten it; 0 uses each card's autoSecs
 const doneSeen = new WeakMap();
 const dropDone = (sid) => { for (const a of state?.alerts || []) if (a.autoDone && a.session === sid) ask({ cmd: 'agent.answer', id: a.id, choice: '' }); };
 setInterval(() => {
@@ -1559,7 +1559,8 @@ setInterval(() => {
     if (!el.offsetParent || el.matches(':hover') || el.querySelector('.alert-reply')) continue;
     const n = (doneSeen.get(el) || 0) + 1;
     doneSeen.set(el, n);
-    if (n >= window.doneSecs) ask({ cmd: 'agent.answer', id: +el.dataset.alert, choice: '' });
+    const secs = window.doneSecs || (state?.alerts || []).find((a) => a.id === +el.dataset.alert)?.autoSecs || 45;
+    if (n >= secs) ask({ cmd: 'agent.answer', id: +el.dataset.alert, choice: '' });
   }
 }, 1000);
 $('gm-refresh').onclick = $('ol-refresh').onclick = () => ask({ cmd: 'run', id: 'gmail' });

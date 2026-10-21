@@ -47,6 +47,27 @@ pre { margin: 6px 0; font: 12px/1.6 var(--mono); background: var(--ground); bord
 .empty { color: var(--ink-3); padding: 12px 0; }
 @media (max-width: 640px) { .wrap { grid-template-columns: 1fr; } nav { position: static; grid-auto-flow: column; overflow-x: auto; } }
 .status.warn { color: var(--mane-ink, #d9822b); }
+/* Agents: one list, CLIs first in their order (drag, or arrow keys on the handle). */
+.as-list { list-style: none; margin: 0 0 6px; padding: 0; }
+.as-row { gap: 10px; }
+.as-row .agent-icon { flex: none; }
+.as-row.away .name { color: var(--ink-3); }
+.as-row.drop { box-shadow: inset 0 2px 0 var(--mane); }
+.grip { display: grid; gap: 2px; padding: 6px 4px; border-radius: 5px; cursor: grab; color: var(--ink-3); background: none; }
+.grip i { display: block; width: 10px; height: 1.5px; background: currentColor; border-radius: 1px; }
+.grip:hover, .grip:focus-visible { color: var(--ink); background: var(--ground); }
+.grip-pad { width: 18px; flex: none; }
+.as-banner { display: flex; align-items: center; gap: 12px; padding: 10px 12px; margin-bottom: 8px; border-radius: 10px; background: var(--mane-soft); color: var(--ink); }
+.as-banner[hidden] { display: none; }
+.as-banner span { flex: 1; }
+/* Notifications: one row per type, columns line up under .nt-head. */
+.nt-head, .row.nt { display: grid; grid-template-columns: 1fr 92px 56px 40px; gap: 12px; align-items: center; }
+.nt-head { font-size: 12px; color: var(--ink-3); padding: 4px 0; border-bottom: 1px solid var(--rule); }
+.nt-head span, .row.nt > :not(.name) { justify-self: center; }
+.row.nt select { width: 92px; }
+.row.nt input[data-nt-mac] { width: 16px; height: 16px; margin: 0; accent-color: var(--mane); }
+.row.nt.off .name { color: var(--ink-2); }
+p.reason a { color: inherit; }
 </style>
 </head>
 <body>
@@ -54,7 +75,7 @@ pre { margin: 6px 0; font: 12px/1.6 var(--mono); background: var(--ground); bord
   <div class="top"><h1>Settings</h1><input id="search" type="search" placeholder="Search settings" aria-label="Search settings" spellcheck="false"><button class="btn" id="close">Close</button></div>
   <nav aria-label="Settings categories">
     <a href="#general">General</a><a href="#tabs">Tabs &amp; Sidebar</a><a href="#modules">Sidebar modules</a>
-    <a href="#dictation">Dictation</a><a href="#chat">Model chat</a><a href="#agents">Agents</a><a href="#privacy">Privacy</a><a href="#backup">Backup</a><a href="#advanced">Advanced</a>
+    <a href="#dictation">Dictation</a><a href="#chat">Model chat</a><a href="#agents">Agents</a><a href="#notifications">Notifications</a><a href="#privacy">Privacy</a><a href="#backup">Backup</a><a href="#advanced">Advanced</a>
     <a href="#" class="tips" id="tips">Tips &amp; shortcuts</a>
   </nav>
   <main>
@@ -66,114 +87,119 @@ pre { margin: 6px 0; font: 12px/1.6 var(--mono); background: var(--ground); bord
         <option value="https://www.bing.com/search?q=">Bing</option><option value="https://kagi.com/search?q=">Kagi</option>
         <option value="https://search.brave.com/search?q=">Brave Search</option><option value="https://www.startpage.com/do/search?q=">Startpage</option>
         <option value="https://www.ecosia.org/search?q=">Ecosia</option></select></div>
-      <div class="row"><label class="name" for="after-updates">After updates<small>Whether the tabs you have open come back when Roar relaunches to install an update. Pinned tabs always do.</small></label><select id="after-updates" data-set="afterUpdates">
+      <div class="row"><label class="name" for="after-updates">After updates<small>Bring back open tabs when Roar relaunches. Pinned tabs always come back.</small></label><select id="after-updates" data-set="afterUpdates">
         <option value="ask">Ask</option><option value="restore">Always restore</option><option value="never">Never restore</option></select></div>
-      <div class="row"><span class="name">Import from<small>Bookmarks, pinned tabs, spaces (Arc) and extensions</small></span><span class="end" id="imports">
+      <div class="row"><span class="name">Import from<small>Bookmarks, pinned tabs, extensions, and spaces from Arc.</small></span><span class="end" id="imports">
         <button class="chip" data-import="arc">Arc</button><button class="chip" data-import="chrome">Chrome</button><button class="chip" data-import="safari">Safari</button>
         <button class="chip" data-import="firefox">Firefox</button><button class="chip" data-import="edge">Edge</button><button class="chip" data-import="dia">Dia</button></span></div>
     </section>
 
     <section id="tabs"><h2>Tabs &amp; Sidebar</h2>
-      <div class="row"><span class="name" id="archive-label">Archive idle tabs after<small>Pinned tabs stay put; Archived brings one back in a click.</small></span>
+      <div class="row"><span class="name" id="archive-label">Archive idle tabs after<small>Pinned tabs stay. Archived brings one back.</small></span>
         <div class="segmented" role="group" aria-labelledby="archive-label" data-seg="archiveAfterHours">
           <button data-v="6">6 h</button><button data-v="12">12 h</button><button data-v="24">1 day</button><button data-v="168">1 week</button><button data-v="0">Never</button></div></div>
-      <div class="row"><label class="name" for="pin-cols">Pinned tiles per row</label><select id="pin-cols" data-set="pinnedColumns" data-kind="number">
+      <h3>Pinned tiles</h3>
+      <div class="row"><label class="name" for="pin-cols">Tiles per row</label><select id="pin-cols" data-set="pinnedColumns" data-kind="number">
         <option value="0">Fit to width</option><option>2</option><option>3</option><option>4</option><option>5</option><option>6</option><option>7</option><option>8</option></select></div>
-      <div class="row"><label class="name" for="pin-center">Center a short last row of pinned tiles</label><input type="checkbox" class="switch" id="pin-center" data-set="pinnedCentered"></div>
-      <div class="row"><span class="name">Spaces<small>Rename, remove and agent access live in each space's menu in the sidebar.</small></span><span class="end"><span id="spaces"></span><button class="btn" id="space-add">Add space</button></span></div>
+      <div class="row"><label class="name" for="pin-center">Center a short last row</label><input type="checkbox" class="switch" id="pin-center" data-set="pinnedCentered"></div>
+      <h3>Spaces</h3>
+      <div class="row"><span class="name"><span id="spaces"></span><small>Rename, remove and agent access are in each space's sidebar menu.</small></span><span class="end"><button class="btn" id="space-add">Add space</button></span></div>
     </section>
 
     <section id="modules"><h2>Sidebar modules</h2>
       <div class="module" data-module="github">
         <div class="row head"><label class="name" for="gh-on"><span data-icon="github"></span>Pull requests<small id="gh-status">Checking GitHub CLI…</small></label><input type="checkbox" class="switch" id="gh-on"></div>
-        <fieldset id="gh-opts"><p class="reason">Turn on Pull requests to change its query.</p>
-          <div class="row"><label class="name" for="gh-query">GitHub search query<small>Refreshed every ten minutes through the GitHub CLI.</small></label><span class="end"><input type="text" class="query" id="gh-query" spellcheck="false"><button class="btn" id="gh-reset">Reset</button></span></div>
+        <fieldset id="gh-opts">
+          <div class="row"><label class="name" for="gh-query">GitHub search query<small>Refreshes every 10 minutes.</small></label><span class="end"><input type="text" class="query" id="gh-query" spellcheck="false"><button class="btn" id="gh-reset">Reset</button></span></div>
         </fieldset>
       </div>
-      <div class="row"><label class="name" for="art-on">Claude Artifacts<small>Artifact pages you open get their own sidebar section. Ones an agent opens stay in Tabs.</small></label><input type="checkbox" class="switch" id="art-on" data-set="artifactGroup"></div>
       <div class="module" data-module="gmail">
         <div class="row head"><label class="name" for="gm-on"><span data-icon="gmail"></span>Unread mail<small id="gm-status"></small></label><input type="checkbox" class="switch" id="gm-on"></div>
-        <fieldset id="gm-opts"><p class="reason">Turn on Unread mail to manage its account.</p>
+        <fieldset id="gm-opts">
           <div class="row" id="gm-account-row"><span class="name">Gmail in this space<small id="gm-account"></small></span><button class="btn" id="gm-signout">Sign out</button></div>
         </fieldset>
       </div>
       <div class="module" data-module="outlook">
-        <div class="row head"><label class="name" for="ol-on"><span data-icon="outlook"></span>Outlook icon<small>Shows while this space is signed in to Outlook, including through Defender for Cloud Apps.</small></label><input type="checkbox" class="switch" id="ol-on"></div>
-        <div class="row"><label class="name" for="ol-mail">Unread mail (Outlook)<small>Lists unread inbox mail under the icon, read in a hidden Outlook page. Off, or when Outlook won't answer, the icon just opens Outlook.</small></label><input type="checkbox" class="switch" id="ol-mail"></div>
+        <div class="row head"><label class="name" for="ol-on"><span data-icon="outlook"></span>Outlook icon<small>Shows while this space is signed in to Outlook.</small></label><input type="checkbox" class="switch" id="ol-on"></div>
+        <div class="row"><label class="name" for="ol-mail">Unread mail (Outlook)<small>Lists unread inbox mail under the icon. Off, the icon just opens Outlook.</small></label><input type="checkbox" class="switch" id="ol-mail"></div>
+      </div>
+      <div class="module">
+        <div class="row head"><label class="name" for="art-on"><span data-icon="link"></span>Claude Artifacts<small>Artifacts you open get their own section. Ones an agent opens stay in Tabs.</small></label><input type="checkbox" class="switch" id="art-on" data-set="artifactGroup"></div>
       </div>
     </section>
 
-
     <section id="dictation"><h2>Dictation</h2>
-      <div class="row"><label class="name" for="dict-on">Dictation<small>Speak into any text field, including AI chats and agent replies. Speech becomes text on this device; no audio leaves it.</small></label><input type="checkbox" class="switch" id="dict-on" data-set="dictation"></div>
-      <fieldset id="dict-opts" style="border:0;margin:0;padding:0"><p class="reason" id="dict-reason">Turn on Dictation to choose its shortcut and get the speech model.</p>
-        <div class="row"><label class="name" for="dict-key">Shortcut<small id="dict-key-note">Starts and stops dictation. Click the box, then press the keys you want.</small></label><input type="text" id="dict-key" readonly style="width:150px;text-align:center" aria-describedby="dict-key-note"></div>
+      <div class="row"><label class="name" for="dict-on">Dictation<small>Speak into any text field. Speech becomes text on this Mac; no audio leaves it.</small></label><input type="checkbox" class="switch" id="dict-on" data-set="dictation"></div>
+      <fieldset id="dict-opts" style="border:0;margin:0;padding:0">
+        <p class="reason" id="dict-reason">Turn on Dictation to choose its shortcut and get the speech model.</p>
+        <div class="row"><label class="name" for="dict-key">Shortcut<small id="dict-key-note">Starts and stops dictation. Click, then press the keys.</small></label><input type="text" id="dict-key" readonly style="width:150px;text-align:center" aria-describedby="dict-key-note"></div>
         <div class="row"><span class="name">Speech model<small id="dict-model" role="status"></small></span><span class="end"><button class="btn" id="dict-get">Download now</button><button class="btn" id="dict-remove">Remove downloaded model</button></span></div>
       </fieldset>
     </section>
 
     <section id="chat"><h2>Model chat</h2>
-      <p class="reason">Ask: chat with any AI, a model on your computer (Ollama, LM Studio, llama.cpp, Jan), or OpenAI or Anthropic with your own API key. API keys stay in your macOS Keychain and are only sent over HTTPS or to this Mac. With Search the web on, OpenAI and Anthropic use their own web search; for a model on your computer, Roar searches in a private page with no cookies or logins.</p>
-      <p class="reason" id="code-copy">Code: coding assistants you've installed (Claude Code, Codex, Gemini CLI, Qwen Code) run in a locked-down sandbox on your own plan. Sending a tab: only Claude Code can receive one, because it's the only one that can run with all its tools off.</p>
+      <p class="reason">Chat with a model on this Mac, or OpenAI and Anthropic with your own API key. Keys stay in your Keychain.</p>
       <div id="ask-llm-row"></div>
-      <div class="row"><label class="name" for="chat-default">Default model<small id="chat-default-note">Models from the servers that answer right now.</small></label><select id="chat-default"></select></div>
+      <div class="row"><label class="name" for="chat-default">Default model<small id="chat-default-note">Models from the servers that answer now.</small></label><select id="chat-default"></select></div>
       <h3>Providers</h3>
+      <p class="reason" id="code-copy">Coding assistants you've installed run sandboxed on your own plan. Only Claude Code can be sent a tab.</p>
       <div id="chat-providers"></div>
-      <div class="row"><span class="name">Add an OpenAI-compatible server<small>Any server with /v1/chat/completions, e.g. vLLM or LiteLLM.</small></span>
+      <div class="row"><span class="name">Add an OpenAI-compatible server<small>Any server with /v1/chat/completions, like vLLM or LiteLLM.</small></span>
         <span class="end"><input type="text" id="chat-add-name" placeholder="Name" aria-label="New server name" style="width:110px"><input type="text" id="chat-add-url" class="query" placeholder="http://localhost:8000/v1" aria-label="New server URL" style="width:220px"><button class="btn" id="chat-add">Add</button></span></div>
     </section>
 
     <section id="agents"><h2>Agents</h2>
+      <div class="row"><span class="name">Agent order<small>Drag to reorder. Rename with AI uses the first agent with a running session; Shift-click to choose.</small><span hidden>Tools you use. Show more, copy config.</span></span></div>
       <div id="agent-setup"></div>
-      <div class="row"><span class="name" id="view-label">Show agent sessions as<small>Each session can switch with its own Chat / Terminal toggle.</small></span>
+      <div class="row"><span class="name" id="view-label">Show agent sessions as<small>Each session can switch on its own.</small></span>
         <div class="segmented" role="group" aria-labelledby="view-label" data-seg="agentTerminal">
-          <button data-v="false">Chat (simpler)</button><button data-v="true">Terminal (full control)</button></div></div>
-      <div class="row"><span class="name" id="order-label">Agent order<small>Rename with AI goes to the first agent with a running session. Shift-click to choose.</small></span></div>
-      <ol id="agent-order" aria-labelledby="order-label" style="list-style:none;margin:0;padding:0"></ol>
-      <details class="group" id="agent-details"><summary>Details</summary>
-        <div class="row"><label class="name" for="cl-side">Agents in the sidebar</label><input type="checkbox" class="switch" id="cl-side" data-set="claudeSidebar"></div>
-        <div class="row"><label class="name" for="al-done">Alert me when a session finishes</label><input type="checkbox" class="switch" id="al-done" data-set="claudeAlertDone"></div>
-        <div class="row"><label class="name" for="al-autodone">Auto-dismiss done cards<small>After 45 seconds on screen while Roar is focused.</small></label><input type="checkbox" class="switch" id="al-autodone" data-set="autoDismissDone"></div>
-        <div class="row"><label class="name" for="al-needs">Alert me when a session needs me</label><input type="checkbox" class="switch" id="al-needs" data-set="claudeAlertNeeds"></div>
-        <div class="row"><label class="name" for="al-sys">Also send a macOS notification</label><input type="checkbox" class="switch" id="al-sys" data-set="claudeAlertSystem"></div>
-        <div class="row"><label class="name" for="af-on">Agent files row<small>Opens CLAUDE.md, AGENTS.md, rules.</small></label><input type="checkbox" class="switch" id="af-on" data-set="agentFilesRow"></div>
-        <div class="row"><label class="name" for="cdp-on" title="Close it before a site that flags automated browsers">Agents can browse with Roar<small>Per space: click the current space's dot in the sidebar; a ring means agents are allowed there.</small></label><span class="end"><button class="btn" id="cdp-relaunch" hidden>Relaunch to apply</button><input type="checkbox" class="switch" id="cdp-on" data-set="cdpEnabled"></span></div>
-        <fieldset id="agent-opts">
-          <div class="row"><span class="name" id="mode-label">Where agents browse<small id="mode-note"></small></span>
-            <div class="segmented" role="group" aria-labelledby="mode-label" data-seg="agentHeadless">
-              <button data-v="false">With you</button><button data-v="true">In the background</button></div></div>
-          <div class="row"><span class="name">Spaces agents can see<small>Ghost tabs are never shared.</small></span></div>
-          <div id="agent-spaces"></div>
-        </fieldset>
-      </details>
-      <details class="group" id="card-diag"><summary>Agent cards (diagnostics)</summary>
-        <div class="row"><span class="name">Cards in the sidebar now<small>Where each came from and why it is still there. Dismiss answers a waiting question with "dismissed".</small></span><span class="end"><button class="btn" id="cards-refresh">Refresh</button></span></div>
+          <button data-v="false">Chat</button><button data-v="true">Terminal</button></div></div>
+      <h3>Sidebar</h3>
+      <div class="row"><label class="name" for="cl-side">Agent sessions in the sidebar</label><input type="checkbox" class="switch" id="cl-side" data-set="claudeSidebar"></div>
+      <div class="row"><label class="name" for="af-on">Agent files row<small>Opens CLAUDE.md, AGENTS.md and rules.</small></label><input type="checkbox" class="switch" id="af-on" data-set="agentFilesRow"></div>
+      <h3>Browsing</h3>
+      <div class="row"><label class="name" for="cdp-on" title="Close it before a site that flags automated browsers">Agents can browse with Roar<small>Per space: click the space's dot in the sidebar. A ring means agents can reach it.</small></label><span class="end"><button class="btn" id="cdp-relaunch" hidden>Relaunch to apply</button><input type="checkbox" class="switch" id="cdp-on" data-set="cdpEnabled"></span></div>
+      <fieldset id="agent-opts">
+        <div class="row"><span class="name" id="mode-label">Where agents browse<small id="mode-note"></small></span>
+          <div class="segmented" role="group" aria-labelledby="mode-label" data-seg="agentHeadless">
+            <button data-v="false">With you</button><button data-v="true">In the background</button></div></div>
+        <div class="row"><span class="name">Spaces agents can see<small>Ghost tabs are never shared.</small></span></div>
+        <div id="agent-spaces"></div>
+      </fieldset>
+      <p class="reason">Alerts for sessions are in <a href="#notifications" data-goto="notifications">Notifications</a>.</p>
+      <details class="group" id="card-diag"><summary>Cards in the sidebar now</summary>
+        <div class="row"><span class="name">Where each card came from and why it's still up<small>Dismiss answers a waiting question with “dismissed”.</small></span><span class="end"><button class="btn" id="cards-refresh">Refresh</button></span></div>
         <div id="agent-cards"></div>
       </details>
+    </section>
+
+    <section id="notifications"><h2>Notifications</h2>
+      <p class="reason">Cards appear in the sidebar. Done cards count time only while Roar is in front.</p>
+      <div class="nt-head" aria-hidden="true"><span></span><span>Clears after</span><span>macOS</span><span>On</span></div>
+      <div id="notify-rows"></div>
     </section>
 
     <section id="privacy"><h2>Privacy</h2>
       <div class="row"><label class="name" for="index-on">Remember the text of pages I visit<small id="index-status"></small></label><span class="end"><button class="btn" id="forget" hidden>Forget saved text</button><input type="checkbox" class="switch" id="index-on" data-set="indexPages"></span></div>
       <div class="module">
-        <div class="row head"><label class="name" for="clean-links"><span data-icon="link"></span>Clean links I copy<small>Copy Link Address gives you the real link. Links you open are never changed.</small></label><input type="checkbox" class="switch" id="clean-links" data-set="cleanLinks"></div>
-        <fieldset id="clean-opts"><p class="reason">Turn on Clean links to choose what it removes.</p>
+        <div class="row head"><label class="name" for="clean-links"><span data-icon="link"></span>Clean links I copy<small>Copy Link Address gives the real link. Links you open never change.</small></label><input type="checkbox" class="switch" id="clean-links" data-set="cleanLinks"></div>
+        <fieldset id="clean-opts">
           <div class="row"><label class="name" for="cl-safe">Unwrap Outlook and Teams Safe Links</label><input type="checkbox" class="switch" id="cl-safe" data-set="cleanSafeLinks"></div>
           <div class="row"><label class="name" for="cl-mcas">Remove Microsoft Defender's .mcas.ms proxy</label><input type="checkbox" class="switch" id="cl-mcas" data-set="cleanMcas"></div>
-          <div class="row"><label class="name" for="cl-track">Remove tracking parameters<small>utm_*, fbclid, gclid, msclkid, mc_eid and similar</small></label><input type="checkbox" class="switch" id="cl-track" data-set="cleanTracking"></div>
-          <div class="row"><label class="name" for="cl-params">Also remove these parameters<small>Separate with commas; end a name with * to match a prefix, like ref, src_*</small></label><input type="text" class="query" id="cl-params" data-set="cleanParams" spellcheck="false" placeholder="ref, src_*"></div>
+          <div class="row"><label class="name" for="cl-track">Remove tracking parameters<small>utm_*, fbclid, gclid, msclkid and similar.</small></label><input type="checkbox" class="switch" id="cl-track" data-set="cleanTracking"></div>
+          <div class="row"><label class="name" for="cl-params">Also remove these parameters<small>Comma-separated. End with * to match a prefix.</small></label><input type="text" class="query" id="cl-params" data-set="cleanParams" spellcheck="false" placeholder="ref, src_*"></div>
         </fieldset>
       </div>
     </section>
 
     <section id="backup"><h2>Backup</h2>
-      <div class="module">
-        <div class="row"><label class="name" for="bk-settings">Settings, spaces and tabs<small>Settings, spaces with their names, colors and agent access, pinned tabs, folders, bookmarks, site permissions</small></label><input type="checkbox" class="switch" id="bk-settings" checked></div>
-        <div class="row"><label class="name" for="bk-extensions">Extensions and their data<small>Installed extensions with their settings and storage, such as userscripts and uBlock filters. Needs Settings.</small></label><input type="checkbox" class="switch" id="bk-extensions" checked></div>
-        <div class="row"><label class="name" for="bk-browsing">Include browsing data (cookies, history, sessions)<small id="bk-browsing-note">Off by default. The file then holds your sign-ins: keep it as safe as a password.</small></label><input type="checkbox" class="switch" id="bk-browsing"></div>
-      </div>
-      <p class="status">Saved passwords and model chat API keys are never exported. Cookies restore on the same kind of computer; on Windows, only for the same Windows account.</p>
-      <div class="row"><span class="name">Export<small>Saves everything ticked above to one .roarbackup file.</small></span><button class="btn" id="bk-export">Export…</button></div>
-      <div class="row"><span class="name">Import<small>Replaces what the backup holds, after saving a safety backup of the current state. Roar restarts to finish.</small></span><button class="btn" id="bk-import">Import…</button></div>
+      <h3>What to include</h3>
+      <div class="row"><label class="name" for="bk-settings">Settings, spaces and tabs<small>Also pinned tabs, folders, bookmarks and site permissions.</small></label><input type="checkbox" class="switch" id="bk-settings" checked></div>
+      <div class="row"><label class="name" for="bk-extensions">Extensions and their data<small>Such as userscripts and uBlock filters. Needs Settings.</small></label><input type="checkbox" class="switch" id="bk-extensions" checked></div>
+      <div class="row"><label class="name" for="bk-browsing">Browsing data (cookies, history, sessions)<small id="bk-browsing-note">The file then holds your sign-ins. Keep it as safe as a password.</small></label><input type="checkbox" class="switch" id="bk-browsing"></div>
+      <p class="status">Passwords and API keys are never exported. Cookies restore only on the same kind of computer.</p>
+      <div class="row"><span class="name">Export<small>Saves what's on above to one .roarbackup file.</small></span><button class="btn" id="bk-export">Export…</button></div>
+      <div class="row"><span class="name">Import<small>Saves a safety backup first, then replaces and restarts.</small></span><button class="btn" id="bk-import">Import…</button></div>
       <div id="bk-preview" hidden>
         <p class="status" id="bk-summary"></p>
         <div class="end"><button class="btn" id="bk-cancel">Cancel</button><button class="btn" id="bk-confirm">Replace and restart</button></div>
@@ -182,23 +208,25 @@ pre { margin: 6px 0; font: 12px/1.6 var(--mono); background: var(--ground); bord
     </section>
 
     <section id="advanced"><h2>Advanced</h2>
-      <details class="row"><summary>Automation: CDP port, AppleScript</summary>
-        <p class="status">Agents connect through the Chrome DevTools Protocol on <code id="port">127.0.0.1:9222</code>; any CDP client can too. Roar also has an AppleScript dictionary:</p>
+      <h3>Updates</h3>
+      <div class="row"><label class="name" for="au-check">Check for updates automatically<small id="au-note">Once a day.</small></label><input type="checkbox" class="switch" id="au-check" data-set="autoUpdateChecks"></div>
+      <div class="row"><label class="name" for="au-dl">Download and install updates automatically<small>Off: Roar asks first.</small></label><input type="checkbox" class="switch" id="au-dl" data-set="autoUpdateDownloads"></div>
+      <div class="row"><span class="name">Check now</span><span class="end"><button class="btn" id="check-updates">Check for updates</button><button class="btn" id="update-chromium" title="Rebuilds Roar on the newest stable Chromium from its source checkout">Update Chromium</button></span></div>
+      <h3>Automation</h3>
+      <div class="row"><span class="name">CDP port<small>Agents and any CDP client connect on <code id="port">127.0.0.1:9222</code>.</small></span></div>
+      <details class="row"><summary>AppleScript example</summary>
         <pre>tell application "Roar"
   open url "https://example.com"
   execute javascript "document.title"
   get URL of every tab
 end tell</pre>
       </details>
-      <details class="row" open><summary>Updates</summary>
-        <div class="row"><label class="name" for="au-check">Check for updates automatically<small id="au-note">Roar looks for a new version once a day.</small></label><input type="checkbox" class="switch" id="au-check" data-set="autoUpdateChecks"></div>
-        <div class="row"><label class="name" for="au-dl">Download and install updates automatically<small>Off: Roar asks before each update.</small></label><input type="checkbox" class="switch" id="au-dl" data-set="autoUpdateDownloads"></div>
-        <div class="end"><button class="btn" id="check-updates">Check for updates</button><button class="btn" id="update-chromium" title="Rebuilds Roar on the newest stable Chromium from its source checkout">Update Chromium</button></div>
-      </details>
-      <div class="row"><span class="name">Open-source licenses<small>Licenses and notices for the software Roar includes.</small></span><span class="end"><button class="btn" id="licenses">Open-source licenses</button><button class="btn" id="credits">Chromium credits</button></span></div>
-      <div class="row"><span class="name">Onboarding<small>The five first-run steps again. Nothing is reset.</small></span><button class="btn" id="onboarding">Show onboarding</button></div>
-      <div class="row"><span class="name">Reset settings<small>Settings back to defaults, then onboarding. Tabs, spaces, bookmarks, extensions and logins stay.</small></span><button class="btn" id="reset-all">Reset settings…</button></div>
-      <div class="row"><span class="name">Reset Roar<small>Deletes everything Roar keeps (tabs, spaces, logins, history, extensions) and starts fresh.</small></span><button class="btn" id="reset-roar">Reset Roar…</button></div>
+      <h3>About</h3>
+      <div class="row"><span class="name">Open-source licenses<small>Licenses and notices for software Roar includes.</small></span><span class="end"><button class="btn" id="licenses">Open-source licenses</button><button class="btn" id="credits">Chromium credits</button></span></div>
+      <div class="row"><span class="name">Onboarding<small>The first-run steps again. Nothing is reset.</small></span><button class="btn" id="onboarding">Show onboarding</button></div>
+      <h3>Reset</h3>
+      <div class="row"><span class="name">Reset settings<small>Defaults, then onboarding. Tabs, spaces, bookmarks, extensions and logins stay.</small></span><button class="btn" id="reset-all">Reset settings…</button></div>
+      <div class="row"><span class="name">Reset Roar<small>Deletes all tabs, spaces, logins, history and extensions.</small></span><button class="btn" id="reset-roar">Reset Roar…</button></div>
     </section>
   </main>
 </div>
@@ -209,11 +237,11 @@ end tell</pre>
 <script src="chat-core.js"></script>
 <script>
 // Agent CLIs need macOS sandbox-exec; the Windows build can't start them yet.
-if (/^Win/.test(navigator.platform)) document.getElementById('code-copy').textContent = "Code: coding assistants you've installed (Claude Code, Codex, Gemini CLI, Qwen Code) can't run here yet: on Windows, Roar has no sandbox for them.";
+if (/^Win/.test(navigator.platform)) document.getElementById('code-copy').textContent = "Coding assistants can't run here yet: on Windows, Roar has no sandbox for them.";
 const $ = (id) => document.getElementById(id);
 const GH_DEFAULT = 'is:open is:pr author:@me archived:false';  // Matches Settings::github_query.
 let last = null;
-const setup = agentSetup($('agent-setup'), { llm: false });
+const setup = agentSetup($('agent-setup'), { llm: false, list: true });
 $('ask-llm-row').innerHTML = llmRowHtml();  // ⌘T's AI lives with Model chat; onboarding keeps it with agents.
 const showLlm = llmPicker($('as-llm'), () => refresh());
 $('reset-all').onclick = () => { if (confirm('Reset every setting to its default? Tabs, spaces, bookmarks, extensions and logins stay.')) ask({ cmd: 'settings.reset' }).then(apply); };
@@ -223,14 +251,47 @@ $('onboarding').onclick = () => ask({ cmd: 'open', text: 'roar://ui/welcome.html
 $('reset-roar').onclick = () => { if (confirm('Reset Roar? Roar quits, deletes all its tabs, spaces, logins, history and extensions, and starts fresh. This can’t be undone.')) ask({ cmd: 'run', id: 'factoryReset' }); };
 const set = (settings) => ask({ cmd: 'settings.set', settings }).then(apply);
 const refresh = () => ask({ cmd: 'state' }).then(apply);
-$('agent-order').onclick = (e) => {
-  const b = e.target.closest('[data-ord]');
-  if (!b) return;
-  const o = agentOrder(last), i = o.indexOf(b.dataset.ord), j = i + +b.dataset.dir;
-  if (j < 0 || j >= o.length) return;
-  [o[i], o[j]] = [o[j], o[i]];
-  set({ agentOrder: JSON.stringify(o) }).then(() => document.querySelector(`[data-ord="${b.dataset.ord}"][data-dir="${b.dataset.dir}"]:not([disabled])`)?.focus());
+
+// Notifications: same ids, order and defaults as NotifyTypes (src/notify_prefs.h); saved in
+// settings.notifications as "id:on:secs:mac,…". Hidden words keep the old switches' names searchable.
+const NOTIFY = [
+  ['sessionDone', 'Session finished', 'An agent session finished its turn.', [1, 45, 1], 'Alert me when a session finishes. Auto-dismiss done cards. Also send a macOS notification.'],
+  ['sessionNeeds', 'Session needs you', 'An agent session is waiting for you.', [1, 120, 1], 'Alert me when a session needs me.'],
+  ['agentDone', 'Agent messages', 'Updates an agent sends you, such as “done”.', [1, 45, 0], 'notify_user done info cards'],
+  ['agentNeeds', 'Agent needs you', 'An agent is blocked. Questions it asks always show.', [1, 120, 1], 'notify_user needs_you ask_user'],
+  ['agentPage', 'Agent opened a page', 'While Roar is in the background.', [1, 45, 0], ''],
+  ['update', 'Update available', 'A new version of Roar is ready to install.', [0, 0, 0], ''],
+  ['download', 'Download finished', 'A file finished downloading.', [0, 15, 0], ''],
+  ['dictation', 'Dictation stopped', 'For example, no speech was heard.', [0, 15, 0], ''],
+  ['error', 'Something failed', 'A download, an import, or an agent session that didn’t start.', [0, 45, 0], 'errors'],
+];
+const DISMISS = [[0, 'Never'], [5, '5 s'], [15, '15 s'], [30, '30 s'], [45, '45 s'], [120, '2 min']];
+const notifyParse = (str) => {
+  const m = {};
+  for (const e of (str || '').split(',')) {
+    const [id, on, secs, mac] = e.split(':');
+    if (/^[01]$/.test(on) && /^\d+$/.test(secs) && /^[01]$/.test(mac)) m[id] = [+on, +secs, +mac];
+  }
+  return Object.fromEntries(NOTIFY.map(([id, , , d]) => [id, m[id] || d]));
 };
+$('notify-rows').innerHTML = NOTIFY.map(([id, name, note, , kw]) => `<div class="row nt" data-nt="${id}"><span class="name">${esc(name)}<small>${esc(note)}</small>${kw ? `<span hidden>${esc(kw)}</span>` : ''}</span>
+  <select data-nt-secs aria-label="${esc(name)}: clears after">${DISMISS.map(([v, l]) => `<option value="${v}">${l}</option>`).join('')}</select>
+  <input type="checkbox" data-nt-mac aria-label="${esc(name)}: also send a macOS notification">
+  <input type="checkbox" class="switch" data-nt-on aria-label="${esc(name)}"></div>`).join('');
+function notifyShow(st) {
+  const m = notifyParse(st.notifications);
+  for (const r of document.querySelectorAll('[data-nt]')) {
+    const [on, secs, mac] = m[r.dataset.nt], sel = r.querySelector('[data-nt-secs]');
+    if (![...sel.options].some((o) => +o.value === secs)) sel.add(new Option(secs + ' s', secs));
+    if (document.activeElement !== sel) sel.value = String(secs);
+    r.querySelector('[data-nt-on]').checked = !!on;
+    r.querySelector('[data-nt-mac]').checked = !!mac;
+    sel.disabled = r.querySelector('[data-nt-mac]').disabled = !on;
+    r.classList.toggle('off', !on);
+  }
+}
+$('notify-rows').onchange = () => set({ notifications: [...document.querySelectorAll('[data-nt]')].map((r) =>
+  [r.dataset.nt, +r.querySelector('[data-nt-on]').checked, +r.querySelector('[data-nt-secs]').value, +r.querySelector('[data-nt-mac]').checked].join(':')).join(',') });
 for (const el of document.querySelectorAll('[data-icon]')) el.innerHTML = MODULE_ICONS[el.dataset.icon];
 
 // Updates controls in place, so focus never moves (no container is rebuilt here).
@@ -270,17 +331,14 @@ function apply(s) {
   $('update-chromium').hidden = !st.canBuildChromium;
   $('au-check').disabled = !st.updaterOn;
   $('au-dl').disabled = !st.updaterOn || !st.autoUpdateChecks;
-  $('au-note').textContent = st.updaterOn ? 'Roar looks for a new version once a day.' : 'Updates are off in test and headless instances.';
+  $('au-note').textContent = st.updaterOn ? 'Once a day.' : 'Updates are off in test and headless instances.';
   $('mode-note').textContent = st.agentHeadless
     ? 'Agents use a separate, invisible Roar with its own profile: none of your logins, and nothing appears in this window.'
     : 'Agents open tabs in this window with your logins, so you can watch what they do.';
   // Only a build without Roar's CEF patch needs a relaunch to apply it.
   $('cdp-relaunch').hidden = st.cdpLive || st.cdpEnabled === st.cdpOn;
+  notifyShow(st);
   // One switch per space (the same flag as "Allow agents" in a space's sidebar menu).
-  const order = agentOrder(s), live = (s.claude?.items || []).filter((c) => c.live);
-  const ordHtml = order.map((t, i) => { const n = live.filter((c) => agentTool(c) === t).length;
-    return `<li class="row" style="min-height:34px"><span class="name" style="display:flex;gap:8px;align-items:center">${i + 1}. ${agentIcon(t, 14)}${esc(AGENT_TOOLS[t][0])}<small style="display:inline">${n ? n + ' running' : ''}</small></span><span class="end"><button class="btn" data-ord="${t}" data-dir="-1" aria-label="Move ${esc(AGENT_TOOLS[t][0])} up"${i ? '' : ' disabled'}>↑</button><button class="btn" data-ord="${t}" data-dir="1" aria-label="Move ${esc(AGENT_TOOLS[t][0])} down"${i < order.length - 1 ? '' : ' disabled'}>↓</button></span></li>`; }).join('');
-  if ($('agent-order').innerHTML !== ordHtml) $('agent-order').innerHTML = ordHtml;
   if (!$('agent-spaces').contains(document.activeElement))
     $('agent-spaces').innerHTML = s.spaces.map((sp) => `<div class="row"><label class="name" for="sp-ag-${sp.id}">${esc(sp.name)}</label><input type="checkbox" class="switch" id="sp-ag-${sp.id}" data-space-agents="${sp.id}"${sp.agents ? ' checked' : ''}></div>`).join('');
   $('index-status').textContent = st.pageCount ? `${st.pageCount} ${st.pageCount === 1 ? 'page' : 'pages'} saved on this Mac, so ⌘T finds them by what they said.` : 'So ⌘T finds pages by what they said. Nothing saved yet.';
@@ -326,7 +384,7 @@ $('dict-key').onkeydown = (e) => {
   const mods = [e.metaKey && 'Cmd', e.ctrlKey && 'Ctrl', e.altKey && 'Alt', e.shiftKey && 'Shift'].filter(Boolean);
   if (!k) return;  // Still holding modifiers.
   if (!mods.length) return void ($('dict-key-note').textContent = `Add ${MAC ? '⌘, ⌃, ⌥ or ⇧' : 'Ctrl, Alt or Shift'} so the shortcut doesn't replace typing.`);
-  $('dict-key-note').textContent = 'Starts and stops dictation. Click the box, then press the keys you want.';
+  $('dict-key-note').textContent = 'Starts and stops dictation. Click, then press the keys.';
   set({ dictationKey: [...mods, k].join('+') }).then(() => $('dict-key').blur());
 };
 
@@ -408,6 +466,7 @@ $('bk-confirm').onclick = async () => {
     setTimeout(() => ask({ cmd: 'run', id: 'relaunch' }), 1500);
   } catch (e) { bkResult('Import failed, nothing changed: ' + e.message, true); }
 };
+document.querySelectorAll('[data-goto]').forEach((a) => a.onclick = (e) => { e.preventDefault(); showTab(a.dataset.goto); });
 $('tips').onclick = (e) => { e.preventDefault(); ask({ cmd: 'open', text: 'roar://ui/welcome.html#tips', newTab: true }); };
 
 // Tabs: one section shown at a time; the last one opened comes back next time.

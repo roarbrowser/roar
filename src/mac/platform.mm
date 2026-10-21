@@ -47,6 +47,7 @@
 }
 - (void)updater:(SPUUpdater*)updater didFindValidUpdate:(SUAppcastItem*)item {
   if (getenv("ROAR_SPARKLE_TEST")) fprintf(stderr, "sparkle: found update %s\n", item.displayVersionString.UTF8String);
+  roar::Controller::Get()->Notice("update", std::string("Roar ") + (item.displayVersionString.UTF8String ?: "") + " is available", "Roar > Check for Updates installs it.");
 }
 - (void)updaterDidNotFindUpdate:(SPUUpdater*)updater {
   if (getenv("ROAR_SPARKLE_TEST")) fprintf(stderr, "sparkle: no update\n");
@@ -676,7 +677,10 @@ void InstallMenu() {
                                                  [NSString stringWithFormat:@"CDP port %d", CdpPort()]];
     [app addItemWithTitle:label action:nil keyEquivalent:@""].enabled = NO;
   }
-  addCommand(app, @"Settings…", @"settings", @"⌘,");
+  // A real key equivalent, so ⌘, works even when no page has keyboard focus (pages that do get it
+  // first through OnKey; OpenSettings is idempotent either way).
+  addCommand(app, @"Settings…", @"settings", @"");
+  app.itemArray.lastObject.keyEquivalent = @",";
   [app addItemWithTitle:@"Uninstall Roar…" action:@selector(uninstallRoar:) keyEquivalent:@""].target = g_menu_target;
   [app addItem:[NSMenuItem separatorItem]];
   [app addItemWithTitle:@"Hide Roar" action:@selector(hide:) keyEquivalent:@"h"];

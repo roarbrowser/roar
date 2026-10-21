@@ -32,6 +32,7 @@ struct Settings {
   bool claude_sidebar = true;
   bool auto_dismiss_done = true;  // Done agent cards clear after kDoneSecs on screen (sidebar.html counts).
   bool claude_alert_done = true, claude_alert_needs = true, claude_alert_system = true;  // Which agent session states post a macOS notification (ClaudeAlert).
+  std::string notifications;  // Per-type notification prefs (notify_prefs.h); empty until State::Load migrates the four above.
   bool agent_files = false;  // Unused since 0.17 (it was off by default); kept so older state.json files load.
   bool agent_files_row = true;
   bool sidebar_counts = true;  // Before per-icon counts: false hid all; State::Load moves it into hidden_counts.
@@ -113,6 +114,7 @@ inline const std::vector<SettingField>& SettingFields() {
       {"claudeAlertDone", &Settings::claude_alert_done, true},
       {"claudeAlertNeeds", &Settings::claude_alert_needs, true},
       {"claudeAlertSystem", &Settings::claude_alert_system, true},
+      {"notifications", &Settings::notifications, true},
       {"agentFiles", &Settings::agent_files, false},
       {"agentFilesRow", &Settings::agent_files_row, true},
       {"sidebarCounts", &Settings::sidebar_counts, true},

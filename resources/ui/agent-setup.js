@@ -17,8 +17,12 @@ function llmPicker(sel, after) {
   return (settings) => { if (document.activeElement !== sel) sel.value = (settings.askLlms || '').split(',')[0]; };
 }
 
-function agentSetup(root, { llm = true } = {}) {
-  root.innerHTML = `${llm ? llmRowHtml() : ''}
+// list: Settings' single list instead: one row per agent with its status and one action, the CLIs in
+// agentOrder (drag a row, or arrow keys on its handle), one "Reconnect all" banner for outdated ones.
+function agentSetup(root, { llm = true, list: asList = false } = {}) {
+  root.innerHTML = asList ? `<div class="as-banner" role="status" hidden></div><ol class="as-list"><li class="empty">Looking for agent tools…</li></ol>
+    <details class="as-more"><summary>Other apps: copy their config</summary><ol class="as-list as-away"></ol></details>`
+    : `${llm ? llmRowHtml() : ''}
     <h3>Tools you use</h3><div class="as-tools"><span class="empty">Looking for agent tools…</span></div>
     <details class="as-more"><summary>Show more / copy config</summary><div class="as-away"></div></details>`;
   const sel = root.querySelector('#as-llm'), showLlm = sel ? llmPicker(sel, () => refresh()) : () => {}, box = root.querySelector('.as-tools'), away = root.querySelector('.as-away');
@@ -43,8 +47,78 @@ function agentSetup(root, { llm = true } = {}) {
     return list;
   }
 
+  function renderList() {
+    const list = rows(), order = agentOrder(st), live = (st.claude?.items || []).filter((c) => c.live);
+    const tools = order.map((t) => list.find((r) => r.key === t)).filter(Boolean);
+    const others = list.filter((r) => !r.hook && r.here), away = list.filter((r) => !r.hook && !r.here);
+    const old = list.filter((r) => r.outdated && (r.needHook || r.needMcp));
+    const names = (v) => v.map((r) => r.name).reduce((s, n, i) => s + (i ? (i + 1 === v.length ? ' and ' : ', ') : '') + n, '');
+    const banner = root.querySelector('.as-banner');
+    banner.hidden = !old.length;
+    banner.innerHTML = old.length ? `<span>${esc(names(old))} ${old.length === 1 ? 'points' : 'point'} at an old copy of Roar. Roar repairs this at launch, or reconnect now.</span><button class="btn" data-reconnect-all>Reconnect all</button>` : '';
+    const action = (r) => r.needHook || r.needMcp
+      ? r.connected ? (r.needHook ? `<button class="btn" data-key="${esc(r.key)}">Disconnect</button>` : '')
+        : `<button class="btn" data-key="${esc(r.key)}">${r.outdated ? 'Reconnect' : 'Connect'}</button>`
+      : r.mcp?.snippet ? `<button class="btn" data-copy="${esc(r.key)}">Copy config</button>` : '';
+    const status = (r) => {
+      const n = r.hook ? live.filter((c) => agentTool(c) === r.hook).length : 0;
+      if (r.outdated) return '<small class="status warn">Needs reconnecting</small>';
+      if (r.note) return `<small class="status warn">${esc(r.note)}</small>`;
+      if (r.connected) return `<small data-state="available">Connected${n ? ` · ${n} running` : ''}</small>`;
+      return `<small>${r.here ? 'Not connected' : 'Not on this Mac'}</small>`;
+    };
+    const row = (r, i) => `<li class="row as-row${r.here ? '' : ' away'}"${r.hook ? ` draggable="true" data-tool="${esc(r.key)}"` : ''}>${
+      r.hook ? `<button class="grip" data-grip="${esc(r.key)}" title="Drag to reorder" aria-label="${esc(r.name)}, ${i + 1} of ${tools.length}. Arrow keys move it.">${'<i></i>'.repeat(3)}</button>${agentIcon(r.hook, 16)}` : '<span class="grip-pad"></span>'}
+      <span class="name">${esc(r.name)}${status(r)}</span>${action(r)}</li>`;
+    const a = document.activeElement, had = root.contains(a) && (a.dataset.grip ? `[data-grip="${CSS.escape(a.dataset.grip)}"]` : a.dataset.key ? `[data-key="${CSS.escape(a.dataset.key)}"]` : '');
+    root.querySelector('.as-list').innerHTML = tools.map(row).join('') + others.map((r) => row(r, 0)).join('');
+    root.querySelector('.as-away').innerHTML = away.map((r) => row(r, 0)).join('');
+    root.querySelector('.as-more').hidden = !away.length;
+    if (had) root.querySelector(had)?.focus();
+  }
+  // Saves a new CLI order: |key| moved to index |to|.
+  const move = (key, to) => {
+    const o = agentOrder(st).filter((t) => t !== key);
+    o.splice(Math.max(0, Math.min(to, o.length)), 0, key);
+    return ask({ cmd: 'settings.set', settings: { agentOrder: JSON.stringify(o) } }).then(refresh);
+  };
+  if (asList) {
+    let dragging = '';
+    const clear = () => { for (const x of root.querySelectorAll('.drop')) x.classList.remove('drop'); };
+    root.addEventListener('keydown', (e) => {
+      const g = e.target.closest('[data-grip]');
+      if (!g || (e.key !== 'ArrowUp' && e.key !== 'ArrowDown')) return;
+      e.preventDefault();
+      move(g.dataset.grip, agentOrder(st).indexOf(g.dataset.grip) + (e.key === 'ArrowUp' ? -1 : 1));
+    });
+    root.addEventListener('dragstart', (e) => {
+      const li = e.target.closest('[data-tool]');
+      if (!li) return;
+      dragging = li.dataset.tool;
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', dragging);
+    });
+    root.addEventListener('dragover', (e) => {
+      const li = e.target.closest('[data-tool]');
+      if (!dragging || !li) return;
+      e.preventDefault();
+      if (!li.classList.contains('drop')) clear(), li.classList.add('drop');
+    });
+    root.addEventListener('dragend', () => { dragging = ''; clear(); });
+    root.addEventListener('drop', (e) => {
+      const li = e.target.closest('[data-tool]');
+      if (!dragging || !li) return;
+      e.preventDefault();
+      const key = dragging;
+      dragging = '';
+      clear();
+      if (li.dataset.tool !== key) move(key, agentOrder(st).indexOf(li.dataset.tool));
+    });
+  }
+
   function render() {
     if (!st) return;
+    if (asList) return renderList();
     showLlm(st.settings);
     const had = root.contains(document.activeElement) && document.activeElement.dataset.key;
     const list = rows(), here = list.filter((r) => r.here), gone = list.filter((r) => !r.here);
@@ -71,11 +145,19 @@ function agentSetup(root, { llm = true } = {}) {
       navigator.clipboard.writeText(c.snippet).then(() => { copy.textContent = 'Copied'; setTimeout(() => copy.textContent = 'Copy config', 1500); });
       return;
     }
+    const all = e.target.closest('[data-reconnect-all]');
+    if (all) {
+      all.textContent = 'Reconnecting…';
+      return void Promise.all(rows().filter((r) => r.outdated && (r.needHook || r.needMcp)).map((r) => connect(r, true))).finally(refresh);
+    }
     const b = e.target.closest('button[data-key]');
     const r = b && rows().find((x) => x.key === b.dataset.key);
     if (!r) return;
     const on = !r.connected;
     b.textContent = on ? 'Connecting…' : 'Disconnecting…';
+    connect(r, on).finally(refresh);
+  });
+  function connect(r, on) {
     const jobs = [];
     if (r.needHook) {
       // Disconnecting on purpose also stops the "can't see" warning for it; connecting brings it back.
@@ -84,8 +166,8 @@ function agentSetup(root, { llm = true } = {}) {
         .then(() => ask({ cmd: 'claude.hooks', tool: r.hook, on })));
     }
     if (on && r.needMcp && !r.mcp.connected) jobs.push(ask({ cmd: 'agents.connect', id: r.mcp.id }).then((err) => { errors[r.key] = err || ''; }));
-    Promise.all(jobs).finally(refresh);
-  });
+    return Promise.all(jobs);
+  }
   refresh();
   return { refresh };
 }
