@@ -613,10 +613,10 @@ window.roar = {
         : folderRows('github', [], () => '') + '<div class="note">No open pull requests.</div>');
 
     // Agent sessions (Claude Code, Codex, Gemini... hooked in from Settings): the module icon, its badge counting only the
-    // sessions that need you, and a list with those on top. A row opens the session's full view.
+    // sessions that need you, and a list in start order (newest first) so rows never jump. A row opens the session's full view.
     const needs = (c) => c.state === 'needs_you' && !c.acked;
     const names = agentNames(s);
-    const cl = (s.claude?.items || []).map((c) => names[c.id] ? { ...c, project: names[c.id] } : c).sort((a, b) => needs(b) - needs(a) || b.updated - a.updated);
+    const cl = (s.claude?.items || []).map((c) => names[c.id] ? { ...c, project: names[c.id] } : c).sort((a, b) => (b.started || b.updated) - (a.started || a.updated) || (a.id < b.id ? -1 : 1));
     // Hidden sessions live in settings so they stay hidden after a restart; ids of gone sessions are dropped.
     clHiddenAt = clHiddenMap(s);
     const clPruned = clHiddenPrune(clHiddenAt, cl.map((c) => c.id));

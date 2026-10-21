@@ -246,15 +246,62 @@ function fit() {
 }
 addEventListener('resize', fit);
 
+// tmux's SGR colors (capture-pane -e) as spans, so the mirror reads like the real terminal.
+const ANSI16 = ['#2e2a27', '#e5484d', '#46a758', '#ffc53d', '#3b8cff', '#c56ad6', '#12a5a4', '#d8d0c6', '#8a8079', '#ff6b6b', '#6fd36f', '#ffe08a', '#7ab4ff', '#e09cf0', '#5fd8d6', '#ffffff'];
+const ansi256 = (n) => {
+  if (n < 16) return ANSI16[n];
+  if (n >= 232) { const v = 8 + (n - 232) * 10; return `rgb(${v},${v},${v})`; }
+  n -= 16; const c = (x) => (x ? 55 + x * 40 : 0);
+  return `rgb(${c(Math.floor(n / 36))},${c(Math.floor(n / 6) % 6)},${c(n % 6)})`;
+};
+function ansiHtml(raw) {
+  let st = {}, out = '';
+  const parts = raw.replace(/\x1b\[[\d;?]*[A-Za-ln-z]|\x1b[()][\w]|\x1b\][^\x07]*\x07/g, '').split(/\x1b\[([\d;]*)m/);
+  for (let i = 0; i < parts.length; i++) {
+    if (i % 2) {
+      const c = parts[i] === '' ? [0] : parts[i].split(';').map(Number);
+      for (let j = 0; j < c.length; j++) {
+        const k = c[j];
+        if (k === 0) st = {};
+        else if (k === 1) st.b = 1; else if (k === 2) st.d = 1; else if (k === 3) st.i = 1; else if (k === 4) st.u = 1; else if (k === 7) st.r = 1;
+        else if (k === 22) st.b = st.d = 0; else if (k === 23) st.i = 0; else if (k === 24) st.u = 0; else if (k === 27) st.r = 0;
+        else if (k >= 30 && k <= 37) st.fg = ANSI16[k - 30]; else if (k >= 90 && k <= 97) st.fg = ANSI16[k - 82];
+        else if (k >= 40 && k <= 47) st.bg = ANSI16[k - 40]; else if (k >= 100 && k <= 107) st.bg = ANSI16[k - 92];
+        else if (k === 39) st.fg = ''; else if (k === 49) st.bg = '';
+        else if ((k === 38 || k === 48) && c[j + 1] === 5) { st[k === 38 ? 'fg' : 'bg'] = ansi256(c[j + 2] & 255); j += 2; }
+        else if ((k === 38 || k === 48) && c[j + 1] === 2) { st[k === 38 ? 'fg' : 'bg'] = `rgb(${c[j + 2]},${c[j + 3]},${c[j + 4]})`; j += 4; }
+      }
+    } else if (parts[i]) {
+      let [fg, bg] = st.r ? [st.bg || '#15100c', st.fg || '#eadfd2'] : [st.fg, st.bg];
+      const css = (fg ? `color:${fg};` : '') + (bg ? `background:${bg};` : '') + (st.b ? 'font-weight:700;' : '') + (st.d ? 'opacity:.6;' : '') + (st.i ? 'font-style:italic;' : '') + (st.u ? 'text-decoration:underline;' : '');
+      const t = slashMark.html(esc(parts[i]));
+      out += css ? `<span style="${css}">${t}</span>` : t;
+    }
+  }
+  return out;
+}
+const plain = (l) => l.replace(/\x1b\[[\d;?]*[A-Za-z]/g, '');
+// The CLI's own input box (rule, ❯ line(s), rule) at the bottom duplicates the reply box below, so it's cut.
+function dropPromptBox(raw) {
+  const lines = raw.split('\n'), rule = (l) => /^\s*[─━]{10,}\s*$/.test(plain(l));
+  let b = -1, a = -1;
+  for (let i = lines.length - 1; i >= Math.max(0, lines.length - 40); i--) if (rule(lines[i])) { if (b < 0) b = i; else { a = i; break; } }
+  if (a < 0 || b - a > 15 || !lines.slice(a + 1, b).some((l) => /^\s*[❯>]/.test(plain(l)))) return raw;
+  lines.splice(a, b - a + 1);
+  if (a < lines.length) lines[a] = '\x1b[0m' + lines[a];  // The cut lines held resets; don't let their colors run on.
+  return lines.join('\n');
+}
+
+let lastRaw = '';
 async function screen() {
   if (busy || document.hidden || $('screen').hidden || view === 'chat') return;
   busy = true;
   try {
-    let out = await clSession.ctl(id, 'screen');
+    let out = await clSession.ctl(id, 'screen', 'color');
     if (shownError(out)) return;
     const pre = $('screen'), atBottom = pre.scrollTop + pre.clientHeight >= pre.scrollHeight - 8;
     // One <span> so the text stays a single flex item in the #screen column.
-    if (pre.textContent !== (out = out.replace(/\s+$/, ''))) { pre.innerHTML = `<span>${slashMark.html(esc(out))}</span>`; fit(); if (atBottom) pre.scrollTop = pre.scrollHeight; }
+    if (lastRaw !== (out = dropPromptBox(out.replace(/\s+$/, '')))) { lastRaw = out; pre.innerHTML = `<span>${ansiHtml(out)}</span>`; fit(); if (atBottom) pre.scrollTop = pre.scrollHeight; }
   } finally { busy = false; }
 }
 
@@ -409,6 +456,21 @@ function slashPick(i) {
   box.dispatchEvent(new Event('input'));
 }
 for (const box of [$('text'), $('ctext')]) slashMark.field(box);
+// A pasted image is saved by Roar and goes in as an @path mention, which every hooked CLI reads as a file.
+for (const box of [$('text'), $('ctext')]) box.addEventListener('paste', async (e) => {
+  const files = [...(e.clipboardData?.files || [])].filter((f) => /^image\/(png|jpeg|gif|webp)$/.test(f.type));
+  if (!files.length) return;
+  e.preventDefault();
+  for (const f of files) {
+    const data = await new Promise((r) => { const fr = new FileReader(); fr.onload = () => r(String(fr.result).split(',')[1]); fr.readAsDataURL(f); });
+    let path;
+    try { path = await ask({ cmd: 'claude.saveImage', ext: f.type === 'image/jpeg' ? 'jpg' : f.type.slice(6), data }); } catch (err) { $('attach-why').hidden = false; $('attach-why').textContent = 'Couldn\'t paste the image: ' + (err?.message || err); continue; }
+    const at = box.selectionStart ?? box.value.length, ins = (at && !/\s$/.test(box.value.slice(0, at)) ? ' ' : '') + '@' + path + ' ';
+    box.value = box.value.slice(0, at) + ins + box.value.slice(box.selectionEnd ?? at);
+    box.selectionStart = box.selectionEnd = at + ins.length;
+    box.dispatchEvent(new Event('input'));
+  }
+});
 for (const box of [$('text'), $('ctext')]) {
   box.addEventListener('input', () => slashUpdate(box));
   box.addEventListener('blur', () => setTimeout(() => { if (slashBox === box && document.activeElement !== box) slashHide(); }, 150));

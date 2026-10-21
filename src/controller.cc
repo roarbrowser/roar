@@ -5109,7 +5109,7 @@ bool Controller::HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> 
     if (action == "tools") return platform::RoarMcp({"claude-ctl", "tools"}, [callback](const std::string& out) { callback->Success(out); }), true;
     if (action != "focus" && action != "screen" && action != "send" && action != "chat") return callback->Failure(0, "bad action"), true;
     std::vector<std::string> args = {"claude-ctl", action, msg->GetString("id").ToString()};
-    if (action == "send") args.push_back(msg->GetString("text").ToString());
+    if (action == "send" || action == "screen") args.push_back(msg->GetString("text").ToString());
     if (action == "chat") {
       // The CLI's start time links the session to its transcript (mcp/agent-chat.mjs pickTranscript).
       long long born = 0;
@@ -5333,6 +5333,20 @@ bool Controller::HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> 
     if (!tab || tab->ghost) return ShowHint("Ghost tabs stay private"), callback->Success(""), true;
     ExtractActive("claude:" + id, tab->id, msg->GetString("text").ToString());
     callback->Success("");
+  } else if (cmd == "claude.saveImage") {
+    // A pasted image, into the same temp folder Send tab uses; the page puts its @path in the prompt.
+    std::string ext = msg->GetString("ext").ToString();
+    if (ext != "png" && ext != "jpg" && ext != "gif" && ext != "webp") return callback->Failure(0, "unsupported image type"), true;
+    auto bytes = CefBase64Decode(msg->GetString("data"));
+    if (!bytes || !bytes->GetSize() || bytes->GetSize() > (20 << 20)) return callback->Failure(0, "image empty or over 20 MB"), true;
+    std::vector<char> buf(bytes->GetSize());
+    bytes->GetData(buf.data(), buf.size(), 0);
+    std::filesystem::path dir = std::filesystem::temp_directory_path() / "roar-claude-pages";
+    std::error_code ec;
+    std::filesystem::create_directories(dir, ec);
+    std::filesystem::path file = dir / (platform::RandomToken() + "." + ext);
+    if (!roar::AtomicWrite(file.string(), std::string(buf.data(), buf.size()))) return callback->Failure(0, "couldn't save the image"), true;
+    callback->Success(file.string());
   } else if (cmd == "claude.pickFolder") {
     platform::ChooseFolder([callback](const std::string& path) { callback->Success(path); });
   } else if (cmd == "claude.dismiss") {

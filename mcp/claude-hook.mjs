@@ -382,7 +382,8 @@ function ctl(action, id, arg, arg2) {
   const sf = cx && cx.surface ? ['--surface', cx.surface] : [];
   const tx = tm ? ['-S', tm.socket] : [];
   if (action === 'screen') {
-    if (tm) return run1(tm.bin, [...tx, 'capture-pane', '-p', '-J', '-t', tm.pane, '-S', '-2000']);
+    // 'color' keeps the SGR escapes (the full view renders them); the chat parser wants plain text.
+    if (tm) return run1(tm.bin, [...tx, 'capture-pane', '-p', '-J', ...(arg === 'color' ? ['-e'] : []), '-t', tm.pane, '-S', '-2000']);
     if (cx) return run1(cx.bin, ['read-screen', '--workspace', cx.workspace, ...sf, '--lines', '2000']);
     throw new Error('no live view for this terminal');
   }
