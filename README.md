@@ -224,7 +224,11 @@ me or anyone else. These are the connections Roar's own code makes (Chromium's a
 Roar is built on Chromium (via CEF) and does not turn off Chromium's own background networking,
 so Chromium components may still make requests of their own (for example to
 check for extension updates or component updates); these background services stay
-enabled. It is not a "zero outbound connections" browser. This list comes from reading Roar's source,
+enabled. Widevine (DRM video) is enabled and Chromium may download its module when a site asks for it.
+Roar identifies itself to sites as Chrome-compatible: its client hints name the "Google Chrome" brand,
+like its user agent, and it turns off the `navigator.webdriver` automation flag Chromium sets.
+These are compatibility settings, not permission to ignore a site's terms; follow each site's rules on automated access.
+It is not a "zero outbound connections" browser. This list comes from reading Roar's source,
 not from a network capture.
 
 ## For developers
@@ -297,6 +301,7 @@ Roar 0.37.14 is no longer offered for download, but its written offer still runs
 
 ## License
 
-Roar is released under the [MIT License](LICENSE). The build fetches third-party code
+Roar is released under the [MIT License](LICENSE). Chrome, Claude, ChatGPT, Ollama and other product names are trademarks of their owners;
+Roar is not affiliated with or endorsed by them and names them only to say what it works with. The build fetches third-party code
 that keeps its own license: [CEF](https://bitbucket.org/chromiumembedded/cef) (BSD) and
 [uBlock Origin Lite](https://github.com/uBlockOrigin/uBOL-home) (GPLv3).
