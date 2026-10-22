@@ -100,8 +100,18 @@ keep_build_record() {  # keep_build_record <installed CEF dir>
   echo "build-cef-codecs.sh: no dSYM matches the installed framework ($want); rebuild without --no-distrib-symbols" >&2; exit 1
 }
 
+# make_distrib copies the framework out of cefclient.app, which an incremental build can leave stale
+# (1.0.1-1.0.9 shipped a pre-patch framework, so H.264 never played); take the freshly linked one.
+sync_framework() {  # sync_framework <distrib dir>
+  local fw="$OUT/Chromium Embedded Framework.framework/Versions/A" dst="$1/Release/Chromium Embedded Framework.framework"
+  rm -rf "$dst"; ditto "$fw" "$dst"
+  [[ "$(dwarfdump --uuid "$dst/Chromium Embedded Framework" | awk '{print $2}')" == \
+     "$(dwarfdump --uuid "$fw/Chromium Embedded Framework" | awk '{print $2}')" ]] || { echo "framework sync failed" >&2; exit 1; }
+}
+
 if [[ "$ARCH" == x64 ]]; then
   DIST=$(ls -d "$CEF_SRC"/chromium/src/cef/binary_distrib/cef_binary_*_macosx64_minimal | head -1)
+  sync_framework "$DIST"
   rm -rf "$ROOT/third_party/cef-x64"
   cp -R "$DIST" "$ROOT/third_party/cef-x64"
   keep_build_record "$ROOT/third_party/cef-x64"
@@ -109,6 +119,7 @@ if [[ "$ARCH" == x64 ]]; then
   exit 0
 fi
 DIST=$(ls -d "$CEF_SRC"/chromium/src/cef/binary_distrib/cef_binary_*_macosarm64_minimal | head -1)
+sync_framework "$DIST"
 rm -rf "$ROOT/third_party/cef"
 cp -R "$DIST" "$ROOT/third_party/cef"
 keep_build_record "$ROOT/third_party/cef"
