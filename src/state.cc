@@ -1,4 +1,5 @@
 #include "state.h"
+#include "model_chat.h"
 
 #include <algorithm>
 #include <chrono>
@@ -219,6 +220,7 @@ void State::Load() {
   }
   if (auto s = d->GetDictionary("settings")) {
     settings.search_migrated = false;  // A file without the key predates the picker.
+    settings.chat_defaults_seen = "openai,anthropic";  // A file without it predates Perplexity.
     for (const auto& f : SettingFields())
       std::visit([&](auto m) {
         auto& v = settings.*m;
@@ -236,23 +238,24 @@ void State::Load() {
     if (!settings.sidebar_counts && settings.hidden_counts.empty()) settings.hidden_counts = R"({"cl-btn":1,"gh-btn":1,"gm-btn":1})";
     settings.sidebar_counts = true;
     if (settings.notifications.empty()) settings.notifications = NotifyMigrate(settings);
-    // Key providers added to the defaults later (Perplexity) join saved lists that predate them,
-    // unless one with that id or URL is already there.
+    // Key providers added to the defaults later (Perplexity) join a saved list once (ChatDefaultsToAdd).
     if (auto saved = CefParseJSON(settings.chat_providers, JSON_PARSER_RFC); saved && saved->GetType() == VTYPE_LIST) {
       auto have = saved->GetList();
       auto defs = CefParseJSON(Settings{}.chat_providers, JSON_PARSER_RFC)->GetList();
-      bool added = false;
-      for (size_t i = 0; i < defs->GetSize(); ++i) {
-        auto def = defs->GetDictionary(i);
-        if (!def->GetBool("key")) continue;
-        bool dup = false;
-        for (size_t j = 0; j < have->GetSize() && !dup; ++j)
-          if (auto h = have->GetDictionary(j))
-            dup = h->GetString("id") == def->GetString("id") || h->GetString("url") == def->GetString("url");
-        if (!dup) have->SetDictionary(have->GetSize(), def->Copy(false)), added = true;
-      }
-      if (added) settings.chat_providers = CefWriteJSON(saved, JSON_WRITER_DEFAULT).ToString();
+      std::vector<std::pair<std::string, std::string>> h, d;
+      for (size_t j = 0; j < have->GetSize(); ++j)
+        if (auto p = have->GetDictionary(j)) h.push_back({p->GetString("id"), p->GetString("url")});
+      std::vector<size_t> keyed;
+      for (size_t i = 0; i < defs->GetSize(); ++i)
+        if (auto p = defs->GetDictionary(i); p->GetBool("key")) keyed.push_back(i), d.push_back({p->GetString("id"), p->GetString("url")});
+      std::vector<std::string> seen;
+      for (size_t a = 0, b; a <= settings.chat_defaults_seen.size(); a = b + 1)
+        b = std::min(settings.chat_defaults_seen.find(',', a), settings.chat_defaults_seen.size()), seen.push_back(settings.chat_defaults_seen.substr(a, b - a));
+      auto add = ChatDefaultsToAdd(h, d, seen);
+      for (size_t i : add) have->SetDictionary(have->GetSize(), defs->GetDictionary(keyed[i])->Copy(false));
+      if (!add.empty()) settings.chat_providers = CefWriteJSON(saved, JSON_WRITER_DEFAULT).ToString();
     }
+    settings.chat_defaults_seen = Settings{}.chat_defaults_seen;
     // The old default listed PRs in archived repos too.
     if (settings.github_query == "is:open is:pr author:@me")
       settings.github_query = "is:open is:pr author:@me archived:false";

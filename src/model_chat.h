@@ -40,6 +40,29 @@ inline std::string ChatEndpoint(const std::string& kind, const std::string& base
   return "";
 }
 
+// A provider base URL for matching: no trailing '/' or '/v1', so ".../v1/" and "..." are the same server.
+inline std::string ChatBaseKey(std::string u) {
+  while (!u.empty() && u.back() == '/') u.pop_back();
+  if (u.size() >= 3 && u.compare(u.size() - 3, 3, "/v1") == 0) u.resize(u.size() - 3);
+  return u;
+}
+
+// Which key defaults ({id, url}) join a saved provider list: only ones never offered before (`seen`, ids),
+// so a removed one stays removed, and not when a saved row has that id or the same server.
+inline std::vector<size_t> ChatDefaultsToAdd(const std::vector<std::pair<std::string, std::string>>& saved,
+                                             const std::vector<std::pair<std::string, std::string>>& defs,
+                                             const std::vector<std::string>& seen) {
+  std::vector<size_t> add;
+  for (size_t i = 0; i < defs.size(); ++i) {
+    if (std::find(seen.begin(), seen.end(), defs[i].first) != seen.end()) continue;
+    bool dup = std::any_of(saved.begin(), saved.end(), [&](const auto& h) {
+      return h.first == defs[i].first || ChatBaseKey(h.second) == ChatBaseKey(defs[i].second);
+    });
+    if (!dup) add.push_back(i);
+  }
+  return add;
+}
+
 // Whether an API key may go to `url`: only over TLS, or to this Mac (a local server never needs one,
 // but a user may set one up behind a proxy).
 inline bool ChatKeyAllowed(const std::string& url) {

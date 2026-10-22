@@ -123,6 +123,15 @@ int main() {
     check(at("v20.11.1") < at("v18.19.0") && at("v18.19.0") < at("v9.11.2") && at("v9.11.2") < (long)dirs.size(), "nvm bins searched, newest first");
     fsys::remove_all(h);
   }
+  {
+    std::vector<std::pair<std::string, std::string>> defs = {{"openai", "https://api.openai.com/v1"}, {"anthropic", "https://api.anthropic.com/v1"}, {"perplexity", "https://api.perplexity.ai"}};
+    std::vector<std::string> old = {"openai", "anthropic"};
+    check(roar::ChatDefaultsToAdd({{"openai", "https://api.openai.com/v1"}, {"anthropic", "https://api.anthropic.com/v1"}}, defs, old) == std::vector<size_t>{2}, "merge: Perplexity joins an old list");
+    check(roar::ChatDefaultsToAdd({}, defs, {"openai", "anthropic", "perplexity"}).empty(), "merge: removed defaults stay removed once seen");
+    check(roar::ChatDefaultsToAdd({{"pp", "https://api.perplexity.ai/"}}, defs, old).empty(), "merge: trailing / is the same server");
+    check(roar::ChatDefaultsToAdd({{"pp", "https://api.perplexity.ai/v1"}}, defs, old).empty(), "merge: /v1 is the same server");
+    check(roar::ChatDefaultsToAdd({{"perplexity", "https://x"}}, defs, old).empty(), "merge: same id is no duplicate");
+  }
   std::printf(failures ? "%d failure(s)\n" : "ok\n", failures);
   return failures ? 1 : 0;
 }
