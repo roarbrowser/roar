@@ -5518,11 +5518,11 @@ bool Controller::HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> 
       return callback->Success("null"), true;
     std::string what = msg->GetString("what") == "toggle" ? "toggle" : "get";
     int id = tab->id;
-    auto browser = tab->view ? tab->view->GetBrowser() : nullptr;
-    if (!browser) return callback->Success("null"), true;
+    auto tab_browser = tab->view ? tab->view->GetBrowser() : nullptr;
+    if (!tab_browser) return callback->Success("null"), true;
     std::string url = tab->url;
     // Ask only the uBOL worker of the tab's own profile (space or global), not every profile's.
-    ContextIdQuery::Run(browser, [this, callback, what, id, url](std::string context) {
+    ContextIdQuery::Run(tab_browser, [this, callback, what, id, url](std::string context) {
       action_watch::UbolSite(what, url, context, [this, callback, what, id](std::string json) {
         Tab* t = FindTab(id);
         if (what == "toggle" && json != "null" && t && t->view && t->view->GetBrowser()) t->view->GetBrowser()->Reload();
