@@ -2523,7 +2523,11 @@ void Controller::FetchOutlookMail(int space, const std::string& host) {
   std::string key = "https://" + host + "/mail/";
   WarmMailPage(space, key);
   auto it = mail_pages_.find(std::to_string(space) + " " + key);
-  if (it == mail_pages_.end() || it->second.busy || !it->second.queue.empty()) return;
+  if (it == mail_pages_.end()) return;
+  // A run that never reported (Outlook reloaded under it) would block every refresh after it; outlook-mail.js
+  // reports within ~100 s, so one older than 150 s is dead.
+  if (it->second.busy && NowSeconds() - it->second.run_at > 150) it->second.busy = false, it->second.queue.clear();
+  if (it->second.busy || !it->second.queue.empty()) return;
   it->second.queue.push_back("outlook -");
   RunMailPage(it->second);
 }
@@ -5737,7 +5741,7 @@ void Controller::RunMailPage(MailPage& page) {
   std::string act = page.queue.front();
   page.queue.pop_front();
   page.busy = true;
-  page.last = NowSeconds();
+  page.last = page.run_at = NowSeconds();
   if (act == "outlook -") {
     auto frame = page.browser->GetMainFrame();
     return frame->ExecuteJavaScript(platform::ReadResource("ui/outlook-mail.js"), frame->GetURL(), 0);

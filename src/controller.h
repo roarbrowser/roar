@@ -445,6 +445,7 @@ class Controller {
     bool created = false, loading = true, busy = false;
     std::deque<std::string> queue;  // "<action> <ids>"
     double last = 0;                // Last use; idle pages close after kMailPageIdleSecs.
+    double run_at = 0;              // When the running action started.
   };
   std::map<std::string, MailPage> mail_pages_;
   friend void CloseIdleMailPage(const std::string& key);
