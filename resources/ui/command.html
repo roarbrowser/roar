@@ -169,7 +169,8 @@ async function update() {
     let found = [];
     try { found = await ask({ cmd: 'suggest', q: raw }); } catch {}
     if (mine !== seq) return;
-    for (const f of found) next.push({ type: f.kind, ...f });
+    // An empty field never lands on Ask: Enter there opens a page, not an open chat or AI tab.
+    for (const f of found) if (raw || !/^roar:\/\/ui\/chat\.html/.test(f.url || '')) next.push({ type: f.kind, ...f });
     if (raw.length > 1) for (const c of COMMANDS) if (score(c, text) && next.length < 11) next.push({ type: 'run', ...c });
   }
   items = next;

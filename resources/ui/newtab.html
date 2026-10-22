@@ -38,10 +38,19 @@ document.getElementById('search').onsubmit = (e) => {
   e.preventDefault();
   const text = q.value.trim();
   if (!text) return;
-  // An address opens directly; anything else is a DuckDuckGo search.
-  const isUrl = /^[a-z][\w+.-]*:\/\//i.test(text) || /^(localhost|[^\s/]+\.[a-z]{2,}|\d{1,3}(\.\d{1,3}){3})(:\d+)?(\/\S*)?$/i.test(text);
-  ask({ cmd: 'open', text: isUrl ? text : 'https://duckduckgo.com/?q=' + encodeURIComponent(text), newTab: false });
+  // Roar's ResolveInput opens an address directly and searches anything else with Settings > Search engine.
+  ask({ cmd: 'open', text, newTab: false });
 };
+// Name the chosen engine in the box; a ghost tab says so.
+const ENGINES = { duckduckgo: 'DuckDuckGo', google: 'Google', bing: 'Bing', kagi: 'Kagi', brave: 'Brave Search', startpage: 'Startpage', ecosia: 'Ecosia' };
+ask({ cmd: 'state' }).then((st) => {
+  st = typeof st === 'string' ? JSON.parse(st) : st;
+  const host = (st.settings?.searchUrl || '').replace(/^\w+:\/\/(www\.)?/, '').split(/[/?]/)[0];
+  const name = ENGINES[Object.keys(ENGINES).find((k) => host.split('.').includes(k))] || host || 'the web';
+  const label = (st.tabs?.find((t) => t.active)?.ghost ? 'Ghost tab: search ' : 'Search ') + name;
+  q.placeholder = label;
+  q.setAttribute('aria-label', label);
+}).catch(() => {});
 q.addEventListener('input', () => ask({ cmd: 'newtab.used' }), { once: true });  // Typed in: keep it open.
 q.focus();
 </script>
