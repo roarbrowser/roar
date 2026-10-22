@@ -136,6 +136,8 @@ The app is not notarized. On first launch, open System Settings › Privacy & Se
 
 $BODY"
 gh release create "$TAG" "${DMGS[@]}" "$UBOL_ZIP" "$UBOL_SRC" "$FFMPEG_SRC" "$STAGE/roar-cef-patches.tar.gz" --title "Roar $VERSION" --notes "$BODY"
+# Older releases live on GitHub only; keep just this release's DMGs locally.
+find "$ROOT/build" -maxdepth 1 -name 'Roar-*.dmg' ! -name "Roar-$VERSION.dmg" ! -name "Roar-$VERSION-intel.dmg" -delete
 git push -q origin HEAD:main
 # The tap (roarbrowser/homebrew-tap, Casks/roar.rb) is what `brew install` reads.
 TAP_SHA="$(gh api repos/roarbrowser/homebrew-tap/contents/Casks/roar.rb -q .sha)"
