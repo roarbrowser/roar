@@ -155,7 +155,7 @@ body.drag-active .pinned:empty::before { content: 'Drop to pin'; color: var(--in
 .tgroup .gpin { width: 10px; height: 10px; color: var(--ink-3); flex: none; }
 .tgroup .rows { margin-left: 6px; padding-left: 6px; box-shadow: inset 2px 0 0 var(--gc, var(--rule)); }
 .tgroup.collapsed .rows { display: none; }
-.tgroup .empty { color: var(--ink-3); font-size: 12px; padding: 4px 8px; }
+#tabs .empty, .tgroup .empty { color: var(--ink-3); font-size: 12px; padding: 4px 8px; }
 .drop-target { background: var(--hover); border-radius: 8px; }
 .row.dragging { opacity: .4; }
 /* The line where a dragged tab will land among the rows (rowSpot). */
@@ -419,7 +419,7 @@ body.drag-active .pinned:empty::before { content: 'Drop to pin'; color: var(--in
   </section>
   <div id="groups"></div>
   <section id="tabs-group">
-    <div class="group-head"><span>Tabs</span><span class="count" id="tab-count"></span><span id="loose-ai"></span><span class="spacer"></span><button id="ask-llm" class="af-btn" aria-label="Ask your AI about this page" hidden><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 4.5a2 2 0 012-2h7a2 2 0 012 2v5a2 2 0 01-2 2H7l-3 2.5v-2.5h0a2 2 0 01-1.5-2z"/></svg></button></div>
+    <div class="group-head"><span>Tabs</span><span class="count" id="tab-count"></span><span id="loose-ai"></span><span class="spacer"></span><button id="ask-llm" class="af-btn" aria-label="Ask your AI about this page" hidden><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 4.5a2 2 0 012-2h7a2 2 0 012 2v5a2 2 0 01-2 2H7l-3 2.5v-2.5h0a2 2 0 01-1.5-2z"/></svg></button><button id="new-tab" class="af-btn" aria-label="New tab" title="New tab (⌘T)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M8 3v10M3 8h10"/></svg></button></div>
     <div class="rows" id="tabs"></div>
   </section>
   <section id="cl-group" aria-label="AI" hidden>
@@ -574,7 +574,8 @@ window.roar = {
     layoutPins(s.settings);
     setHtml($('pinned'), pinned.map((t) =>
       `<button class="pin${t.active ? ' active' : ''}" data-id="${t.id}" draggable="true" title="${esc(t.title)}" aria-label="${esc(t.title)}">${pinIcon(t)}${sndButton(t, '')}</button>`).join(''));
-    setHtml($('tabs'), open.map((t) => tabRow(t, limit)).join(''));
+    // Never leave the list blank: with no loose tabs, say how to open one (+ stays in the header).
+    setHtml($('tabs'), open.map((t) => tabRow(t, limit)).join('') || `<div class="empty tabs-empty">No tabs. Press + or ${keyLabel(isMacUi ? 'Cmd+T' : 'Ctrl+T')}.</div>`);
     $('tab-count').textContent = open.length || '';
     setHtml($('loose-ai'), aiRn('ungrouped', s.activeSpace, 'ungrouped tabs'));
     // The AI chosen in Settings (askLlms; older saves listed several, the first wins), as the command bar's "Ask … about this page".
@@ -678,7 +679,8 @@ window.roar = {
     $('cl-count').classList.toggle('urgent', clNeeds > 0);
     $('cl-btn').title = (s.settings?.agentSection === false ? 'Show' : 'Hide') + ' AI: ' + cl.length + ' session' + (cl.length === 1 ? '' : 's') + (clNeeds ? `, ${clNeeds} waiting for you` : '');
     $('cl-btn').setAttribute('aria-label', $('cl-btn').title);
-    $('cl-n').textContent = cl.length || '';
+    // Open Ask chats are AI rows, so they count here, not in Tabs.
+    $('cl-n').textContent = (cl.length + state.tabs.filter(askTab).length) || '';
     clLive = cl.filter((c) => c.live);
     // Redrawing loses focus in a reply box; put it back where it was.
     const f = document.activeElement?.closest?.('#cl .clq') && document.activeElement;
@@ -1029,6 +1031,7 @@ function iconMenu(t, e) {
   };
 }
 // Ask tabs (model chat, or an AI site opened by Ask about this page) show under AI, not in Tabs.
+const isMacUi = /Mac/.test(navigator.platform);
 const askTab = (t) => !t.ghost && (/^roar:\/\/ui\/chat\.html/.test(t.url || '') || !!t.askLlm);
 async function tabMenu(t, e) {
   // uBOL can take up to 5 s to answer; past 300 ms draw the menu without the ad-block item.
@@ -1395,6 +1398,7 @@ clForm.onsubmit = async (e) => {
   clDlg.close();
   ask({ cmd: 'state' }).then(roar.render);
 };
+$('new-tab').onclick = () => ask({ cmd: 'run', id: 'newTab' });  // Same command as the context menu's New tab and Cmd+T.
 $('ask-llm').onclick = () => {
   if ($('ask-llm').getAttribute('aria-disabled') !== 'true') ask({ cmd: 'run', id: 'askLlm:' + $('ask-llm').dataset.llm });
 };
@@ -1832,7 +1836,8 @@ $('ext-pins').oncontextmenu = (e) => {
 };
 $('settings').onclick = () => ask({ cmd: 'run', id: 'settings' });
 // Dictation: Roar pushes roar.dictation(d) on every engine change; render() carries it too.
-const keyLabel = (k) => (/Mac/.test(navigator.platform)
+if (!isMacUi) $('new-tab').title = 'New tab (Ctrl+T)';
+const keyLabel = (k) => (isMacUi
   ? k.replace(/Cmd\+|Command\+|Meta\+/i, '⌘').replace(/Ctrl\+|Control\+/i, '⌃').replace(/Alt\+|Option\+|Opt\+/i, '⌥').replace(/Shift\+/i, '⇧')
   : k);
 let dict = null;
