@@ -49,5 +49,7 @@ int main() {
   assert(MimeText("no headers at all") == "");
   assert(ExtractOtpCode(MimeText("Subject: x\nContent-Type: multipart/mixed; boundary=zz\n\n--zz\n")) == "");
   assert(EmlxText("") == "" && EmlxText("12") == "");
+  assert(roar::IsSentMailbox("imap://u@h/Sent%20Messages") && roar::IsSentMailbox("imap://u@h/%5BGmail%5D/Sent%20Mail") && roar::IsSentMailbox("ews://x/Drafts"));
+  assert(!roar::IsSentMailbox("imap://u@h/Sentry") && !roar::IsSentMailbox("imap://u@h/INBOX") && !roar::IsSentMailbox("imap://u@h/Sent%20Stuff/Bills"));
   std::puts("otp_code ok");
 }

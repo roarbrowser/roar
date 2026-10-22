@@ -690,14 +690,20 @@ window.roar = {
     const chatTab = (c) => state.tabs.find((t) => t.url === 'roar://ui/chat.html#' + c.id);
     // A just-opened Ask tab has no chat yet: it shows here as New chat until its first message.
     const newChats = state.tabs.filter((t) => t.url === 'roar://ui/chat.html' && !t.ghost).map((t) =>
-      `<div class="row pr cl${t.active ? ' active' : ''}" data-chattab="${t.id}"><button class="clmain" aria-label="New chat. Open"><span class="cl-ic">${chatIcon({})}</span><span class="label"><span class="cl-name"><b>New chat</b></span><small>Ask</small></span></button></div>`).join('');
-    const chatRows = newChats + (s.chats || []).slice().sort((a, b) => b.updated - a.updated).slice(0, 8).map((c) =>
+      `<div class="row pr cl${t.active ? ' active' : ''}" data-chattab="${t.id}"><button class="clmain" aria-label="New chat. Open"><span class="cl-ic">${chatIcon({})}</span><span class="label"><span class="cl-name"><b>New chat</b></span><small>Ask</small></span></button><span class="cl-acts"><button data-chatclose="${t.id}" title="Close" aria-label="Close New chat">${x}</button></span></div>`).join('');
+    // The 8 newest chats, plus any open in a tab so every Ask tab has a row.
+    const chatsSorted = (s.chats || []).slice().sort((a, b) => b.updated - a.updated);
+    const chatRows = newChats + chatsSorted.filter((c, i) => i < 8 || chatTab(c)).map((c) =>
       `<div class="row pr cl${chatTab(c)?.active ? ' active' : ''}" data-chatid="${esc(c.id)}" title="${esc(c.title)}"><button class="clmain" aria-label="${esc(chatWho(c))}: ${esc(c.title || 'Untitled')}. Open"><span class="cl-ic">${chatIcon(c)}<span class="ask-badge" aria-hidden="true"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M1.5 2.5h13v8.5h-7l-3.5 3v-3h-2.5z"/></svg></span></span>` +
       `<span class="label"><span class="cl-name"><b>${esc(c.title || 'Untitled')}</b><time>${clAgo(c.updated)}</time></span><small>${esc(chatWho(c))}</small></span></button>` +
-      `<span class="cl-acts"><button data-chatdel="${esc(c.id)}" title="Delete this chat" aria-label="Delete ${esc(c.title)}">${ico.hide}</button></span></div>`).join('');
+      `<span class="cl-acts">${chatTab(c) ? `<button data-chatclose="${chatTab(c).id}" title="Close" aria-label="Close ${esc(c.title)}">${x}</button>` : ''}<button data-chatdel="${esc(c.id)}" title="Delete this chat" aria-label="Delete ${esc(c.title)}">${ico.hide}</button></span></div>`).join('');
     const clHidRow = clHid ? `<button class="note cl-hidden" data-clshowhidden>${clShowHidden ? 'Done showing' : 'Show'} ${clHid} hidden</button>` : '';
     const both = (starting || clVis.length) && chatRows;
     setHtml($('cl'), (both ? '<div class="cl-sub" aria-hidden="true">Code</div>' : '') + starting + (clVis.map(clRow).join('') + (both ? '<div class="cl-sub" aria-hidden="true">Ask</div>' : '') + chatRows || (starting || afRow ? '' : '<div class="note">No sessions yet. Press Code to start a coding agent, or Ask to talk to a model.</div>')) + clHidRow + afRow);
+    // An Ask tab becoming active opens AI, so its row (the only place it shows) is visible.
+    const askNow = state.tabs.find((t) => t.active && /^roar:\/\/ui\/chat\.html/.test(t.url || ''))?.id || 0;
+    if (askNow && askNow !== askActive) syncCollapse($('cl-group'), false);
+    askActive = askNow;
     clActive = webTab ? act.id : 0;
     if (fq) { const i = $('cl').querySelector(`[${fq}] input`); if (i && i !== f) { i.focus(); i.setSelectionRange(...fs); } }
     // Recent folders for Code; scratch folders are Roar's own, not projects.
@@ -1281,7 +1287,7 @@ $('cl').addEventListener('keydown', (e) => {
 });  // Typing isn't a sidebar shortcut.
 // Code (new session): a modal, type (installed CLIs) then where (a folder, or a scratch folder Roar makes)
 // and an optional first prompt. The row shows "Starting…" until the session's hook reports.
-let clWant = null, clDirs = [], clFullTabs = {}, clReplyOpen = null, clActive = 0, clLive = [], clTools = ['claude'];
+let clWant = null, clDirs = [], clFullTabs = {}, clReplyOpen = null, clActive = 0, askActive = 0, clLive = [], clTools = ['claude'];
 ask({ cmd: 'claude.ctl', action: 'tools' }).then((out) => {
   const got = String(out || '').split('\n').filter((t) => AGENT_TOOLS[t]);
   if (got.length) clTools = got;
@@ -1540,6 +1546,8 @@ document.addEventListener('click', (e) => {
   }
   const del = e.target.closest('[data-chatdel]');
   if (del) return e.stopPropagation(), ask({ cmd: 'chat.delete', id: del.dataset.chatdel });
+  const cc = e.target.closest('[data-chatclose]');
+  if (cc) return e.stopPropagation(), ask({ cmd: 'tab.close', id: +cc.dataset.chatclose });
   const nt = e.target.closest('[data-chattab]');
   if (nt) return e.stopPropagation(), ask({ cmd: 'tab.activate', id: +nt.dataset.chattab });
   const ch = e.target.closest('[data-chatid]');

@@ -172,4 +172,12 @@ inline std::string EmlxText(const std::string& raw) {
   return MimeText(raw.substr(nl + 1, len ? len : std::string::npos));
 }
 
+// A mailbox URL whose last path part is a Sent or Drafts folder ("Sent Messages", "[Gmail]/Sent Mail"), not "Sentry".
+inline bool IsSentMailbox(std::string url) {
+  for (size_t p; (p = url.find("%20")) != std::string::npos;) url.replace(p, 3, " ");
+  std::string n = url.substr(url.find_last_of('/') + 1);
+  for (char& c : n) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+  return n == "sent" || n.rfind("sent ", 0) == 0 || n == "drafts" || n == "draft";
+}
+
 }  // namespace roar

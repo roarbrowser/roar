@@ -646,9 +646,9 @@ std::string RecentMailCode(int max_age_secs, long long* at) {
                          -1, &s, nullptr) == SQLITE_OK) {
     sqlite3_bind_int64(s, 1, now - max_age_secs);
     while (code.empty() && sqlite3_step(s) == SQLITE_ROW) {
-      std::string url = Col(s, 2), low = url;
-      std::transform(low.begin(), low.end(), low.begin(), ::tolower);
-      if (low.find("/sent") != std::string::npos || low.find("/draft") != std::string::npos) continue;  // Mail the person sent.
+      std::string url = Col(s, 2);
+      // shortcut: folder-name match; mail sent to yourself that lands in Inbox still counts.
+      if (IsSentMailbox(url)) continue;
       std::string text = Col(s, 1), f = EmlxFor(dir, url, sqlite3_column_int64(s, 0));
       if (std::ifstream in{f, std::ios::binary}) text += "\n" + EmlxText(std::string(std::istreambuf_iterator<char>(in), {}));
       code = ExtractOtpCode(text);
