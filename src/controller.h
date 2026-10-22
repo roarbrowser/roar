@@ -457,6 +457,7 @@ class Controller {
   void WarmMailPage(int space, const std::string& account);
   void RunMailPage(MailPage& page);
   std::map<int, std::string> llm_fills_;
+  std::string next_ask_llm_;  // The AI name the next NewTab is an Ask for (ExtractActive sets it).
   std::map<std::string, CefRefPtr<Callback>> chat_tabs_;  // "chat:<nonce>" extract target -> chat.tab query.  // Tab id -> text to put in its chat box.
   struct PendingIndex {
     int tab_id;

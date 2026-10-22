@@ -1413,6 +1413,7 @@ int Controller::NewTab(const std::string& url, bool activate, bool pinned, doubl
   tab.url = url.empty() ? kNewTabUrl : url;
   tab.title = tab.url;
   tab.ghost = ghost;
+  tab.ask_llm = std::move(next_ask_llm_), next_ask_llm_.clear();  // Set before the first push, so it never lists as a tab.
   tab.pinned = pinned && !ghost;
   if (tab.pinned) tab.home_url = tab.url;
   tab.last_active = last_active > 0 ? last_active : NowSeconds();
@@ -4341,9 +4342,9 @@ bool Controller::HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> 
       std::string text = "Page: " + title + "\nURL: " + tab->url + "\n\n```markdown\n" + body +
                          "\n```\n\n";
       platform::CopyText(text);
+      next_ask_llm_ = llm->name;
       int id = NewTab(llm->url, true, false, 0, tab->space, tab->ghost);
       llm_fills_[id] = text;
-      if (Tab* nt = FindTab(id)) nt->ask_llm = llm->name;
       ShowHint(std::string("Opening ") + llm->name + ", page also copied");
     } else if (StartsWith(target, "claude:") && tab->ghost) {
       ShowHint("Ghost tabs stay private");

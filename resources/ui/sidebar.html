@@ -532,8 +532,8 @@ window.roar = {
     $('split-count').textContent = pairs.length || '';
     setHtml($('split-tabs'), pairs.map(([a, b]) => `<div class="split-pair${a.stacked ? ' stacked' : ''}">${tabRow(a, 0, true)}${tabRow(b, 0, true)}<button class="unsplit-pair" data-unsplit="${a.id}" title="Separate" aria-label="Separate split tabs">${x}</button></div>`).join(''));
     // Ask chats live under AI (their rows), not in the tab list, while that section shows.
-    const aiShown = s.settings?.claudeSidebar !== false && s.settings?.agentSection !== false;
-    s = { ...s, tabs: s.tabs.filter((t) => !t.ghost && !t.split && !/^roar:\/\/ui\/claude\.html/.test(t.url || '') && !(aiShown && askTab(t))) };
+    // Ask chats always list under AI (opening one turns AI back on), never as tabs.
+    s = { ...s, tabs: s.tabs.filter((t) => !t.ghost && !t.split && !/^roar:\/\/ui\/claude\.html/.test(t.url || '') && !askTab(t)) };
     const pinned = s.tabs.filter((t) => t.pinned);
     // Claude Artifacts the person opened get their own section while one is open (artifact-group.js).
     const arts = s.tabs.filter((t) => artifactGrouped(t, s.settings));
@@ -630,7 +630,7 @@ window.roar = {
     // sessions that need you, and a list in start order (newest first) so rows never jump. A row opens the session's full view.
     const needs = (c) => c.state === 'needs_you' && !c.acked;
     const names = agentNames(s);
-    const cl = (s.claude?.items || []).map((c) => names[c.id] ? { ...c, project: names[c.id] } : c).sort((a, b) => (b.started || b.updated) - (a.started || a.updated) || (a.id < b.id ? -1 : 1));
+    const cl = (s.settings?.claudeSidebar !== false && s.claude?.items || []).map((c) => names[c.id] ? { ...c, project: names[c.id] } : c).sort((a, b) => (b.started || b.updated) - (a.started || a.updated) || (a.id < b.id ? -1 : 1));
     // Hidden sessions live in settings so they stay hidden after a restart; ids of gone sessions are dropped.
     clHiddenAt = clHiddenMap(s);
     const clPruned = clHiddenPrune(clHiddenAt, cl.map((c) => c.id));
@@ -670,7 +670,7 @@ window.roar = {
     if (clWant && (Date.now() - clWant.since > 60000 || cl.some((c) => c.cwd === clWant.dir && c.started >= clWant.since))) clWant = null;
     const starting = clWant ? `<div class="row pr cl starting" role="status"><span class="clmain"><span class="cl-ic">${agentIcon(clWant.tool, 16)}<span class="dot starting" aria-hidden="true"></span></span><span class="label"><span class="cl-name"><b>${esc(clWant.name)}</b></span><small>Starting…</small></span></span></div>` : '';
     const clNeeds = cl.filter(needs).length;
-    const clOn = s.settings?.claudeSidebar !== false, clAny = clOn && !!(cl.length || s.claude?.hooks || clWant || s.chats?.length || state.tabs.some(askTab));
+    const clOn = s.settings?.claudeSidebar !== false, clAny = !!(clOn && (cl.length || s.claude?.hooks || clWant || s.chats?.length) || state.tabs.some(askTab));
     // The footer button only shows or hides the section; its badge still counts who needs you.
     $('cl-btn').hidden = !clAny;
     $('cl-btn').setAttribute('aria-pressed', String(s.settings?.agentSection !== false));
@@ -716,7 +716,10 @@ window.roar = {
     setHtml($('cl'), (both ? '<div class="cl-sub" aria-hidden="true">Code</div>' : '') + starting + (clVis.map(clRow).join('') + (both ? '<div class="cl-sub" aria-hidden="true">Ask</div>' : '') + chatRows || (starting || afRow ? '' : '<div class="note">No sessions yet. Press Code to start a coding agent, or Ask to talk to a model.</div>')) + clHidRow + afRow);
     // An Ask tab becoming active opens AI, so its row (the only place it shows) is visible.
     const askNow = state.tabs.find((t) => t.active && askTab(t))?.id || 0;
-    if (askNow && askNow !== askActive) syncCollapse($('cl-group'), false);
+    if (askNow && askNow !== askActive) {
+      syncCollapse($('cl-group'), false);
+      if (s.settings?.agentSection === false) ask({ cmd: 'settings.set', settings: { agentSection: true } });
+    }
     askActive = askNow;
     clActive = webTab ? act.id : 0;
     if (fq) { const i = $('cl').querySelector(`[${fq}] input`); if (i && i !== f) { i.focus(); i.setSelectionRange(...fs); } }

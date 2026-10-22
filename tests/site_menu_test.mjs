@@ -119,6 +119,38 @@ try {
   check((await sidebar(`$('tab-count').textContent`)) === n0, 'Tabs count unchanged');
   await shot('4-ask-under-ai');
 
+  // AI hidden and collapsed, then Ask: AI comes back open with the row; Ask tabs never count as Tabs.
+  await sidebar(`ask({cmd:'tab.close',id:${chat?.id}})`);
+  await sidebar(`ask({cmd:'settings.set',settings:{agentSection:false}})`);
+  await sidebar(`syncCollapse($('cl-group'), true)`);
+  await sleep(800);
+  await sidebar(`ask({cmd:'run',id:'modelChat'})`);
+  await sleep(2500);
+  const chat2 = (await tabs()).find((t) => t.url === 'roar://ui/chat.html');
+  check((await sidebar(`ask({cmd:'state'})`))?.settings?.agentSection === true, 'Ask turns a hidden AI section back on');
+  check(await sidebar(`!$('cl-group').hidden && !$('cl-group').classList.contains('collapsed') && !!document.querySelector('#cl [data-chattab="${chat2?.id}"].active') && !document.querySelector('#tabs [data-id="${chat2?.id}"]')`), 'and opens it on the active New chat row, not a tab row');
+  check(+(await sidebar(`$('cl-n').textContent`)) >= 1 && (await sidebar(`$('tab-count').textContent`)) === n0, 'AI count has the chat, Tabs count does not');
+  // Ask about this page: its tab never shows a Tabs row, not even before askLlm is set.
+  await sidebar(`ask({cmd:'tab.close',id:${chat2?.id}})`);
+  const yt = (await tabs()).find((t) => t.url.startsWith(Y))?.id;
+  await sidebar(`ask({cmd:'tab.activate',id:${yt}})`);
+  await sleep(500);
+  await sidebar(`(() => { window.seen = []; new MutationObserver(() => window.seen.push(...[...document.querySelectorAll('#tabs [data-id]')].map((r) => +r.dataset.id))).observe($('tabs'), {subtree:true, childList:true, attributes:true}); })()`);
+  const before = new Set((await tabs()).map((t) => t.id));
+  await sidebar(`ask({cmd:'run',id:'askLlm:chatgpt'})`);
+  await sleep(2500);
+  const al = (await tabs()).find((t) => !before.has(t.id));
+  check(al?.askLlm && !(await sidebar(`window.seen.includes(${al?.id})`)) && (await sidebar(`!!document.querySelector('#cl [data-chattab="${al?.id}"]')`)), `Ask about this page lists under AI only (${JSON.stringify(al)})`);
+  if (al) await sidebar(`ask({cmd:'tab.close',id:${al.id}})`);
+  // Agent sessions off: Ask chats still show under AI.
+  await sidebar(`ask({cmd:'settings.set',settings:{claudeSidebar:false}})`);
+  await sidebar(`ask({cmd:'run',id:'modelChat'})`);
+  await sleep(2500);
+  const chat3 = (await tabs()).find((t) => t.url === 'roar://ui/chat.html');
+  check(await sidebar(`!$('cl-group').hidden && !!document.querySelector('#cl [data-chattab="${chat3?.id}"]') && !document.querySelector('#tabs [data-id="${chat3?.id}"]')`), 'with agent sessions off, Ask still lists under AI');
+  await shot('5-ask-sessions-off');
+  await sidebar(`ask({cmd:'settings.set',settings:{claudeSidebar:true}})`);
+
   sidebar(`ask({cmd:'run',id:'quit'})`).catch(() => {});
   for (let i = 0; i < 20 && roar.exitCode === null && roar.signalCode === null; i++) await sleep(500);
   await start();
