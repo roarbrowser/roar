@@ -168,6 +168,7 @@ body.drag-active .pinned:empty::before { content: 'Drop to pin'; color: var(--in
 .ctx { position: fixed; z-index: 20; min-width: 180px; max-width: 240px; padding: 4px; border-radius: 9px; background: var(--ground); box-shadow: 0 0 0 1px var(--rule), 0 8px 24px rgba(0,0,0,.35); display: flex; flex-direction: column; }
 .ctx[hidden] { display: none; }
 .ctx button { text-align: left; padding: 5px 8px; border-radius: 6px; color: var(--ink); font-size: 12.5px; display: flex; align-items: center; gap: 7px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ctx button.wrap { white-space: normal; max-width: 240px; cursor: pointer; }
 .ctx button:hover { background: var(--hover); }
 .ctx button:disabled { color: var(--ink-3); background: none; }
 .ctx hr { border: 0; border-top: 1px solid var(--rule); margin: 4px 2px; }
@@ -1369,11 +1370,12 @@ $('cl-new').onclick = (e) => {
   const web = (state?.tabs || []).filter((t) => /^https?:/.test(t.url || '') && !t.ghost);
   $('cl-tabs-f').hidden = !web.length;
   $('cl-tabs').innerHTML = web.map((t) => `<label class="opt tab"><input type="checkbox" value="${t.id}"${t.id === clActive ? ' checked' : ''}>${iconHtml(t.favicon, t.url)}<span>${esc(t.title || t.url)}</span></label>`).join('');
-  if (!tools.length) $('cl-tiles').innerHTML = '<p class="note">No agent CLI is connected. Connect one in Settings › Agents.</p>';
+  if (!tools.length) $('cl-tiles').innerHTML = '<p class="note">No agent CLI is connected. Connect one in <a href="#" class="set-agents">Settings › Agents</a>.</p>';
   clDlg.showModal();
   clStep(1);
   $('cl-go').disabled = !tools.length;
 };
+$('cl-tiles').addEventListener('click', (e) => e.target.closest('.set-agents') && (e.preventDefault(), clDlg.close(), agentSettings()));
 $('cl-tiles').addEventListener('dblclick', (e) => e.target.closest('.opt') && clStep(2));
 $('cl-where').addEventListener('click', async (e) => {
   if (!e.target.closest('.pick')) return;
@@ -1447,13 +1449,20 @@ async function aiTarget(e, what) {
     ...sessions.map((c) => ({ key: 'agent:' + c.id, session: c, label: c.project, ico: agentIcon(c, 14) }))];
   const at = e?.target?.getBoundingClientRect?.() || { left: e?.clientX || 8, bottom: e?.clientY || 8 };
   if (!opts.length) {
-    showCtx('<div class="head">Connect a chat provider in Ask, or start an agent with Code.</div>', { clientX: at.left, clientY: at.bottom + 4 }, () => {});
+    showCtx('<button class="wrap" data-act="set">No agent or model is connected. Open Settings › Agents to connect one.</button>', { clientX: at.left, clientY: at.bottom + 4 }, agentSettings);
     return null;
   }
   const first = opts.find((o) => o.p && o.p.id + '|' + o.model === pick) || opts[0];
   if (!e?.shiftKey || opts.length === 1) return first;
   return new Promise((done) => showCtx(`<div class="head">${esc(what)}</div>${opts.map((o) => `<button data-act="pick" data-id="${esc(o.key)}">${o.ico}${esc(o.label)}</button>`).join('')}`,
     { clientX: at.left, clientY: at.bottom + 4 }, (act, d) => { hideCtx(); done(opts.find((o) => o.key === d.id)); }));
+}
+// Settings › Agents, reusing this space's Settings tab (its hashchange switches section) so clicks never stack copies.
+async function agentSettings() {
+  hideCtx();
+  const t = state.tabs.find((x) => (x.url || '').startsWith('roar://ui/settings.html'));
+  if (t) await ask({ cmd: 'tab.activate', id: t.id });
+  ask({ cmd: 'open', text: 'roar://ui/settings.html#agents', newTab: !t });
 }
 var ico_chat = '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 3.5h11v7h-6l-3 2.5v-2.5h-2z"/></svg>';
 // What a chat model is told about one item (key "kind:id").
@@ -1475,7 +1484,7 @@ async function aiRename(key, e, bulk = false) {
   if (!who) return;
   if (who.session && !(who.session.mcpTools || []).includes('rename_item')) {
     const at = e?.target?.getBoundingClientRect?.() || { left: 8, bottom: 8 };
-    return void showCtx('<div class="head">This session\'s Roar connection is out of date. Type /mcp, then reconnect roar.</div>', { clientX: at.left, clientY: at.bottom + 4 }, () => {});
+    return void showCtx('<button class="wrap" data-act="set">This session\'s Roar connection is out of date. Type /mcp, then reconnect roar. Open Settings › Agents.</button>', { clientX: at.left, clientY: at.bottom + 4 }, agentSettings);
   }
   const batch = { done: [], total: keys.length };
   let stop;

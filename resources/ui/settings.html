@@ -489,11 +489,15 @@ function showTab(id) {
   for (const sec of document.querySelectorAll('main section')) sec.hidden = sec.id !== id;
   for (const a of tabs) a.setAttribute('aria-current', String(a.hash === '#' + id));
   try { localStorage.setItem('settingsTab', id); } catch {}
+  // Keeps the hash current so a later link to #agents is a change and fires hashchange.
+  if (location.hash !== '#' + id) history.replaceState(null, '', '#' + id);
 }
 tabs.forEach((a) => a.addEventListener('click', (e) => { e.preventDefault(); showTab(a.hash.slice(1)); }));
 let saved = 'general';
 try { saved = localStorage.getItem('settingsTab') || saved; } catch {}
 showTab(location.hash.slice(1) || saved);
+// A link to another section while Settings is open (sidebar's agent pop-ups) only changes the hash.
+addEventListener('hashchange', () => showTab(location.hash.slice(1)));
 
 // Search: hides rows (and modules) whose text doesn't match across every tab, then shows a tab
 // with a match (the current one if it has any). A class, not hidden, so it never fights apply()'s own hidden rows.
