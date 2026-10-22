@@ -83,5 +83,14 @@
       <description><![CDATA[Site menu (allow pop-ups, turn off blocking), always-visible + button, Ask lives under AI, Perplexity, codes from Mail, clearer Claude Code setup]]></description>
       <enclosure url="https://github.com/roarbrowser/roar/releases/download/v1.0.8/Roar-1.0.8.dmg" type="application/octet-stream" sparkle:edSignature="ZrrulrfiTq4JdqAy8CnT6NlJnO1HE5SIfbcXfsOtVpRg9LxGRQ3tcH8XdJ2QISBUZv9C6UF3COG7a8csoZCJBQ==" length="207580686"/>
     </item>
+    <item>
+      <title>1.0.9</title>
+      <pubDate>Thu, 22 Oct 2026 10:47:35 +0000</pubDate>
+      <sparkle:version>10009</sparkle:version>
+      <sparkle:shortVersionString>1.0.9</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[The agents hint above the footer now hides itself after a few seconds]]></description>
+      <enclosure url="https://github.com/roarbrowser/roar/releases/download/v1.0.9/Roar-1.0.9.dmg" type="application/octet-stream" sparkle:edSignature="YbRwNu3iNhwUSCFDvXWtTp9NftoA0mPrO8NAo+9QoLh17PrO3ntxQu5j0EBrJcWYrFLx8G3HukxLxwT8OJ4/CA==" length="207580514"/>
+    </item>
   </channel>
 </rss>
