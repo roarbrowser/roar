@@ -3874,6 +3874,7 @@ std::string Controller::StateJson() {
     d->SetBool("muted", t.muted);
     d->SetBool("driven", t.driven);
     d->SetBool("agentMark", t.agent.marked);
+    if (!t.ask_llm.empty()) d->SetString("askLlm", t.ask_llm);
     d->SetBool("agentActive", t.agent_active);
     d->SetDouble("agentLast", t.agent.last);
     if (SplitPair* sp = SplitOf(t.id)) {
@@ -4342,6 +4343,7 @@ bool Controller::HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> 
       platform::CopyText(text);
       int id = NewTab(llm->url, true, false, 0, tab->space, tab->ghost);
       llm_fills_[id] = text;
+      if (Tab* nt = FindTab(id)) nt->ask_llm = llm->name;
       ShowHint(std::string("Opening ") + llm->name + ", page also copied");
     } else if (StartsWith(target, "claude:") && tab->ghost) {
       ShowHint("Ghost tabs stay private");
@@ -5542,6 +5544,17 @@ bool Controller::HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> 
         callback->Success(json);
       });
     });
+  } else if (cmd == "tab.popups") {
+    // Chromium's own pop-up content setting for the site, saved in the tab's profile; OnBeforePopup reads it too.
+    Tab* tab = FindTab(int_arg("id"));
+    auto b = tab && !tab->ghost && tab->view ? tab->view->GetBrowser() : nullptr;
+    if (!b || HttpHost(tab->url).empty()) return callback->Success("null"), true;
+    auto rc = b->GetHost()->GetRequestContext();
+    bool on = rc->GetContentSetting(tab->url, tab->url, CEF_CONTENT_SETTING_TYPE_POPUPS) == CEF_CONTENT_SETTING_VALUE_ALLOW;
+    if (msg->GetString("what") == "toggle")
+      on = !on, rc->SetContentSetting(tab->url, tab->url, CEF_CONTENT_SETTING_TYPE_POPUPS,
+                                      on ? CEF_CONTENT_SETTING_VALUE_ALLOW : CEF_CONTENT_SETTING_VALUE_DEFAULT);
+    callback->Success(std::string("{\"allowed\":") + (on ? "true" : "false") + ",\"host\":" + JsString(HttpHost(tab->url)) + "}");
   } else if (cmd == "tab.mute") {
     ToggleMute(int_arg("id"));
     callback->Success("");

@@ -157,6 +157,13 @@ bool Client::OnBeforePopup(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> fr
     frame->LoadURL(target_url);
     return true;
   }
+  // A site allowed pop-ups (site menu) keeps its opener for tab dispositions too: cancelling here
+  // gave window.open() null, so the page showed "pop-up blocked" and the tab sat on about:blank.
+  std::string opener_url = browser->GetMainFrame()->GetURL();
+  if (target_disposition != CEF_WOD_NEW_BACKGROUND_TAB && opener_url.rfind("http", 0) == 0 &&
+      browser->GetHost()->GetRequestContext()->GetContentSetting(opener_url, opener_url, CEF_CONTENT_SETTING_TYPE_POPUPS) ==
+          CEF_CONTENT_SETTING_VALUE_ALLOW)
+    return false;
   switch (target_disposition) {
     case CEF_WOD_NEW_FOREGROUND_TAB:
     case CEF_WOD_NEW_BACKGROUND_TAB:

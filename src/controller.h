@@ -64,6 +64,7 @@ struct Tab {
   bool driven = false;   // An outside CDP client (an agent) is attached to its page.
   AgentMark agent;       // Saved: an agent opened or acted on it (agent_mark.h).
   bool agent_active = false;  // AgentActive, refreshed by PollDriven.
+  std::string ask_llm;  // The AI site an Ask opened it for ("Claude"): listed under AI; not saved.
   std::string mcp_owner;  // The roar-mcp connection that opened it (agent.space claim); not saved.
   bool audible = false;  // A media element is playing sound (MediaWatcher in controller.cc).
   bool muted = false;

@@ -16,6 +16,11 @@ body { background: var(--ground); display: flex; flex-direction: column; overflo
 .address:hover { color: var(--ink); }
 .address .host { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 500; }
 .address svg { width: 13px; height: 13px; flex: none; }
+.addr-wrap { position: relative; }
+.addr-wrap .site { position: absolute; left: 14px; top: 8px; width: 22px; height: 22px; border-radius: 6px; display: grid; place-items: center; }
+.addr-wrap .site:hover, .addr-wrap .site[aria-expanded="true"] { background: var(--hover); }
+.addr-wrap .site img, .addr-wrap .site span { width: 14px; height: 14px; }
+.address.has-site > svg { visibility: hidden; }
 
 .spaces { display: flex; align-items: center; gap: 2px; }
 .spaces:empty { display: none; }
@@ -164,6 +169,7 @@ body.drag-active .pinned:empty::before { content: 'Drop to pin'; color: var(--in
 .ctx[hidden] { display: none; }
 .ctx button { text-align: left; padding: 5px 8px; border-radius: 6px; color: var(--ink); font-size: 12.5px; display: flex; align-items: center; gap: 7px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ctx button:hover { background: var(--hover); }
+.ctx button:disabled { color: var(--ink-3); background: none; }
 .ctx hr { border: 0; border-top: 1px solid var(--rule); margin: 4px 2px; }
 .ctx .head { color: var(--ink-3); font-size: 11px; padding: 4px 8px 2px; }
 .ctx .gdot { width: 8px; height: 8px; border-radius: 50%; background: var(--gc, var(--ink-3)); flex: none; }
@@ -391,10 +397,10 @@ body.drag-active .pinned:empty::before { content: 'Drop to pin'; color: var(--in
   <button id="forward" title="Forward (⌘])" aria-label="Forward"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m6 3 5 5-5 5"/></svg></button>
   <button id="reload" title="Reload (⌘R)" aria-label="Reload"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M13 8a5 5 0 1 1-1.5-3.6M13 2.5v3h-3"/></svg></button>
 </div>
-<button class="address" id="address" title="Change address (⌘L)">
+<div class="addr-wrap"><button class="address" id="address" title="Change address (⌘L)">
   <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="7" cy="7" r="4.5"/><path d="m10.5 10.5 3 3"/></svg>
   <span class="host" id="host">Search or enter address</span>
-</button>
+</button><button class="site" id="site" hidden aria-haspopup="menu" aria-expanded="false" title="Site settings" aria-label="Site settings"></button></div>
 <div class="resize" id="resize" title="Drag to resize"></div>
 <div class="scroll">
   <div class="pinned" id="pinned"></div>
@@ -527,7 +533,7 @@ window.roar = {
     setHtml($('split-tabs'), pairs.map(([a, b]) => `<div class="split-pair${a.stacked ? ' stacked' : ''}">${tabRow(a, 0, true)}${tabRow(b, 0, true)}<button class="unsplit-pair" data-unsplit="${a.id}" title="Separate" aria-label="Separate split tabs">${x}</button></div>`).join(''));
     // Ask chats live under AI (their rows), not in the tab list, while that section shows.
     const aiShown = s.settings?.claudeSidebar !== false && s.settings?.agentSection !== false;
-    s = { ...s, tabs: s.tabs.filter((t) => !t.ghost && !t.split && !/^roar:\/\/ui\/claude\.html/.test(t.url || '') && !(aiShown && /^roar:\/\/ui\/chat\.html/.test(t.url || ''))) };
+    s = { ...s, tabs: s.tabs.filter((t) => !t.ghost && !t.split && !/^roar:\/\/ui\/claude\.html/.test(t.url || '') && !(aiShown && askTab(t))) };
     const pinned = s.tabs.filter((t) => t.pinned);
     // Claude Artifacts the person opened get their own section while one is open (artifact-group.js).
     const arts = s.tabs.filter((t) => artifactGrouped(t, s.settings));
@@ -580,6 +586,11 @@ window.roar = {
     $('forward').disabled = !s.nav.canForward;
     const url = s.nav.url || '';
     $('host').textContent = url && !url.startsWith('roar:') ? hostOf(url) : 'Search or enter address';
+    // The site icon opens the per-site menu (siteMenu); only real web pages have one.
+    const siteOk = /^https?:/.test(url) && !!askAct && !askAct.ghost;
+    $('site').hidden = !siteOk;
+    $('address').classList.toggle('has-site', siteOk);
+    setHtml($('site'), siteOk ? iconHtml(askAct.favicon, url) : '');
     const alerts = s.alerts || [];
     const ago = (t) => { const m = Math.round((Date.now() / 1000 - t) / 60); return m < 1 ? 'now' : m < 60 ? m + ' min ago' : Math.round(m / 60) + ' h ago'; };
     // Cards are kept by id and only changed ones are redrawn, so a screen reader reads each once.
@@ -658,7 +669,7 @@ window.roar = {
     if (clWant && (Date.now() - clWant.since > 60000 || cl.some((c) => c.cwd === clWant.dir && c.started >= clWant.since))) clWant = null;
     const starting = clWant ? `<div class="row pr cl starting" role="status"><span class="clmain"><span class="cl-ic">${agentIcon(clWant.tool, 16)}<span class="dot starting" aria-hidden="true"></span></span><span class="label"><span class="cl-name"><b>${esc(clWant.name)}</b></span><small>Starting…</small></span></span></div>` : '';
     const clNeeds = cl.filter(needs).length;
-    const clOn = s.settings?.claudeSidebar !== false, clAny = clOn && !!(cl.length || s.claude?.hooks || clWant || s.chats?.length || state.tabs.some((t) => /^roar:\/\/ui\/chat\.html/.test(t.url || '')));
+    const clOn = s.settings?.claudeSidebar !== false, clAny = clOn && !!(cl.length || s.claude?.hooks || clWant || s.chats?.length || state.tabs.some(askTab));
     // The footer button only shows or hides the section; its badge still counts who needs you.
     $('cl-btn').hidden = !clAny;
     $('cl-btn').setAttribute('aria-pressed', String(s.settings?.agentSection !== false));
@@ -689,8 +700,9 @@ window.roar = {
     const chatWho = (c) => [c.brandName || (AGENT_TOOLS[chatTool(c)] ? agentName(chatTool(c)) : 'Model'), (c.model || '').split('|').slice(1).join('|')].filter((x) => x && x !== 'default').join(' · ');
     const chatTab = (c) => state.tabs.find((t) => t.url === 'roar://ui/chat.html#' + c.id);
     // A just-opened Ask tab has no chat yet: it shows here as New chat until its first message.
-    const newChats = state.tabs.filter((t) => t.url === 'roar://ui/chat.html' && !t.ghost).map((t) =>
-      `<div class="row pr cl${t.active ? ' active' : ''}" data-chattab="${t.id}"><button class="clmain" aria-label="New chat. Open"><span class="cl-ic">${chatIcon({})}</span><span class="label"><span class="cl-name"><b>New chat</b></span><small>Ask</small></span></button><span class="cl-acts"><button data-chatclose="${t.id}" title="Close" aria-label="Close New chat">${x}</button></span></div>`).join('');
+    // An "Ask your AI about this page" tab (askLlm) shows the same way, with the AI's name.
+    const newChats = state.tabs.filter((t) => (t.url === 'roar://ui/chat.html' || t.askLlm) && !t.ghost).map((t) =>
+      `<div class="row pr cl${t.active ? ' active' : ''}" data-chattab="${t.id}"><button class="clmain" aria-label="New chat${t.askLlm ? ' with ' + esc(t.askLlm) : ''}. Open"><span class="cl-ic">${chatIcon({})}</span><span class="label"><span class="cl-name"><b>New chat</b></span><small>${esc(t.askLlm || 'Ask')}</small></span></button><span class="cl-acts"><button data-chatclose="${t.id}" title="Close" aria-label="Close New chat">${x}</button></span></div>`).join('');
     // The 8 newest chats, plus any open in a tab so every Ask tab has a row.
     const chatsSorted = (s.chats || []).slice().sort((a, b) => b.updated - a.updated);
     const chatRows = newChats + chatsSorted.filter((c, i) => i < 8 || chatTab(c)).map((c) =>
@@ -701,7 +713,7 @@ window.roar = {
     const both = (starting || clVis.length) && chatRows;
     setHtml($('cl'), (both ? '<div class="cl-sub" aria-hidden="true">Code</div>' : '') + starting + (clVis.map(clRow).join('') + (both ? '<div class="cl-sub" aria-hidden="true">Ask</div>' : '') + chatRows || (starting || afRow ? '' : '<div class="note">No sessions yet. Press Code to start a coding agent, or Ask to talk to a model.</div>')) + clHidRow + afRow);
     // An Ask tab becoming active opens AI, so its row (the only place it shows) is visible.
-    const askNow = state.tabs.find((t) => t.active && /^roar:\/\/ui\/chat\.html/.test(t.url || ''))?.id || 0;
+    const askNow = state.tabs.find((t) => t.active && askTab(t))?.id || 0;
     if (askNow && askNow !== askActive) syncCollapse($('cl-group'), false);
     askActive = askNow;
     clActive = webTab ? act.id : 0;
@@ -945,12 +957,12 @@ const ctx = $('ctx');
 const setHtml = (el, html) => { if (el.__html !== html) el.innerHTML = el.__html = html; };
 // Bumped on every show/hide so a menu still awaiting data can tell it was superseded.
 let ctxSeq = 0;
-const hideCtx = () => { ctxSeq++; ctx.hidden = true; ctx.innerHTML = ''; };
+const hideCtx = () => { ctxSeq++; ctx.hidden = true; ctx.innerHTML = ''; $('site').setAttribute('aria-expanded', 'false'); };
 function showCtx(html, e, bind) {
   ctxSeq++;
   ctx.innerHTML = html;
   ctx.setAttribute('role', 'menu');
-  ctx.querySelectorAll('button').forEach((b) => b.setAttribute('role', 'menuitem'));
+  ctx.querySelectorAll('button:not([role])').forEach((b) => b.setAttribute('role', 'menuitem'));
   ctx.hidden = false;
   const r = ctx.getBoundingClientRect();
   ctx.style.left = Math.max(4, Math.min(e.clientX, innerWidth - r.width - 4)) + 'px';
@@ -1016,6 +1028,8 @@ function iconMenu(t, e) {
     else if (ev.key === 'Escape') hideCtx();
   };
 }
+// Ask tabs (model chat, or an AI site opened by Ask about this page) show under AI, not in Tabs.
+const askTab = (t) => !t.ghost && (/^roar:\/\/ui\/chat\.html/.test(t.url || '') || !!t.askLlm);
 async function tabMenu(t, e) {
   // uBOL can take up to 5 s to answer; past 300 ms draw the menu without the ad-block item.
   const seq = ctxSeq;
@@ -1045,6 +1059,29 @@ async function tabMenu(t, e) {
     hideCtx();
   });
 }
+// The address bar's site icon: per-site switches for the active tab's site.
+async function siteMenu() {
+  const t = state?.tabs?.find((x) => x.active), btn = $('site');
+  if (!t || t.ghost || !/^https?:/.test(t.url || '')) return;
+  const seq = ctxSeq;
+  // uBOL can take up to 5 s: past 300 ms its item shows disabled instead of missing (undefined = no answer yet).
+  const [pop, ab] = await Promise.all([ask({ cmd: 'tab.popups', id: t.id }).catch(() => null),
+    Promise.race([ask({ cmd: 'tab.adblock', id: t.id }), new Promise((r) => setTimeout(r, 300))]).catch(() => null)]);
+  if (seq !== ctxSeq) return;
+  const host = pop?.host || hostOf(t.url), r = btn.getBoundingClientRect();
+  const item = (act, on, label, tip, off) => `<button data-act="${act}" role="menuitemcheckbox" aria-checked="${!!on}"${off ? ' aria-disabled="true" disabled' : ''} title="${esc(tip)}"><span style="width:10px">${on ? '✓' : ''}</span>${label}</button>`;
+  showCtx(`<div class="head">${esc(host)}</div>
+    ${item('popups', pop?.allowed, 'Allow pop-ups', `Pop-ups from ${host} open without being blocked`, !pop)}
+    ${item('adblock', ab?.excluded, 'Turn off blocking for this site', ab ? `Ads and trackers won't be blocked on ${ab.site || host}. Reloads the page` : ab === undefined ? 'Still checking the ad blocker; try again in a moment' : 'The ad blocker isn\'t running', !ab)}`,
+    { clientX: r.left, clientY: r.bottom + 4 }, (act) => {
+      if (act === 'popups') ask({ cmd: 'tab.popups', id: t.id, what: 'toggle' });
+      else if (act === 'adblock') ask({ cmd: 'tab.adblock', id: t.id, what: 'toggle' });
+      hideCtx();
+      btn.focus();
+    });
+  btn.setAttribute('aria-expanded', 'true');
+}
+$('site').onclick = (e) => { e.stopPropagation(); siteMenu(); };
 // Right-click on empty sidebar space.
 function sidebarMenu(e) {
   const others = state.spaces.filter((sp) => sp.id !== state.activeSpace);
