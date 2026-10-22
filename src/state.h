@@ -23,6 +23,7 @@ struct SavedTab {
   bool agent = false;  // An agent opened or acted on it (agent_mark.h).
   double agent_last = 0;
   std::string name;  // Given in Roar (rename): shown instead of the page title.
+  std::string ask_llm;  // An Ask-about-this-page tab's AI, so it lists under AI after a restore too.
 };
 
 // A named, colored set of tabs in one space. A pinned group's tabs come back

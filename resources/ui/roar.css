@@ -87,3 +87,9 @@ pre .slash { color: var(--mane); }
 .slash-wrap > * { grid-area: 1 / 1; width: 100%; min-width: 0; }
 .slash-mirror { pointer-events: none; overflow: hidden; overflow-wrap: break-word; border-style: solid; border-color: transparent; color: var(--ink); }
 .slash-on { color: transparent !important; caret-color: var(--ink); }
+/* Claude Code install notice (agent-setup.js claudeInstallHtml). */
+.as-install { display: block; }
+.as-install small { display: block; }
+.as-fix { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 6px 0 4px; }
+.as-fix code { font: 12px var(--mono); padding: 4px 8px; border-radius: 6px; background: var(--ground); box-shadow: inset 0 0 0 1px var(--rule); user-select: all; overflow-wrap: anywhere; }
+.tiles .as-install { grid-column: 1 / -1; }

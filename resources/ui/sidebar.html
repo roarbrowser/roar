@@ -479,6 +479,7 @@ body.drag-active .pinned:empty::before { content: 'Drop to pin'; color: var(--in
 <script src="bridge.js"></script>
 <script src="cl-session.js"></script>
 <script src="chat-core.js"></script>
+<script src="agent-setup.js"></script>
 <script src="space-dots.js"></script>
 <script src="artifact-group.js"></script>
 <script>
@@ -1370,10 +1371,13 @@ $('cl-new').onclick = (e) => {
   $('cl-tabs-f').hidden = !web.length;
   $('cl-tabs').innerHTML = web.map((t) => `<label class="opt tab"><input type="checkbox" value="${t.id}"${t.id === clActive ? ' checked' : ''}>${iconHtml(t.favicon, t.url)}<span>${esc(t.title || t.url)}</span></label>`).join('');
   if (!tools.length) $('cl-tiles').innerHTML = '<p class="note">No agent CLI is connected. Connect one in <a href="#" class="set-agents">Settings › Agents</a>.</p>';
+  // Claude Desktop alone has no Claude Code to start: show how to get it instead of a missing tile.
+  if (!tools.includes('claude')) claudeCliStatus().then((c) => c === 'desktop-only' && $('cl-tiles').insertAdjacentHTML('afterbegin', claudeInstallHtml()));
   clDlg.showModal();
   clStep(1);
   $('cl-go').disabled = !tools.length;
 };
+bindInstallCopy($('cl-tiles'));
 $('cl-tiles').addEventListener('click', (e) => e.target.closest('.set-agents') && (e.preventDefault(), clDlg.close(), agentSettings()));
 $('cl-tiles').addEventListener('dblclick', (e) => e.target.closest('.opt') && clStep(2));
 $('cl-where').addEventListener('click', async (e) => {

@@ -180,7 +180,7 @@
     : `${p.name} can't be fully cut off from your files, so Roar won't send it web pages (a page could tell it to read them). Use Claude Code or an API model to include a tab.`;
   const cliStatus = (p, s) => s === 'ok' ? { state: 'available', label: `Installed · runs on your ${p.account} account and its quota` }
     : s === 'signed-out' ? { state: 'signed-out', label: `Installed, not signed in. Run “${p.cli}” once in Terminal and log in.`, run: p.cli }
-    : s === 'desktop-only' ? { state: 'missing', label: 'The Claude app is installed, but chat needs Claude Code, its command-line tool. Install it, then run “claude” once to sign in.', run: p.install }
+    : s === 'desktop-only' ? { state: 'missing', label: 'The Claude app is installed, but Roar’s agent features need Claude Code, its command-line tool. Paste the install command in Terminal, then run claude once in Terminal to sign in.', run: p.install }
     : { state: 'missing', label: `Not installed. Paste the install command in Terminal${p.node ? ' (needs Node.js 20 or later)' : ''}, then run “${p.cli}” once to sign in.`, run: p.install };
 
   // The chat as one prompt for a CLI's stdin: a CLI turn has no message list, so earlier turns become a transcript.

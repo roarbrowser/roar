@@ -1217,6 +1217,7 @@ void Controller::Start() {
     bool in_group = state.FindGroup(saved.group);
     if (restore && !saved.pinned && !in_group) {
       if (StartsWith(saved.url, kNewTabUrl) || StartsWith(saved.url, kWelcomeUrl) || StartsWith(saved.url, kSettingsUrl)) continue;
+      next_ask_llm_ = saved.ask_llm;
       int id = NewTab(saved.url, false, false, saved.last_active, saved.space);
       FindTab(id)->favicon = saved.favicon;
       FindTab(id)->agent = {saved.agent, saved.agent_last};
@@ -1228,6 +1229,7 @@ void Controller::Start() {
         state.last_session.push_back(saved);
       continue;
     }
+    next_ask_llm_ = saved.ask_llm;
     int id = NewTab(saved.url, false, saved.pinned && !in_group, saved.last_active, saved.space);
     if (in_group) FindTab(id)->group = saved.group;
     FindTab(id)->icon = saved.icon;
@@ -3241,6 +3243,7 @@ void Controller::RunCommand(const std::string& id) {
     int space = State::Get().active_space;
     for (const auto& saved : last)
       if (saved.space == space) {
+        next_ask_llm_ = saved.ask_llm;
         int tab = NewTab(saved.url, false, false, saved.last_active, space);
         FindTab(tab)->icon = saved.icon;
         FindTab(tab)->name = saved.name;
@@ -6067,7 +6070,7 @@ void Controller::SaveNow() {
     if (t.id == active_id_) state.active_index = static_cast<int>(state.tabs.size());
     // Large data: favicons would bloat state.json; the page supplies them again on load.
     state.tabs.push_back({!t.reader_origin.empty() ? t.reader_origin : t.pinned && !t.home_url.empty() ? t.home_url : t.url, t.title, t.pinned, t.last_active, t.space, t.group, t.icon,
-                          t.favicon.size() <= 16 * 1024 ? t.favicon : "", t.agent.marked, t.agent.last, t.name});
+                          t.favicon.size() <= 16 * 1024 ? t.favicon : "", t.agent.marked, t.agent.last, t.name, t.ask_llm});
   }
   state.Save();
 }
