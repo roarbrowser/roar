@@ -63,7 +63,7 @@ function agentSetup(root, { llm = true, list: asList = false } = {}) {
         : h === 'outdated' || m?.stale ? 'Points at an old copy of Roar. Roar repairs this at launch, or Reconnect now.' : r.connected && r.hook === 'codex' ? 'Approve Roar’s hooks once in Codex: run /hooks.' : '';
       r.outdated = h === 'outdated' || !!m?.stale;
       // No CLI: a leftover hook or config must not make it look connected; the install notice replaces its button.
-      if (r.key === 'claude' && (cli === 'desktop-only' || (cli !== '' && claudeMissingError(errors.claude)))) Object.assign(r, { desktop: true, here: true, connected: false, needHook: false, needMcp: false, outdated: false, note: '' });
+      if (r.key === 'claude' && (cli === 'desktop-only' || (cli === 'missing' && claudeMissingError(errors.claude)))) Object.assign(r, { desktop: true, here: true, connected: false, needHook: false, needMcp: false, outdated: false, note: '' });
     }
     return list;
   }
@@ -84,7 +84,7 @@ function agentSetup(root, { llm = true, list: asList = false } = {}) {
     const status = (r) => {
       if (r.desktop) return claudeInstallHtml();
       const n = r.hook ? live.filter((c) => agentTool(c) === r.hook).length : 0;
-      if (r.outdated) return '<small class="status warn">Needs reconnecting</small>';
+      if (r.outdated && !errors[r.key]) return '<small class="status warn">Needs reconnecting</small>';
       if (r.note) return `<small class="status warn">${esc(r.note)}</small>`;
       if (r.connected) return `<small data-state="available">Connected${n ? ` · ${n} running` : ''}</small>`;
       return `<small>${r.here ? 'Not connected' : 'Not on this Mac'}</small>`;

@@ -100,16 +100,19 @@ try {
     await shot('ask-chat', (x) => x.url.includes('chat.html'));
   }
   await chat(`ask({cmd:'run',id:'closeTab'})`).catch(() => {});
-  // A connect that fails because claude isn't there shows the install notice, not the raw error.
-  await set(`(() => { const a = window.ask; window.ask = (m) => m.cmd === 'chat.clis' ? Promise.resolve({ claude: 'ok' })
-    : m.cmd === 'agents.list' ? a(m).then((l) => (l || []).filter((c) => c.id !== 'claude-code').concat([{ id: 'claude-code', name: 'Claude Code', file: '/x', detected: true, connected: false }]))
-    : m.cmd === 'agents.connect' ? Promise.resolve('spawn claude ENOENT') : m.cmd === 'claude.hooks' ? Promise.reject(new Error('claude: command not found'))
-    : m.cmd === 'settings.set' ? Promise.resolve(true) : a(m); return true; })()`);
-  await set(`showTab('agents'); setup.refresh().then(() => true)`);
-  await waitFor(() => set(`!!document.querySelector('.as-list [data-tool=claude] [data-key]')`));
-  await set(`document.querySelector('.as-list [data-tool=claude] [data-key]').click()`);
-  const er = await waitFor(() => set(`(t => /agent features|Couldn/.test(t) && t)(document.querySelector('.as-list [data-tool=claude]').innerText)`));
-  check(/agent features need Claude Code/.test(er || '') && !/Couldn/.test(er), 'install-related connect error shows the notice: ' + er);
+  // A missing-CLI connect error shows the install notice; with the CLI installed the same error stays a plain error with its button.
+  for (const cli of ['missing', 'ok']) {
+    await set(`(() => { const a = window.__ask || (window.__ask = window.ask); window.ask = (m) => m.cmd === 'chat.clis' ? Promise.resolve({ claude: '${cli}' })
+      : m.cmd === 'agents.list' ? a(m).then((l) => (l || []).filter((c) => c.id !== 'claude-code').concat([{ id: 'claude-code', name: 'Claude Code', file: '/x', detected: true, connected: false }]))
+      : m.cmd === 'agents.connect' ? Promise.resolve('spawn claude ENOENT') : m.cmd === 'claude.hooks' ? Promise.reject(new Error('claude: command not found'))
+      : m.cmd === 'settings.set' ? Promise.resolve(true) : a(m); return true; })()`);
+    await set(`showTab('agents'); setup.refresh().then(() => true)`);
+    await waitFor(() => set(`!!document.querySelector('.as-list [data-tool=claude] [data-key]')`));
+    await set(`document.querySelector('.as-list [data-tool=claude] [data-key]').click()`);
+    const er = await waitFor(() => set(`(t => /agent features|Couldn/.test(t) && t)(document.querySelector('.as-list [data-tool=claude]').innerText)`));
+    if (cli === 'missing') check(/agent features need Claude Code/.test(er || '') && !/Couldn/.test(er), 'missing CLI: connect error shows the notice: ' + er);
+    else check(/Couldn/.test(er || '') && !/agent features/.test(er) && !!(await set(`!!document.querySelector('.as-list [data-tool=claude] [data-key]')`)), 'CLI installed: real error and Connect button, no notice: ' + er);
+  }
   await shot('settings-chat', (x) => x.url.includes('settings.html'));
   // Sidebar Code dialog.
   await sidebar(fake);

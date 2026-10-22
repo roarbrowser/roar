@@ -42,6 +42,9 @@ textarea { flex: 1; resize: none; border: 0; background: none; color: var(--ink)
 #attach[aria-pressed="true"] { color: var(--mane-ink); background: var(--mane-soft); }
 #attach { padding: 3px 10px; font-size: 12px; }
 #note { flex: 1; text-align: right; }
+.tools:has(.as-install) { flex-wrap: wrap; }
+/* The install notice gets its own full-width line instead of squeezing beside the buttons. */
+#note:has(.as-install) { flex-basis: 100%; text-align: left; }
 #search { padding: 3px 10px; font-size: 12px; }
 #search[aria-pressed="true"] { color: var(--mane-ink); background: var(--mane-soft); }
 .sources { margin-top: 8px; padding-top: 6px; border-top: 1px solid var(--rule); font-size: 12px; color: var(--ink-2); }
