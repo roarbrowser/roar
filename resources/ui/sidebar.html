@@ -1834,7 +1834,8 @@ function ringCoach(s) {
   if (el) return;
   el = Object.assign(document.createElement('div'), { className: 'ring-coach', role: 'status' });
   el.innerHTML = '<span>Agents can\'t reach this space. Click the dot to reconnect.</span><button type="button" title="Got it" aria-label="Got it">×</button>';
-  el.querySelector('button').onclick = () => { el.remove(); ask({ cmd: 'settings.set', settings: { agentRingSeen: true } }); };
+  const dismiss = el.querySelector('button').onclick = () => { if (!el.isConnected) return; el.remove(); ask({ cmd: 'settings.set', settings: { agentRingSeen: true } }); };
+  setTimeout(dismiss, 8000);  // A hint, not a chore: it goes away on its own like a ×.
   $('bar').before(el);  // In the flow above the footer: covers nothing.
 }
 $('ext-pins').onclick = (e) => {
