@@ -531,7 +531,7 @@ $('search').oninput = () => {
 // and detected providers move to the top.
 async function chatRefresh(st) {
   const list = [...chatCore.parseProviders(st.chatProviders), ...chatCore.CLI_PROVIDERS], box = $('chat-providers'), sel = $('chat-default');
-  const row = (p) => p.kind === 'cli' ? `<div class="row" data-p="${esc(p.id)}"><span class="name">${esc(p.name)}<small data-state="${p.state || ''}">${esc(p.label || 'Checking…')}</small>${p.run ? `<span class="fix"><code>${esc(p.run)}</code><button class="btn" data-copy="${esc(p.run)}">Copy</button><button class="btn" data-recheck>Check again</button></span>` : ''}</span><span class="end"><small style="max-width:360px">${esc(p.isolation.replace(/\s*Runs under a macOS sandbox.*$/, ''))}</small></span></div>`
+  const row = (p) => p.kind === 'cli' ? `<div class="row" data-p="${esc(p.id)}"><span class="name">${esc(p.name)}<small data-state="${p.state || ''}">${esc(p.label || 'Checking…')}</small>${p.run ? `<span class="fix"><code>${esc(p.run)}</code><button class="btn" data-copy="${esc(p.run)}">Copy</button><button class="btn" data-recheck>Check again</button></span>` : ''}${p.after ? `<small>${esc(p.after)}</small>` : ''}</span><span class="end"><small style="max-width:360px">${esc(p.isolation.replace(/\s*Runs under a macOS sandbox.*$/, ''))}</small></span></div>`
     : `<div class="row" data-p="${esc(p.id)}"><span class="name">${esc(p.name)}<small data-state="${p.state || ''}">${esc(p.label || 'Checking…')}</small></span>
     <span class="end"><input type="text" class="query" data-url value="${esc(p.url)}" aria-label="${esc(p.name)} URL" spellcheck="false" style="width:240px">
     ${p.get ? `<button class="btn" data-get="${esc(p.get)}">Get ${esc(p.name)}</button>` : ''}

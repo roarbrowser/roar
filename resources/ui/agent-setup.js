@@ -14,8 +14,17 @@ const claudeInstallHtml = () => `<span class="as-install" role="note"><small cla
 // Copy buttons for claudeInstallHtml anywhere in |root|: Copied for 1.5 s, like Settings' data-copy.
 const bindInstallCopy = (root) => root.addEventListener('click', (e) => {
   const b = e.target.closest('[data-copytext]');
-  if (b) navigator.clipboard.writeText(b.dataset.copytext).then(() => { b.textContent = 'Copied'; setTimeout(() => (b.textContent = 'Copy'), 1500); });
+  if (!b) return;
+  const done = (t) => { b.textContent = t; setTimeout(() => (b.textContent = 'Copy'), 1500); };
+  // Clipboard API refused (no focus, permission): select the command so ⌘C works, and say so.
+  navigator.clipboard.writeText(b.dataset.copytext).then(() => done('Copied'), () => {
+    const c = b.previousElementSibling;
+    if (c) getSelection().selectAllChildren(c);
+    done(c && document.execCommand('copy') ? 'Copied' : 'Press ⌘C');
+  });
 });
+// A connect error that means the claude CLI isn't there: show the install notice, not the raw error.
+const claudeMissingError = (e) => /not found|ENOENT|no such file|not installed/i.test(e || '');
 // The claude CLI's chat.clis status ("" on Windows, which runs no coding agents).
 const claudeCliStatus = () => /^Win/.test(navigator.platform) ? Promise.resolve('') : ask({ cmd: 'chat.clis' }).then((d) => d?.claude || '', () => '');
 
@@ -54,7 +63,7 @@ function agentSetup(root, { llm = true, list: asList = false } = {}) {
         : h === 'outdated' || m?.stale ? 'Points at an old copy of Roar. Roar repairs this at launch, or Reconnect now.' : r.connected && r.hook === 'codex' ? 'Approve Roar’s hooks once in Codex: run /hooks.' : '';
       r.outdated = h === 'outdated' || !!m?.stale;
       // No CLI: a leftover hook or config must not make it look connected; the install notice replaces its button.
-      if (r.key === 'claude' && cli === 'desktop-only') Object.assign(r, { desktop: true, here: true, connected: false, needHook: false, needMcp: false, outdated: false, note: '' });
+      if (r.key === 'claude' && (cli === 'desktop-only' || (cli !== '' && claudeMissingError(errors.claude)))) Object.assign(r, { desktop: true, here: true, connected: false, needHook: false, needMcp: false, outdated: false, note: '' });
     }
     return list;
   }

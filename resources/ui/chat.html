@@ -73,6 +73,7 @@ textarea { flex: 1; resize: none; border: 0; background: none; color: var(--ink)
 </main>
 <script src="bridge.js"></script>
 <script src="chat-core.js"></script>
+<script src="agent-setup.js"></script>
 <script src="slash-mark.js"></script>
 <script>
 const $ = (id) => document.getElementById(id);
@@ -91,6 +92,7 @@ const brandOf = (p) => {
   const s = (p.name + ' ' + p.url).toLowerCase();
   return /gemini|googleapis/.test(s) ? { brand: 'gemini', brandName: p.name } : /qwen/.test(s) ? { brand: 'qwen', brandName: p.name } : { brand: 'model', brandName: p.name };
 };
+bindInstallCopy($('note'));
 const note = (t) => { $('note').textContent = t || ''; };
 const newChat = () => ({ id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6), title: '', created: Date.now(), messages: [] });
 
@@ -142,8 +144,8 @@ async function loadModels(st) {
   const idle = all.find((p) => p.state === 'installed');
   // Claude Desktop alone: say Claude Code is what's missing, with its install command.
   const desk = all.find((p) => p.id === 'cli-claude' && p.state === 'missing' && /Claude app/.test(p.label || ''));
-  note(!sel.disabled ? '' : idle ? `${idle.name}: ${idle.label}` : desk ? `${desk.label} Install command: ${desk.run}`
-    : 'Start a local model server, or add an API key in Settings > Model chat.');
+  note(!sel.disabled ? '' : idle ? `${idle.name}: ${idle.label}` : desk ? '' : 'Start a local model server, or add an API key in Settings > Model chat.');
+  if (sel.disabled && !idle && desk) $('note').innerHTML = claudeInstallHtml();
   paintAttach();
   if (!chat.messages.length) renderLog();
 }
