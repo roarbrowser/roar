@@ -1,7 +1,7 @@
 // Runs in a hidden Outlook page Roar loaded (outlook.cloud.microsoft, also through the
 // Defender for Cloud Apps proxy). Reads unread inbox mail with Outlook's own same-origin
 // service and the bearer token the web app sends (its token cache is encrypted), then
-// reports "__roar_outlook__ <json>": {unread, items: [{title, detail, url}]} or {error}.
+// reports "__roar_outlook__ <json>": {unread, items: [{title, detail, url (a path)}]} or {error}.
 (() => {
   const report = (o) => console.debug('__roar_outlook__ ' + JSON.stringify(o));
   // Keep the latest token Outlook sends; it renews it before it expires.
@@ -51,7 +51,7 @@
         const id = (m.ConversationId || m.ItemId || {}).Id || '';
         const from = m.From && m.From.Mailbox ? m.From.Mailbox.Name || m.From.Mailbox.EmailAddress : '';
         const when = m.DateTimeSent ? new Date(m.DateTimeSent).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '';
-        return { title: m.Subject || '(no subject)', detail: [from, when].filter(Boolean).join(' · '), url: location.origin + '/mail/inbox/id/' + encodeURIComponent(id) };
+        return { title: m.Subject || '(no subject)', detail: [from, when].filter(Boolean).join(' · '), url: '/mail/inbox/id/' + encodeURIComponent(id) };
       });
       report({ unread: folder.Folders[0].UnreadCount || 0, items });
     } catch (e) {

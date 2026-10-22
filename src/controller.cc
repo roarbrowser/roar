@@ -2558,9 +2558,11 @@ void Controller::OnOutlookMail(CefRefPtr<CefBrowser> browser, const std::string&
     auto items = d->GetList("items");
     for (size_t i = 0; items && i < items->GetSize() && i < 25; ++i) {
       auto m = items->GetDictionary(i);
-      std::string url = m ? m->GetString("url").ToString() : "";
-      if (!StartsWith(url, origin + "/mail/")) continue;  // Only links into this Outlook.
-      feed.items.push_back({m->GetString("title").ToString().substr(0, 300), url, m->GetString("detail").ToString().substr(0, 200)});
+      // A path, not a full address: the hidden page may have been redirected to another Outlook host
+      // (outlook.office.com -> outlook.cloud.microsoft), which dropped every row while the count stayed.
+      std::string path = m ? m->GetString("url").ToString() : "";
+      if (!StartsWith(path, "/mail/")) continue;  // Only links into this Outlook.
+      feed.items.push_back({m->GetString("title").ToString().substr(0, 300), origin + path, m->GetString("detail").ToString().substr(0, 200)});
     }
     map[space] = std::move(feed);
   }
