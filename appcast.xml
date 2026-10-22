@@ -29,5 +29,14 @@
       <description><![CDATA[Agent view: the terminal shows the session's colors, the CLI's own input box no longer duplicates the reply box, and you can paste images into the reply boxes. Agent sessions in the sidebar keep their order instead of jumping around.]]></description>
       <enclosure url="https://github.com/roarbrowser/roar/releases/download/v1.0.2/Roar-1.0.2.dmg" type="application/octet-stream" sparkle:edSignature="64R7Id7y3kc4ZvCWA4NYaGkkaeTXd5zz/cgG3a3qBuuXqh1SKA5xfG3eZYer7BGbRdBZH2xV/xKwSDsnkOOWDA==" length="207533425"/>
     </item>
+    <item>
+      <title>1.0.3</title>
+      <pubDate>Thu, 22 Oct 2026 00:41:43 +0000</pubDate>
+      <sparkle:version>10003</sparkle:version>
+      <sparkle:shortVersionString>1.0.3</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[Outlook: unread mail in the sidebar updates again after Outlook reloads in the background; it could stay stuck on an old result.]]></description>
+      <enclosure url="https://github.com/roarbrowser/roar/releases/download/v1.0.3/Roar-1.0.3.dmg" type="application/octet-stream" sparkle:edSignature="lnOJm+AI8jh5nQeirPzG1sJ9MyfAuRKwgswS+DOVPg9J8bV/SGlQeaFfLlmHIuZNP24TXIJoDT3qzCKUNGBcCg==" length="207533553"/>
+    </item>
   </channel>
 </rss>
