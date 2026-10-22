@@ -1,10 +1,9 @@
-# Builds Roar for Windows (x64 and ARM64) on every push to main or windows-port; nothing is published.
-# A main push first merges main into windows-port, so Windows always has the latest features; when
-# both builds pass, that merge is pushed to windows-port. A merge conflict fails the run.
+# Builds Roar for Windows (x64) from main on every push; a tagged release commit also publishes it.
+# Windows ships stock CEF (no H.264/AAC); see docs/cef-builds.md for the built-in decoder follow-up.
 name: Windows build
 on:
   push:
-    branches: [main, windows-port]
+    branches: [main]
   workflow_dispatch:
     inputs:
       tag: { description: "Attach the build to this existing release (e.g. v0.36.3)", required: false }
@@ -20,20 +19,12 @@ jobs:
       matrix:
         include:
           - { arch: x64, runner: windows-2025, cef: windows64, msvc: x64, triplet: x64-windows }
-          - { arch: arm64, runner: windows-11-arm, cef: windowsarm64, msvc: arm64, triplet: arm64-windows }
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event_name == 'workflow_dispatch' && github.ref_name || 'windows-port' }}  # A manual run builds its own branch.
-          fetch-depth: 0
-          persist-credentials: false  # The merge here is local; only advance pushes.
-      - name: Merge main
-        shell: bash
-        run: |
-          git config user.name Roar && git config user.email roarbrowser@gmail.com
-          git merge --no-edit "$GITHUB_SHA"  # origin/main on a main push; the pushed branch otherwise.
+          persist-credentials: false
       - uses: ilammy/msvc-dev-cmd@v1.13.0
         with:
           arch: ${{ matrix.msvc }}
@@ -85,22 +76,6 @@ jobs:
           name: roar-windows-${{ matrix.arch }}-unsigned
           path: build/src/Release
           retention-days: 7
-  # Both builds passed: windows-port takes the merge (a push by this token starts no new run).
-  advance:
-    needs: build
-    if: github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: windows-port
-          fetch-depth: 0
-      - run: |
-          git config user.name Roar && git config user.email roarbrowser@gmail.com
-          git merge --no-edit origin/main
-          git push origin HEAD:windows-port
   # A release commit (tagged v*): attach both zips to its GitHub release, which the website links to.
   publish:
     needs: build
@@ -128,7 +103,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          for a in x64 arm64; do
+          for a in x64; do
             echo "$a=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/artifacts" -q ".artifacts[] | select(.name == \"roar-windows-$a-unsigned\") | .id")" >> "$GITHUB_OUTPUT"
           done
       - if: steps.ids.outputs.x64 != ''
@@ -143,28 +118,16 @@ jobs:
           wait-for-completion: true
           wait-for-completion-timeout-in-seconds: 21600  # Approval is by hand; GitHub's job limit is 6 h.
           output-artifact-directory: signed-x64
-      - if: steps.ids.outputs.arm64 != ''
-        uses: signpath/github-action-submit-signing-request@c92b958760219087e01f8d67a1669ed57afe2627  # v2
-        with:
-          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
-          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
-          project-slug: roar
-          signing-policy-slug: release-signing
-          artifact-configuration-slug: windows
-          github-artifact-id: ${{ steps.ids.outputs.arm64 }}
-          wait-for-completion: true
-          wait-for-completion-timeout-in-seconds: 21600  # Approval is by hand; GitHub's job limit is 6 h.
-          output-artifact-directory: signed-arm64
       - if: steps.tag.outputs.tag != ''
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ steps.tag.outputs.tag }}
         run: |
           # The signed copy when SignPath returned one, else the unsigned build.
-          for a in x64 arm64; do d="signed-$a"; [ -d "$d" ] || d="roar-windows-$a-unsigned"; (cd "$d" && zip -qr "../Roar-windows-$a.zip" .); done
+          for a in x64; do d="signed-$a"; [ -d "$d" ] || d="roar-windows-$a-unsigned"; (cd "$d" && zip -qr "../Roar-windows-$a.zip" .); done
           # release.sh creates the release right after pushing the tag; wait for it.
           for i in $(seq 1 30); do gh release view "$TAG" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1 && break; sleep 20; done
-          gh release upload "$TAG" Roar-windows-x64.zip Roar-windows-arm64.zip --clobber -R "$GITHUB_REPOSITORY"
+          gh release upload "$TAG" Roar-windows-x64.zip --clobber -R "$GITHUB_REPOSITORY"
       # The installers are built from the same (signed when available) files as the zips.
       - if: steps.tag.outputs.tag != ''
         uses: actions/upload-artifact@v4
@@ -195,12 +158,12 @@ jobs:
         run: |
           choco install innosetup -y --no-progress
           $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
-          foreach ($a in 'x64', 'arm64') {
+          foreach ($a in 'x64') {
             Expand-Archive "Roar-windows-$a.zip" "src-$a"
             & $iscc "/DVersion=$($env:TAG.TrimStart('v'))" "/DArch=$a" "/DSource=$PWD\src-$a" /O. scripts\roar.iss
             if ($LASTEXITCODE) { exit $LASTEXITCODE }
           }
-          gh release upload $env:TAG Roar-windows-x64-setup.exe Roar-windows-arm64-setup.exe --clobber -R $env:GITHUB_REPOSITORY
+          gh release upload $env:TAG Roar-windows-x64-setup.exe --clobber -R $env:GITHUB_REPOSITORY
   # WinSparkle feed: one appcast per arch on main, pointing at this release's EdDSA-signed installers.
   appcast:
     needs: [publish, installer]
@@ -221,10 +184,10 @@ jobs:
           umask 077; printf '%s\n' "$ED_KEY" > "$RUNNER_TEMP/ed.pem"
           # The key must match the public key compiled into Roar, or every update would be rejected.
           pub=$(openssl pkey -in "$RUNNER_TEMP/ed.pem" -pubout -outform DER | tail -c 32 | base64 -w0)
-          git show "origin/windows-port:src/win/platform.cc" | grep -qF "\"$pub\"" || { echo "WINSPARKLE_ED_KEY does not match the app's public key"; exit 1; }
+          git show "$TAG:src/win/platform.cc" | grep -qF "\"$pub\"" || { echo "WINSPARKLE_ED_KEY does not match the app's public key"; exit 1; }
           plist=$(git show "$TAG:resources/Info.plist.in")
           short=${TAG#v}; build=$(sed -n 's/.*CFBundleVersion<\/key><string>\([^<]*\).*/\1/p' <<<"$plist")
-          for a in x64 arm64; do
+          for a in x64; do
             f=Roar-windows-$a-setup.exe
             gh release download "$TAG" -p "$f" -R "$GITHUB_REPOSITORY"
             sig=$(openssl pkeyutl -sign -inkey "$RUNNER_TEMP/ed.pem" -rawin -in "$f" | base64 -w0)
@@ -244,7 +207,7 @@ jobs:
           XML
           done
           rm -f "$RUNNER_TEMP/ed.pem" Roar-windows-*-setup.exe
-          git config user.name Roar && git config user.email roarbrowser@gmail.com
+          git config user.name roarbrowser && git config user.email 342802191+roarbrowser@users.noreply.github.com
           git add appcast-windows-*.xml
           git diff --cached --quiet && exit 0
           git commit -qm "Windows appcast: $TAG"

@@ -1261,7 +1261,7 @@ void UpdateChromium(void* window) {
         return;
       }
       bool codecs = [NSFileManager.defaultManager
-          fileExistsAtPath:[root stringByAppendingPathComponent:@"third_party/cef.prebuilt"]];
+          fileExistsAtPath:[root stringByAppendingPathComponent:@"third_party/cef/args.gn"]];  // A source (codec) build keeps its args.gn.
       NSString* text = [NSString
           stringWithFormat:@"%@\n\nRoar rebuilds in the background%@ and relaunches itself when done. "
                            @"The log is at ~/Library/Logs/Roar-update.log.",

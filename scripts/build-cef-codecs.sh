@@ -109,12 +109,7 @@ if [[ "$ARCH" == x64 ]]; then
   exit 0
 fi
 DIST=$(ls -d "$CEF_SRC"/chromium/src/cef/binary_distrib/cef_binary_*_macosarm64_minimal | head -1)
-# Keep the stock prebuilt only the first time; later runs replace an earlier codec build.
-if [[ -d "$ROOT/third_party/cef.prebuilt" ]]; then
-  rm -rf "$ROOT/third_party/cef"
-elif [[ -d "$ROOT/third_party/cef" ]]; then
-  mv "$ROOT/third_party/cef" "$ROOT/third_party/cef.prebuilt"
-fi
+rm -rf "$ROOT/third_party/cef"
 cp -R "$DIST" "$ROOT/third_party/cef"
 keep_build_record "$ROOT/third_party/cef"
 echo "Codec-enabled CEF installed at third_party/cef; run scripts/build.sh"

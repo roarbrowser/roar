@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Pins fetch-cef.sh to the newest stable CEF (latest Chromium) for macOS arm64,
 # then rebuilds. Usage: scripts/update-cef.sh [--check]
-# If third_party/cef is a source build (cef.prebuilt exists), the new version is
+# If third_party/cef is a source build (it has args.gn), the new version is
 # compiled the same way (hours), so the update keeps Roar's patches and MP4/H.264
 # playback through macOS's decoders. Each CEF bump needs roar_platform_codecs.patch
 # rebased: supported_types.cc and audio_toolbox_audio_decoder.cc change often.
@@ -22,7 +22,7 @@ fi
 echo "Update available: $CURRENT -> $NAME"
 [[ "${1:-}" == "--check" ]] && exit 0
 sed -i '' -e "s|^NAME='.*'|NAME='$NAME'|" -e "s|^SHA1='.*'|SHA1='$SHA1'|" "$FETCH"
-if [[ -d "$ROOT/third_party/cef.prebuilt" ]]; then
+if [[ -f "$ROOT/third_party/cef/args.gn" ]]; then
   "$ROOT/scripts/build-cef-codecs.sh"
   # A universal build needs both halves on the same CEF, or build.sh lipos mismatched frameworks.
   [[ -d "$ROOT/third_party/cef-x64" ]] && ROAR_CEF_ARCH=x64 "$ROOT/scripts/build-cef-codecs.sh"
