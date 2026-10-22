@@ -236,6 +236,23 @@ void State::Load() {
     if (!settings.sidebar_counts && settings.hidden_counts.empty()) settings.hidden_counts = R"({"cl-btn":1,"gh-btn":1,"gm-btn":1})";
     settings.sidebar_counts = true;
     if (settings.notifications.empty()) settings.notifications = NotifyMigrate(settings);
+    // Key providers added to the defaults later (Perplexity) join saved lists that predate them,
+    // unless one with that id or URL is already there.
+    if (auto saved = CefParseJSON(settings.chat_providers, JSON_PARSER_RFC); saved && saved->GetType() == VTYPE_LIST) {
+      auto have = saved->GetList();
+      auto defs = CefParseJSON(Settings{}.chat_providers, JSON_PARSER_RFC)->GetList();
+      bool added = false;
+      for (size_t i = 0; i < defs->GetSize(); ++i) {
+        auto def = defs->GetDictionary(i);
+        if (!def->GetBool("key")) continue;
+        bool dup = false;
+        for (size_t j = 0; j < have->GetSize() && !dup; ++j)
+          if (auto h = have->GetDictionary(j))
+            dup = h->GetString("id") == def->GetString("id") || h->GetString("url") == def->GetString("url");
+        if (!dup) have->SetDictionary(have->GetSize(), def->Copy(false)), added = true;
+      }
+      if (added) settings.chat_providers = CefWriteJSON(saved, JSON_WRITER_DEFAULT).ToString();
+    }
     // The old default listed PRs in archived repos too.
     if (settings.github_query == "is:open is:pr author:@me")
       settings.github_query = "is:open is:pr author:@me archived:false";

@@ -54,13 +54,14 @@ struct Settings {
   std::string agent_names;  // Names given to agent sessions in Roar, JSON {sessionId: name}.
   std::string agent_colors;  // Each agent session's own color, JSON {sessionId: "#rrggbb"} (claude.html).
   // Model chat (chat.html) providers, a JSON list of {id, kind openai|anthropic, name, url, key}; keys
-  // live in the Keychain (platform::SecretSet), never here. chat_model is "<provider id>|<model>".
+  // live in the Keychain (platform::SecretSet), never here. Key defaults missing from a saved list are added on load. chat_model is "<provider id>|<model>".
   std::string chat_providers = R"([{"id":"ollama","name":"Ollama","url":"http://localhost:11434/v1"},)"
       R"({"id":"lmstudio","name":"LM Studio","url":"http://localhost:1234/v1"},)"
       R"({"id":"llamacpp","name":"llama.cpp","url":"http://localhost:8080/v1"},)"
       R"({"id":"jan","name":"Jan","url":"http://localhost:1337/v1"},)"
       R"({"id":"openai","name":"OpenAI","url":"https://api.openai.com/v1","key":true},)"
-      R"({"id":"anthropic","kind":"anthropic","name":"Anthropic","url":"https://api.anthropic.com/v1","key":true}])";
+      R"({"id":"anthropic","kind":"anthropic","name":"Anthropic","url":"https://api.anthropic.com/v1","key":true},)"
+      R"({"id":"perplexity","name":"Perplexity","url":"https://api.perplexity.ai","key":true}])";
   std::string chat_model;
   bool chat_search = false;  // New chats start with "Search the web" on; each chat keeps its own.
   bool footer_tour = false;  // Onboarding's last step: the sidebar highlights Settings and the space dot.

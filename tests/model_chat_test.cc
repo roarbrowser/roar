@@ -26,6 +26,8 @@ int main() {
   check(roar::ChatEndpoint("anthropic", "https://api.anthropic.com/v1", "chat") == "https://api.anthropic.com/v1/messages", "anthropic chat path");
   check(roar::ChatEndpoint("openai", "http://localhost:11434/v1", "chat") == "http://localhost:11434/v1/chat/completions", "openai chat path");
   check(roar::ChatEndpoint("openai", "https://api.openai.com/v1", "responses") == "https://api.openai.com/v1/responses" && roar::ChatEndpoint("anthropic", "https://x", "responses").empty(), "openai responses path");
+  check(roar::ChatEndpoint("openai", "https://api.perplexity.ai", "chat") == "https://api.perplexity.ai/chat/completions"
+        && roar::ChatEndpoint("openai", "https://api.perplexity.ai", "models") == "https://api.perplexity.ai/models", "perplexity paths, no /v1");
   check(roar::ChatEndpoint("openai", "file:///etc", "models").empty() && roar::ChatEndpoint("openai", "https://x", "../x").empty(), "only http(s) bases and known paths");
   check(roar::ChatKeyAllowed("https://api.openai.com/v1/models") && roar::ChatKeyAllowed("http://localhost:4000/v1") &&
             !roar::ChatKeyAllowed("http://localhost.evil.com/v1") && !roar::ChatKeyAllowed("http://192.168.1.5:11434/v1"),

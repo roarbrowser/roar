@@ -2,6 +2,9 @@
 // in node. Requests themselves go through Roar (chat.request), which adds the API key from the Keychain.
 (() => {
   const KINDS = ['openai', 'anthropic'];
+  const PPLX = /^https:\/\/api\.perplexity\.ai(\/|$)/;
+  // Perplexity's /models may not answer; these keep its picker filled once a key is saved.
+  const PPLX_MODELS = ['sonar', 'sonar-pro', 'sonar-reasoning-pro', 'sonar-deep-research'];
 
   // Settings' chatProviders (a JSON list; defaults in src/settings.h) -> clean provider list.
   // Bad entries are dropped, never guessed at: an unknown kind or a non-http URL is a typo.
@@ -60,8 +63,10 @@
       if (j.type === 'error') return { error: j.message || 'failed' };
       return {};
     }
-    const c = j.choices?.[0];
-    return c?.delta?.content ? { text: c.delta.content } : {};
+    const c = j.choices?.[0], text = c?.delta?.content ? { text: c.delta.content } : {};
+    // Perplexity: search_results [{title, url}], or older citations [url].
+    const found = Array.isArray(j.search_results) ? j.search_results : Array.isArray(j.citations) ? j.citations.map((url) => ({ url })) : null;
+    return found ? { ...text, ...src(found, true) } : text;
   };
 
   // Chat history -> the provider's request body. A user turn with a page carries it as Markdown.
@@ -94,8 +99,9 @@
   };
   // How "Search the web" works for provider `p`: 'anthropic' and 'responses' use the API's own tool, 'local' has
   // Roar search in a ghost page, '' can't (agent CLIs: their own tools are off).
+  // 'builtin': Perplexity searches on every answer, so the toggle has nothing to add.
   const searchMode = (p) => !p || p.kind === 'cli' ? '' : p.kind === 'anthropic' ? 'anthropic'
-    : /^https:\/\/api\.openai\.com(\/|$)/.test(p.url) ? 'responses' : 'local';
+    : /^https:\/\/api\.openai\.com(\/|$)/.test(p.url) ? 'responses' : PPLX.test(p.url) ? 'builtin' : 'local';
   // The link a local model asked Roar to open ("OPEN: <url>" as its whole reply), or ''.
   const openRequest = (text) => (String(text).trim().match(/^OPEN:\s*(https?:\/\/\S+)$/) || [])[1] || '';
   // Sources under a reply: what it cited, else every result it was given; deduplicated, http(s) only.
@@ -148,7 +154,8 @@
         ask({ cmd: 'chat.request', provider: p.id, what: 'models' }).then((r) => modelIds(typeof r === 'string' ? r : JSON.stringify(r))),
         late(null),
       ]).catch(() => null);
-      return { ...p, models: probe || [], ...providerStatus(p, { probe, installed: !!installed?.[p.id], hasKey: !!keys?.[p.id] }) };
+      const models = probe?.length ? probe : p.key && keys?.[p.id] && PPLX.test(p.url) ? PPLX_MODELS : probe || [];
+      return { ...p, models, ...providerStatus(p, { probe, installed: !!installed?.[p.id], hasKey: !!keys?.[p.id] }) };
     }));
     return out.map((p, i) => [p, i]).sort((a, b) => RANK[a[0].state] - RANK[b[0].state] || a[1] - b[1]).map(([p]) => p);
   };

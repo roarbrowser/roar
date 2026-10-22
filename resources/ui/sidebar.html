@@ -532,7 +532,6 @@ window.roar = {
     $('split-group').hidden = !pairs.length;
     $('split-count').textContent = pairs.length || '';
     setHtml($('split-tabs'), pairs.map(([a, b]) => `<div class="split-pair${a.stacked ? ' stacked' : ''}">${tabRow(a, 0, true)}${tabRow(b, 0, true)}<button class="unsplit-pair" data-unsplit="${a.id}" title="Separate" aria-label="Separate split tabs">${x}</button></div>`).join(''));
-    // Ask chats live under AI (their rows), not in the tab list, while that section shows.
     // Ask chats always list under AI (opening one turns AI back on), never as tabs.
     s = { ...s, tabs: s.tabs.filter((t) => !t.ghost && !t.split && !/^roar:\/\/ui\/claude\.html/.test(t.url || '') && !askTab(t)) };
     const pinned = s.tabs.filter((t) => t.pinned);

@@ -154,9 +154,9 @@ const picked = () => providers.find((x) => x.id === $('model').value.split('|')[
 // A CLI that can't be fully cut off from the user's files never gets page text (src/model_chat.h ChatCliToolless).
 function paintAttach() {
   const how = searchMode(picked());
-  $('search').disabled = !how;
-  $('search').setAttribute('aria-pressed', String(!!(how && chat?.search)));
-  $('search').title = !how ? "Agent CLIs run with their own tools off, so they can't search the web" : how === 'local'
+  $('search').disabled = !how || how === 'builtin';
+  $('search').setAttribute('aria-pressed', String(!!(how && how !== 'builtin' && chat?.search)));
+  $('search').title = how === 'builtin' ? `${picked().name} searches the web on its own` : !how ? "Agent CLIs run with their own tools off, so they can't search the web" : how === 'local'
     ? 'Roar searches in a private page (no cookies or logins) and gives the model the results' : "Uses the provider's own web search";
   const no = pageRefusal(picked());
   if (no && page) { page = null; $('attach').setAttribute('aria-pressed', 'false'); $('attach-name').textContent = ''; }

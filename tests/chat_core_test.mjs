@@ -18,6 +18,8 @@ const ps = core.parseProviders(JSON.stringify([
 check(ps.length === 2, 'drops duplicate, bad-id, non-http and unknown-kind providers');
 check(ps[0].kind === 'openai' && ps[0].url === 'http://localhost:11434/v1' && ps[0].key === false, 'defaults kind to openai, trims trailing slash');
 check(ps[1].name === 'anthropic' && ps[1].key === true, 'names default to id; key flag kept');
+const pp = core.parseProviders(JSON.stringify([{ id: 'perplexity', name: 'Perplexity', url: 'https://api.perplexity.ai', key: true }]))[0];
+check(pp.kind === 'openai' && pp.key === true && pp.url === 'https://api.perplexity.ai', 'perplexity default kept as openai kind with a key');
 check(core.parseProviders('{oops').length === 0 && core.parseProviders('{}').length === 0 && core.parseProviders('').length === 0, 'bad JSON gives no providers');
 
 // SSE, OpenAI style, split mid-event and with CRLF.
@@ -59,6 +61,19 @@ const fakeAsk = (m) => m.cmd === 'chat.installed' ? Promise.resolve({ lmstudio: 
 const det = await core.detectProviders([{ id: 'jan', key: false }, { id: 'lmstudio', key: false }, { id: 'anthropic', key: true }, { id: 'openai', key: true }, { id: 'ollama', key: false }], fakeAsk, 50);
 check(det.map((p) => p.id + ':' + p.state).join() === 'ollama:running,openai:available,lmstudio:installed,anthropic:needs-key,jan:missing', 'detect: sorted running, available, installed, needs key, missing; hang times out');
 check(det[0].models.join() === 'llama3' && det[1].models.join() === 'gpt' && det[2].models.length === 0, 'detect: models carried, none for silent servers');
+const PX = { id: 'perplexity', key: true, url: 'https://api.perplexity.ai' };
+const pxAsk = (keyed, models) => (m) => m.cmd === 'chat.keys' ? Promise.resolve({ perplexity: keyed, openai: true }) : m.cmd === 'chat.installed' ? Promise.resolve({})
+  : m.provider === 'perplexity' ? (models ? Promise.resolve({ data: models.map((id) => ({ id })) }) : Promise.reject(new Error('404')))
+  : m.provider === 'ollama' ? Promise.resolve({ data: [{ id: 'llama3' }] }) : m.provider === 'openai' ? Promise.resolve({ data: [{ id: 'gpt' }] }) : Promise.reject(new Error('refused'));
+const dpx = await core.detectProviders([{ id: 'jan', key: false }, PX, { id: 'openai', key: true }, { id: 'ollama', key: false }], pxAsk(true, null), 50);
+check(dpx.map((p) => p.id + ':' + p.state).join() === 'ollama:running,perplexity:available,openai:available,jan:missing', 'detect: perplexity with a key ranks as available');
+check(dpx[1].models.includes('sonar') && dpx[1].models.includes('sonar-pro'), 'detect: perplexity falls back to known models when /models fails');
+check((await core.detectProviders([PX], pxAsk(true, ['sonar-x']), 50))[0].models.join() === 'sonar-x', 'detect: perplexity uses /models when it answers');
+const npx = (await core.detectProviders([PX], pxAsk(false, ['sonar']), 50))[0];
+check(npx.state === 'needs-key' && npx.models.length === 0, 'detect: perplexity without a key needs one and offers no models');
+const pxd = core.streamDelta('openai', JSON.stringify({ choices: [{ delta: { content: 'Hi' } }], search_results: [{ title: 'A', url: 'https://a' }, { url: 'javascript:x' }] }));
+check(pxd.text === 'Hi' && pxd.cited && pxd.sources.length === 1 && pxd.sources[0].title === 'A', 'perplexity search_results become sources, non-http dropped');
+check(core.streamDelta('openai', '{"citations":["https://b","file:///x"]}').sources.map((x) => x.url).join() === 'https://b', 'perplexity citations become sources');
 
 // Agent CLI stream parsers, fed one character at a time so every chunk split is covered.
 const runCli = (cli, out) => {
@@ -135,6 +150,7 @@ const P = (kind, url) => ({ kind, url, id: 'x', name: 'x' });
 check(core.searchMode(P('anthropic', 'https://api.anthropic.com/v1')) === 'anthropic' && core.searchMode(P('openai', 'https://api.openai.com/v1')) === 'responses'
   && core.searchMode(P('openai', 'http://localhost:11434/v1')) === 'local' && core.searchMode(P('openai', 'https://api.openai.com.evil/v1')) === 'local'
   && core.searchMode(core.CLI_PROVIDERS[0]) === '', 'search mode per provider');
+check(core.searchMode(P('openai', 'https://api.perplexity.ai')) === 'builtin' && core.searchMode(P('openai', 'https://api.perplexity.ai.evil')) === 'local', 'perplexity searches on its own, never via Responses');
 const ab = core.requestBody('anthropic', 'claude-opus-5-5', [{ role: 'user', text: 'hi' }], '', true);
 check(ab.tools[0].type === 'web_search_20260209' && core.webSearchTool('claude-haiku-4-5') === 'web_search_20250305', 'anthropic web search tool by model');
 const rb = core.requestBody('responses', 'gpt-5', [{ role: 'user', text: 'hi' }]);
