@@ -304,6 +304,7 @@ class Controller {
   std::string claude_sig_;
   std::map<std::string, std::string> claude_states_;  // Session id -> last state, for its notification.
   std::set<std::string> claude_acked_;  // Sessions answered since their state last changed.
+  std::set<std::string> claude_seen_;   // Sessions viewed in their full view since; they no longer count on the Dock badge.
   bool claude_hooks_ = false;
   CefRefPtr<CefListValue> chats_;  // Saved chats for the sidebar (ChatIndex), read from chats.json on first use.
   roar::AttachQueue claude_attach_;  // Tabs to attach to sessions New/Chat just started, by folder.

@@ -19,6 +19,7 @@ struct Settings {
   bool gmail_folder = true;
   bool outlook_icon = true;  // Sidebar Outlook button while a space is signed in to Outlook.
   bool outlook_mail = true;  // That button lists unread inbox mail, read in a hidden Outlook page.
+  bool dock_badge = true;    // The Dock icon counts what needs you.
   bool index_pages = true;
   int sidebar_width = 268;
   int pinned_columns = 0;  // Pinned tiles per row; 0 fits as many as the width allows.
@@ -99,6 +100,7 @@ inline const std::vector<SettingField>& SettingFields() {
       {"gmailFolder", &Settings::gmail_folder, false},
       {"outlookIcon", &Settings::outlook_icon, true},
       {"outlookMail", &Settings::outlook_mail, true},
+      {"dockBadge", &Settings::dock_badge, true},
       {"indexPages", &Settings::index_pages, true},
       {"sidebarWidth", &Settings::sidebar_width, false},
       {"pinnedColumns", &Settings::pinned_columns, true},

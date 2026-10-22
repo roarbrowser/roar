@@ -2347,8 +2347,8 @@ void Controller::Notice(const std::string& type, const std::string& title, const
 void Controller::SyncAlertBadge() {
   int n = 0;
   for (const auto& a : agent_alerts_) n += a.level == "needs_you" && !a.on_answer;  // Session cards count below, once.
-  for (const auto& [id, state] : claude_states_) n += state == "needs_you" && !claude_acked_.count(id);
-  platform::SetDockBadge(n);
+  for (const auto& [id, state] : claude_states_) n += state == "needs_you" && !claude_acked_.count(id) && !claude_seen_.count(id);
+  platform::SetDockBadge(State::Get().settings.dock_badge ? n : 0);
 }
 
 // Opens or closes the CDP port without a relaunch (needs Roar's CEF patch;
@@ -2667,6 +2667,7 @@ void Controller::ClaudeAlert(CefRefPtr<CefDictionaryValue> d) {
   if (fresh || it->second == state) return;
   it->second = state;
   claude_acked_.erase(id);
+  claude_seen_.erase(id);
   platform::Unnotify("claude:" + id);
   if (auto c = claude_cards_.find(id); c != claude_cards_.end()) { int card = c->second; claude_cards_.erase(c); ResolveAlert(card, ""); }
   SyncAlertBadge();
@@ -2773,6 +2774,7 @@ void Controller::ClaudeTick() {
     platform::Unnotify("claude:" + it->first);
     if (auto c = claude_cards_.find(it->first); c != claude_cards_.end()) { int card = c->second; claude_cards_.erase(c); ResolveAlert(card, ""); }
     claude_acked_.erase(it->first);
+    claude_seen_.erase(it->first);
     it = claude_states_.erase(it);
     SyncAlertBadge();
   }
@@ -4233,6 +4235,7 @@ void Controller::ApplySettings(CefRefPtr<CefDictionaryValue> d) {
   if (d->HasKey("autoUpdateChecks") || d->HasKey("autoUpdateDownloads"))
     platform::SetAutoUpdate(d->HasKey("autoUpdateChecks") ? d->GetBool("autoUpdateChecks") : platform::AutoUpdateChecks(),
                             d->HasKey("autoUpdateDownloads") ? d->GetBool("autoUpdateDownloads") : platform::AutoUpdateDownloads());
+  if (d->HasKey("dockBadge")) SyncAlertBadge();
   if (d->HasKey("dictation") && !s.dictation) DictationOff();
   if (d->HasKey("cdpEnabled")) {
     s.cdp_enabled = d->GetBool("cdpEnabled");
@@ -5124,12 +5127,14 @@ bool Controller::HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> 
     }
     std::string sid = msg->GetString("id").ToString();
     platform::RoarMcp(args, [this, callback, action, sid](const std::string& out) {
-      // Answering a session clears its needs-you row and notification right away.
-      if (action == "send" && out.rfind("error:", 0) != 0 && claude_acked_.insert(sid).second) {
+      // Answering a session clears its needs-you row; answering or looking at it (its full view polls
+      // screen/chat only while visible) clears its Dock badge, card and notification right away.
+      bool ok = out.rfind("error:", 0) != 0, answered = ok && action == "send" && claude_acked_.insert(sid).second;
+      if (answered || (ok && (action == "screen" || action == "chat") && claude_seen_.insert(sid).second)) {
         platform::Unnotify("claude:" + sid);
         if (auto c = claude_cards_.find(sid); c != claude_cards_.end()) { int card = c->second; claude_cards_.erase(c); ResolveAlert(card, ""); }
         SyncAlertBadge();
-        PushSidebar();
+        if (answered) PushSidebar();
       }
       // The sidebar's ↗ and reply buttons have no place to show a failure; the hint does.
       if ((action == "focus" || action == "send") && out.rfind("error:", 0) == 0) {

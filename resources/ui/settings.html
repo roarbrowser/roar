@@ -177,6 +177,7 @@ p.reason a { color: inherit; }
       <p class="reason">Cards appear in the sidebar. Done cards count time only while Roar is in front.</p>
       <div class="nt-head" aria-hidden="true"><span></span><span>Clears after</span><span>macOS</span><span>On</span></div>
       <div id="notify-rows"></div>
+      <div class="row"><label class="name" for="dock-badge">Count on the Dock icon<small>A red number on Roar's Dock icon for sessions and agents that need you.</small></label><input type="checkbox" class="switch" id="dock-badge"></div>
     </section>
 
     <section id="privacy"><h2>Privacy</h2>
@@ -319,6 +320,7 @@ function apply(s) {
   $('gm-on').checked = s.gmail.enabled;
   $('ol-on').checked = s.settings.outlookIcon;
   $('ol-mail').checked = s.settings.outlookMail;
+  $('dock-badge').checked = s.settings.dockBadge;
   $('gm-opts').disabled = !s.gmail.enabled;
   $('gm-status').textContent = s.gmail.status || 'Reads Gmail with the login you already have in each space.';
   $('gm-account-row').hidden = !s.gmail.enabled || s.gmail.signedOut || !(s.gmail.accounts?.length || s.gmail.account);
@@ -405,6 +407,7 @@ $('gh-query').onchange = () => set({ githubQuery: $('gh-query').value.trim() || 
 $('gh-reset').onclick = () => { $('gh-query').value = GH_DEFAULT; set({ githubQuery: GH_DEFAULT }); };
 $('ol-on').onchange = () => set({ outlookIcon: $('ol-on').checked });
 $('ol-mail').onchange = () => set({ outlookMail: $('ol-mail').checked });
+$('dock-badge').onchange = () => set({ dockBadge: $('dock-badge').checked });
 $('gm-on').onchange = () => set({ gmailFolder: $('gm-on').checked });
 $('gm-signout').onclick = () => {
   if (confirm('Sign out of every Google account in this space? Google can’t sign out just one.')) ask({ cmd: 'run', id: 'gmailSignOut' }).then(refresh);
