@@ -56,5 +56,14 @@
       <description><![CDATA[Settings: clearer Model chat section, grouped by subscriptions and API servers]]></description>
       <enclosure url="https://github.com/roarbrowser/roar/releases/download/v1.0.5/Roar-1.0.5.dmg" type="application/octet-stream" sparkle:edSignature="A3G6fhWqEjTgdw6dLHex5Nvkw+/VfyLjX2XRdg9I1tFcdU9GDFytnt8EFhe9wjwH0RiQSlMmYWCCOByjLATTDQ==" length="207533949"/>
     </item>
+    <item>
+      <title>1.0.6</title>
+      <pubDate>Thu, 22 Oct 2026 01:54:41 +0000</pubDate>
+      <sparkle:version>10006</sparkle:version>
+      <sparkle:shortVersionString>1.0.6</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[Fill verification codes from Messages (opt-in, Settings > Privacy)]]></description>
+      <enclosure url="https://github.com/roarbrowser/roar/releases/download/v1.0.6/Roar-1.0.6.dmg" type="application/octet-stream" sparkle:edSignature="V1PfRIEhU11oFi4ecY4/G3Xa/TNH4474eBXfVNs7TjXs3b6z7yXQI2Pqag/+uuwWwaEg24trj6dUWH+vde3qBQ==" length="207576099"/>
+    </item>
   </channel>
 </rss>
