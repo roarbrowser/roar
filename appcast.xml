@@ -101,5 +101,14 @@
       <description><![CDATA[Outlook: the mail list now shows your unread messages again (the count showed but the list was empty).]]></description>
       <enclosure url="https://github.com/roarbrowser/roar/releases/download/v1.0.10/Roar-1.0.10.dmg" type="application/octet-stream" sparkle:edSignature="a4jqMLOYzDECyIH0768EI2tlDQifob1sqtighaxGVqDX2zYBLpF0bfEhBKvZYu+B8LmagDM/Cfw2OaZRiVgCAg==" length="207580371"/>
     </item>
+    <item>
+      <title>1.0.11</title>
+      <pubDate>Thu, 22 Oct 2026 22:36:30 +0000</pubDate>
+      <sparkle:version>10011</sparkle:version>
+      <sparkle:shortVersionString>1.0.11</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[Videos in H.264 and AAC (most of the web's video) play again: the bundled Chromium framework was an older build without Roar's platform-decoder patch.]]></description>
+      <enclosure url="https://github.com/roarbrowser/roar/releases/download/v1.0.11/Roar-1.0.11.dmg" type="application/octet-stream" sparkle:edSignature="W40fCwCeUDkbVil+la8HVnGAtV1GXoplY4hv8c4fa9MnDQn+QpiKnXFP+1Jp0Si7+oODkk9z3LkHXc904OgNBw==" length="207582100"/>
+    </item>
   </channel>
 </rss>
