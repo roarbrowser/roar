@@ -15,6 +15,13 @@ if [[ "$ARCH" == x64 ]]; then
   CMAKE_ARCH=(-DPROJECT_ARCH=x86_64 -DCEF_ROOT="$ROOT/third_party/cef-x64")
 fi
 "$ROOT/scripts/fetch-cef.sh"
+# A codec CEF (cef.prebuilt is its marker) must carry its build record, or the notices and codec gate
+# fail only at the end (or a release ships a CEF nobody can vouch for); say so before building.
+if [[ -d "$ROOT/third_party/cef.prebuilt" ]]; then
+  FW="$CEF_DIR/Release/Chromium Embedded Framework.framework/Chromium Embedded Framework" SYM="$CEF_DIR/Chromium Embedded Framework.dSYM"
+  [[ -f "$CEF_DIR/args.gn" && -d "$SYM" && "$(dwarfdump --uuid "$SYM" | awk '{print $2}')" == "$(dwarfdump --uuid "$FW" | awk '{print $2}')" ]] ||
+    { echo "build.sh: $CEF_DIR lacks args.gn or a matching framework dSYM: it isn't the CEF the notices describe; reinstall it with scripts/build-cef-codecs.sh" >&2; exit 1; }
+fi
 "$ROOT/scripts/fetch-ubol.sh"
 "$ROOT/scripts/fetch-sparkle.sh"
 cmake -S "$ROOT" -B "$BUILD" -G Ninja -DCMAKE_BUILD_TYPE=Release -DROAR_RELEASE="${ROAR_RELEASE:-OFF}" ${CMAKE_ARCH[@]+"${CMAKE_ARCH[@]}"}  # empty-array-safe on bash 3.2

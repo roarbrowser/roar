@@ -86,9 +86,18 @@ done
 # Keep this build's args.gn and framework dSYM with the installed CEF: gen-notices.sh discloses that
 # args.gn, and release builds run check-no-codecs.sh against that dSYM, not the live out dir.
 OUT="$CEF_SRC/chromium/src/out/Release_GN_$ARCH"
+# The out dir's dSYM goes stale when the out dir relinks after the distrib was made, so the dSYM kept is
+# whichever one's UUID matches the installed framework (the distrib's release_symbols first); none: fail.
 keep_build_record() {  # keep_build_record <installed CEF dir>
   cp "$OUT/args.gn" "$1/args.gn"
-  ditto "$OUT/Chromium Embedded Framework.dSYM" "$1/Chromium Embedded Framework.dSYM"
+  local want sym
+  want=$(dwarfdump --uuid "$1/Release/Chromium Embedded Framework.framework/Chromium Embedded Framework" | awk '{print $2}')
+  for sym in "$(ls -d "$CEF_SRC"/chromium/src/cef/binary_distrib/cef_binary_*_macos${ARCH}_minimal_release_symbols 2>/dev/null | head -1)/Chromium Embedded Framework.dSYM" \
+             "$OUT/Chromium Embedded Framework.dSYM"; do
+    [[ -d "$sym" && "$(dwarfdump --uuid "$sym" | awk '{print $2}')" == "$want" ]] || continue
+    rm -rf "$1/Chromium Embedded Framework.dSYM"; ditto "$sym" "$1/Chromium Embedded Framework.dSYM"; return
+  done
+  echo "build-cef-codecs.sh: no dSYM matches the installed framework ($want); rebuild without --no-distrib-symbols" >&2; exit 1
 }
 
 if [[ "$ARCH" == x64 ]]; then
