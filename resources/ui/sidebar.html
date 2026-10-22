@@ -525,7 +525,9 @@ window.roar = {
     $('split-group').hidden = !pairs.length;
     $('split-count').textContent = pairs.length || '';
     setHtml($('split-tabs'), pairs.map(([a, b]) => `<div class="split-pair${a.stacked ? ' stacked' : ''}">${tabRow(a, 0, true)}${tabRow(b, 0, true)}<button class="unsplit-pair" data-unsplit="${a.id}" title="Separate" aria-label="Separate split tabs">${x}</button></div>`).join(''));
-    s = { ...s, tabs: s.tabs.filter((t) => !t.ghost && !t.split && !/^roar:\/\/ui\/claude\.html/.test(t.url || '')) };
+    // Ask chats live under AI (their rows), not in the tab list, while that section shows.
+    const aiShown = s.settings?.claudeSidebar !== false && s.settings?.agentSection !== false;
+    s = { ...s, tabs: s.tabs.filter((t) => !t.ghost && !t.split && !/^roar:\/\/ui\/claude\.html/.test(t.url || '') && !(aiShown && /^roar:\/\/ui\/chat\.html/.test(t.url || ''))) };
     const pinned = s.tabs.filter((t) => t.pinned);
     // Claude Artifacts the person opened get their own section while one is open (artifact-group.js).
     const arts = s.tabs.filter((t) => artifactGrouped(t, s.settings));
@@ -656,7 +658,7 @@ window.roar = {
     if (clWant && (Date.now() - clWant.since > 60000 || cl.some((c) => c.cwd === clWant.dir && c.started >= clWant.since))) clWant = null;
     const starting = clWant ? `<div class="row pr cl starting" role="status"><span class="clmain"><span class="cl-ic">${agentIcon(clWant.tool, 16)}<span class="dot starting" aria-hidden="true"></span></span><span class="label"><span class="cl-name"><b>${esc(clWant.name)}</b></span><small>Starting…</small></span></span></div>` : '';
     const clNeeds = cl.filter(needs).length;
-    const clOn = s.settings?.claudeSidebar !== false, clAny = clOn && !!(cl.length || s.claude?.hooks || clWant || s.chats?.length);
+    const clOn = s.settings?.claudeSidebar !== false, clAny = clOn && !!(cl.length || s.claude?.hooks || clWant || s.chats?.length || state.tabs.some((t) => /^roar:\/\/ui\/chat\.html/.test(t.url || '')));
     // The footer button only shows or hides the section; its badge still counts who needs you.
     $('cl-btn').hidden = !clAny;
     $('cl-btn').setAttribute('aria-pressed', String(s.settings?.agentSection !== false));
@@ -685,8 +687,11 @@ window.roar = {
     const chatTool = (c) => c.brand || (/^cli-/.test(c.model || '') ? c.model.slice(4).split('|')[0] : 'model');
     const chatIcon = (c) => AGENT_TOOLS[chatTool(c)] ? agentIcon(chatTool(c), 16) : '<svg class="agent-icon" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="var(--ink-2)" stroke-width="1.5" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 3.5h11v7h-6l-3 2.5v-2.5h-2z"/></svg>';
     const chatWho = (c) => [c.brandName || (AGENT_TOOLS[chatTool(c)] ? agentName(chatTool(c)) : 'Model'), (c.model || '').split('|').slice(1).join('|')].filter((x) => x && x !== 'default').join(' · ');
-    const chatTab = (c) => s.tabs.find((t) => t.url === 'roar://ui/chat.html#' + c.id);
-    const chatRows = (s.chats || []).slice().sort((a, b) => b.updated - a.updated).slice(0, 8).map((c) =>
+    const chatTab = (c) => state.tabs.find((t) => t.url === 'roar://ui/chat.html#' + c.id);
+    // A just-opened Ask tab has no chat yet: it shows here as New chat until its first message.
+    const newChats = state.tabs.filter((t) => t.url === 'roar://ui/chat.html' && !t.ghost).map((t) =>
+      `<div class="row pr cl${t.active ? ' active' : ''}" data-chattab="${t.id}"><button class="clmain" aria-label="New chat. Open"><span class="cl-ic">${chatIcon({})}</span><span class="label"><span class="cl-name"><b>New chat</b></span><small>Ask</small></span></button></div>`).join('');
+    const chatRows = newChats + (s.chats || []).slice().sort((a, b) => b.updated - a.updated).slice(0, 8).map((c) =>
       `<div class="row pr cl${chatTab(c)?.active ? ' active' : ''}" data-chatid="${esc(c.id)}" title="${esc(c.title)}"><button class="clmain" aria-label="${esc(chatWho(c))}: ${esc(c.title || 'Untitled')}. Open"><span class="cl-ic">${chatIcon(c)}<span class="ask-badge" aria-hidden="true"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M1.5 2.5h13v8.5h-7l-3.5 3v-3h-2.5z"/></svg></span></span>` +
       `<span class="label"><span class="cl-name"><b>${esc(c.title || 'Untitled')}</b><time>${clAgo(c.updated)}</time></span><small>${esc(chatWho(c))}</small></span></button>` +
       `<span class="cl-acts"><button data-chatdel="${esc(c.id)}" title="Delete this chat" aria-label="Delete ${esc(c.title)}">${ico.hide}</button></span></div>`).join('');
@@ -1535,6 +1540,8 @@ document.addEventListener('click', (e) => {
   }
   const del = e.target.closest('[data-chatdel]');
   if (del) return e.stopPropagation(), ask({ cmd: 'chat.delete', id: del.dataset.chatdel });
+  const nt = e.target.closest('[data-chattab]');
+  if (nt) return e.stopPropagation(), ask({ cmd: 'tab.activate', id: +nt.dataset.chattab });
   const ch = e.target.closest('[data-chatid]');
   if (ch) {
     e.stopPropagation();

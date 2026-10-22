@@ -39,6 +39,10 @@ std::string BrowserName(const std::string& browser);
 // Fill codes from Messages: whether chat.db opens (Full Disk Access), and the newest one-time
 // code texted in the last |max_age_secs| ("" if none). Text is never kept or logged.
 bool MessagesReadable();
-std::string RecentMessagesCode(int max_age_secs);
+std::string RecentMessagesCode(int max_age_secs, long long* at = nullptr);
+// The same from Apple Mail (~/Library/Mail/V*/): the Envelope Index and .emlx bodies, read in place.
+// |at| gets the code's arrival time (Unix seconds). Empty on Windows.
+bool MailReadable();
+std::string RecentMailCode(int max_age_secs, long long* at = nullptr);
 
 }  // namespace roar::library

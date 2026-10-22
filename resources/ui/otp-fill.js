@@ -1,5 +1,5 @@
-// Fill codes from Messages: under a focused verification-code field, offers a code texted to
-// this Mac. Injected by Controller::OnLoading while settings.messagesCodes is on. The page never
+// Fill codes from Messages / Mail: under a focused verification-code field, offers a code texted or
+// mailed to this Mac. Injected by Controller::OnLoading while settings.messagesCodes or mailCodes is on. The page never
 // gets the code until the person picks it in Roar's native menu, which calls __roarOtpFill.
 window.__roarOtp = (nonce) => {
   if (window.__roarOtpOn) return;
@@ -40,7 +40,7 @@ window.__roarOtp = (nonce) => {
     host = document.createElement('div');
     host.style.cssText = `all:initial;position:fixed;z-index:2147483647;left:${Math.max(4, r.left)}px;top:${r.bottom + 4}px`;
     const root = host.attachShadow({ mode: 'closed' });
-    root.innerHTML = `<style>button{font:13px -apple-system,system-ui,sans-serif;padding:6px 10px;border-radius:8px;border:1px solid #0003;background:#fff;color:#111;box-shadow:0 2px 8px #0003;cursor:pointer}button:hover{background:#f0f0f0}@media(prefers-color-scheme:dark){button{background:#2a2a2a;color:#eee;border-color:#fff3}button:hover{background:#383838}}</style><button type="button" title="Press Enter in the field or click">Fill code from Messages</button>`;
+    root.innerHTML = `<style>button{font:13px -apple-system,system-ui,sans-serif;padding:6px 10px;border-radius:8px;border:1px solid #0003;background:#fff;color:#111;box-shadow:0 2px 8px #0003;cursor:pointer}button:hover{background:#f0f0f0}@media(prefers-color-scheme:dark){button{background:#2a2a2a;color:#eee;border-color:#fff3}button:hover{background:#383838}}</style><button type="button" title="Press Enter in the field or click">Fill verification code</button>`;
     const b = root.querySelector('button');
     b.onmousedown = (e) => e.preventDefault();  // Keeps focus in the field.
     b.onclick = (e) => { if (e.isTrusted) pick(); };

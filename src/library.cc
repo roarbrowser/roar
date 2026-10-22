@@ -559,7 +559,7 @@ std::string MessagesDb() { return Home() + "/Library/Messages/chat.db"; }
 
 bool MessagesReadable() { return std::ifstream(MessagesDb(), std::ios::binary).is_open(); }
 
-std::string RecentMessagesCode(int max_age_secs) {
+std::string RecentMessagesCode(int max_age_secs, long long* at) {
   // Read-only in place: OpenCopy would copy a chat.db that can be gigabytes on every code field.
   sqlite3* db = nullptr;
   if (sqlite3_open_v2(MessagesDb().c_str(), &db, SQLITE_OPEN_READONLY, nullptr) != SQLITE_OK) {
@@ -571,7 +571,7 @@ std::string RecentMessagesCode(int max_age_secs) {
   sqlite3_int64 since = (std::chrono::duration_cast<std::chrono::seconds>(now).count() - 978307200 - max_age_secs) * 1000000000LL;
   std::string code;
   sqlite3_stmt* s = nullptr;
-  if (sqlite3_prepare_v2(db, "SELECT text, attributedBody FROM message WHERE is_from_me = 0 AND date > ? ORDER BY date DESC LIMIT 20",
+  if (sqlite3_prepare_v2(db, "SELECT text, attributedBody, date FROM message WHERE is_from_me = 0 AND date > ? ORDER BY date DESC LIMIT 20",
                          -1, &s, nullptr) == SQLITE_OK) {
     sqlite3_bind_int64(s, 1, since);
     while (code.empty() && sqlite3_step(s) == SQLITE_ROW) {
@@ -579,6 +579,80 @@ std::string RecentMessagesCode(int max_age_secs) {
       if (text.empty() && sqlite3_column_type(s, 1) == SQLITE_BLOB)
         text = TypedStreamText(std::string(static_cast<const char*>(sqlite3_column_blob(s, 1)), sqlite3_column_bytes(s, 1)));
       code = ExtractOtpCode(text);
+      if (at) *at = sqlite3_column_int64(s, 2) / 1000000000LL + 978307200;
+    }
+  }
+  sqlite3_finalize(s);
+  sqlite3_close(db);
+  return code;
+}
+
+// The newest V* folder holding MailData/Envelope Index ("" if Mail was never set up).
+std::string MailDir() {
+#ifdef _WIN32
+  return "";
+#else
+  std::error_code ec;
+  std::string best;
+  for (const auto& e : std::filesystem::directory_iterator(Home() + "/Library/Mail", ec)) {
+    std::string n = e.path().filename().string();
+    if (n.size() > 1 && n[0] == 'V' && std::isdigit(static_cast<unsigned char>(n[1])) && std::filesystem::exists(e.path() / "MailData/Envelope Index", ec) &&
+        (best.empty() || std::atoi(n.c_str() + 1) > std::atoi(std::filesystem::path(best).filename().string().c_str() + 1)))
+      best = e.path().string();
+  }
+  return best;
+#endif
+}
+
+bool MailReadable() {
+  std::string dir = MailDir();
+  return !dir.empty() && std::ifstream(dir + "/MailData/Envelope Index", std::ios::binary).is_open();
+}
+
+// <V>/<account>/<box>.mbox/<uuid>/Data/<ROWID/1000 digits reversed>/Messages/<ROWID>[.partial].emlx
+static std::string EmlxFor(const std::string& dir, const std::string& url, sqlite3_int64 id) {
+  size_t p = url.find("://");
+  if (p == std::string::npos) return "";
+  std::string rest = CefURIDecode(url.substr(p + 3), true, UU_SPACES).ToString(), box = dir;
+  for (size_t a = 0, b; a <= rest.size(); a = b + 1) {
+    b = std::min(rest.find('/', a), rest.size());
+    if (b > a) box += "/" + rest.substr(a, b - a) + (box == dir ? "" : ".mbox");
+  }
+  std::string sub = "/Data/";
+  for (sqlite3_int64 n = id / 1000; n; n /= 10) sub += std::to_string(n % 10) + "/";
+  std::error_code ec;
+  for (const auto& e : std::filesystem::directory_iterator(box, ec))
+    for (const char* ext : {".emlx", ".partial.emlx"}) {
+      std::string f = e.path().string() + sub + "Messages/" + std::to_string(id) + ext;
+      if (std::filesystem::exists(f, ec)) return f;
+    }
+  return "";
+}
+
+std::string RecentMailCode(int max_age_secs, long long* at) {
+  std::string dir = MailDir();
+  sqlite3* db = nullptr;
+  // Read-only in place like chat.db; a busy index (Mail writing) just gives no code.
+  if (dir.empty() || sqlite3_open_v2((dir + "/MailData/Envelope Index").c_str(), &db, SQLITE_OPEN_READONLY, nullptr) != SQLITE_OK) {
+    sqlite3_close(db);
+    return "";
+  }
+  sqlite3_busy_timeout(db, 200);
+  auto now = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+  std::string code;
+  sqlite3_stmt* s = nullptr;
+  if (sqlite3_prepare_v2(db, "SELECT m.ROWID, COALESCE(s.subject, ''), b.url, m.date_received FROM messages m LEFT JOIN subjects s ON s.ROWID = m.subject "
+                         "JOIN mailboxes b ON b.ROWID = m.mailbox WHERE m.deleted = 0 AND m.date_received > ? ORDER BY m.date_received DESC LIMIT 20",
+                         -1, &s, nullptr) == SQLITE_OK) {
+    sqlite3_bind_int64(s, 1, now - max_age_secs);
+    while (code.empty() && sqlite3_step(s) == SQLITE_ROW) {
+      std::string url = Col(s, 2), low = url;
+      std::transform(low.begin(), low.end(), low.begin(), ::tolower);
+      if (low.find("/sent") != std::string::npos || low.find("/draft") != std::string::npos) continue;  // Mail the person sent.
+      std::string text = Col(s, 1), f = EmlxFor(dir, url, sqlite3_column_int64(s, 0));
+      if (std::ifstream in{f, std::ios::binary}) text += "\n" + EmlxText(std::string(std::istreambuf_iterator<char>(in), {}));
+      code = ExtractOtpCode(text);
+      if (at) *at = sqlite3_column_int64(s, 3);
     }
   }
   sqlite3_finalize(s);

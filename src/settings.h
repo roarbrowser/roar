@@ -68,6 +68,7 @@ struct Settings {
   bool agent_ring_seen = false;  // The sidebar's one-time note explaining the ring on a space dot was dismissed.
   std::string after_updates = "ask";  // Unpinned tabs after a Sparkle update relaunch: ask, restore or never (update_restore.h).
   bool messages_codes = false;  // Fill codes from Messages (otp-fill.js); off means chat.db is never read.
+  bool mail_codes = false;  // The same from Apple Mail; its own switch so turning on Messages never reads Mail.
   bool dictation = false;  // On-device dictation (dictation.h); off means the mic is never opened.
 #ifdef _WIN32
   std::string dictation_key = "Ctrl+Alt+Space";  // Alt+Space is Windows' window menu and PowerToys Run.
@@ -146,6 +147,7 @@ inline const std::vector<SettingField>& SettingFields() {
       {"footerTour", &Settings::footer_tour, true},
       {"agentsHadRing", &Settings::agents_had_ring, true},
       {"messagesCodes", &Settings::messages_codes, true},
+      {"mailCodes", &Settings::mail_codes, true},
       {"dictation", &Settings::dictation, true},
       {"dictationKey", &Settings::dictation_key, true},
   };
