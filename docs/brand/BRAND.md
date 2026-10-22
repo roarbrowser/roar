@@ -40,7 +40,7 @@ Roar speaks as the product, written by a solo maker who builds it in the open.
 - **First person for the maker** in launch posts and replies ("I built Roar because…");
   "Roar" in product copy.
 - **Honest about limits:** early, and Windows has no auto-update yet.
-- **Competitive, on the attack.** Name Arc and Dia and hit them where Roar wins (open source, your own agent, no company to shelve it); every claim stays dated, factual and checkable.
+- **Competitive, on the attack.** Name Arc and Dia and hit them where Roar wins (open source, your own agent, no company to shelve it); every claim stays dated, factual, checkable and sourced. Never use their logos or screenshots, never call their product dead or abandoned, and never imply Roar is affiliated with or endorsed by anyone it names.
 - **Sentence case** everywhere; no emoji runs; one lion emoji at most, rarely.
 - **Lion flavor, lightly:** an occasional "roar" pun is fine; never in error messages
   or docs.

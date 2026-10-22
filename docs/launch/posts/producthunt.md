@@ -5,7 +5,7 @@
 **Tagline (≤60):** The open-source browser your AI agent can drive (48)
 
 **Description (≤260):**
-An open-source sidebar browser for macOS with a built-in MCP server. Arc's best ideas, no company that can shelve it, and your own agent instead of a built-in one: Claude or Cursor opens real tabs and asks you in the sidebar. (225)
+An open-source sidebar browser for macOS with a built-in MCP server. Arc's best ideas, no company that can shelve it, and your own agent instead of a built-in one: any MCP client (Claude Code, Cursor, others) opens real tabs and asks you in the sidebar. (225)
 
 **Gallery captions:**
 
@@ -28,3 +28,5 @@ The Browser Company put Arc in maintenance mode in May 2025 to build Dia, a clos
 Roar is that. Spaces with separate logins, pinned tabs, tabs that archive themselves, split view, a command bar, reader mode, Chrome extensions with uBlock Origin Lite. Your terminal agent sessions (Claude Code, Codex and others) live in the sidebar too, so you see which one needs you. It also ships an MCP server, so Claude, Cursor or any MCP client can drive it. When an agent opens a page, it shows up as a tab in your sidebar. It can leave you a note or ask you a question with buttons and wait for your answer. You choose which spaces agents can reach, and one click on the sidebar dot blocks them from the space you're in.
 
 Your Arc spaces and pinned tabs come over on first launch. It's free and MIT licensed. macOS only and early, so bug reports and feature requests on GitHub are very welcome: https://github.com/roarbrowser/roar
+
+Roar is independent and not affiliated with or endorsed by The Browser Company, Google, Anthropic, Anysphere (Cursor) or the uBlock Origin project.

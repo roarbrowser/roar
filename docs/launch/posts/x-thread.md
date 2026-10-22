@@ -1,7 +1,7 @@
 # X thread
 
 1/
-The Browser Company shelved Arc in May 2025 to build Dia. Closed source, with the AI they picked for you.
+The Browser Company put Arc in maintenance mode in May 2025 to focus on Dia, which is closed source with a built-in assistant.
 
 Roar is the other answer: an open-source sidebar browser for macOS, built on Chromium (CEF), with a built-in MCP server. Your agent, not theirs.
 
@@ -24,7 +24,7 @@ Agents can reach you. notify_user puts a card in the sidebar. ask_user shows but
 You decide where agents go. Each space has its own switch; ghost tabs are always off-limits. A dot in the sidebar shows whether agents can reach the space you're in, and one click blocks them. Or run agents in a hidden headless Roar with its own profile.
 
 6/
-It's also the Arc-style browser I use all day: spaces with separate logins, pinned tabs, tab groups, tabs that archive themselves, split view, command bar, reader mode, page to Markdown, Chrome extensions with uBlock Origin Lite.
+It's also the sidebar browser I use all day: spaces with separate logins, pinned tabs, tab groups, tabs that archive themselves, split view, command bar, reader mode, page to Markdown, Chrome extensions with uBlock Origin Lite.
 
 7/
 Leaving Arc? Your spaces and pinned tabs come over on first launch. Chrome, Edge, Firefox, Safari and Dia import too.
@@ -32,7 +32,7 @@ Leaving Arc? Your spaces and pinned tabs come over on first launch. Chrome, Edge
 macOS (Apple Silicon and Intel), early.
 
 8/
-We don't need a browser company to build a browser.
+A browser doesn't need a company behind it.
 
 MIT licensed, so nobody can shelve it. The AI is whatever agent you already run.
 

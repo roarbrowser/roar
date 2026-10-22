@@ -38,4 +38,6 @@ I'd like feedback on the agent side most: what you'd want an agent to be able to
 ## Prepared replies
 
 **"How is this different from Dia?"**
-We don't need a browser company to build a browser. Dia is closed source and comes with The Browser Company's AI built in; Arc, its predecessor, has been in maintenance mode since May 2025. Roar is MIT licensed, so it can't be shelved, and it has no built-in assistant: the AI is whatever agent you already run (Claude, Cursor, anything that speaks MCP), driving the same browser you're logged into.
+Dia is closed source and comes with The Browser Company's AI built in; Arc, its predecessor, has been in maintenance mode since May 2025. Roar is MIT licensed, so it can't be shelved, and it has no built-in assistant: the AI is whatever agent you already run (Claude, Cursor, anything that speaks MCP), driving the same browser you're logged into.
+
+Roar is independent and not affiliated with or endorsed by The Browser Company, Google, Anthropic, Anysphere (Cursor) or the uBlock Origin project.

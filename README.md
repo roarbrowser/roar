@@ -51,7 +51,7 @@ brew install --cask roarbrowser/tap/roar
 
 Windows builds are paused for 1.0.x, so releases carry no Windows files; when they return: on Windows, run `Roar-windows-x64-setup.exe` (or `-arm64-setup.exe`) to install Roar into Program Files with a Start menu entry, or unzip `Roar-windows-x64.zip` anywhere and run `Roar.exe` (portable, no install). Either way your data lives in `%APPDATA%\Roar`. Windows has no auto-update yet: install each new release over the old one.
 
-**2. First open.** Roar is signed and notarized by Apple, so it opens like any app you download: macOS asks once whether to open it. Click **Open**.
+**2. First open.** Roar is signed with a Developer ID and notarized, so it opens like any app you download: macOS asks once whether to open it. Click **Open**.
 
 **3. Connect your agent (1 min).** Roar's welcome page has a **Connect** button for Claude Code, Claude Desktop, Cursor, VS Code, Windsurf, Codex, Gemini CLI and others. Click yours and restart that app. The MCP server ships inside Roar and launches Roar if it isn't running (keep Allow agents to connect on).
 
@@ -82,13 +82,12 @@ On first launch Roar offers to bring over your Arc spaces and pinned tabs. Updat
 
 **Windows:** Settings › Apps › Roar › Uninstall. It asks whether to keep your data in `%APPDATA%\Roar`, and takes Roar out of agent configs the same way.
 
-## Coming from Dia or legacy Arc?
+## Coming from Arc or Dia?
 
-*We don't need a browser company to build a browser.*
+*A browser doesn't need a company behind it.*
 
-The Browser Company put Arc in maintenance mode in May 2025 to build Dia. If you lived in
-Arc, a company decided for you that your browser was done. Dia is their answer: closed
-source, with the AI they built in.
+The Browser Company put Arc in maintenance mode in May 2025 to build Dia. Dia is closed source
+with a built-in assistant.
 
 Roar is the other answer. MIT licensed, so nobody can shelve it. No built-in assistant;
 bring the agent you already use and plug it in over MCP. Your spaces and pinned tabs come
@@ -301,7 +300,7 @@ Roar 0.37.14 is no longer offered for download, but its written offer still runs
 
 ## License
 
-Roar is released under the [MIT License](LICENSE). Chrome, Claude, ChatGPT, Ollama and other product names are trademarks of their owners;
+Roar is released under the [MIT License](LICENSE). Chrome, Google, Arc, Dia, Safari, Apple, macOS, Claude, Anthropic, Cursor, Codex, ChatGPT, OpenAI, Ollama, uBlock Origin and other product names are trademarks of their owners;
 Roar is not affiliated with or endorsed by them and names them only to say what it works with. The build fetches third-party code
 that keeps its own license: [CEF](https://bitbucket.org/chromiumembedded/cef) (BSD) and
 [uBlock Origin Lite](https://github.com/uBlockOrigin/uBOL-home) (GPLv3).

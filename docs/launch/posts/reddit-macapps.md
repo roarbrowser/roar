@@ -10,7 +10,7 @@ Roar: a free, open-source sidebar browser for macOS that your own AI agent can d
 
 I'm the developer. Roar is free and MIT licensed.
 
-**Problem.** Arc has been in maintenance mode since May 2025, and its successor, Dia, is closed source with The Browser Company's AI built in. I wanted an Arc-style sidebar browser whose source is open, so it can't be shelved, and I wanted my own agent to work in the same browser I use (logins included) where I can see and stop it.
+**Problem.** Arc has been in maintenance mode since May 2025, and its successor, Dia, is closed source with The Browser Company's AI built in. I wanted a sidebar browser in the spirit of Arc whose source is open, so it can't be shelved, and I wanted my own agent to work in the same browser I use (logins included) where I can see and stop it.
 
 **Comparison.** Against Arc and Dia: Roar is open source, and instead of a built-in assistant any MCP client drives it. Against a plain Chrome automation profile: agent pages show up as real tabs in your sidebar, with your logins.
 
@@ -30,10 +30,12 @@ Features:
 - Copied links come out clean: Outlook/Teams Safe Links unwrapped, tracking parameters removed, your own list too
 - Headed or headless agent mode
 
-Signed and notarized by Apple, with Sparkle auto-updates you can turn off.
+Signed with a Developer ID and notarized, with Sparkle auto-updates you can turn off.
 
 Also on Homebrew: `brew install --cask roarbrowser/tap/roar`.
 
 Limits: macOS only (Apple Silicon and Intel builds), early.
 
 https://github.com/roarbrowser/roar
+
+Roar is independent and not affiliated with or endorsed by The Browser Company, Google, Anthropic, Anysphere (Cursor) or the uBlock Origin project.

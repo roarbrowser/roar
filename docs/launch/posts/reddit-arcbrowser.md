@@ -34,3 +34,5 @@ Site: https://roarbrowser.app
 Repo and download: https://github.com/roarbrowser/roar
 
 If you try it, tell me which Arc feature you miss most. That decides what I build next.
+
+Roar is independent and not affiliated with or endorsed by The Browser Company, Google, Anthropic, Anysphere (Cursor) or the uBlock Origin project.
