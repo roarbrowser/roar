@@ -84,6 +84,7 @@ if (-not $WsLicense) { throw "build.ps1: missing license file in $Ws" }
 # The license files uBO Lite ships for its own bundled parts (fonts, libraries).
 $UbolLicenses = Get-ChildItem -Recurse -File $Ubol | Where-Object { $_.Name -match '(licen[cs]e|^copying)' -and $_.DirectoryName -ne $Ubol } | Sort-Object FullName
 if (-not $UbolLicenses) { throw 'build.ps1: no license files in third_party\ubol' }
+$Dl = "$Root\licenses\dictate-win"  # Licenses of roar-dictate.exe's sherpa-onnx build (scripts/build-dictate.ps1).
 $Notices = @(
   'Roar third-party notices'
   'Roar bundles the components below. Each section reproduces the license that came with it.'
@@ -106,6 +107,23 @@ $Notices = @(
   Notice 'chrome-devtools-mcp' "$Root\mcp\node_modules\chrome-devtools-mcp\LICENSE"
   Notice 'chrome-devtools-mcp: bundled third-party notices' "$Root\mcp\node_modules\chrome-devtools-mcp\build\src\third_party\THIRD_PARTY_NOTICES"
   Notice 'chrome-devtools-mcp addendum: lookup-closest-locale (MIT License)' "$Root\licenses\lookup-closest-locale-LICENSE"
+  "`n$Rule`nDictation (roar-dictate.exe): sherpa-onnx 1.13.8 and ONNX Runtime 1.28.2`n$Rule`n"
+  'roar-dictate.exe and its DLLs (sherpa-onnx-c-api.dll, sherpa-onnx-cxx-api.dll, onnxruntime.dll,'
+  'onnxruntime_providers_shared.dll) come from the sherpa-onnx v1.13.8 Windows release (scripts/build-dictate.ps1).'
+  'Speech model: on first use roar-dictate downloads NVIDIA Parakeet TDT 0.6B v3 (int8 ONNX conversion'
+  'csukuangfj/sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8, based on nvidia/parakeet-tdt-0.6b-v3) from Hugging Face.'
+  'The model is not bundled; it is licensed CC-BY-4.0 (https://creativecommons.org/licenses/by/4.0/) by NVIDIA, per its model card.'
+  Notice 'sherpa-onnx 1.13.8 (Apache License 2.0; https://github.com/k2-fsa/sherpa-onnx)' "$Dl\sherpa-onnx-LICENSE"
+  Notice 'sherpa-onnx component: kaldi-native-fbank 1.22.3 (Apache License 2.0)' "$Dl\kaldi-native-fbank-LICENSE"
+  Notice 'sherpa-onnx component: kaldi-decoder 0.3.0 (Apache License 2.0)' "$Dl\kaldi-decoder-LICENSE"
+  Notice 'sherpa-onnx component: kaldifst 1.8.0' "$Dl\kaldifst-LICENSE"
+  Notice 'sherpa-onnx component: OpenFst (Apache License 2.0)' "$Dl\openfst-LICENSE"
+  Notice 'sherpa-onnx component: Eigen (Mozilla Public License 2.0; source: https://gitlab.com/libeigen/eigen)' "$Dl\eigen-COPYING.MPL2"
+  Notice 'sherpa-onnx component: simple-sentencepiece 0.7 (Apache License 2.0)' "$Dl\simple-sentencepiece-LICENSE"
+  Notice 'sherpa-onnx component: nlohmann/json 3.12.0 (MIT License)' "$Dl\nlohmann-json-LICENSE"
+  Notice 'sherpa-onnx component: hclust-cpp (fastcluster)' "$Dl\hclust-cpp-LICENSE"
+  Notice 'ONNX Runtime 1.28.2 (MIT License; https://github.com/microsoft/onnxruntime)' "$Dl\onnxruntime-LICENSE"
+  Notice 'ONNX Runtime 1.28.2: third-party notices' "$Dl\onnxruntime-ThirdPartyNotices.txt"
   foreach ($f in $UbolLicenses) { Notice "uBO Lite component: $($f.FullName.Substring($Ubol.Length + 1).Replace('\', '/'))" $f.FullName }
   Notice 'uBO Lite component: lib/regexanalyzer (RegexAnalyzer 1.2.0 by Nikos M., The Unlicense; https://github.com/foo123/RegexAnalyzer)' "$Root\licenses\regexanalyzer-UNLICENSE"
   "`n$Rule`nuBO Lite (GNU General Public License v3.0)`n$Rule`n"
