@@ -15,8 +15,7 @@
 
 <p align="center">
   <b>Download for macOS:</b> <a href="https://github.com/roarbrowser/roar/releases/latest"><b>Apple Silicon</b></a> (<code>Roar-&lt;version&gt;.dmg</code>)
-  &nbsp;·&nbsp; <a href="https://github.com/roarbrowser/roar/releases/latest"><b>Intel</b></a> (<code>Roar-&lt;version&gt;-intel.dmg</code>)
-  <br><b>Windows:</b> <a href="https://github.com/roarbrowser/roar/releases/latest">installer</a> (<code>Roar-windows-x64-setup.exe</code>, ARM64 too) or portable zip
+  <br>Intel Macs and Windows: not in the 1.0.x releases yet; build from source (see For developers).
   <br><a href="https://roarbrowser.app/">Website</a> &nbsp;·&nbsp; Open source, MIT licensed
 </p>
 
@@ -44,13 +43,13 @@
 
 About five minutes. Needs macOS 13 or later; no Node.js.
 
-**1. Download (1 min).** Get the latest `Roar-<version>.dmg` (Apple Silicon) or `Roar-<version>-intel.dmg` (Intel) from [Releases](https://github.com/roarbrowser/roar/releases/latest), open it and drag Roar onto Applications. Or:
+**1. Download (1 min).** Get the latest `Roar-<version>.dmg` (Apple Silicon; 1.0.x has no Intel DMG) from [Releases](https://github.com/roarbrowser/roar/releases/latest), open it and drag Roar onto Applications. Or:
 
 ```bash
 brew install --cask roarbrowser/tap/roar
 ```
 
-On Windows, run `Roar-windows-x64-setup.exe` (or `-arm64-setup.exe`) to install Roar into Program Files with a Start menu entry, or unzip `Roar-windows-x64.zip` anywhere and run `Roar.exe` (portable, no install). Either way your data lives in `%APPDATA%\Roar`. Windows has no auto-update yet: install each new release over the old one.
+Windows builds are paused for 1.0.x, so releases carry no Windows files; when they return: on Windows, run `Roar-windows-x64-setup.exe` (or `-arm64-setup.exe`) to install Roar into Program Files with a Start menu entry, or unzip `Roar-windows-x64.zip` anywhere and run `Roar.exe` (portable, no install). Either way your data lives in `%APPDATA%\Roar`. Windows has no auto-update yet: install each new release over the old one.
 
 **2. First open.** Roar is signed and notarized by Apple, so it opens like any app you download: macOS asks once whether to open it. Click **Open**.
 
@@ -225,7 +224,11 @@ me or anyone else. These are the connections Roar's own code makes (Chromium's a
 Roar is built on Chromium (via CEF) and does not turn off Chromium's own background networking,
 so Chromium components may still make requests of their own (for example to
 check for extension updates or component updates); these background services stay
-enabled. It is not a "zero outbound connections" browser. This list comes from reading Roar's source,
+enabled. Widevine (DRM video) is enabled and Chromium may download its module when a site asks for it.
+Roar identifies itself to sites as Chrome-compatible: its client hints name the "Google Chrome" brand,
+like its user agent, and it turns off the `navigator.webdriver` automation flag Chromium sets.
+These are compatibility settings, not permission to ignore a site's terms; follow each site's rules on automated access.
+It is not a "zero outbound connections" browser. This list comes from reading Roar's source,
 not from a network capture.
 
 ## For developers
@@ -270,8 +273,8 @@ nonce Roar issued to that tab.
 - Page-text search stores page text unencrypted in the data dir (mode 0600). Turn it off in Settings, or clear it with "Forget saved text" there ("Forget saved page text" in the command bar).
 - H.264 and AAC need a CEF built with proprietary codecs. The stock CEF that `scripts/build.sh` fetches plays WebM, VP9 and AV1 but not many `.mp4` sources;
   `scripts/build-cef-codecs.sh` builds one that does, with Roar's Chromium patches (hours for a first build; the checkout needs well over 100 GB).
-  Release builds are meant to ship this build, configured to decode H.264 and AAC with macOS's built-in video and audio decoders (VideoToolbox and AudioToolbox), with no FFmpeg H.264 or AAC decoder and no OpenH264; the release codec gate verifies that against the framework's dSYM.
-  HEVC (H.265): through 0.37.14, Roar's CEF keeps Chromium's HEVC parser, and HEVC video is decoded by macOS VideoToolbox (Roar bundles no HEVC decoder). A CEF rebuilt with `scripts/build-cef-codecs.sh` turns this off (`enable_hevc_parser_and_hw_decoder=false`).
+  Releases since 1.0.1 ship this build, configured to decode H.264 and AAC with macOS's built-in video and audio decoders (VideoToolbox and AudioToolbox), with no FFmpeg H.264 or AAC decoder and no OpenH264; the release codec gate verifies that against the framework's dSYM.
+  HEVC (H.265): through 0.37.14, Roar's CEF kept Chromium's HEVC parser and decoded HEVC video through macOS VideoToolbox (Roar bundles no HEVC decoder). Since 1.0.1 the shipped CEF is built with `enable_hevc_parser_and_hw_decoder=false`, so it has no HEVC parser or hardware decode path and does not play HEVC video.
   H.264 therefore needs a Mac whose VideoToolbox can decode it (progressive 8-bit 4:2:0 Baseline, Main or High; not interlaced, High 10, 4:2:2 or 4:4:4), and a VideoToolbox failure is no longer retried in software. AAC Main and LTP do not play, WebCodecs `AudioDecoder` needs a `description` for AAC, and `AudioContext.decodeAudioData()` cannot decode AAC even though `canPlayType()` reports AAC support.
   The Windows builds use stock CEF without H.264 or AAC.
 - The tab sound indicator follows `<audio>` and `<video>` elements on the page itself, not Web Audio or media inside cross-origin iframes.
@@ -286,16 +289,19 @@ before sending a change; UI-only edits reach the app bundle only through that sc
 
 ## Source code for open-source components
 
-Roar bundles FFmpeg (LGPL-2.1, built into the CEF framework) and uBlock Origin Lite (GPLv3).
+Roar bundles FFmpeg (LGPL-2.1, built into the CEF framework), uBlock Origin Lite (GPLv3), and in
+`roar-mcp` the Bun runtime with JavaScriptCore (LGPL-2) and TinyCC (LGPL-2.1). The written offer in the
+notices covers these and the complete CEF/Chromium source of each release.
 Each [GitHub release](https://github.com/roarbrowser/roar/releases) attaches the exact source
 for that version: `ffmpeg-<rev>.tar.gz`, `uBOL-home-<version>.tar.gz`, the uBO Lite zip and
 `roar-cef-patches.tar.gz`. For at least three years after a version's release, the source is
 also available on request from roarbrowser@gmail.com at no more than the cost of distribution.
 The full notices and this written offer ship in `Roar.app/Contents/Resources/THIRD_PARTY_NOTICES.txt`.
-For Roar 0.37.14, whose bundled notices are incomplete, see [legal/roar-0.37.14-notices-supplement.md](legal/roar-0.37.14-notices-supplement.md).
+Roar 0.37.14 is no longer offered for download, but its written offer still runs: its source (the `v0.37.14` tree, its CEF patches and FFmpeg revision) is kept and sent on request. For its complete notices, see [legal/roar-0.37.14-notices-supplement.md](legal/roar-0.37.14-notices-supplement.md).
 
 ## License
 
-Roar is released under the [MIT License](LICENSE). The build fetches third-party code
+Roar is released under the [MIT License](LICENSE). Chrome, Claude, ChatGPT, Ollama and other product names are trademarks of their owners;
+Roar is not affiliated with or endorsed by them and names them only to say what it works with. The build fetches third-party code
 that keeps its own license: [CEF](https://bitbucket.org/chromiumembedded/cef) (BSD) and
 [uBlock Origin Lite](https://github.com/uBlockOrigin/uBOL-home) (GPLv3).
