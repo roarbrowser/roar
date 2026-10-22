@@ -1384,8 +1384,11 @@ void RevealInFinder(const std::string& path) {
 }
 
 void OpenFullDiskAccessSettings() {
-  [NSWorkspace.sharedWorkspace
-      openURL:[NSURL URLWithString:@"x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles"]];
+  // macOS 13+ renamed the pane; the old ID no longer opens it on current releases.
+  NSString* pane = NSProcessInfo.processInfo.operatingSystemVersion.majorVersion >= 13
+                       ? @"x-apple.systempreferences:com.apple.settings.PrivacySecurity.extension?Privacy_AllFiles"
+                       : @"x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles";
+  [NSWorkspace.sharedWorkspace openURL:[NSURL URLWithString:pane]];
 }
 
 bool OpenInApp(void* window, const std::string& url) {
