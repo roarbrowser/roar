@@ -92,6 +92,7 @@ p.reason a { color: inherit; }
       <div class="row"><span class="name">Import from<small>Bookmarks, pinned tabs, extensions, and spaces from Arc.</small></span><span class="end" id="imports">
         <button class="chip" data-import="arc">Arc</button><button class="chip" data-import="chrome">Chrome</button><button class="chip" data-import="safari">Safari</button>
         <button class="chip" data-import="firefox">Firefox</button><button class="chip" data-import="edge">Edge</button><button class="chip" data-import="dia">Dia</button></span></div>
+      <p class="reason">Add extensions like Dark Reader, LastPass or 1Password from the <a href="https://chromewebstore.google.com/" id="cws">Chrome Web Store</a>.</p>
     </section>
 
     <section id="tabs"><h2>Tabs &amp; Sidebar</h2>
@@ -480,11 +481,13 @@ $('bk-confirm').onclick = async () => {
   } catch (e) { bkResult('Import failed, nothing changed: ' + e.message, true); }
 };
 document.querySelectorAll('[data-goto]').forEach((a) => a.onclick = (e) => { e.preventDefault(); showTab(a.dataset.goto); });
+$('cws').onclick = (e) => { e.preventDefault(); ask({ cmd: 'open', text: e.target.href, newTab: true }); };
 $('tips').onclick = (e) => { e.preventDefault(); ask({ cmd: 'open', text: 'roar://ui/welcome.html#tips', newTab: true }); };
 
 // Tabs: one section shown at a time; the last one opened comes back next time.
 const tabs = [...document.querySelectorAll('nav a[href^="#"]:not(.tips)')];
 function showTab(id) {
+  if (id === 'ask') id = 'chat';  // Ask's settings live in Model chat, not a tab of their own.
   if (!document.getElementById(id)?.matches('main section')) id = 'general';
   for (const sec of document.querySelectorAll('main section')) sec.hidden = sec.id !== id;
   for (const a of tabs) a.setAttribute('aria-current', String(a.hash === '#' + id));
