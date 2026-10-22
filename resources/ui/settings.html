@@ -141,8 +141,8 @@ p.reason a { color: inherit; }
       <p class="reason">Chat with a model on this Mac, or OpenAI and Anthropic with your own API key. Keys stay in your Keychain.</p>
       <div id="ask-llm-row"></div>
       <div class="row"><label class="name" for="chat-default">Default model<small id="chat-default-note">Models from the servers that answer now.</small></label><select id="chat-default"></select></div>
-      <h3>Providers</h3>
-      <p class="reason" id="code-copy">Coding assistants you've installed run sandboxed on your own plan. Only Claude Code can be sent a tab.</p>
+      <h3>Your subscriptions</h3>
+      <p class="reason" id="code-copy">Coding assistants you've installed use your own plan, no API key. Each runs in a macOS sandbox: it reads only its own folders and reaches the network over HTTPS. Only Claude Code can be sent a tab.</p>
       <div id="chat-providers"></div>
       <div class="row"><span class="name">Add an OpenAI-compatible server<small>Any server with /v1/chat/completions, like vLLM or LiteLLM.</small></span>
         <span class="end"><input type="text" id="chat-add-name" placeholder="Name" aria-label="New server name" style="width:110px"><input type="text" id="chat-add-url" class="query" placeholder="http://localhost:8000/v1" aria-label="New server URL" style="width:220px"><button class="btn" id="chat-add">Add</button></span></div>
@@ -514,12 +514,12 @@ $('search').oninput = () => {
 // and detected providers move to the top.
 async function chatRefresh(st) {
   const list = [...chatCore.parseProviders(st.chatProviders), ...chatCore.CLI_PROVIDERS], box = $('chat-providers'), sel = $('chat-default');
-  const row = (p) => p.kind === 'cli' ? `<div class="row" data-p="${esc(p.id)}"><span class="name">${esc(p.name)} (your subscription)<small data-state="${p.state || ''}">${esc(p.label || 'Checking…')}</small>${p.run ? `<span class="fix"><code>${esc(p.run)}</code><button class="btn" data-copy="${esc(p.run)}">Copy</button><button class="btn" data-recheck>Check again</button></span>` : ''}</span><span class="end"><small style="max-width:360px">Uses your ${esc(p.account)} login, no API key. ${esc(p.isolation)}${p.pages ? '' : ' It is never sent a tab.'}</small></span></div>`
+  const row = (p) => p.kind === 'cli' ? `<div class="row" data-p="${esc(p.id)}"><span class="name">${esc(p.name)}<small data-state="${p.state || ''}">${esc(p.label || 'Checking…')}</small>${p.run ? `<span class="fix"><code>${esc(p.run)}</code><button class="btn" data-copy="${esc(p.run)}">Copy</button><button class="btn" data-recheck>Check again</button></span>` : ''}</span><span class="end"><small style="max-width:360px">${esc(p.isolation.replace(/\s*Runs under a macOS sandbox.*$/, ''))}</small></span></div>`
     : `<div class="row" data-p="${esc(p.id)}"><span class="name">${esc(p.name)}<small data-state="${p.state || ''}">${esc(p.label || 'Checking…')}</small></span>
     <span class="end"><input type="text" class="query" data-url value="${esc(p.url)}" aria-label="${esc(p.name)} URL" spellcheck="false" style="width:240px">
     ${p.get ? `<button class="btn" data-get="${esc(p.get)}">Get ${esc(p.name)}</button>` : ''}
     ${p.key ? `<input type="password" data-key placeholder="${p.state === 'available' ? '••••••••' : 'API key'}" aria-label="${esc(p.name)} API key" autocomplete="off" style="width:150px"><button class="btn" data-savekey>Save key</button>${p.state === 'available' ? '<button class="btn" data-delkey>Remove key</button>' : ''}` : '<button class="btn" data-remove>Remove</button>'}</span></div>`;
-  const paint = (rows) => { if (!box.contains(document.activeElement)) box.innerHTML = rows.map(row).join(''); };  // Don't rebuild under the cursor.
+  const paint = (rows) => { if (!box.contains(document.activeElement)) box.innerHTML = rows.filter((p) => p.kind === 'cli').map(row).join('') + '<h3>API keys and local servers</h3>' + rows.filter((p) => p.kind !== 'cli').map(row).join(''); };  // Don't rebuild under the cursor.
   const gen = (chatRefresh.gen = (chatRefresh.gen || 0) + 1);
   if (!box.children.length) paint(list);
   const found = await chatCore.detectProviders(list, ask);
