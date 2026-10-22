@@ -14,7 +14,7 @@ States: `todo`, `in progress`, `done`, `blocked (maintainer)`.
 | 5 | One-page site | done, custom domain https://roarbrowser.app (Cloudflare, DNS only, auto-renew off; expires 2027-10-17) | Drop docs/media/roar-demo.mp4 + .jpg in when the demo exists |
 | 6 | Auto-update | done, unreleased | Sparkle 2.10.0 wired (feed: appcast.xml on main; EdDSA private key in the login keychain item "Private key for signing Sparkle updates"). Verified against a local test feed (ROAR_SPARKLE_TEST=1 + ROAR_SPARKLE_FEED). First real release will exercise sign_update; consider signing Sparkle's XPC helpers individually once Developer ID signing is live |
 | 8 | Agents per profile | done (unreleased) | Per-space "Allow agents" switch (space menu, welcome page); Chromium filter hides off spaces from /json/list, Target.* and direct attach; MCP asks which profile when several are on; use_profile tool. Known gaps: toggling off does not drop an already-attached agent; workers in blocked pages still listed |
-| 7 | Brand accounts | in progress | Done: Gmail, GitHub org, X @roarbrowser, Product Hunt @roarbrowser (X login), Hacker News roarbrowser (see docs/brand/ACCOUNTS.md). Reddit u/roarbrowser: password saved in the password manager, signup stalled on Reddit's email-code rate limit; retry once, one run |
+| 7 | Brand accounts | done | Gmail, GitHub org, X, Product Hunt, Hacker News, Reddit u/roarbrowser (see docs/brand/ACCOUNTS.md) |
 
 ## Maintainer steps outstanding
 
@@ -34,3 +34,4 @@ States: `todo`, `in progress`, `done`, `blocked (maintainer)`.
 - 2026-10-17: launch copy reviewed against 0.26.0 (MCP path roar-mcp, Intel builds, agent sessions, Homebrew cask).
 - 2026-10-17: roarbrowser.app bought at Cloudflare (WHOIS redacted, auto-renew off); docs/CNAME + site/README/post links moved off github.io; Sparkle feed unchanged (raw.githubusercontent.com).
 - 2026-10-17: Reddit signup blocked twice (brand Gmail not in an agent space, then Reddit code rate limit); brand Gmail password rotated at Google's prompt and saved first.
+- 2026-10-22: Reddit u/roarbrowser created (email verified, profile set).
