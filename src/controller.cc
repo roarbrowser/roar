@@ -132,6 +132,9 @@ std::string ToJson(CefRefPtr<CefValue> v) { return CefWriteJSON(v, JSON_WRITER_D
 
 // Browser id -> {nonce, expiry} of the mail-act.js run Roar started there; only its clicks are honoured.
 std::map<int, std::pair<std::string, double>> g_mail_nonces;
+// Browser id -> the nonce otp-fill.js was started with; only its requests are answered.
+std::map<int, std::string> g_otp_nonces;
+constexpr int kOtpMaxAgeSecs = 180;  // Fill codes from Messages offers texts this recent.
 // Each run waits ~33 s for a fresh page plus several ~20 s polls; 5 minutes covers it.
 constexpr double kMailNonceSecs = 300;
 
@@ -4787,6 +4790,10 @@ bool Controller::HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> 
     auto v = CefValue::Create();
     v->SetDictionary(DictationJson());
     callback->Success(CefWriteJSON(v, JSON_WRITER_DEFAULT));
+  } else if (cmd == "messages.access") {
+    bool ok = library::MessagesReadable();
+    if (!ok) platform::OpenFullDiskAccessSettings();
+    callback->Success(ok ? "1" : "0");
   } else if (cmd == "dictation.removeModel") {
     DictationRemoveModel();
     callback->Success("");
@@ -5767,8 +5774,36 @@ void Controller::OnMailPageLoaded(CefRefPtr<CefBrowser> browser) {
 
 void Controller::OnMailPageClosed(CefRefPtr<CefBrowser> browser) {
   g_mail_nonces.erase(browser->GetIdentifier());
+  g_otp_nonces.erase(browser->GetIdentifier());
   for (auto it = mail_pages_.begin(); it != mail_pages_.end(); ++it)
     if (it->second.browser && it->second.browser->IsSame(browser)) return void(mail_pages_.erase(it));
+}
+
+void Controller::OnOtp(CefRefPtr<CefBrowser> browser, const std::string& line) {
+  auto it = g_otp_nonces.find(browser->GetIdentifier());
+  Tab* tab = FindTabByBrowser(browser);
+  // Only the active tab's own run, on an http(s) page, while the setting is on.
+  if (!State::Get().settings.messages_codes || it == g_otp_nonces.end() || !tab || tab->id != active_id_ ||
+      HttpHost(browser->GetMainFrame()->GetURL()).empty())
+    return;
+  bool ask = line == it->second + " ask";
+  if (!ask && line != it->second + " pick") return;
+  std::string code = library::RecentMessagesCode(kOtpMaxAgeSecs);
+  if (code.empty()) return;
+  auto frame = browser->GetMainFrame();
+  if (ask) {
+    frame->ExecuteJavaScript("window.__roarOtpShow&&window.__roarOtpShow();", frame->GetURL(), 0);
+    return;
+  }
+  // The code reaches the page only from this native menu: the page could fake its own "pick".
+  int id = tab->id;
+  std::string url = frame->GetURL();
+  platform::PopupMenu({"Fill " + code + " from Messages"}, [this, id, url, code](int) {
+    Tab* t = FindTab(id);
+    auto b = t && t->view ? t->view->GetBrowser() : nullptr;
+    if (b && id == active_id_ && b->GetMainFrame()->GetURL().ToString() == url)
+      b->GetMainFrame()->ExecuteJavaScript("window.__roarOtpFill&&window.__roarOtpFill(" + JsString(code) + ");", url, 0);
+  });
 }
 
 // Called by Client::OnConsoleMessage: true only for the nonce of the action pending in |browser|.
@@ -5826,6 +5861,11 @@ void Controller::OnLoading(CefRefPtr<CefBrowser> browser, bool loading, bool can
       ExecuteScript(tab->id, platform::ReadResource("ui/llm-fill.js") +
                                  "\n;window.__roarFill(" + JsString(fill->second) + ");");
       llm_fills_.erase(fill);
+    }
+    if (State::Get().settings.messages_codes && StartsWith(tab->url, "http")) {
+      std::string& nonce = g_otp_nonces[browser->GetIdentifier()];
+      nonce = platform::RandomToken();
+      ExecuteScript(tab->id, platform::ReadResource("ui/otp-fill.js") + "\n;window.__roarOtp(" + JsString(nonce) + ");");
     }
     if (!tab->ghost) {
       State::Get().RecordVisit(tab->space, tab->url, tab->title);

@@ -51,7 +51,11 @@ bool Client::OnConsoleMessage(CefRefPtr<CefBrowser> browser, cef_log_severity_t 
 
 // Shared with the hidden Gmail pages (MailPageClient in controller.cc).
 bool HandleMailConsole(CefRefPtr<CefBrowser> browser, const std::string& text) {
-  static const std::string kPrefix = "__roar_click__ ", kResult = "__roar_result__ ", kOutlook = "__roar_outlook__ ";
+  static const std::string kPrefix = "__roar_click__ ", kResult = "__roar_result__ ", kOutlook = "__roar_outlook__ ", kOtp = "__roar_otp__ ";
+  if (text.rfind(kOtp, 0) == 0) {
+    Controller::Get()->OnOtp(browser, text.substr(kOtp.size()));
+    return true;
+  }
   if (text.rfind(kOutlook, 0) == 0) {
     Controller::Get()->OnOutlookMail(browser, text.substr(kOutlook.size()));
     return true;

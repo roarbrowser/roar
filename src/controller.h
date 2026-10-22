@@ -238,6 +238,8 @@ class Controller {
   // What mail-act.js did (or why it did nothing), shown as a hint.
   void OnMailResult(CefRefPtr<CefBrowser> browser, const std::string& text);
   void OnOutlookMail(CefRefPtr<CefBrowser> browser, const std::string& json);
+  // otp-fill.js in a tab: "<nonce> ask" (a code field got focus) or "<nonce> pick" (its suggestion was clicked).
+  void OnOtp(CefRefPtr<CefBrowser> browser, const std::string& line);
   // Hidden per-account Gmail pages (MailPageClient): created, finished loading, closed.
   void OnMailPageCreated(const std::string& key, CefRefPtr<CefBrowser> browser);
   void OnMailPageLoaded(CefRefPtr<CefBrowser> browser);

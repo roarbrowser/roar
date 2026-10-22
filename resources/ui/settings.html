@@ -182,6 +182,7 @@ p.reason a { color: inherit; }
 
     <section id="privacy"><h2>Privacy</h2>
       <div class="row"><label class="name" for="index-on">Remember the text of pages I visit<small id="index-status"></small></label><span class="end"><button class="btn" id="forget" hidden>Forget saved text</button><input type="checkbox" class="switch" id="index-on" data-set="indexPages"></span></div>
+      <div class="row" id="otp-row"><label class="name" for="otp-on">Fill verification codes from Messages<small id="otp-note">When a site texts you a sign-in code, Roar offers it in the code box so you don't have to copy it. Roar reads only texts from the last few minutes, only when you're in a code field, and never saves or sends them. Needs Full Disk Access.</small></label><input type="checkbox" class="switch" id="otp-on" data-set="messagesCodes"></div>
       <div class="module">
         <div class="row head"><label class="name" for="clean-links"><span data-icon="link"></span>Clean links I copy<small>Copy Link Address gives the real link. Links you open never change.</small></label><input type="checkbox" class="switch" id="clean-links" data-set="cleanLinks"></div>
         <fieldset id="clean-opts">
@@ -392,6 +393,13 @@ $('dict-key').onkeydown = (e) => {
 
 document.querySelectorAll('[data-set]').forEach((i) => i.onchange = () => set({
   [i.dataset.set]: i.type === 'checkbox' ? i.checked : i.dataset.kind === 'number' ? +i.value : i.value }));
+// Fill codes from Messages reads ~/Library/Messages, which only Full Disk Access opens (macOS only).
+$('otp-row').hidden = /^Win/.test(navigator.platform);
+$('otp-on').addEventListener('change', () => {
+  if ($('otp-on').checked) ask({ cmd: 'messages.access' }).then((ok) => {
+    if (ok !== '1') $('otp-note').textContent = 'Roar opened Full Disk Access in System Settings. Turn on Roar there, then quit and reopen Roar.';
+  });
+});
 document.querySelectorAll('[data-seg]').forEach((g) => g.onclick = (e) => {
   const b = e.target.closest('button[data-v]');
   if (b) set({ [g.dataset.seg]: JSON.parse(b.dataset.v) });

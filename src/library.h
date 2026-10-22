@@ -36,4 +36,9 @@ struct BrowserProfile {
 std::vector<BrowserProfile> ReadBrowser(const std::string& browser, std::string* error);
 std::string BrowserName(const std::string& browser);
 
+// Fill codes from Messages: whether chat.db opens (Full Disk Access), and the newest one-time
+// code texted in the last |max_age_secs| ("" if none). Text is never kept or logged.
+bool MessagesReadable();
+std::string RecentMessagesCode(int max_age_secs);
+
 }  // namespace roar::library

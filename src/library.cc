@@ -15,6 +15,7 @@
 
 #include "include/cef_parser.h"
 
+#include "otp_code.h"
 #include "platform.h"
 #include "state.h"
 
@@ -552,6 +553,37 @@ std::vector<BrowserProfile> ReadBrowser(const std::string& browser, std::string*
   if (browser == "safari") return ReadSafari(error);
   *error = "unknown browser";
   return {};
+}
+
+std::string MessagesDb() { return Home() + "/Library/Messages/chat.db"; }
+
+bool MessagesReadable() { return std::ifstream(MessagesDb(), std::ios::binary).is_open(); }
+
+std::string RecentMessagesCode(int max_age_secs) {
+  // Read-only in place: OpenCopy would copy a chat.db that can be gigabytes on every code field.
+  sqlite3* db = nullptr;
+  if (sqlite3_open_v2(MessagesDb().c_str(), &db, SQLITE_OPEN_READONLY, nullptr) != SQLITE_OK) {
+    sqlite3_close(db);
+    return "";
+  }
+  // message.date: nanoseconds since 2001-01-01.
+  auto now = std::chrono::system_clock::now().time_since_epoch();
+  sqlite3_int64 since = (std::chrono::duration_cast<std::chrono::seconds>(now).count() - 978307200 - max_age_secs) * 1000000000LL;
+  std::string code;
+  sqlite3_stmt* s = nullptr;
+  if (sqlite3_prepare_v2(db, "SELECT text, attributedBody FROM message WHERE is_from_me = 0 AND date > ? ORDER BY date DESC LIMIT 20",
+                         -1, &s, nullptr) == SQLITE_OK) {
+    sqlite3_bind_int64(s, 1, since);
+    while (code.empty() && sqlite3_step(s) == SQLITE_ROW) {
+      std::string text = Col(s, 0);
+      if (text.empty() && sqlite3_column_type(s, 1) == SQLITE_BLOB)
+        text = TypedStreamText(std::string(static_cast<const char*>(sqlite3_column_blob(s, 1)), sqlite3_column_bytes(s, 1)));
+      code = ExtractOtpCode(text);
+    }
+  }
+  sqlite3_finalize(s);
+  sqlite3_close(db);
+  return code;
 }
 
 }  // namespace roar::library
