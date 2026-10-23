@@ -409,7 +409,7 @@ class Controller {
   void ClaudeAlert(CefRefPtr<CefDictionaryValue> d);
   std::map<std::string, int> claude_cards_;  // Session id -> its needs-you/done sidebar card.
   // One roar-mcp connection's space for its next createTarget (agent.space); used once.
-  struct TargetClaim { std::string owner; int space = -1; double expires = 0; } target_claim_;
+  struct TargetClaim { std::string owner; int space = -1; double expires = 0; std::string group; } target_claim_;  // group: tab group name, made if missing.
   void ReleaseAgentPages(const std::string& owner);  // Closes the tabs that connection opened.
   bool cdp_on_ = false;                 // Whether the CDP HTTP port is listening now.
   std::unique_ptr<DictationEngine> dictation_;  // roar-dictate, started on first use.

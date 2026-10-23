@@ -1469,6 +1469,21 @@ int Controller::OpenTargetTab(const std::string& url) {
   // (OnTabWindowCreated shows only visible tabs).
   Tab* tab = FindTab(id);
   if (tab) TouchAgentMark(tab->agent, NowSeconds()), ShowTabWindow(tab), tab->mcp_owner = claim.owner;
+  if (tab && !claim.group.empty()) {
+    // An agent's new_page group: reuse the space's group of that name, else make an unpinned one (it goes with its tabs).
+    State& st = State::Get();
+    int gid = 0;
+    for (const auto& g : st.groups)
+      if (g.space == space && g.name == claim.group) gid = g.id;
+    if (!gid) {
+      TabGroup g;
+      g.id = gid = st.next_group_id++;
+      g.name = claim.group;
+      g.space = space;
+      st.groups.push_back(g);
+    }
+    SetGroup(id, gid);
+  }
   last_target_tab_ = id;
   auto browser = tab && tab->view ? tab->view->GetBrowser() : nullptr;
   if (browser) return browser->GetIdentifier();
@@ -4930,7 +4945,7 @@ bool Controller::HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> 
     std::string owner = msg->GetString("owner").ToString();
     if (owner.empty()) return callback->Failure(1, "owner is required"), true;
     if (target_claim_.expires > NowSeconds() && target_claim_.owner != owner) return callback->Success("busy"), true;
-    target_claim_ = {owner, sp->id, NowSeconds() + 5};
+    target_claim_ = {owner, sp->id, NowSeconds() + 5, msg->GetString("group").ToString().substr(0, 80)};
     callback->Success("");
   } else if (cmd == "agent.release") {
     // A roar-mcp connection is done (done card, idle, or exit): close the pages it opened.
