@@ -72,7 +72,7 @@
     };
     // A card at the bottom of Roar's sidebar, like a real notify_user / ask_user alert.
     c.card = function (title, body, done) {
-      var card = slot.appendChild(h('<div class="card' + (done ? ' done' : '') + '"><div class="who"><span>Claude Code</span><span>now</span></div><span class="x">×</span><div class="q"></div><div class="b"></div><div class="row"></div></div>'));
+      var card = slot.appendChild(h('<div class="card' + (done ? ' done' : '') + '"><div class="who"><span>Your agent</span><span>now</span></div><span class="x">×</span><div class="q"></div><div class="b"></div><div class="row"></div></div>'));
       card.querySelector('.q').textContent = title;
       if (body) card.querySelector('.b').textContent = body; else card.querySelector('.b').remove();
       return card;
@@ -92,6 +92,7 @@
           var b = row.appendChild(document.createElement('button')); b.type = 'button'; b.textContent = label;
           b.onclick = function () { pick(i); };
         });
+        row.appendChild(document.createElement('button')).textContent = 'Reply';
         c.w(4200).then(function () { return done ? 0 : c.move(row.firstChild); })
           .then(function () { return done ? 0 : c.click(row.firstChild); })
           .then(function () { pick(0); }, no);
@@ -132,19 +133,20 @@
       c.say('select_page', 'Inbox (your logged-in tab, shown in Roar)');
       var mail = [['Weekly deals', 'Shop', 1], ['Sam Rivera', 'Lunch Thursday?', 0], ['Your receipt', 'Order #4471', 2], ['Newsletter', 'Top 10 this week', 1], ['Dev digest', '42 new posts', 1], ['Priya', 'Contract v2 attached', 0]];
       var v = c.show('<div>' + mail.map(function (m) { return '<div class="row2"><span><b>' + m[0] + '</b> <em>' + m[1] + '</em></span></div>'; }).join('') + '</div>').firstChild;
-      c.say('take_snapshot', '', '6 unread'); await c.w(700);
-      for (var i = 0; i < mail.length; i++) {
-        var row = v.children[i];
-        if (mail[i][2] === 1) { await c.move(row); await c.click(row); c.say('click', 'Archive "' + mail[i][0] + '"'); row.classList.add('gone'); await c.w(350); }
-        if (mail[i][2] === 2) { await c.move(row); row.firstChild.insertAdjacentHTML('beforeend', ' <span class="tag">Receipts</span>'); c.say('click', 'Label "Receipts"'); await c.w(400); }
-      }
-      var a = await c.ask('Archive 3 and label 1? Sam asked about lunch Thursday; reply yes?', 'Nothing is sent or deleted until you click.', ['Do it', 'Leave it']);
+      c.say('take_snapshot', '', '6 unread: 3 look like junk, 1 receipt'); await c.w(700);
+      for (var i = 0; i < mail.length; i++) if (mail[i][2]) { await c.move(v.children[i]); v.children[i].classList.add('pick'); await c.w(250); }
+      var a = await c.ask('Archive 3 and label 1? Sam asked about lunch Thursday; reply yes?', 'Nothing is archived or sent until you click.', ['Do it', 'Leave it']);
       if (a === 'Do it') {
+        for (i = 0; i < mail.length; i++) {
+          var row = v.children[i]; row.classList.remove('pick');
+          if (mail[i][2] === 1) { await c.move(row); await c.click(row); c.say('click', 'Archive "' + mail[i][0] + '"'); row.classList.add('gone'); await c.w(350); }
+          if (mail[i][2] === 2) { await c.move(row); row.firstChild.insertAdjacentHTML('beforeend', ' <span class="tag">Receipts</span>'); c.say('click', 'Label "Receipts"'); await c.w(400); }
+        }
         c.show('<div>' + c.field('To', 'Sam Rivera') + '<div class="field"><label>Msg</label><span></span></div></div>');
         var f = view.querySelectorAll('.field')[1]; await c.move(f); c.say('type_text', 'reply to Sam');
         await c.type(f, 'Thursday works. 12:30 at the usual place?');
         c.ai('Archived 3, labelled your receipt, and told Sam yes. Priya’s contract still needs you.');
-      } else c.ai('Archived 3 and labelled your receipt. Sam and Priya are waiting on you.');
+      } else { [].forEach.call(v.children, function (x) { x.classList.remove('pick'); }); c.ai('Okay, I left your inbox as it was. Sam and Priya are waiting on you.'); }
       await c.w(3600);
     },
     async function review(c) {
@@ -180,12 +182,12 @@
     c.session('api', 'working', 'Editing auth.ts');
     c.cc('Update', 'src/auth.ts'); await c.w(500);
     c.ai('Do you want to make this edit to auth.ts?  1. Yes  2. No');
-    c.session('api', 'needs', 'Claude needs your permission');
+    c.session('api', 'needs', 'Approve: Editing auth.ts');
     await c.w(900);
-    await c.move(api); await c.click(api); api.classList.add('open');
-    var p = h('<div class="clp"><pre></pre><div class="in">Reply to Claude…</div><div class="keys"><b>⏎</b><b>Esc</b><b>1</b><b>2</b><b>3</b><b>⌃C</b></div></div>');
+    await c.move(api); await c.click(api); api.classList.add('open'); url.textContent = 'Agent session · api';
+    var p = h('<div class="clp"><pre></pre><div class="in">Reply… (/ for commands; empty Enter accepts)</div><div class="keys"><b>Enter</b><b>Esc</b><b>1</b><b>2</b><b>3</b><b>⌃C</b></div></div>');
     p.querySelector('pre').textContent = '⏺ Update(src/auth.ts)\n  - const t = session.token\n  + const t = tokens.get(user)\n\nDo you want to make this edit?\n❯ 1. Yes\n  2. No';
-    api.after(p); await c.w(1100);
+    view.innerHTML = ''; view.appendChild(p); await c.w(1100);
     var one = p.querySelectorAll('.keys b')[2]; await c.move(one); await c.click(one);
     p.querySelector('pre').textContent = '⏺ Update(src/auth.ts)\n  ⎿ Updated src/auth.ts\n\n⏺ Bash(npm test)\n  ⎿ 5 passed';
     c.cc('Update', 'src/auth.ts', 'Updated 2 lines'); c.cc('Bash', 'npm test', '5 passed');
@@ -195,7 +197,7 @@
     inp.innerHTML = '<span></span>'; await c.type(inp, 'Also cover token expiry');
     await c.me('Also cover token expiry');
     p.querySelector('pre').textContent += '\n\n> Also cover token expiry';
-    inp.textContent = 'Reply to Claude…';
+    inp.textContent = 'Reply… (/ for commands; empty Enter accepts)';
     c.cc('Write', 'src/auth.test.ts'); c.session('api', 'working', 'Writing auth.test.ts'); await c.w(1000);
     c.cc('Bash', 'npm test', '6 passed');
     c.ai('Done. auth.ts reads from the token store; 6 tests pass, including expiry.');
@@ -227,16 +229,4 @@
     es.forEach(function (e) { if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); } });
   }, { threshold: .12 });
   document.querySelectorAll('main section .wrap').forEach(function (el) { el.classList.add('reveal'); io.observe(el); });
-
-  // Hero: the agent moves between real tabs and asks about each one.
-  var card = document.querySelector('.hero .card'), htabs = document.querySelectorAll('.hero .tab');
-  var addr = document.querySelector('.hero .addr'), sites = ['mail.example', 'git.example/acme/app/pull/212', 'docs.example/release-notes', 'docs.example/q4-launch'];
-  var asks = [[3, 'Claude Code wants to open 3 tabs. Allow?', 'Allow'], [2, 'Read 3 pages. Summary is in your terminal.', 'OK'], [1, 'Read the diff for #212. Notes are in your terminal.', 'OK'], [0, 'Use this tab for the next step?', 'Use it']];
-  var n = 0;
-  if (card && !reduced) setInterval(function () {
-    var x = asks[++n % asks.length];
-    [].forEach.call(htabs, function (t, i) { t.classList.toggle('on', i === x[0]); });
-    addr.textContent = sites[x[0]]; card.querySelector('.q').textContent = x[1]; card.querySelector('.yes').textContent = x[2];
-    card.classList.remove('swap'); void card.offsetWidth; card.classList.add('swap');
-  }, 4500);
 })();

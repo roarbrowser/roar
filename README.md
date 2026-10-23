@@ -7,7 +7,7 @@
 <p align="center"><strong>Your AI agent, in your real browser.</strong></p>
 
 <p align="center">
-  Roar is a free, open-source browser for Mac and Windows. Claude, Cursor or Codex use it like you do,
+  Roar is a free, open-source browser for Mac (Apple Silicon; Intel coming soon). Claude, Cursor or Codex use it like you do,
   already logged in, in tabs you can watch and take over. It can ask you before it acts. One click cuts it off.
 </p>
 
@@ -15,20 +15,15 @@
 
 <p align="center">
   <b>Download for macOS:</b> <a href="https://github.com/roarbrowser/roar/releases/latest"><b>Apple Silicon</b></a> (<code>Roar-&lt;version&gt;.dmg</code>)
-  <br>Intel Macs and Windows: not in the 1.0.x releases yet; build from source (see For developers).
+  <br>Intel Macs: coming soon; build from source meanwhile (see For developers).
   <br><a href="https://roarbrowser.app/">Website</a> &nbsp;·&nbsp; Open source, MIT licensed
 </p>
 
 <br>
 
 <p align="center">
-  <a href="https://roarbrowser.app/media/roar-hero-clip.mp4"><img src="docs/media/roar-hero-clip.jpg" alt="Clip: an agent works in Roar's sidebar and asks before it pays" width="720"></a>
-  <br><sub>▶ Watch the clip: an agent works in Roar's sidebar and asks before it pays</sub>
-</p>
-
-<p align="center">
-  <a href="https://roarbrowser.app/media/roar-safari-web.mp4"><img src="docs/media/roar-safari.jpg" alt="Roar in 45 seconds: an agent books a safari from one sentence, and asks before it pays" width="720"></a>
-  <br><sub>▶ One sentence, a whole safari booked (45 seconds)</sub>
+  <a href="https://roarbrowser.app/media/roar-film-web.mp4"><img src="docs/media/roar-film-web.jpg" alt="Roar film: an agent works in Roar's sidebar and asks before it pays" width="720"></a>
+  <br><sub>▶ Watch the film: an agent works in Roar's sidebar and asks before it pays</sub>
 </p>
 
 | You get | Your agent gets |
@@ -203,7 +198,7 @@ Roar's own code has no analytics or usage tracking: nothing in Roar's source rep
 me or anyone else. These are the connections Roar's own code makes (Chromium's are below):
 
 - **Updates:** Sparkle checks `raw.githubusercontent.com/roarbrowser/roar/main/appcast.xml`
-  (the Intel and Windows builds use their own appcast) and downloads new releases from GitHub.
+  (the Intel build uses its own appcast) and downloads new releases from GitHub.
 - **Search:** what you type in the command bar or new tab goes to your search engine
   (DuckDuckGo by default; changeable in Settings). Web search for the chat uses DuckDuckGo's
   HTML page from a throwaway profile.
