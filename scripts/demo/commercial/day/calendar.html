@@ -1,0 +1,21 @@
+<!doctype html>
+<!-- Fictional calendar for the Roar day film: Daybook at calendar.lumen.example. -->
+<meta charset="utf-8"><link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23d4462f'/%3E%3Ctext x='16' y='22.5' font-family='-apple-system,Helvetica' font-weight='700' font-size='18' fill='white' text-anchor='middle'%3E4%3C/text%3E%3C/svg%3E"><title>Thursday, September 4 – Daybook</title>
+<style>
+:root{--ink:#1d2127;--ink3:#8b919a;--line:#eceef1;--now:#d4462f}
+*{margin:0;box-sizing:border-box}body{font:13.5px -apple-system,sans-serif;color:var(--ink);background:#fff;-webkit-font-smoothing:antialiased}
+header{display:flex;align-items:baseline;gap:14px;padding:20px 28px 14px}header h1{font:700 26px -apple-system}header span{color:var(--ink3);font-size:15px}header nav{margin-left:auto;display:flex;gap:4px}header nav b{padding:5px 12px;border-radius:7px;font-weight:500;color:#555}header nav b.on{background:#f0f1f3;color:var(--ink)}
+.grid{display:grid;grid-template-columns:64px repeat(5,1fr);border-top:1px solid var(--line)}.dh{padding:10px 12px;border-left:1px solid var(--line);color:var(--ink3)}.dh b{display:block;font-size:22px;color:var(--ink);font-weight:600}.dh.today b{color:#fff;background:var(--now);border-radius:50%;width:36px;height:36px;display:grid;place-items:center}
+.col{position:relative;border-left:1px solid var(--line);height:760px;background:repeating-linear-gradient(#fff 0 75px,var(--line) 75px 76px)}.hrs{position:relative;height:760px}.hrs i{position:absolute;right:10px;font-style:normal;color:var(--ink3);font-size:11.5px}
+.e{position:absolute;left:5px;right:6px;border-radius:7px;padding:6px 9px;font-size:12.5px;line-height:1.3;border-left:3px solid}.e b{display:block;font-weight:600}
+.b{background:#e8eefc;border-color:#4b74d6;color:#26407d}.o{background:#fdf0dc;border-color:#e0952c;color:#7a4c0c}.g{background:#e3f3ea;border-color:#3b9a6a;color:#1d5a3a}.p{background:#efe8fb;border-color:#7a5bc7;color:#47307e}
+.nowl{position:absolute;left:0;right:0;top:152px;height:2px;background:var(--now)}.nowl::before{content:"";position:absolute;left:-5px;top:-4px;width:10px;height:10px;border-radius:50%;background:var(--now)}
+</style>
+<header><h1>September 2026</h1><span>Week 36</span><nav><b>Day</b><b class="on">Week</b><b>Month</b></nav></header>
+<div class="grid"><div></div><div class="dh">Mon<b>1</b></div><div class="dh">Tue<b>2</b></div><div class="dh">Wed<b>3</b></div><div class="dh today">Thu<b>4</b></div><div class="dh">Fri<b>5</b></div>
+<div class="hrs"><i style="top:0">8 AM</i><i style="top:76px">9 AM</i><i style="top:152px">10 AM</i><i style="top:228px">11 AM</i><i style="top:304px">12 PM</i><i style="top:380px">1 PM</i><i style="top:456px">2 PM</i><i style="top:532px">3 PM</i><i style="top:608px">4 PM</i><i style="top:684px">5 PM</i></div>
+<div class="col"><div class="e b" style="top:114px;height:30px"><b>Standup</b></div><div class="e p" style="top:228px;height:70px"><b>Roadmap sync</b>Room 2A</div><div class="e g" style="top:532px;height:60px"><b>1:1 with Ana</b></div></div>
+<div class="col"><div class="e b" style="top:114px;height:30px"><b>Standup</b></div><div class="e b" style="top:380px;height:110px"><b>Design critique</b>Onboarding flows</div></div>
+<div class="col"><div class="e b" style="top:114px;height:30px"><b>Standup</b></div><div class="e o" style="top:266px;height:56px"><b>Offsite planning</b>with Priya</div><div class="e p" style="top:570px;height:80px"><b>Interview: product designer</b>Loop, round 2</div></div>
+<div class="col"><div class="nowl"></div><div class="e b" style="top:114px;height:30px"><b>Standup</b> 9:30 · Room 4B</div><div class="e o" style="top:228px;height:56px"><b>Book offsite venue</b>Harbor Hall holds the Loft until noon</div><div class="e g" style="top:342px;height:66px"><b>Lunch with Marcus</b>Noodle place on 5th</div><div class="e b" style="top:532px;height:76px"><b>Spec review</b>Onboarding v3</div></div>
+<div class="col"><div class="e b" style="top:114px;height:30px"><b>Standup</b></div><div class="e p" style="top:152px;height:150px"><b>Interview loop</b>Candidate: R. Tanaka</div><div class="e g" style="top:608px;height:60px"><b>Team drinks</b></div></div></div>

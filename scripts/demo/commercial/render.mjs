@@ -13,7 +13,7 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(HERE, '../../..');
 const [CAP, OUTF] = process.argv.slice(2).map((x) => resolve(x));
 const arg = (k) => { const i = process.argv.indexOf(k); return i > 0 ? process.argv[i + 1] : null; };
-const FPS = Number(arg('--fps') ?? 60), DUR = 30, PORT = 9346;
+const FPS = Number(arg('--fps') ?? 30), DUR = Number(process.env.ROAR_FILM_DUR ?? 40), PORT = Number(process.env.ROAR_RENDER_PORT ?? 9362);
 const stills = arg('--stills')?.split(',').map(Number);
 const WORK = realpathSync(mkdtempSync(join(process.env.TMPDIR ?? tmpdir(), 'roar-render-')));
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));

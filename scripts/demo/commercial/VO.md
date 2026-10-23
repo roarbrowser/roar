@@ -1,17 +1,15 @@
-# Roar commercial: voiceover (round 3)
+# A day in Roar: voiceover
 
-One line per beat; each line is placed at its start time + 0.1 s. `vo.mjs` parses the table below.
-The roar sound effect at 10.0-11.0 s stays clear of speech (line 4 must end by 9.9 s).
+Voice: David, an older British wildlife narrator from the ElevenLabs library (sIsyDvq54C8vCgtvpJac), stability .6, style .3, speed 1.1. Auditioned against Connery and Alec on lines 1 and 8.
+Eight full sentences read as one continuous narration, like a nature film following one animal through its day. Each sentence starts at its time + 0.1 s; the picture is time-warped to the reads (film.html WARP), and on-screen captions split each sentence across its shots word for word.
 
 | start | line | on-screen caption |
 |---|---|---|
-| 0.0 | Your agent, meet your browser. | Your agent. meets your browser. |
-| 2.6 | Ask it to build Lion Den and test it. | Build Lion Den, then test it in my browser. |
-| 5.6 | It opens a real tab. | It opens a real tab. |
-| 8.4 | It clicks like you would. | It clicks like you would. |
-| 11.4 | It tests what it built. | It tests what it built. |
-| 14.4 | And it asks you, before it ships. | It asks before it ships. |
-| 18.0 | Done. Right in the tab you're watching. | Done. In the tab you're watching. |
-| 21.0 | Agents see only the spaces you allow. | Agents see only the spaces you allow. |
-| 25.0 | Any MCP agent. Built in. | Any MCP agent. Built in. No extension. |
-| 27.4 | Roar. Roar browser dot app. | Roar · roarbrowser.app |
+| 0.1 | Meet Roar, the browser your AI can drive. | Meet Roar, the browser your AI can drive. |
+| 4.29 | As the morning begins, mail and pull requests wait in the sidebar, and the spec sits beside your inbox. | As the morning begins, mail and pull requests wait in the sidebar, and the spec sits beside your inbox. |
+| 12.76 | Reader mode clears the noise, and Command T finds any tab. | Reader mode clears the noise, and ⌘T finds any tab. |
+| 18.87 | Then you hand the hunt to your own AI, and it keeps its tabs together. | Then you hand the hunt to your own AI, and it keeps its tabs together. |
+| 25.96 | It works where you're signed in, while you watch from inside Roar. | It works where you're signed in, while you watch from inside Roar. |
+| 31.99 | It asks before paying, as you asked, then renames the group when the venue is booked. | It asks before paying, as you asked, then renames the group when the venue is booked. |
+| 40.29 | As evening falls, your personal space stays out of reach. | As evening falls, your personal space stays out of reach. |
+| 46.08 | With Roar, your AI hunts, and you make the call. | With Roar, your AI hunts, and you make the call. |
