@@ -128,7 +128,9 @@ git tag "$TAG"
 # Tag and release first, appcast (main) last: Sparkle reads main/appcast.xml, so it must never point at a missing DMG.
 git push -q origin "$TAG"
 
-BODY="Roar-$VERSION.dmg is for Apple Silicon Macs$([[ ${#DMGS[@]} -gt 1 ]] && echo ", Roar-$VERSION-intel.dmg for Intel Macs" || true). Open the DMG and drag Roar to Applications."
+BODY="Roar-$VERSION.dmg is for Apple Silicon Macs$([[ ${#DMGS[@]} -gt 1 ]] && echo ", Roar-$VERSION-intel.dmg for Intel Macs" || true). Open the DMG and drag Roar to Applications.
+
+You only need the DMG. The other files are source code that Roar's open-source licenses require: FFmpeg (LGPL), uBlock Origin Lite (GPL) and Roar's Chromium/CEF patches."
 [[ $NOTARIZED == 1 ]] || BODY="$BODY
 
 The app is not notarized. On first launch, open System Settings › Privacy & Security and click Open Anyway, or run \`xattr -dr com.apple.quarantine /Applications/Roar.app\`."
