@@ -242,16 +242,16 @@ void State::Load() {
     if (auto saved = CefParseJSON(settings.chat_providers, JSON_PARSER_RFC); saved && saved->GetType() == VTYPE_LIST) {
       auto have = saved->GetList();
       auto defs = CefParseJSON(Settings{}.chat_providers, JSON_PARSER_RFC)->GetList();
-      std::vector<std::pair<std::string, std::string>> h, d;
+      std::vector<std::pair<std::string, std::string>> h, dk;
       for (size_t j = 0; j < have->GetSize(); ++j)
         if (auto p = have->GetDictionary(j)) h.push_back({p->GetString("id"), p->GetString("url")});
       std::vector<size_t> keyed;
       for (size_t i = 0; i < defs->GetSize(); ++i)
-        if (auto p = defs->GetDictionary(i); p->GetBool("key")) keyed.push_back(i), d.push_back({p->GetString("id"), p->GetString("url")});
+        if (auto p = defs->GetDictionary(i); p->GetBool("key")) keyed.push_back(i), dk.push_back({p->GetString("id"), p->GetString("url")});
       std::vector<std::string> seen;
       for (size_t a = 0, b; a <= settings.chat_defaults_seen.size(); a = b + 1)
         b = std::min(settings.chat_defaults_seen.find(',', a), settings.chat_defaults_seen.size()), seen.push_back(settings.chat_defaults_seen.substr(a, b - a));
-      auto add = ChatDefaultsToAdd(h, d, seen);
+      auto add = ChatDefaultsToAdd(h, dk, seen);
       for (size_t i : add) have->SetDictionary(have->GetSize(), defs->GetDictionary(keyed[i])->Copy(false));
       if (!add.empty()) settings.chat_providers = CefWriteJSON(saved, JSON_WRITER_DEFAULT).ToString();
     }
