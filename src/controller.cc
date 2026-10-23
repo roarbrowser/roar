@@ -1469,26 +1469,24 @@ int Controller::OpenTargetTab(const std::string& url) {
   // (OnTabWindowCreated shows only visible tabs).
   Tab* tab = FindTab(id);
   if (tab) TouchAgentMark(tab->agent, NowSeconds()), ShowTabWindow(tab), tab->mcp_owner = claim.owner;
-  if (tab && !claim.group.empty()) {
-    // An agent's new_page group: reuse the space's group of that name, else make an unpinned one (it goes with its tabs).
-    State& st = State::Get();
-    int gid = 0;
-    for (const auto& g : st.groups)
-      if (g.space == space && g.name == claim.group) gid = g.id;
-    if (!gid) {
-      TabGroup g;
-      g.id = gid = st.next_group_id++;
-      g.name = claim.group;
-      g.space = space;
-      st.groups.push_back(g);
-    }
-    SetGroup(id, gid);
-  }
+  if (tab && !claim.group.empty()) SetGroup(id, AgentGroup(space, claim.group));
   last_target_tab_ = id;
   auto browser = tab && tab->view ? tab->view->GetBrowser() : nullptr;
   if (browser) return browser->GetIdentifier();
   CloseTab(id);
   return -1;
+}
+
+int Controller::AgentGroup(int space, const std::string& name) {
+  State& st = State::Get();
+  for (const auto& g : st.groups)
+    if (g.space == space && g.name == name) return g.id;
+  TabGroup g;
+  g.id = st.next_group_id++;
+  g.name = name;
+  g.space = space;
+  st.groups.push_back(g);
+  return g.id;
 }
 
 int Controller::AgentSpace() {
@@ -4312,7 +4310,7 @@ bool Controller::HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> 
                  (IsUiBrowser(browser) || FindTabByBrowser(browser));
   // The bridge page runs only what roar-mcp needs, none of which lists tabs.
   if (trusted && hint_ && hint_->GetBrowser() && hint_->GetBrowser()->IsSame(browser) && cmd != "agent.notify" &&
-      cmd != "agent.expire" && cmd != "agent.spaces" && cmd != "agent.space" && cmd != "agent.release" && cmd != "agent.front" &&
+      cmd != "agent.expire" && cmd != "agent.spaces" && cmd != "agent.space" && cmd != "agent.group" && cmd != "agent.release" && cmd != "agent.front" &&
       cmd != "agent.drive" && cmd != "agent.rename") {
     callback->Failure(403, "not available to agents");
     return true;
@@ -4946,6 +4944,18 @@ bool Controller::HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> 
     if (owner.empty()) return callback->Failure(1, "owner is required"), true;
     if (target_claim_.expires > NowSeconds() && target_claim_.owner != owner) return callback->Success("busy"), true;
     target_claim_ = {owner, sp->id, NowSeconds() + 5, msg->GetString("group").ToString().substr(0, 80)};
+    callback->Success("");
+  } else if (cmd == "agent.group") {
+    // roar-mcp group_page: only a tab this connection opened, in a space that allows agents; empty group ungroups.
+    std::string owner = msg->GetString("owner").ToString(), url = msg->GetString("url").ToString();
+    std::string name = msg->GetString("group").ToString().substr(0, 80);
+    Tab* hit = nullptr;
+    for (auto& t : tabs_) {
+      Space* sp = State::Get().FindSpace(t.space);
+      if (!owner.empty() && t.mcp_owner == owner && t.url == url && !t.ghost && sp && sp->agents) { hit = &t; break; }
+    }
+    if (!hit) return callback->Failure(1, "That page is not one you opened in a profile that allows agents"), true;
+    SetGroup(hit->id, name.empty() ? 0 : AgentGroup(hit->space, name));
     callback->Success("");
   } else if (cmd == "agent.release") {
     // A roar-mcp connection is done (done card, idle, or exit): close the pages it opened.

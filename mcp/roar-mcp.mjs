@@ -112,7 +112,7 @@ export const INSTRUCTIONS = `Roar is the person's own web browser, already signe
 Use Roar whenever a task touches the web: opening, reading or checking a page, searching, logged-in sites (mail, GitHub, dashboards, docs), filling forms, or testing a local web app. Prefer it over fetching pages yourself or starting another browser, unless the person asks otherwise.
 - Pages you open appear as tabs in the person's sidebar, in the space set by use_profile, which applies to this session only. Only spaces the person allows agents in can be used; ghost tabs are never reachable.
 - You see and act only on pages you opened and the person's own tabs; other agents' pages are off-limits.
-- When several pages belong to one task, pass the same group to new_page so they sit together in one tab group.
+- When several pages belong to one task, pass the same group to new_page so they sit together in one tab group; group_page moves or ungroups a page you opened.
 - Open pages in the background unless the person should see them. Roar closes every page you opened when you post a "done" notify_user, when you stay idle, and when this session ends; close them sooner when you no longer need them.
 - notify_user puts a card in Roar's sidebar: use level "done" when a long task finishes, "needs_you" when you are blocked.
   Write title and body as one or two plain sentences for a person: no code, markdown, logs, paths or ids.
@@ -162,6 +162,18 @@ const TOOLS = [
         name: { type: 'string', description: 'The new name, under 80 characters.' },
         items: { type: 'array', description: 'Several renames in one call, each {kind, id, name}; use instead of kind/id/name.', items: { type: 'object', properties: { kind: { type: 'string' }, id: { type: ['string', 'number'] }, name: { type: 'string' } }, required: ['kind', 'id', 'name'] }, maxItems: 100 },
       },
+    },
+  },
+  {
+    name: 'group_page',
+    description: 'Move a page you opened into a named tab group in Roar\'s sidebar (made if missing), or out of its group with an empty group. Only your own pages.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        pageId: { type: 'number', description: 'The page id from new_page or list_pages.' },
+        group: { type: ['string', 'null'], description: 'The group name; empty or null ungroups the page.' },
+      },
+      required: ['pageId'],
     },
   },
   {
@@ -258,6 +270,11 @@ async function callOwn(id, name, args) {
       if (!pick) throw new Error(`"${args.name}" is not a profile that allows agents. Allowed: ${allowed.map((s) => s.name).join(', ')}.`);
       profileReady = Promise.resolve(pick.id);
       text = `New pages you open in this session go to the "${pick.name}" profile.`;
+    } else if (name === 'group_page') {
+      const pid = Number(args.pageId), group = plain(args.group || '', 80);
+      if (!owned.has(pid) || !pages.has(pid)) throw new Error(`Page ${args.pageId} is not one you opened: only pages from your new_page can be grouped.`);
+      await sidebarAsk({ cmd: 'agent.group', owner: OWNER, url: pages.get(pid), group }, 10000);
+      text = group ? `Page ${pid} is in the "${group}" group.` : `Page ${pid} is no longer in a group.`;
     } else if (name === 'rename_item') {
       const items = Array.isArray(args.items) ? args.items.slice(0, 100) : [args];
       if (!items.length || items.some((i) => !i || !i.kind || i.id === undefined || typeof i.name !== 'string')) throw new Error('rename_item needs kind, id and name, or items: [{kind, id, name}].');
