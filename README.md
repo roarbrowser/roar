@@ -7,7 +7,7 @@
 <p align="center"><strong>Your AI agent, in your real browser.</strong></p>
 
 <p align="center">
-  Roar is a free, open-source browser for Mac (Apple Silicon; Intel coming soon). Claude, Cursor or Codex use it like you do,
+  Roar is a free, open-source browser for Mac (Apple Silicon and Intel). Claude, Cursor or Codex use it like you do,
   already logged in, in tabs you can watch and take over. It can ask you before it acts. One click cuts it off.
 </p>
 
@@ -15,7 +15,7 @@
 
 <p align="center">
   <b>Download for macOS:</b> <a href="https://github.com/roarbrowser/roar/releases/latest"><b>Apple Silicon</b></a> (<code>Roar-&lt;version&gt;.dmg</code>)
-  <br>Intel Macs: coming soon; build from source meanwhile (see For developers).
+  <br>Intel Macs: <code>Roar-&lt;version&gt;-intel.dmg</code> (from 1.3)
   <br><a href="https://roarbrowser.app/">Website</a> &nbsp;·&nbsp; Open source, MIT licensed
 </p>
 
@@ -38,7 +38,7 @@
 
 About five minutes. Needs macOS 13 or later; no Node.js.
 
-**1. Download (1 min).** Get the latest `Roar-<version>.dmg` (Apple Silicon; 1.0.x has no Intel DMG) from [Releases](https://github.com/roarbrowser/roar/releases/latest), open it and drag Roar onto Applications. Or:
+**1. Download (1 min).** Get the latest `Roar-<version>.dmg` (Apple Silicon) or `Roar-<version>-intel.dmg` (Intel, from 1.3) from [Releases](https://github.com/roarbrowser/roar/releases/latest), open it and drag Roar onto Applications. Or:
 
 ```bash
 brew install --cask roarbrowser/tap/roar
@@ -224,7 +224,8 @@ aggregate download counts. These are the connections Roar's own code makes that 
   act on the pages in spaces you allow agents in, signed in as you, and what it reads goes to that
   agent's AI provider. Ghost tabs are hidden from agents. Turn a space's agent access off by clicking
   its dot in the sidebar. The agent port is on by default; turn it off in Settings > Agents if you
-  don't use agents. You are responsible for what agents you connect do in your accounts; Roar is
+  don't use agents. On Apple Silicon the port refuses clients without this launch's token;
+  the Intel build gets that protection in 1.4, so until then any app running as you can reach it there. You are responsible for what agents you connect do in your accounts; Roar is
   provided as is, without warranty, under the MIT License.
 - **Dictation:** the speech model is downloaded from Hugging Face the first time you use it.
 - **uBlock Origin Lite:** ships with its filter rules built in; Roar fetches no lists for it.

@@ -29,7 +29,7 @@ It's also the sidebar browser I use all day: spaces with separate logins, pinned
 7/
 Leaving Arc? Your spaces and pinned tabs come over on first launch. Chrome, Edge, Firefox, Safari and Dia import too.
 
-macOS 13+ on Apple Silicon (Intel build coming), early.
+macOS 13+ on Apple Silicon and Intel (Intel from 1.3), early.
 
 8/
 A browser doesn't need a company behind it.

@@ -286,7 +286,7 @@ try { const t = localStorage.getItem('theme'); if (t) document.documentElement.d
       <a class="btn primary" id="dl" href="https://github.com/roarbrowser/roar/releases/latest">Download for Mac</a>
       <a class="btn ghost" href="#agents">Connect your agent</a>
     </div>
-    <p class="arch">For Macs with Apple Silicon. Intel coming soon. <a href="https://github.com/roarbrowser/roar/releases/latest">Other downloads</a></p>
+    <p class="arch">For Macs with Apple Silicon or Intel (Intel from 1.3). <a href="https://github.com/roarbrowser/roar/releases/latest">Other downloads</a></p>
     <p class="trust">It can ask you before it acts. One click cuts it off.</p>
     <p class="starter"><span>Try:</span><code id="starter">Open my inbox in Roar and summarize what's unread.</code><button type="button" id="copy">Copy</button></p>
   </div>
@@ -325,7 +325,7 @@ try { const t = localStorage.getItem('theme'); if (t) document.documentElement.d
 <section aria-labelledby="install-h">
   <div class="wrap">
     <h2 id="install-h">Install</h2>
-    <p class="note">About five minutes, start to finish. Needs macOS 13 or later on Apple Silicon; no Node.js. Intel coming soon.</p>
+    <p class="note">About five minutes, start to finish. Needs macOS 13 or later on Apple Silicon or Intel (Intel from 1.3); no Node.js.</p>
     <p class="note">Don't have an agent yet? Install <a href="https://claude.com/claude-code">Claude Code</a>, <a href="https://cursor.com">Cursor</a> or <a href="https://developers.openai.com/codex">Codex</a> first; any of them works.</p>
     <ol class="install">
       <li>
@@ -478,8 +478,8 @@ try { const t = localStorage.getItem('theme'); if (t) document.documentElement.d
     }
   } catch {}
   // Windows gets the releases list if the API call below fails (rate limit); the latest release can lack Windows files.
-  // shortcut: 1.0.x ships Apple Silicon only; add keys here (mac-intel, win-*) when those builds ship.
-  const offered = new Set(['mac-arm']);
+  // shortcut: add win-* keys here when Windows builds ship again.
+  const offered = new Set(['mac-arm', 'mac-intel']);
   if (win && offered.has('win-x64')) Object.assign(document.getElementById('dl'), { href: 'https://github.com/roarbrowser/roar/releases', textContent: `Download for Windows${arm ? ' on ARM' : ''}` });
   // Several releases: Windows files land on a release hours after its Mac ones, so each build comes from the newest release that has it.
   const rels = await fetch('https://api.github.com/repos/roarbrowser/roar/releases?per_page=30').then(r => r.json()).catch(() => []);

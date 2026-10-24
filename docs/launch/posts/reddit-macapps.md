@@ -34,7 +34,7 @@ Signed with a Developer ID and notarized, with Sparkle auto-updates you can turn
 
 Also on Homebrew: `brew install --cask roarbrowser/tap/roar`.
 
-Limits: macOS 13+ on Apple Silicon (Intel build coming), early.
+Limits: macOS 13+ on Apple Silicon and Intel (Intel from 1.3), early.
 
 https://github.com/roarbrowser/roar
 

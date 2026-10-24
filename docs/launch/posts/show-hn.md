@@ -28,7 +28,7 @@ Other bits: separate profiles per space, Chrome extensions (uBlock Origin Lite b
 
 What's rough:
 
-- macOS 13+ on Apple Silicon (Intel build coming), and early. Expect bugs.
+- macOS 13+ on Apple Silicon and Intel (Intel from 1.3), and early. Expect bugs.
 - If you build from source, proprietary codecs (H.264/AAC) need a CEF built with them; the stock CEF the build script fetches plays WebM/VP9/AV1 but not many .mp4 sources.
 - Reader mode and Markdown extraction cover HTML pages, not PDFs or Google Docs.
 - Page-text search stores visited page text unencrypted in the data dir (you can turn it off).
