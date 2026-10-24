@@ -126,6 +126,7 @@ class Controller {
   int AgentSpace();
   // A link opened in a new tab: beside its opener, in the opener's space and group.
   int NewTabFrom(CefRefPtr<CefBrowser> opener, const std::string& url, bool activate);
+  int SpaceOfProfile(CefRefPtr<CefBrowser> browser);  // -1 when its profile matches no space.
   bool AdoptPopup(CefRefPtr<CefBrowser> opener, CefRefPtr<CefBrowserView> popup);
   void ReloadBrowser(CefRefPtr<CefBrowser> browser, bool ignore_cache);
   void ActivateTab(int id);

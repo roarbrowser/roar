@@ -1558,6 +1558,15 @@ bool Controller::AgentMayReach(int browser_id, const std::string& profile_path) 
   return false;
 }
 
+int Controller::SpaceOfProfile(CefRefPtr<CefBrowser> browser) {
+  auto ctx = browser->GetHost()->GetRequestContext();
+  int space = -1;
+  if (ctx && ctx->IsSharingWith(CefRequestContext::GetGlobalContext())) space = 0;
+  for (const auto& [sp, c] : contexts_)
+    if (space < 0 && sp != kGhostContext && c && ctx && (ctx->IsSame(c) || ctx->IsSharingWith(c))) space = sp;
+  return space >= 0 && State::Get().FindSpace(space) ? space : -1;
+}
+
 int Controller::NewTabFrom(CefRefPtr<CefBrowser> opener, const std::string& url, bool activate) {
   // Only Roar's own pages may open Roar pages.
   if (StartsWith(url, "roar:") && !(opener && StartsWith(opener->GetMainFrame()->GetURL().ToString(), kUiOrigin)))
@@ -1568,11 +1577,8 @@ int Controller::NewTabFrom(CefRefPtr<CefBrowser> opener, const std::string& url,
   int space = from ? from->space : -1;
   if (!from && !ghost && !IsUiBrowser(opener)) {  // Roar pages open into the active space.
     // A popup has no Roar tab: its space is the one whose profile it uses, never just the active one.
-    auto ctx = opener->GetHost()->GetRequestContext();
-    if (ctx && ctx->IsSharingWith(CefRequestContext::GetGlobalContext())) space = 0;
-    for (const auto& [sp, c] : contexts_)
-      if (space < 0 && sp != kGhostContext && c && ctx && (ctx->IsSame(c) || ctx->IsSharingWith(c))) space = sp;
-    if (space < 0 || !State::Get().FindSpace(space)) {
+    space = SpaceOfProfile(opener);
+    if (space < 0) {
       // Never fall back to the active space: that would carry the link into another profile's logins.
       LOG(WARNING) << "NewTabFrom: no space for the popup's profile; link dropped";
       ShowHint("Couldn't open that link: its profile is gone");
@@ -5720,9 +5726,16 @@ void Controller::OnAddress(CefRefPtr<CefBrowser> browser, const std::string& url
   if (!tab && !browser->IsPopup() && !IsExtensionPopup(browser) && !url.empty() && !StartsWith(url, "roar:") &&
       stray_seen_.insert(browser->GetIdentifier()).second && !StartsWith(url, "about:blank")) {
     bool ghost = IsGhostBrowser(browser);
-    action_watch::IsPageAttached(url, [browser, url, ghost](bool attached) {
+    // Like a popup, the page belongs to the space whose profile it uses, never just the active one.
+    int space = ghost ? -1 : SpaceOfProfile(browser);
+    action_watch::IsPageAttached(url, [browser, url, ghost, space](bool attached) {
       if (attached || !browser->IsValid()) return;
-      Controller::Get()->NewTab(url, true, false, 0, -1, ghost);
+      if (!ghost && space < 0) {
+        LOG(WARNING) << "OnAddress: no space for the stray window's profile; closed";
+        Controller::Get()->ShowHint("Couldn't open that page: its profile is gone");
+      } else {
+        Controller::Get()->NewTab(url, true, false, 0, space, ghost);
+      }
       browser->GetHost()->CloseBrowser(true);
     });
     return;
