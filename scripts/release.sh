@@ -10,6 +10,15 @@ VERSION="${1:?usage: scripts/release.sh <version> [notes]}"
 NOTES="${2:-}"
 TAG="v$VERSION"
 PLIST=resources/Info.plist.in
+# GitHub actions on roarbrowser/roar run as the roarbrowser-bot app when its token script exists,
+# so releases and pushes never show a personal account. A fresh token per call: they expire after 1h.
+BOT=~/.config/roarbrowser-bot/token.sh
+if [[ -x $BOT ]]; then
+  gh() { GH_TOKEN="$("$BOT")" command gh "$@"; }
+  push() { git push "https://x-access-token:$("$BOT")@github.com/roarbrowser/roar.git" "$@"; }
+else
+  push() { git push origin "$@"; }
+fi
 
 # Release commits go to main: windows.yml only attaches Windows builds for a main push (or a tag dispatch).
 git fetch -q origin main
@@ -130,7 +139,7 @@ git add "$PLIST" "${FEEDS[@]}" packaging/homebrew/roar.rb
 git commit -q -m "Release $VERSION"
 git tag "$TAG"
 # Tag and release first, appcast (main) last: Sparkle reads main/appcast.xml, so it must never point at a missing DMG.
-git push -q origin "$TAG"
+push -q "$TAG"
 
 BODY="Roar-$VERSION.dmg is for Apple Silicon Macs$([[ ${#DMGS[@]} -gt 1 ]] && echo ", Roar-$VERSION-intel.dmg for Intel Macs" || true). Open the DMG and drag Roar to Applications.
 
@@ -144,10 +153,10 @@ $BODY"
 gh release create "$TAG" "${DMGS[@]}" "$UBOL_ZIP" "$UBOL_SRC" "$FFMPEG_SRC" "$STAGE/roar-cef-patches.tar.gz" --title "Roar $VERSION" --notes "$BODY"
 # Older releases live on GitHub only; keep just this release's DMGs locally.
 find "$ROOT/build" -maxdepth 1 -name 'Roar-*.dmg' ! -name "Roar-$VERSION.dmg" ! -name "Roar-$VERSION-intel.dmg" -delete
-git push -q origin HEAD:main
+push -q HEAD:main
 # The tap (roarbrowser/homebrew-tap, Casks/roar.rb) is what `brew install` reads.
-TAP_SHA="$(gh api repos/roarbrowser/homebrew-tap/contents/Casks/roar.rb -q .sha)"
-gh api -X PUT repos/roarbrowser/homebrew-tap/contents/Casks/roar.rb -f message="roar $VERSION" \
+TAP_SHA="$(command gh api repos/roarbrowser/homebrew-tap/contents/Casks/roar.rb -q .sha)"
+command gh api -X PUT repos/roarbrowser/homebrew-tap/contents/Casks/roar.rb -f message="roar $VERSION" \
   -f content="$(base64 < packaging/homebrew/roar.rb)" -f sha="$TAP_SHA" \
   -f 'author[name]=roarbrowser' -f 'author[email]=342802191+roarbrowser@users.noreply.github.com' \
   -f 'committer[name]=roarbrowser' -f 'committer[email]=342802191+roarbrowser@users.noreply.github.com' >/dev/null
