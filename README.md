@@ -44,7 +44,7 @@ About five minutes. Needs macOS 13 or later; no Node.js.
 brew install --cask roarbrowser/tap/roar
 ```
 
-Windows builds are paused for 1.0.x, so releases carry no Windows files; when they return: on Windows, run `Roar-windows-x64-setup.exe` (or `-arm64-setup.exe`) to install Roar into Program Files with a Start menu entry, or unzip `Roar-windows-x64.zip` anywhere and run `Roar.exe` (portable, no install). Either way your data lives in `%APPDATA%\Roar`. Windows checks for updates with WinSparkle.
+Windows is an early preview (x64). Run `Roar-windows-x64-setup.exe` to install Roar into Program Files with a Start menu entry, or unzip `Roar-windows-x64.zip` anywhere and run `Roar.exe` (portable, no install). Either way your data lives in `%APPDATA%\Roar`. Windows checks for updates with WinSparkle.
 
 **2. First open.** Roar is signed with a Developer ID and notarized, so it opens like any app you download: macOS asks once whether to open it. Click **Open**.
 
