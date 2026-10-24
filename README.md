@@ -32,7 +32,7 @@
 | Split view, a command bar and Reader mode | Pages it opens appear as tabs you can watch or take over |
 | Tabs that archive themselves when you stop using them | A way to ask you a question or ping you when it's done |
 | Chrome extensions, with uBlock Origin Lite built in | Only the spaces you allow; ghost tabs are hidden from agents |
-| Import from Arc, Chrome, Safari, Firefox, Edge or Dia | A Chromium-compatible browser, so sites work as in Chrome |
+| Import from Arc, Chrome, Safari (Mac), Firefox, Edge or Dia | A Chromium-compatible browser, so sites work as in Chrome |
 
 ## Install
 

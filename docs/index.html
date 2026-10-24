@@ -385,7 +385,7 @@ try { const t = localStorage.getItem('theme'); if (t) document.documentElement.d
           <li><strong>Pinned tabs, groups and split view</strong><span>Two tabs side by side when you need them.</span></li>
           <li><strong>Tabs that tidy themselves</strong><span>They archive after 6 hours to a week.</span></li>
           <li><strong>Command bar and reader mode</strong><span>⌘T searches tabs, history and page text. uBlock Origin Lite is built in.</span></li>
-          <li><strong>Leave Arc in one step</strong><span>Your spaces and pinned tabs come over on first launch. Chrome, Safari, Firefox, Edge and Dia import too.</span></li>
+          <li><strong>Leave Arc in one step</strong><span>Your spaces and pinned tabs come over on first launch. Chrome, Safari (Mac), Firefox, Edge and Dia import too.</span></li>
         </ul>
       </div>
     </div>
@@ -394,18 +394,18 @@ try { const t = localStorage.getItem('theme'); if (t) document.documentElement.d
 
 <section aria-labelledby="cmp-h">
   <div class="wrap">
-    <h2 id="cmp-h">Roar vs the rest</h2>
-    <p>Most new AI browsers ship their own assistant and keep the source closed. Roar is the other answer: MIT licensed, no built-in assistant, and your own agent plugged in over MCP.</p>
+    <h2 id="cmp-h">How Roar compares</h2>
+    <p>Many new AI browsers ship their own assistant and keep the source closed. Roar is the other answer: MIT licensed, no built-in assistant, and your own agent plugged in over MCP.</p>
     <div class="tablewrap">
       <table class="cmp short">
         <thead><tr><th scope="col">Browser</th><th scope="col">Open source</th><th scope="col">Your agent drives it</th></tr></thead>
         <tbody>
           <tr class="roar"><th scope="row">Roar</th><td>Yes, MIT</td><td>Yes, built in</td></tr>
-          <tr><th scope="row">Dia</th><td class="n">No</td><td class="n">No official path</td></tr>
-          <tr><th scope="row">Comet</th><td class="n">No</td><td class="n">No official path</td></tr>
+          <tr><th scope="row">Dia</th><td class="n">No</td><td class="u">—</td></tr>
+          <tr><th scope="row">Comet</th><td class="n">No</td><td class="u">—</td></tr>
           <tr><th scope="row">Opera Neon</th><td class="n">No</td><td class="y">Yes, MCP Connector</td></tr>
           <tr><th scope="row">Genspark</th><td class="n">No</td><td class="u">—</td></tr>
-          <tr><th scope="row">Chrome</th><td class="n">No</td><td class="p">Separate setup</td></tr>
+          <tr><th scope="row">Chrome</th><td class="n">No</td><td class="p">Official, separate install</td></tr>
         </tbody>
       </table>
     </div>
@@ -417,23 +417,23 @@ try { const t = localStorage.getItem('theme'); if (t) document.documentElement.d
           <tbody>
             <tr class="roar"><th scope="row">Roar</th><td>Yes, MIT</td><td>None. Bring your own</td><td>Yes, built-in MCP server</td><td>Yes, with spaces</td></tr>
             <tr class="grp"><th scope="rowgroup" colspan="5">AI browsers</th></tr>
-            <tr><th scope="row">Dia</th><td class="n">No</td><td class="n">Dia's assistant</td><td class="n">No official MCP path</td><td class="p">Optional, since July 2025</td></tr>
-            <tr><th scope="row">ChatGPT Atlas</th><td class="n">No</td><td class="n">ChatGPT</td><td class="n">No official MCP path</td><td class="n">Had them; OpenAI announced Atlas's discontinuation in July 2026</td></tr>
+            <tr><th scope="row">Dia</th><td class="n">No</td><td class="n">Dia's assistant</td><td class="u">—</td><td class="p">Optional, since July 2025</td></tr>
+            <tr><th scope="row">ChatGPT Atlas</th><td class="n">No</td><td class="n">ChatGPT</td><td class="u">—</td><td class="n">Had them; reported discontinued (9to5Mac, July 9, 2026)</td></tr>
             <tr><th scope="row">ChatGPT desktop app</th><td class="n">No</td><td class="n">ChatGPT</td><td class="u">—</td><td class="u">—</td></tr>
-            <tr><th scope="row">Perplexity Comet</th><td class="n">No</td><td class="n">Perplexity</td><td class="n">No official MCP path</td><td class="u">—</td></tr>
+            <tr><th scope="row">Perplexity Comet</th><td class="n">No</td><td class="n">Perplexity</td><td class="u">—</td><td class="u">—</td></tr>
             <tr><th scope="row">Genspark</th><td class="n">No</td><td class="n">Genspark</td><td class="u">—</td><td class="u">—</td></tr>
             <tr><th scope="row">Opera Neon</th><td class="n">No</td><td class="n">Neon AI, paid plan</td><td class="y">Yes, MCP Connector</td><td class="u">—</td></tr>
             <tr class="grp"><th scope="rowgroup" colspan="5">Everyday browsers</th></tr>
-            <tr><th scope="row">Chrome</th><td class="n">No, only Chromium is</td><td class="n">Gemini</td><td class="p">Separate setup (chrome-devtools-mcp)</td><td class="p">Optional, since April 2026</td></tr>
-            <tr><th scope="row">Edge</th><td class="n">No</td><td class="n">Copilot</td><td class="n">No official one</td><td class="p">Optional, since 2021</td></tr>
-            <tr><th scope="row">Brave</th><td class="y">Yes, MPL 2.0</td><td class="n">Leo</td><td class="n">No, community add-ons only</td><td class="p">Optional, since 2023</td></tr>
-            <tr><th scope="row">Firefox</th><td class="y">Yes, MPL 2.0</td><td class="n">Chatbot sidebar, your pick of provider</td><td class="n">No</td><td class="p">Optional, since March 2025</td></tr>
-            <tr><th scope="row">Safari</th><td class="n">No</td><td class="n">Apple Intelligence</td><td class="n">No</td><td class="n">No</td></tr>
+            <tr><th scope="row">Chrome</th><td class="n">No, only Chromium is</td><td class="n">Gemini</td><td class="p">Official, separate install (chrome-devtools-mcp)</td><td class="p">Optional, since April 2026</td></tr>
+            <tr><th scope="row">Edge</th><td class="n">No</td><td class="n">Copilot</td><td class="u">—</td><td class="p">Optional, since 2021</td></tr>
+            <tr><th scope="row">Brave</th><td class="y">Yes, MPL 2.0</td><td class="n">Leo</td><td class="u">—</td><td class="p">Optional, since 2023</td></tr>
+            <tr><th scope="row">Firefox</th><td class="y">Yes, MPL 2.0</td><td class="n">Chatbot sidebar, your pick of provider</td><td class="u">—</td><td class="p">Optional, since March 2025</td></tr>
+            <tr><th scope="row">Safari</th><td class="n">No</td><td class="n">Apple Intelligence</td><td class="u">—</td><td class="u">—</td></tr>
           </tbody>
         </table>
       </div>
     </details>
-    <p class="asof">Checked October 17, 2026. Each "No" means we found no official support in the maker's public docs as of that date; a dash means we couldn't confirm it from the maker or the press.</p>
+    <p class="asof">Checked October 17, 2026. Each "No" means we found no official support in the maker's public docs as of that date; a dash means we couldn't confirm it from the maker or the press. Spotted something out of date? <a href="https://github.com/roarbrowser/roar/issues">Open an issue</a> and we'll fix it.</p>
     <details class="src">
       <summary>Sources</summary>
       <ul>
@@ -456,9 +456,10 @@ try { const t = localStorage.getItem('theme'); if (t) document.documentElement.d
 <footer>
   <div class="wrap">
     <a href="https://github.com/roarbrowser/roar">github.com/roarbrowser/roar</a>
-    <span>MIT License</span>
+    <span>MIT License (Roar's own code; bundled components keep their licenses)</span>
+    <a href="https://github.com/roarbrowser/roar#network--privacy">Privacy</a>
     <span>Built on Chromium (CEF)</span>
-    <span>Chrome, Google, Arc, Dia, Safari, Apple, macOS, Claude, Anthropic, Cursor, Codex, ChatGPT, OpenAI, Ollama, uBlock Origin, and other product names are trademarks of their owners; Roar is not affiliated with or endorsed by them.</span>
+    <span>Chrome, Google, Gemini, Arc, Dia, Safari, Apple, macOS, Claude, Anthropic, Cursor, Codex, ChatGPT, OpenAI, Microsoft, Edge, Copilot, GitHub, Perplexity, Comet, Brave, Firefox, Mozilla, Opera, Genspark, Qwen, NVIDIA, Ollama, uBlock Origin and all other product names are trademarks of their owners; Roar is not affiliated with or endorsed by them.</span>
   </div>
 </footer>
 <script>
