@@ -471,8 +471,8 @@ inline bool SafeRel(const std::string& rel) {
 }
 
 // Unpacks |file| into <dir>/restore-pending after checking every file against SHA256SUMS, and
-// writes the entries of |dir| it replaces: every entry in |cats|, plus, with settings, the
-// profiles of spaces the backup doesn't have. |rename| maps old extension ids to new ones (an
+// writes the entries of |dir| it replaces: every entry in |cats|. Profiles of spaces the backup
+// lacks stay, since a newer space's logins aren't in it (NewSpaceId skips their ids). |rename| maps old extension ids to new ones (an
 // unpacked extension's id follows its folder, e.g. uBOL in the data dir). Returns "" or an error.
 inline std::string Stage(const fs::path& file, const fs::path& dir, const std::set<Cat>& cats,
                          const std::vector<std::pair<std::string, std::string>>& rename = {}, int* count = nullptr) {
@@ -483,7 +483,6 @@ inline std::string Stage(const fs::path& file, const fs::path& dir, const std::s
   fs::path pending = dir / kPending, tmp = dir / (std::string(kPending) + ".partial");
   fs::remove_all(tmp, ec);
   fs::create_directories(tmp / "files", ec);
-  std::set<std::string> profiles;
   int n = 0;
   for (std::string line; std::getline(sums, line);) {
     if (line.size() < 66 + 6 || line.compare(64, 8, "  files/") != 0) continue;
@@ -499,16 +498,11 @@ inline std::string Stage(const fs::path& file, const fs::path& dir, const std::s
     fs::create_directories(dst.parent_path(), ec);
     if (!zip.Extract(*e, dst, nullptr, &got) || got != sha)
       return fs::remove_all(tmp, ec), "the backup is damaged (" + rel + ")";
-    profiles.insert(rel.substr(0, rel.find('/')));
     ++n;
   }
   std::string remove;
   for (const Entry& e : Entries(dir))
     if (cats.count(e.cat)) remove += e.rel + "\n";
-  if (cats.count(kSettings))
-    for (const auto& top : fs::directory_iterator(dir, ec))
-      if (std::string name = U8(top.path().filename()); name != "Default" && IsProfile(name) && !profiles.count(name))
-        remove += name + "\n";
   std::ofstream(tmp / "remove.txt", std::ios::binary) << remove;
   fs::remove_all(pending, ec);
   fs::rename(tmp, pending, ec);

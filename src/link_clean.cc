@@ -5,12 +5,13 @@
 #include <cstdlib>
 
 namespace roar {
-namespace {
 
 std::string Lower(std::string s) {
   std::transform(s.begin(), s.end(), s.begin(), [](unsigned char c) { return std::tolower(c); });
   return s;
 }
+
+namespace {
 
 bool EndsWith(const std::string& s, const std::string& suffix) {
   return s.size() >= suffix.size() && s.compare(s.size() - suffix.size(), suffix.size(), suffix) == 0;

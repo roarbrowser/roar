@@ -29,5 +29,7 @@ if [[ -f "$ROOT/third_party/cef/args.gn" ]]; then
 else
   rm -rf "$ROOT/third_party/cef"
 fi
-rm -rf "${ROAR_BUILD_DIR:-$ROOT/build}"
+# Only the build tree and CMake's cache: the release DMG in build/ stays.
+B="${ROAR_BUILD_DIR:-$ROOT/build}"
+rm -rf "$B/src" "$B/libcef_dll_wrapper" "$B/CMakeCache.txt" "$B/CMakeFiles"
 "$ROOT/scripts/build.sh"

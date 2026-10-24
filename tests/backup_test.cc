@@ -70,7 +70,7 @@ int main(int argc, char** argv) {
   Put(dst / "Default/Preferences", "old");
   Put(dst / "Default/Cookies", "keep-me");
   Put(dst / "Default/Local Extension Settings/stale/1.log", "stale");
-  Put(dst / "Space-9/Preferences", "gone");
+  Put(dst / "Space-9/Cookies", "newer-space");
   int n = 0;
   std::string err = Stage(out, dst, {kSettings, kExtensions}, {{"oldid", "newid"}}, &n);
   Check(err.empty() && n == 6, "stage: " + err + " (" + std::to_string(n) + ")");
@@ -81,7 +81,7 @@ int main(int argc, char** argv) {
   Check(Get(dst / "Space-2/Extensions/xyz/1.0/manifest.json") == "{}", "space extension restored");
   Check(Get(dst / "Default/Local Extension Settings/newid/000003.log") == "vm-scripts", "extension storage renamed");
   Check(!fs::exists(dst / "Default/Local Extension Settings/stale"), "stale extension storage removed");
-  Check(!fs::exists(dst / "Space-9"), "space missing from backup removed");
+  Check(Get(dst / "Space-9/Cookies") == "newer-space", "space missing from backup kept");
   Check(Get(dst / "Default/Cookies") == "keep-me", "browsing data kept when not restored");
 
   // A tampered file is refused before anything is staged.

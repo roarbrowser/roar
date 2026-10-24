@@ -206,7 +206,7 @@ function render() {
     else {
       icon = iconHtml('', it.url);
       title = esc(it.title || hostOf(it.url));
-      const kind = it.detail ? 'Tab in ' + it.detail : { tab: 'Open tab', history: 'History', archived: 'Archived' }[it.type];
+      const kind = { tab: 'Open tab', history: 'History', archived: 'Archived' }[it.type];
       sub = `<span class="kind">${kind}</span>`;
       return `<button class="item${i === sel ? ' sel' : ''}" data-i="${i}" id="opt-${i}" role="option" aria-selected="${i === sel}"><span class="icon">${icon}</span><span class="text"><span class="title">${title}</span><span class="url">${esc(hostOf(it.url))}</span></span>${sub}</button>`;
     }

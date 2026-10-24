@@ -148,7 +148,8 @@ try {
   const ra = after.filter((t) => /chat\.html/.test(t.url || '') || t.askLlm);
   check(ra.length === 2 && ra.some((t) => t.askLlm === 'Claude'), 'both Ask tabs restored: ' + ra.map((t) => t.url).join(' '));
   if (ra.length) for (const t of ra) {
-    check(!!(await sidebar(`!!document.querySelector('#cl-group:not([hidden]) [data-chattab="${t.id}"]')`)) && !(await sidebar(inTabs(t.id))), `restored ${t.askLlm || 'Ask'} tab is under AI, not Tabs`);
+    // The sidebar renders a frame after the state changes (PushSidebar coalesces).
+    check(!!(await waitFor(() => sidebar(`!!document.querySelector('#cl-group:not([hidden]) [data-chattab="${t.id}"]')`))) && !(await sidebar(inTabs(t.id))), `restored ${t.askLlm || 'Ask'} tab is under AI, not Tabs`);
   }
   await sidebar(`syncCollapse(document.getElementById('cl-group'), false); true`);
   await shot('sidebar-ask-restored');

@@ -17,7 +17,13 @@ ADD_LOGICAL_TARGET("libcef_lib" "${CEF_LIB_DEBUG}" "${CEF_LIB_RELEASE}")
 add_executable(${CEF_TARGET} WIN32 ${ROAR_SRCS})
 SET_EXECUTABLE_TARGET_PROPERTIES(${CEF_TARGET})
 add_dependencies(${CEF_TARGET} libcef_dll_wrapper)
-target_compile_definitions(${CEF_TARGET} PRIVATE ROAR_SOURCE_DIR="${CMAKE_SOURCE_DIR}" UNICODE _UNICODE)
+target_compile_definitions(${CEF_TARGET} PRIVATE UNICODE _UNICODE)
+# Update Chromium runs scripts/update-cef.sh from this checkout; releases don't carry the build machine's path.
+if(ROAR_RELEASE)
+  target_compile_definitions(${CEF_TARGET} PRIVATE ROAR_SOURCE_DIR="")
+else()
+  target_compile_definitions(${CEF_TARGET} PRIVATE ROAR_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
+endif()
 target_link_libraries(${CEF_TARGET} libcef_lib libcef_dll_wrapper ${CEF_STANDARD_LIBS} SQLite::SQLite3
   ws2_32 iphlpapi bcrypt shlwapi shell32 ole32 user32 dwmapi)
 

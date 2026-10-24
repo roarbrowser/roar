@@ -63,16 +63,6 @@ class UiSchemeFactory : public CefSchemeHandlerFactory {
 
 CefRefPtr<CefSchemeHandlerFactory> NewUiSchemeFactory() { return new UiSchemeFactory(); }
 
-namespace {
-
-std::string Slurp(const std::filesystem::path& p) {
-  std::ifstream in(p);
-  std::stringstream ss;
-  ss << in.rdbuf();
-  return ss.str();
-}
-
-}  // namespace
 
 // Copies the bundled uBOL to <data>/ubol when its manifest differs, so an
 // app update refreshes it. The fixed path keeps the unpacked extension id stable.
@@ -81,7 +71,7 @@ std::string StageUbol() {
   fs::path src = platform::ResourcePath("extensions/ubol");
   fs::path dst = fs::path(State::Get().Dir()) / "ubol";
   std::error_code ec;
-  if (Slurp(src / "manifest.json") != Slurp(dst / "manifest.json")) {
+  if (ReadFile((src / "manifest.json").string()) != ReadFile((dst / "manifest.json").string())) {
     fs::remove_all(dst, ec);
     fs::create_directories(dst.parent_path(), ec);
     fs::copy(src, dst, fs::copy_options::recursive, ec);

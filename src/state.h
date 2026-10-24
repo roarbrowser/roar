@@ -151,5 +151,7 @@ class State {
 };
 
 double NowSeconds();
+std::string ReadFile(const std::string& path);  // "" when missing.
+std::string Home();
 
 }  // namespace roar

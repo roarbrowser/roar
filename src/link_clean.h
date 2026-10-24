@@ -6,6 +6,8 @@
 
 namespace roar {
 
+std::string Lower(std::string s);  // ASCII.
+
 // Returns the link a wrapped one really points at, or `url` unchanged:
 //  - Safe Links (`*.safelinks.protection.outlook.com/?url=...`) and Teams'
 //    own redirector (`statics.teams.cdn.office.net/.../safelinks/...?url=...`)

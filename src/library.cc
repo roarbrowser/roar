@@ -27,38 +27,17 @@ namespace {
 
 CefRefPtr<CefDictionaryValue> g_root;
 
-std::string Slurp(const fs::path& path) {
-  std::ifstream in(path, std::ios::binary);
-  if (!in) return "";
-  std::stringstream ss;
-  ss << in.rdbuf();
-  return ss.str();
-}
-
 CefRefPtr<CefDictionaryValue> ParseDict(const std::string& json) {
   auto v = CefParseJSON(json, JSON_PARSER_ALLOW_TRAILING_COMMAS);
   return v && v->GetType() == VTYPE_DICTIONARY ? v->GetDictionary() : nullptr;
 }
 
-std::string Home() {
-#ifdef _WIN32
-  const char* home = std::getenv("USERPROFILE");
-#else
-  const char* home = std::getenv("HOME");
-#endif
-  return home ? home : "";
-}
-
 fs::path LibraryPath() { return fs::path(State::Get().Dir()) / "library.json"; }
 
 CefRefPtr<CefDictionaryValue> Root() {
-  if (!g_root) g_root = ParseDict(Slurp(LibraryPath()));
+  if (!g_root) g_root = ParseDict(ReadFile((LibraryPath()).string()));
   if (!g_root) g_root = CefDictionaryValue::Create();
   return g_root;
-}
-
-double NowSeconds() {
-  return std::chrono::duration<double>(std::chrono::system_clock::now().time_since_epoch()).count();
 }
 
 CefRefPtr<CefDictionaryValue> LinkNode(const std::string& title, const std::string& url) {
@@ -115,7 +94,7 @@ CefRefPtr<CefListValue> ChromiumNodes(CefRefPtr<CefListValue> children) {
 
 CefRefPtr<CefListValue> ChromiumBookmarks(const fs::path& profile) {
   auto out = CefListValue::Create();
-  auto root = ParseDict(Slurp(profile / "Bookmarks"));
+  auto root = ParseDict(ReadFile((profile / "Bookmarks").string()));
   auto roots = root ? root->GetDictionary("roots") : nullptr;
   if (!roots) return out;
   // The bar's items sit at the top; the other roots become folders.
@@ -143,7 +122,7 @@ std::vector<Link> ChromiumPinned(const fs::path& profile) {
     if (newest.empty() || fs::last_write_time(e.path(), ec) > fs::last_write_time(newest, ec))
       newest = e.path();
   }
-  std::string d = newest.empty() ? "" : Slurp(newest);
+  std::string d = newest.empty() ? "" : ReadFile(newest.string());
   if (d.size() < 8 || d.compare(0, 4, "SNSS") != 0) return {};
   auto i32 = [&](size_t at) {
     int32_t v;
@@ -205,7 +184,7 @@ std::vector<Link> ChromiumPinned(const fs::path& profile) {
 std::vector<std::string> ChromiumExtensions(const fs::path& profile) {
   std::vector<std::string> ids;
   for (const char* file : {"Preferences", "Secure Preferences"}) {
-    auto prefs = ParseDict(Slurp(profile / file));
+    auto prefs = ParseDict(ReadFile((profile / file).string()));
     auto ext = prefs ? prefs->GetDictionary("extensions") : nullptr;
     auto settings = ext ? ext->GetDictionary("settings") : nullptr;
     CefDictionaryValue::KeyList keys;
@@ -225,7 +204,7 @@ std::vector<std::string> ChromiumExtensions(const fs::path& profile) {
 
 std::vector<BrowserProfile> ReadChromium(const fs::path& root, std::string* error) {
   std::vector<BrowserProfile> out;
-  auto local = ParseDict(Slurp(root / "Local State"));
+  auto local = ParseDict(ReadFile((root / "Local State").string()));
   auto profile = local ? local->GetDictionary("profile") : nullptr;
   auto cache = profile ? profile->GetDictionary("info_cache") : nullptr;
   CefDictionaryValue::KeyList dirs;
@@ -369,7 +348,7 @@ CefRefPtr<CefListValue> FirefoxBookmarks(const fs::path& profile) {
 std::vector<Link> FirefoxPinned(const fs::path& profile) {
   std::string json;
   for (const char* f : {"sessionstore-backups/recovery.jsonlz4", "sessionstore.jsonlz4"})
-    if (json = MozLz4(Slurp(profile / f)); !json.empty()) break;
+    if (json = MozLz4(ReadFile((profile / f).string())); !json.empty()) break;
   auto root = ParseDict(json);
   auto windows = root ? root->GetList("windows") : nullptr;
   std::vector<Link> out;

@@ -14,7 +14,7 @@
 //                                              or types into it (tmux and cmux only)
 // Roar reads the folder every few seconds (Controller::ClaudeTick). Only the latest prompt,
 // the current tool and the session state are kept; never the conversation.
-import { readFileSync, writeFileSync, mkdirSync, rmSync, renameSync, existsSync, copyFileSync, readdirSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync, rmSync, renameSync, existsSync, copyFileSync, readdirSync, statSync } from 'node:fs';
 import { basename, delimiter, isAbsolute, join } from 'node:path';
 import { execFileSync, spawn } from 'node:child_process';
 import { homedir } from 'node:os';
@@ -218,7 +218,17 @@ function hook(tool, argEvent) {
   try { ev = normalize(tool, JSON.parse(readFileSync(0, 'utf8')), argEvent); } catch { return; }
   if (!ev || typeof ev.session_id !== 'string' || !/^[\w-]+$/.test(ev.session_id)) return;
   const file = join(DIR, keyOf(tool, ev.session_id) + '.json');
-  if (ev.hook_event_name === 'SessionEnd') return void rmSync(file, { force: true });
+  // An ended session leaves <key>.ended, so a late async hook can't bring its row back.
+  const ended = file.replace(/\.json$/, '.ended');
+  if (ev.hook_event_name === 'SessionEnd') {
+    mkdirSync(DIR, { recursive: true });
+    try { writeFileSync(ended, ''); } catch {}
+    try { for (const f of readdirSync(DIR)) if (f.endsWith('.ended') && now - statSync(join(DIR, f)).mtimeMs > 7 * 86400000) rmSync(join(DIR, f), { force: true }); } catch {}
+    return void rmSync(file, { force: true });
+  }
+  // A resumed session (same id) starts again.
+  if (ev.hook_event_name === 'SessionStart') rmSync(ended, { force: true });
+  else if (existsSync(ended)) return;
   let prev = {};
   try { prev = JSON.parse(readFileSync(file, 'utf8')); } catch {}
   // Async hooks can finish out of order: a PreToolUse that lost the race must not undo a later Stop.

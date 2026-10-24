@@ -18,6 +18,7 @@
 #include <memory>
 #include <functional>
 #include <deque>
+#include <filesystem>
 #include <map>
 #include <set>
 #include <string>
@@ -180,6 +181,7 @@ class Controller {
   bool IsExtensionPopup(CefRefPtr<CefBrowser> browser);
   bool OnExtensionPopupResize(CefRefPtr<CefBrowser> browser, const CefSize& size);
   void PushSidebar();
+  void PushSidebarNow();
   void ShowHint(const std::string& text);
   // Dictation (controller_dictation.cc): every entry point checks DictationAllowed first.
   void DictationToggle();
@@ -409,6 +411,9 @@ class Controller {
   void ClaudeAlert(CefRefPtr<CefDictionaryValue> d);
   std::map<std::string, int> claude_cards_;  // Session id -> its needs-you/done sidebar card.
   // One roar-mcp connection's space for its next createTarget (agent.space); used once.
+  bool sidebar_push_pending_ = false;
+  std::map<std::string, std::pair<std::filesystem::file_time_type, CefRefPtr<CefDictionaryValue>>> claude_files_;  // ClaudeTick: session file -> mtime, parsed.
+  std::map<std::string, std::string> mcp_tokens_;  // roar-mcp owner pid -> the token it got from agent.hello.
   struct TargetClaim { std::string owner; int space = -1; double expires = 0; std::string group; } target_claim_;  // group: tab group name, made if missing.
   int AgentGroup(int space, const std::string& name);  // The space's group of that name, made unpinned if missing.
   void ReleaseAgentPages(const std::string& owner);  // Closes the tabs that connection opened.

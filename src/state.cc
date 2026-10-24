@@ -40,31 +40,11 @@ int CountPinned(CefRefPtr<CefDictionaryValue> d) {
   return n;
 }
 
-std::string ReadFile(const std::string& path) {
-  std::ifstream in(path);
-  if (!in) return "";
-  std::stringstream buf;
-  buf << in.rdbuf();
-  return buf.str();
-}
-
 void WriteJson(const std::string& dir, const std::string& name, CefRefPtr<CefDictionaryValue> d) {
   auto root = CefValue::Create();
   root->SetDictionary(d);
   mkdir(dir.c_str(), 0700);
   AtomicWrite(dir + "/" + name, CefWriteJSON(root, JSON_WRITER_DEFAULT).ToString());
-}
-
-std::string Home() {
-#ifdef _WIN32
-  const char* h = std::getenv("USERPROFILE");
-  return h ? h : "";
-#else
-  const char* h = std::getenv("HOME");
-  if (h && *h) return h;
-  const passwd* pw = getpwuid(getuid());
-  return pw && pw->pw_dir ? pw->pw_dir : "";
-#endif
 }
 
 // The main instance's data dir: ~/Library/Application Support/Roar, %APPDATA%/Roar on Windows.
@@ -103,6 +83,26 @@ bool Bool(CefRefPtr<CefDictionaryValue> d, const char* key, bool def = false) {
 }
 
 }  // namespace
+
+std::string ReadFile(const std::string& path) {
+  std::ifstream in(path, std::ios::binary);
+  if (!in) return "";
+  std::stringstream buf;
+  buf << in.rdbuf();
+  return buf.str();
+}
+
+std::string Home() {
+#ifdef _WIN32
+  const char* h = std::getenv("USERPROFILE");
+  return h ? h : "";
+#else
+  const char* h = std::getenv("HOME");
+  if (h && *h) return h;
+  const passwd* pw = getpwuid(getuid());
+  return pw && pw->pw_dir ? pw->pw_dir : "";
+#endif
+}
 
 double NowSeconds() {
   using namespace std::chrono;

@@ -64,6 +64,10 @@ mcp(['claude-hook'], { session_id: 'old1', cwd: '/w/z', hook_event_name: 'Stop' 
 check(session('old1')?.tool === 'claude', 'claude-hook alias still writes a Claude session');
 mcp(['agent-hook', 'codex'], { session_id: 'c1', hook_event_name: 'SessionEnd' });
 check(!session('codex-c1') && session('c1'), 'Codex SessionEnd removes only codex-c1, not Claude c1');
+mcp(['agent-hook', 'codex'], { session_id: 'c1', hook_event_name: 'Stop' });
+check(!session('codex-c1'), 'a late hook after SessionEnd leaves no row (tombstone)');
+mcp(['agent-hook', 'codex'], { session_id: 'c1', hook_event_name: 'SessionStart' });
+check(session('codex-c1'), 'a resumed session (SessionStart) comes back');
 mcp(['agent-hook', 'nope'], { session_id: 'x', hook_event_name: 'Stop' });
 mcp(['agent-hook', 'codex'], { session_id: '../evil', hook_event_name: 'Stop' });
 check(readdirSync(join(DATA, 'claude-sessions')).every((f) => !/nope|evil/.test(f)), 'unknown tool and bad ids write nothing');

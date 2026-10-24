@@ -83,6 +83,8 @@ const port = await pickPort();
 const PPID = process.env.ROAR_MCP_PPID || String(process.ppid);
 // This connection's id in Roar: its pages carry it. A refreshed roar-mcp keeps the first one's.
 const OWNER = process.env.ROAR_MCP_OWNER || String(process.pid);
+// Roar's proof that OWNER is this connection (agent.hello hands it out once per owner); a refreshed roar-mcp inherits it.
+let TOKEN = process.env.ROAR_MCP_TOKEN || '', tokenP = null;
 let agent = '';
 // Page ids from the child's page lists ("3: Title (url) [selected]"), so Roar can frame the tab an agent acts on.
 const pages = new Map();
@@ -193,7 +195,21 @@ const out = (msg) => process.stdout.write(JSON.stringify(msg) + '\n');
 
 // Runs ask(payload) in Roar's agent bridge (the hint overlay, the only Roar page agents can reach;
 // it runs just agent.notify/expire/spaces/space/rename) and returns its result.
+// A restarted Roar forgot this connection's token: ask for a new one once.
 async function sidebarAsk(payload, timeoutMs) {
+  try { return await bridgeAsk(payload, timeoutMs); } catch (e) {
+    if (!TOKEN || !/unknown connection/.test(e.message)) throw e;
+    TOKEN = ''; tokenP = null;
+    return bridgeAsk(payload, timeoutMs);
+  }
+}
+async function bridgeAsk(payload, timeoutMs) {
+  if (payload.owner && payload.cmd !== 'agent.hello') {
+    // One hello even when the first calls race; a failed one is retried by the next call.
+    tokenP ??= TOKEN ? Promise.resolve(TOKEN) : sidebarAsk({ cmd: 'agent.hello', owner: OWNER }, 3000).catch((e) => { tokenP = null; throw e; });
+    TOKEN = await tokenP;
+    payload = { ...payload, token: TOKEN };
+  }
   const targets = await (await fetch(`http://127.0.0.1:${port}/json/list`, { signal: AbortSignal.timeout(2000) })).json();
   const sidebar = targets.find((t) => t.url.startsWith('roar://ui/hint.html'));
   if (!sidebar) throw new Error('Roar is not reachable on port ' + port);
@@ -349,7 +365,7 @@ let inner = null, initLine = '';
 // Also polled: after an update the client's next request may already be a call to a tool only the new build has.
 setInterval(() => { if (!inner && initLine && born && stamp() !== born) refresh(); }, 15000).unref();
 function refresh() {
-  inner = spawn(process.execPath, [], { stdio: ['pipe', 'pipe', 'inherit'], env: { ...process.env, ROAR_MCP_PPID: PPID, ROAR_MCP_OWNER: OWNER } });
+  inner = spawn(process.execPath, [], { stdio: ['pipe', 'pipe', 'inherit'], env: { ...process.env, ROAR_MCP_PPID: PPID, ROAR_MCP_OWNER: OWNER, ROAR_MCP_TOKEN: TOKEN } });
   child.removeAllListeners('exit');  // The old child still answers calls in flight.
   inner.on('exit', (code) => shutdown(code ?? 0));
   const init = { ...JSON.parse(initLine), id: '__roar_refresh' };

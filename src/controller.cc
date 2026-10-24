@@ -113,11 +113,6 @@ constexpr int kMenuSpaceRoot = MENU_ID_USER_FIRST + 2;
 constexpr int kMenuAgent = MENU_ID_USER_FIRST + 3;
 constexpr int kMenuSpaceBase = MENU_ID_USER_FIRST + 10;  // + index into State::spaces.
 
-std::string Lower(std::string s) {
-  std::transform(s.begin(), s.end(), s.begin(), [](unsigned char c) { return std::tolower(c); });
-  return s;
-}
-
 bool StartsWith(const std::string& s, const std::string& p) { return s.rfind(p, 0) == 0; }
 
 // Host of an http(s) address, or "" for anything else.
@@ -1101,6 +1096,8 @@ void Controller::PollDriven() {
   for (const auto& t : tabs_)
     if (!t.mcp_owner.empty() && PidGone(atoi(t.mcp_owner.c_str()))) gone.insert(t.mcp_owner);
   for (const auto& o : gone) ReleaseAgentPages(o);
+  for (auto it = mcp_tokens_.begin(); it != mcp_tokens_.end();)
+    it = PidGone(atoi(it->first.c_str())) ? mcp_tokens_.erase(it) : std::next(it);
   // Its cards too (an ask_user it waited on can no longer be answered).
   std::vector<int> stale;
   for (const auto& a : agent_alerts_)
@@ -1558,8 +1555,17 @@ int Controller::NewTabFrom(CefRefPtr<CefBrowser> opener, const std::string& url,
     return 0;
   Tab* from = FindTabByBrowser(opener);
   if (from && from->driven) activate = false;  // An agent's click opens its link behind.
-  return NewTab(url, activate, false, 0, from ? from->space : -1, IsGhostBrowser(opener),
-                from ? from->id : 0);
+  bool ghost = IsGhostBrowser(opener);
+  int space = from ? from->space : -1;
+  if (!from && !ghost && !IsUiBrowser(opener)) {  // Roar pages open into the active space.
+    // A popup has no Roar tab: its space is the one whose profile it uses, never just the active one.
+    auto ctx = opener->GetHost()->GetRequestContext();
+    if (ctx && ctx->IsSharingWith(CefRequestContext::GetGlobalContext())) space = 0;
+    for (const auto& [sp, c] : contexts_)
+      if (space < 0 && sp != kGhostContext && c && ctx && (ctx->IsSame(c) || ctx->IsSharingWith(c))) space = sp;
+    if (space < 0 || !State::Get().FindSpace(space)) return 0;
+  }
+  return NewTab(url, activate, false, 0, space, ghost, from ? from->id : 0);
 }
 
 CefRect Controller::ContentRect() {
@@ -2752,14 +2758,21 @@ void Controller::ClaudeTick() {
   std::error_code ec;
   fs::path dir = fs::path(State::Get().Dir()) / "claude-sessions";
   double now = NowSeconds();
-  std::set<std::string> seen;
+  std::set<std::string> seen, files;
   for (const auto& e : fs::directory_iterator(dir, ec)) {
     if (e.path().extension() != ".json") continue;
-    std::ifstream in(e.path());
-    std::string text((std::istreambuf_iterator<char>(in)), {});
-    auto v = CefParseJSON(text, JSON_PARSER_RFC);
-    if (!v || v->GetType() != VTYPE_DICTIONARY) continue;
-    auto d = v->GetDictionary();
+    // Re-read only files a hook rewrote since the last tick.
+    auto mtime = e.last_write_time(ec);
+    auto& cached = claude_files_[e.path().string()];
+    if (!cached.second || cached.first != mtime) {
+      std::ifstream in(e.path());
+      std::string text((std::istreambuf_iterator<char>(in)), {});
+      auto v = CefParseJSON(text, JSON_PARSER_RFC);
+      if (!v || v->GetType() != VTYPE_DICTIONARY) { claude_files_.erase(e.path().string()); continue; }
+      cached = {mtime, v->GetDictionary()};
+    }
+    files.insert(e.path().string());
+    auto d = cached.second->Copy(false);
     // A session that crashed never sends SessionEnd; forget it after 6 idle hours.
     // A session Roar started but Claude never confirmed (cancelled at the trust question) after 15 minutes.
     double idle = now - d->GetDouble("updated") / 1000;
@@ -2789,6 +2802,7 @@ void Controller::ClaudeTick() {
       CefPostDelayedTask(TID_UI, base::BindOnce([](std::string id, int tab) { Controller::Get()->ExtractActive("claude:" + id, tab); },
                                                 d->GetString("id").ToString(), tabs[i]), 1500 * (i + 1));
   }
+  std::erase_if(claude_files_, [&](const auto& f) { return !files.count(f.first); });
   // Ended sessions take their notification and needs-you count with them.
   for (auto it = claude_states_.begin(); it != claude_states_.end();) {
     if (seen.count(it->first)) { ++it; continue; }
@@ -3805,17 +3819,17 @@ void Controller::BuildContextMenu(CefRefPtr<CefBrowser> browser, CefRefPtr<CefCo
 
 bool Controller::OnContextMenuCommand(CefRefPtr<CefBrowser> browser, CefRefPtr<CefContextMenuParams> params,
                                       int command_id) {
+  std::string link = params->GetLinkUrl();
+  // Chrome's own "Open Link in New Tab/Window" bypasses OnBeforePopup; popups (no Roar tab) too.
+  if ((command_id == IDC_CONTENT_CONTEXT_OPENLINKNEWTAB ||
+       command_id == IDC_CONTENT_CONTEXT_OPENLINKNEWWINDOW) && !link.empty() && !IsUiBrowser(browser)) {
+    NewTabFrom(browser, link, false);
+    return true;
+  }
   Tab* tab = FindTabByBrowser(browser);
   if (!tab) return false;
   int tab_id = tab->id;
   bool ghost = tab->ghost;
-  std::string link = params->GetLinkUrl();
-  // Chrome's own "Open Link in New Tab/Window" bypasses OnBeforePopup.
-  if ((command_id == IDC_CONTENT_CONTEXT_OPENLINKNEWTAB ||
-       command_id == IDC_CONTENT_CONTEXT_OPENLINKNEWWINDOW) && !link.empty()) {
-    NewTabFrom(browser, link, false);
-    return true;
-  }
   // Links are cleaned only on the way out: navigating to the bare host of a
   // .mcas.ms session loops back through the proxy.
   if (command_id == IDC_CONTENT_CONTEXT_COPYLINKLOCATION && !link.empty() &&
@@ -4104,6 +4118,14 @@ std::string Controller::StateJson() {
 }
 
 void Controller::PushSidebar() {
+  // Many changes land per event (a tab opening touches several): render once, a frame later.
+  if (sidebar_push_pending_) return;
+  sidebar_push_pending_ = true;
+  CefPostDelayedTask(TID_UI, base::BindOnce([] { if (auto* c = Controller::Get()) c->PushSidebarNow(); }), 16);
+}
+
+void Controller::PushSidebarNow() {
+  sidebar_push_pending_ = false;
   auto browser = sidebar_ ? sidebar_->GetBrowser() : nullptr;
   if (!browser) return;
   browser->GetMainFrame()->ExecuteJavaScript("window.roar && roar.render(" + StateJson() + ")", "", 0);
@@ -4311,9 +4333,24 @@ bool Controller::HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> 
   // The bridge page runs only what roar-mcp needs, none of which lists tabs.
   if (trusted && hint_ && hint_->GetBrowser() && hint_->GetBrowser()->IsSame(browser) && cmd != "agent.notify" &&
       cmd != "agent.expire" && cmd != "agent.spaces" && cmd != "agent.space" && cmd != "agent.group" && cmd != "agent.release" && cmd != "agent.front" &&
-      cmd != "agent.drive" && cmd != "agent.rename") {
+      cmd != "agent.drive" && cmd != "agent.rename" && cmd != "agent.hello") {
     callback->Failure(403, "not available to agents");
     return true;
+  }
+  // Owner pids are guessable: a roar-mcp connection proves its owner with the token Roar handed it first.
+  if (trusted && hint_ && hint_->GetBrowser() && hint_->GetBrowser()->IsSame(browser) &&
+      (cmd == "agent.hello" || cmd == "agent.spaces" || cmd == "agent.space" || cmd == "agent.group" || cmd == "agent.release")) {
+    std::string owner = msg->GetString("owner").ToString();
+    if (owner.empty()) return callback->Failure(1, "owner is required"), true;
+    auto it = mcp_tokens_.find(owner);
+    if (cmd == "agent.hello") {
+      if (it != mcp_tokens_.end()) return callback->Failure(403, "owner already connected"), true;
+      std::string token = platform::RandomToken();
+      mcp_tokens_[owner] = token;
+      return callback->Success(token), true;
+    }
+    if (it == mcp_tokens_.end() || it->second != msg->GetString("token").ToString())
+      return callback->Failure(403, "unknown connection"), true;
   }
   if (!trusted) {
     if (cmd == "index.result") {
@@ -4884,7 +4921,8 @@ bool Controller::HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> 
     auto foreign = CefListValue::Create();
     std::string owner = msg->GetString("owner").ToString();
     for (const auto& t : tabs_)
-      if (!t.mcp_owner.empty() && t.mcp_owner != owner) foreign->SetString(foreign->GetSize(), t.url);
+      if (Space* sp = State::Get().FindSpace(t.space);
+          sp && sp->agents && !t.ghost && !t.mcp_owner.empty() && t.mcp_owner != owner) foreign->SetString(foreign->GetSize(), t.url);
     d->SetList("foreign", foreign);
     d->SetInt("active", State::Get().active_space);
     d->SetInt("agentSpace", AgentSpace());
