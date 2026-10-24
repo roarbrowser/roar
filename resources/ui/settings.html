@@ -47,19 +47,51 @@ pre { margin: 6px 0; font: 12px/1.6 var(--mono); background: var(--ground); bord
 .empty { color: var(--ink-3); padding: 12px 0; }
 @media (max-width: 640px) { .wrap { grid-template-columns: 1fr; } nav { position: static; grid-auto-flow: column; overflow-x: auto; } }
 .status.warn { color: var(--mane-ink, #d9822b); }
-/* Agents: one list, CLIs first in their order (drag, or arrow keys on the handle). */
-.as-list { list-style: none; margin: 0 0 6px; padding: 0; }
-.as-row { gap: 10px; }
-.as-row .agent-icon { flex: none; }
-.as-row.away .name { color: var(--ink-3); }
-.as-row.drop { box-shadow: inset 0 2px 0 var(--mane); }
-.grip { display: grid; gap: 2px; padding: 6px 4px; border-radius: 5px; cursor: grab; color: var(--ink-3); background: none; }
+/* Agents: a grid of cards, CLIs first in their order (drag a card, or arrow keys on its handle). */
+.as-hint { margin: -2px 0 12px; font-size: 12px; color: var(--ink-3); }
+.as-list { list-style: none; margin: 0 0 10px; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 10px; }
+.as-list > .empty { grid-column: 1 / -1; }
+.row.as-card { position: relative; display: grid; grid-template-rows: auto 1fr auto; align-items: start; gap: 6px; min-height: 0; padding: 14px; border: 1px solid var(--rule); border-radius: 12px; background: var(--ground); transition: border-color .15s, box-shadow .15s; }
+.row.as-card:hover { border-color: color-mix(in srgb, var(--mane) 35%, var(--rule)); }
+.as-card.on { border-color: color-mix(in srgb, var(--ok) 35%, var(--rule)); }
+.as-card.wide { grid-column: 1 / -1; }
+.as-card.drop { box-shadow: 0 0 0 2px var(--mane); }
+.as-card.away .name { color: var(--ink-2); }
+.as-top { display: flex; align-items: center; gap: 10px; }
+.as-top .name { flex: 1; font: 600 14px var(--round); min-width: 0; }
+.as-av { flex: none; display: grid; place-items: center; width: 28px; height: 28px; border-radius: 8px; background: var(--panel); box-shadow: inset 0 0 0 1px var(--rule); }
+.row small.as-st { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--ink-3); }
+.as-st::before { content: ""; flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--rule); }
+.as-st[data-state=available] { color: var(--ok); } .as-st[data-state=available]::before { background: var(--ok); }
+.as-st.warn { color: var(--mane-ink); } .as-st.warn::before { background: var(--mane); }
+.as-st.live::before { animation: as-pulse 1.8s ease-out infinite; }
+@keyframes as-pulse { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--ok) 60%, transparent); } 100% { box-shadow: 0 0 0 7px transparent; } }
+.as-act { display: flex; justify-content: flex-end; gap: 6px; min-height: 30px; align-items: end; }
+.as-act .btn { padding: 5px 12px; background: var(--panel); }
+.as-act .btn:not(.quiet) { color: var(--mane-ink); }
+.as-act .btn.quiet { background: none; color: var(--ink-3); }
+.as-act .btn.quiet:hover { color: var(--danger); background: none; }
+.grip { display: grid; gap: 2px; padding: 6px 4px; border-radius: 5px; cursor: grab; color: var(--ink-3); background: none; opacity: 0; transition: opacity .15s; }
+.as-card:hover .grip, .grip:focus-visible { opacity: 1; }
 .grip i { display: block; width: 10px; height: 1.5px; background: currentColor; border-radius: 1px; }
-.grip:hover, .grip:focus-visible { color: var(--ink); background: var(--ground); }
-.grip-pad { width: 18px; flex: none; }
-.as-banner { display: flex; align-items: center; gap: 12px; padding: 10px 12px; margin-bottom: 8px; border-radius: 10px; background: var(--mane-soft); color: var(--ink); }
-.as-banner[hidden] { display: none; }
+.grip:hover, .grip:focus-visible { color: var(--ink); background: var(--panel); }
+.as-banner { display: flex; align-items: center; gap: 10px; padding: 6px 6px 6px 12px; margin-bottom: 10px; border-radius: 999px; background: var(--mane-soft); color: var(--ink); font-size: 12.5px; }
+.as-banner::before { content: ""; flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--mane); }
 .as-banner span { flex: 1; }
+.as-banner .btn { padding: 4px 12px; border-radius: 999px; background: var(--mane); color: #2a1604; font-weight: 600; }
+details.as-more { margin-top: 2px; }
+details.as-more .as-list { margin-top: 4px; }
+/* Sessions and Browsing: one rounded block each. */
+.blk { border: 1px solid var(--rule); border-radius: 12px; padding: 4px 16px; margin-top: 14px; }
+.blk h3 { margin: 10px 0 2px; font: 700 11px var(--ui); letter-spacing: .06em; text-transform: uppercase; }
+.blk .row:last-child, .blk fieldset .row:last-child { border-bottom: 0; }
+.sp-row { align-items: flex-start; }
+.sp-chips { display: flex; flex-wrap: wrap; gap: 6px; flex-basis: 100%; padding-bottom: 4px; }
+.sp-chip { display: inline-flex; align-items: center; gap: 7px; padding: 5px 12px 5px 10px; border-radius: 999px; font-size: 12.5px; color: var(--ink-2); box-shadow: inset 0 0 0 1px var(--rule); }
+.sp-chip input { appearance: none; margin: 0; width: 8px; height: 8px; border-radius: 50%; box-shadow: inset 0 0 0 1.5px var(--ink-3); }
+.sp-chip:has(input:checked) { background: var(--mane-soft); color: var(--mane-ink); box-shadow: none; }
+.sp-chip input:checked { background: var(--mane); box-shadow: 0 0 0 2px color-mix(in srgb, var(--mane) 35%, transparent); }
+.sp-chip:has(input:focus-visible) { outline: 2px solid var(--mane); outline-offset: 1px; }
 /* Notifications: one row per type, columns line up under .nt-head. */
 .nt-head, .row.nt { display: grid; grid-template-columns: 1fr 92px 56px 40px; gap: 12px; align-items: center; }
 .nt-head { font-size: 12px; color: var(--ink-3); padding: 4px 0; border-bottom: 1px solid var(--rule); }
@@ -150,24 +182,25 @@ p.reason a { color: inherit; }
     </section>
 
     <section id="agents"><h2>Agents</h2>
-      <div class="row"><span class="name">Agent order<small>Drag to reorder. Rename with AI uses the first agent with a running session; Shift-click to choose.</small><span hidden>Tools you use. Show more, copy config.</span></span></div>
+      <p class="as-hint">Drag to reorder. Rename with AI uses the first agent with a running session; Shift-click to pick another.<span hidden>Agent order. Tools you use. Show more, copy config.</span></p>
       <div id="agent-setup"></div>
-      <div class="row"><span class="name" id="view-label">Show agent sessions as<small>Each session can switch on its own.</small></span>
-        <div class="segmented" role="group" aria-labelledby="view-label" data-seg="agentTerminal">
-          <button data-v="false">Chat</button><button data-v="true">Terminal</button></div></div>
-      <h3>Sidebar</h3>
-      <div class="row"><label class="name" for="cl-side">Agent sessions in the sidebar<small>Ask chats still list under AI when this is off.</small></label><input type="checkbox" class="switch" id="cl-side" data-set="claudeSidebar"></div>
-      <div class="row"><label class="name" for="af-on">Agent files row<small>Opens CLAUDE.md, AGENTS.md and rules.</small></label><input type="checkbox" class="switch" id="af-on" data-set="agentFilesRow"></div>
-      <h3>Browsing</h3>
-      <div class="row"><label class="name" for="cdp-on" title="Close it before a site that flags automated browsers">Agents can browse with Roar<small>Per space: click the space's dot in the sidebar. A ring means agents can reach it.</small></label><span class="end"><button class="btn" id="cdp-relaunch" hidden>Relaunch to apply</button><input type="checkbox" class="switch" id="cdp-on" data-set="cdpEnabled"></span></div>
-      <fieldset id="agent-opts">
-        <div class="row"><span class="name" id="mode-label">Where agents browse<small id="mode-note"></small></span>
-          <div class="segmented" role="group" aria-labelledby="mode-label" data-seg="agentHeadless">
-            <button data-v="false">With you</button><button data-v="true">In the background</button></div></div>
-        <div class="row"><span class="name">Spaces agents can see<small>Ghost tabs are never shared.</small></span></div>
-        <div id="agent-spaces"></div>
-      </fieldset>
-      <p class="reason">Alerts for sessions are in <a href="#notifications" data-goto="notifications">Notifications</a>.</p>
+      <div class="blk"><h3>Sessions</h3>
+        <div class="row"><span class="name" id="view-label">Show sessions as<small>Each session can switch on its own.</small></span>
+          <div class="segmented" role="group" aria-labelledby="view-label" data-seg="agentTerminal">
+            <button data-v="false">Chat</button><button data-v="true">Terminal</button></div></div>
+        <div class="row"><label class="name" for="cl-side">Sessions in the sidebar<small>When off, Ask chats still show under AI.</small><span hidden>Agent sessions in the sidebar</span></label><input type="checkbox" class="switch" id="cl-side" data-set="claudeSidebar"></div>
+        <div class="row"><label class="name" for="af-on">Agent files row<small>Opens CLAUDE.md, AGENTS.md and rules in one click.</small></label><input type="checkbox" class="switch" id="af-on" data-set="agentFilesRow"></div>
+      </div>
+      <div class="blk"><h3>Browsing</h3>
+        <div class="row"><label class="name" for="cdp-on" title="Close it before a site that flags automated browsers">Let agents use Roar<span hidden>Agents can browse with Roar</span></label><span class="end"><button class="btn" id="cdp-relaunch" hidden>Relaunch to apply</button><input type="checkbox" class="switch" id="cdp-on" data-set="cdpEnabled"></span></div>
+        <fieldset id="agent-opts">
+          <div class="row"><span class="name" id="mode-label">Where agents browse<small id="mode-note"></small></span>
+            <div class="segmented" role="group" aria-labelledby="mode-label" data-seg="agentHeadless">
+              <button data-v="false">With you</button><button data-v="true">In the background</button></div></div>
+          <div class="row sp-row"><span class="name">Spaces agents can reach<small>Or click a space’s dot in the sidebar; a ring means agents can reach it. Ghost tabs always stay private.</small><span hidden>Spaces agents can see</span></span><div id="agent-spaces" class="sp-chips"></div></div>
+        </fieldset>
+      </div>
+      <p class="reason">Session alerts live in <a href="#notifications" data-goto="notifications">Notifications</a>.</p>
       <details class="group" id="card-diag"><summary>Cards in the sidebar now</summary>
         <div class="row"><span class="name">Where each card came from and why it's still up<small>Dismiss answers a waiting question with “dismissed”.</small></span><span class="end"><button class="btn" id="cards-refresh">Refresh</button></span></div>
         <div id="agent-cards"></div>
@@ -338,14 +371,14 @@ function apply(s) {
   $('au-dl').disabled = !st.updaterOn || !st.autoUpdateChecks;
   $('au-note').textContent = st.updaterOn ? 'Once a day.' : 'Updates are off in test and headless instances.';
   $('mode-note').textContent = st.agentHeadless
-    ? 'Agents use a separate, invisible Roar with its own profile: none of your logins, and nothing appears in this window.'
-    : 'Agents open tabs in this window with your logins, so you can watch what they do.';
+    ? 'Agents get a separate, hidden Roar with its own profile: none of your logins, nothing in this window.'
+    : 'Agents open tabs here, signed in as you, so you can watch.';
   // Only a build without Roar's CEF patch needs a relaunch to apply it.
   $('cdp-relaunch').hidden = st.cdpLive || st.cdpEnabled === st.cdpOn;
   notifyShow(st);
   // One switch per space (the same flag as "Allow agents" in a space's sidebar menu).
   if (!$('agent-spaces').contains(document.activeElement))
-    $('agent-spaces').innerHTML = s.spaces.map((sp) => `<div class="row"><label class="name" for="sp-ag-${sp.id}">${esc(sp.name)}</label><input type="checkbox" class="switch" id="sp-ag-${sp.id}" data-space-agents="${sp.id}"${sp.agents ? ' checked' : ''}></div>`).join('');
+    $('agent-spaces').innerHTML = s.spaces.map((sp) => `<label class="sp-chip"><input type="checkbox" data-space-agents="${sp.id}"${sp.agents ? ' checked' : ''}>${esc(sp.name)}</label>`).join('');
   $('index-status').textContent = st.pageCount ? `${st.pageCount} ${st.pageCount === 1 ? 'page' : 'pages'} saved on this Mac, so ⌘T finds them by what they said.` : 'So ⌘T finds pages by what they said. Nothing saved yet.';
   $('forget').hidden = !st.pageCount;
   $('port').textContent = '127.0.0.1:' + st.cdpPort;

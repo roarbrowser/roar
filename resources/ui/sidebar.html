@@ -1456,9 +1456,10 @@ async function aiTarget(e, what) {
     return null;
   }
   const first = opts.find((o) => o.p && o.p.id + '|' + o.model === pick) || opts[0];
-  if (!e?.shiftKey || opts.length === 1) return first;
-  return new Promise((done) => showCtx(`<div class="head">${esc(what)}</div>${opts.map((o) => `<button data-act="pick" data-id="${esc(o.key)}">${o.ico}${esc(o.label)}</button>`).join('')}`,
-    { clientX: at.left, clientY: at.bottom + 4 }, (act, d) => { hideCtx(); done(opts.find((o) => o.key === d.id)); }));
+  if (!e?.shiftKey) return first;
+  // Shift always shows the list, even with one choice, so it never looks ignored.
+  return new Promise((done) => showCtx(`<div class="head">${esc(what)}</div>${opts.map((o) => `<button data-act="pick" data-id="${esc(o.key)}">${o.ico}${esc(o.label)}</button>`).join('')}<button data-act="set">Connect more in Settings › Agents…</button>`,
+    { clientX: at.left, clientY: at.bottom + 4 }, (act, d) => { hideCtx(); if (act === 'set') return agentSettings(), done(null); done(opts.find((o) => o.key === d.id)); }));
 }
 // Settings › Agents, reusing this space's Settings tab (its hashchange switches section) so clicks never stack copies.
 async function agentSettings() {

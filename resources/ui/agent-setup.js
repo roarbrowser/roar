@@ -28,6 +28,20 @@ const claudeMissingError = (e) => /not found|ENOENT|no such file|not installed/i
 // The claude CLI's chat.clis status ("" on Windows, which runs no coding agents).
 const claudeCliStatus = () => /^Win/.test(navigator.platform) ? Promise.resolve('') : ask({ cmd: 'chat.clis' }).then((d) => d?.claude || '', () => '');
 
+// Generic glyphs (no brand marks, like AGENT_TOOLS) for MCP-only apps by kind; ids from agent_connect.cc.
+// Each app gets a steady tint from its id so cards of one kind still look apart.
+const CLIENT_KINDS = {
+  chat: ['<path d="M2.5 4.5a2 2 0 012-2h7a2 2 0 012 2v4.5a2 2 0 01-2 2H7l-3 2.5v-2.5h0a2 2 0 01-1.5-2z"/>', 'claude-desktop jan anythingllm msty cherry openwebui librechat lmstudio'],
+  editor: ['<path d="M5.5 4L2 8l3.5 4M10.5 4L14 8l-3.5 4M9 3L7 13"/>', 'cursor vscode vscode-insiders cline roo windsurf zed kiro junie continue jetbrains'],
+  term: ['<rect x="1.8" y="2.8" width="12.4" height="10.4" rx="2"/><path d="M4.6 6.4L6.6 8l-2 1.6M8.2 10h3"/>', 'codex gemini goose amazonq copilot-cli opencode'],
+};
+const CLIENT_TINTS = ['#d97757', '#4b8af0', '#8b6cf0', '#2f9e5b', '#e0a030', '#d6409f', '#12a594'];
+const clientIcon = (id, size = 16) => {
+  const glyph = (Object.values(CLIENT_KINDS).find(([, ids]) => ids.split(' ').includes(id)) || CLIENT_KINDS.term)[0];
+  const tint = CLIENT_TINTS[[...id].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 0) % CLIENT_TINTS.length];
+  return `<svg class="agent-icon" width="${size}" height="${size}" viewBox="0 0 16 16" fill="none" stroke="${tint}" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${glyph}</svg>`;
+};
+
 // The ⌘T AI picker row: settings.askLlms (older saves listed several, the first wins).
 const llmRowHtml = () => `<div class="row"><label class="name" for="as-llm">Ask about this page with<small>⌘T opens this AI with “Ask about this page” already typed in.</small></label><select id="as-llm"><option value="">None</option>${
   LLMS.map(([id, name]) => `<option value="${id}">${name}</option>`).join('')}</select></div>`;
@@ -36,11 +50,13 @@ function llmPicker(sel, after) {
   return (settings) => { if (document.activeElement !== sel) sel.value = (settings.askLlms || '').split(',')[0]; };
 }
 
-// list: Settings' single list instead: one row per agent with its status and one action, the CLIs in
-// agentOrder (drag a row, or arrow keys on its handle), one "Reconnect all" banner for outdated ones.
+// list: Settings' card grid instead: one card per agent with its status and one action, the CLIs on this
+// Mac in agentOrder (drag a card, or arrow keys on its handle), the rest under "More agents", and one
+// "Reconnect all" banner for outdated ones.
 function agentSetup(root, { llm = true, list: asList = false } = {}) {
   root.innerHTML = asList ? `<div class="as-banner" role="status" hidden></div><ol class="as-list"><li class="empty">Looking for agent tools…</li></ol>
-    <details class="as-more"><summary>Other apps: copy their config</summary><ol class="as-list as-away"></ol></details>`
+    <details class="as-more as-gone"><summary>More agents</summary><ol class="as-list as-gone-list"></ol></details>
+    <details class="as-more as-apps"><summary>Other apps: set up by hand<span hidden>copy their config</span></summary><ol class="as-list as-away"></ol></details>`
     : `${llm ? llmRowHtml() : ''}
     <h3>Tools you use</h3><div class="as-tools"><span class="empty">Looking for agent tools…</span></div>
     <details class="as-more"><summary>Show more / copy config</summary><div class="as-away"></div></details>`;
@@ -59,7 +75,7 @@ function agentSetup(root, { llm = true, list: asList = false } = {}) {
       r.needMcp = !!(m?.detected && m.file && !m.error);
       r.here = r.needHook || !!m?.detected;
       r.connected = (r.needHook || r.needMcp) && (!r.needHook || h === 'installed') && (!r.needMcp || m.connected);
-      r.note = errors[r.key] ? 'Couldn’t connect: ' + errors[r.key] : h === 'error' || m?.error ? 'Its config can’t be read; Roar won’t touch it'
+      r.note = errors[r.key] ? 'Couldn’t connect: ' + errors[r.key] : h === 'error' || m?.error ? 'Roar can’t read its config, so it left it alone'
         : h === 'outdated' || m?.stale ? 'Points at an old copy of Roar. Roar repairs this at launch, or Reconnect now.' : r.connected && r.hook === 'codex' ? 'Approve Roar’s hooks once in Codex: run /hooks.' : '';
       r.outdated = h === 'outdated' || !!m?.stale;
       // No CLI: a leftover hook or config must not make it look connected; the install notice replaces its button.
@@ -71,31 +87,37 @@ function agentSetup(root, { llm = true, list: asList = false } = {}) {
   function renderList() {
     const list = rows(), order = agentOrder(st), live = (st.claude?.items || []).filter((c) => c.live);
     const tools = order.map((t) => list.find((r) => r.key === t)).filter(Boolean);
+    const here = tools.filter((r) => r.here), gone = tools.filter((r) => !r.here);
     const others = list.filter((r) => !r.hook && r.here), away = list.filter((r) => !r.hook && !r.here);
     const old = list.filter((r) => r.outdated && (r.needHook || r.needMcp));
     const names = (v) => v.map((r) => r.name).reduce((s, n, i) => s + (i ? (i + 1 === v.length ? ' and ' : ', ') : '') + n, '');
     const banner = root.querySelector('.as-banner');
     banner.hidden = !old.length;
-    banner.innerHTML = old.length ? `<span>${esc(names(old))} ${old.length === 1 ? 'points' : 'point'} at an old copy of Roar. Roar repairs this at launch, or reconnect now.</span><button class="btn" data-reconnect-all>Reconnect all</button>` : '';
+    banner.innerHTML = old.length ? `<span>${esc(names(old))} still ${old.length === 1 ? 'points' : 'point'} at an old copy of Roar.</span><button class="btn" data-reconnect-all>Reconnect all</button>` : '';
     const action = (r) => r.needHook || r.needMcp
-      ? r.connected ? (r.needHook ? `<button class="btn" data-key="${esc(r.key)}">Disconnect</button>` : '')
+      ? r.connected ? (r.needHook ? `<button class="btn quiet" data-key="${esc(r.key)}">Disconnect</button>` : '')
         : `<button class="btn" data-key="${esc(r.key)}">${r.outdated ? 'Reconnect' : 'Connect'}</button>`
-      : r.mcp?.snippet ? `<button class="btn" data-copy="${esc(r.key)}">Copy config</button>` : '';
+      
+      : r.mcp?.snippet ? `<button class="btn" data-copy="${esc(r.key)}">Copy setup</button>` : '';
     const status = (r) => {
       if (r.desktop) return claudeInstallHtml();
       const n = r.hook ? live.filter((c) => agentTool(c) === r.hook).length : 0;
-      if (r.outdated && !errors[r.key]) return '<small class="status warn">Needs reconnecting</small>';
-      if (r.note) return `<small class="status warn">${esc(r.note)}</small>`;
-      if (r.connected) return `<small data-state="available">Connected${n ? ` · ${n} running` : ''}</small>`;
-      return `<small>${r.here ? 'Not connected' : 'Not on this Mac'}</small>`;
+      if (r.outdated && !errors[r.key]) return '<small class="as-st warn">Needs reconnecting</small>';
+      if (r.note) return `<small class="as-st warn">${esc(r.note)}</small>`;
+      if (r.connected) return `<small class="as-st${n ? ' live' : ''}" data-state="available">Connected${n ? ` · ${n} running` : ''}</small>`;
+      return `<small class="as-st">${!r.here ? 'Not on this Mac' : r.mcp?.snippet && !r.needMcp && !r.needHook ? 'Paste into its settings' : 'Not connected'}</small>`;
     };
-    const row = (r, i) => `<li class="row as-row${r.here ? '' : ' away'}"${r.hook ? ` draggable="true" data-tool="${esc(r.key)}"` : ''}>${
-      r.hook ? `<button class="grip" data-grip="${esc(r.key)}" title="Drag to reorder" aria-label="${esc(r.name)}, ${i + 1} of ${tools.length}. Arrow keys move it.">${'<i></i>'.repeat(3)}</button>${agentIcon(r.hook, 16)}` : '<span class="grip-pad"></span>'}
-      <span class="name">${esc(r.name)}${status(r)}</span>${action(r)}</li>`;
+    const card = (r, i, of) => `<li class="row as-card${r.here ? '' : ' away'}${r.connected ? ' on' : ''}${r.desktop ? ' wide' : ''}"${r.hook ? ` draggable="true" data-tool="${esc(r.key)}"` : ''}>
+      <div class="as-top"><span class="as-av">${r.hook ? agentIcon(r.hook, 16) : clientIcon(r.key)}</span><span class="name">${esc(r.name)}</span>${
+      r.hook ? `<button class="grip" data-grip="${esc(r.key)}" title="Drag to reorder" aria-label="${esc(r.name)}, ${i + 1} of ${of}. Arrow keys move it.">${'<i></i>'.repeat(3)}</button>` : ''}</div>
+      ${status(r)}<div class="as-act">${action(r)}</div></li>`;
     const a = document.activeElement, had = root.contains(a) && (a.dataset.grip ? `[data-grip="${CSS.escape(a.dataset.grip)}"]` : a.dataset.key ? `[data-key="${CSS.escape(a.dataset.key)}"]` : '');
-    root.querySelector('.as-list').innerHTML = tools.map(row).join('') + others.map((r) => row(r, 0)).join('');
-    root.querySelector('.as-away').innerHTML = away.map((r) => row(r, 0)).join('');
-    root.querySelector('.as-more').hidden = !away.length;
+    root.querySelector('.as-list').innerHTML = here.map((r, i) => card(r, i, here.length)).join('') + others.map((r) => card(r)).join('')
+      || '<li class="empty">No agent tools found on this Mac.</li>';
+    root.querySelector('.as-gone-list').innerHTML = gone.map((r, i) => card(r, here.length + i, tools.length)).join('');
+    root.querySelector('.as-gone').hidden = !gone.length;
+    root.querySelector('.as-away').innerHTML = away.map((r) => card(r)).join('');
+    root.querySelector('.as-apps').hidden = !away.length;
     if (had) root.querySelector(had)?.focus();
   }
   // Saves a new CLI order: |key| moved to index |to|.
@@ -168,7 +190,7 @@ function agentSetup(root, { llm = true, list: asList = false } = {}) {
     const copy = e.target.closest('[data-copy]');
     if (copy) {
       const c = clients.find((x) => x.id === copy.dataset.copy);
-      navigator.clipboard.writeText(c.snippet).then(() => { copy.textContent = 'Copied'; setTimeout(() => copy.textContent = 'Copy config', 1500); });
+      navigator.clipboard.writeText(c.snippet).then(() => { const was = copy.textContent; copy.textContent = 'Copied'; setTimeout(() => copy.textContent = was, 1500); });
       return;
     }
     const all = e.target.closest('[data-reconnect-all]');
