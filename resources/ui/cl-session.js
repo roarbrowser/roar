@@ -37,10 +37,10 @@ const clSession = {
 // (no brand marks), one stroke style, and whether New asks for a folder (false: it starts in a scratch
 // folder). A session file without `tool` is a Claude Code one.
 const AGENT_TOOLS = {
-  claude: ['Claude Code', '#d97757', '<path d="M8 2v12M2 8h12M3.8 3.8l8.4 8.4M12.2 3.8l-8.4 8.4"/>', true],
+  claude: ['Claude Code', 'var(--ink-2)', '<rect x="1.8" y="2.8" width="12.4" height="10.4" rx="2"/><path d="M4.6 6.4L6.6 8l-2 1.6M8 9.6h3"/>', true],
   codex: ['Codex', 'var(--ink-2)', '<path d="M8 1.8l5.4 3.1v6.2L8 14.2l-5.4-3.1V4.9z"/><path d="M5.6 6.6L7.2 8l-1.6 1.4M8.4 9.6h2"/>', true],
-  gemini: ['Gemini CLI', '#4b8af0', '<path d="M8 1.8c.5 3.3 2.9 5.7 6.2 6.2-3.3.5-5.7 2.9-6.2 6.2-.5-3.3-2.9-5.7-6.2-6.2 3.3-.5 5.7-2.9 6.2-6.2z"/>', true],
-  qwen: ['Qwen Code', '#8b6cf0', '<circle cx="7.6" cy="7.6" r="4.8"/><path d="M10.6 10.6l3 3"/>', true],
+  gemini: ['Gemini CLI', 'var(--ink-2)', '<rect x="2.5" y="2.5" width="11" height="11" rx="3"/><path d="M5.5 6.5h5M5.5 9.5h3"/>', true],
+  qwen: ['Qwen Code', 'var(--ink-2)', '<circle cx="7.6" cy="7.6" r="4.8"/><path d="M10.6 10.6l3 3"/>', true],
   copilot: ['Copilot CLI', 'var(--ink-2)', '<rect x="1.8" y="5" width="5.4" height="5" rx="2.2"/><rect x="8.8" y="5" width="5.4" height="5" rx="2.2"/><path d="M7.2 7.2h1.6"/>', true],
 };
 const agentTool = (c) => AGENT_TOOLS[c?.tool] ? c.tool : 'claude';

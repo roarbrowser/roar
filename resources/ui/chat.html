@@ -122,7 +122,7 @@ const ASK_COPY = 'Chat with any AI: a model on your computer (Ollama, LM Studio,
 // Agent CLIs run only under macOS sandbox-exec; the Windows build can't start them yet (platform SpawnStream).
 const CODE_COPY = /^Win/.test(navigator.platform)
   ? "Coding assistants you've installed (Claude Code, Codex, Gemini CLI, Qwen Code) can't run here yet: on Windows, Roar has no sandbox for them."
-  : "Coding assistants you've installed (Claude Code, Codex, Gemini CLI, Qwen Code) run in a locked-down sandbox on your own plan. Sending a tab: only Claude Code can receive one, because it's the only one that can run with all its tools off.";
+  : "Coding assistants you've installed (Claude Code, Codex, Gemini CLI, Qwen Code) run in a locked-down sandbox on your own plan. Sending a tab works with Claude Code only for now: Roar needs to run the agent with every tool off, and so far only Claude Code supports that here.";
 function show(c) {
   if (streaming) stop();
   chat = c;
