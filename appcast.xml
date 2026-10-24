@@ -119,5 +119,14 @@
       <description><![CDATA[Agents can open pages in a named tab group, and move or ungroup the pages they opened.]]></description>
       <enclosure url="https://github.com/roarbrowser/roar/releases/download/v1.1.0/Roar-1.1.0.dmg" type="application/octet-stream" sparkle:edSignature="NkJiQXnpWXLSjg7unUGmc+Qsf8xoWqp1Olwr4KLijcZqsIr3xrJ9oW6gQD1QcUkeUrwqqiA3Wwulsnru1EwHBA==" length="207582878"/>
     </item>
+    <item>
+      <title>1.2.0</title>
+      <pubDate>Sat, 24 Oct 2026 01:21:34 +0000</pubDate>
+      <sparkle:version>10200</sparkle:version>
+      <sparkle:shortVersionString>1.2.0</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[Settings > Agents redesigned: agents as cards with live status, a slim Reconnect all banner, Sessions and Browsing blocks, space chips for agent access, and clearer wording. Shift-click on Rename with AI now always opens the agent picker.]]></description>
+      <enclosure url="https://github.com/roarbrowser/roar/releases/download/v1.2.0/Roar-1.2.0.dmg" type="application/octet-stream" sparkle:edSignature="tBmzQGur1hjjWCgW4YE8qz/yh5Z7BDJCV5q861x3XCcqkcNHd/iyObxfsNLnRM4MZJpdoDuG5lbpBVm9laq0Dw==" length="207599656"/>
+    </item>
   </channel>
 </rss>
