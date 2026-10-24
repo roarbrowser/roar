@@ -17,7 +17,7 @@ manager, folder **"Roar brand"**, one entry per account.
 | Website | https://roarbrowser.app (GitHub Pages from `docs/`; domain on Cloudflare, auto-renew off) |
 | Contact email | roarbrowser@gmail.com |
 | License | MIT, open source |
-| Platform | macOS (Apple Silicon and Intel) and Windows (x64 and ARM) |
+| Platform | macOS (Apple Silicon; Intel planned) and Windows (x64) |
 
 ## Mascot and visuals
 
@@ -39,8 +39,8 @@ Roar speaks as the product, written by a solo maker who builds it in the open.
   your sidebar." No hype words (revolutionary, game-changing, supercharge).
 - **First person for the maker** in launch posts and replies ("I built Roar because…");
   "Roar" in product copy.
-- **Honest about limits:** early, and Windows has no auto-update yet.
-- **Competitive, on the attack.** Name Arc and Dia and hit them where Roar wins (open source, your own agent, no company to shelve it); every claim stays dated, factual, checkable and sourced. Never use their logos or screenshots, never call their product dead or abandoned, and never imply Roar is affiliated with or endorsed by anyone it names.
+- **Honest about limits:** early, Apple Silicon only on Mac until the Intel build ships.
+- **Competitive and factual.** Name Arc and Dia where Roar differs (open source, bring your own agent). Every comparison claim is dated, sourced and literally true; no claims about a rival's future, health or intentions. Never use their logos or screenshots, never call their product dead or abandoned, and never imply Roar is affiliated with or endorsed by anyone it names. Third-party names in the app and on the site (import buttons, modules, agent lists) stay text-only or use generic glyphs, never their logos.
 - **Sentence case** everywhere; no emoji runs; one lion emoji at most, rarely.
 - **Lion flavor, lightly:** an occasional "roar" pun is fine; never in error messages
   or docs.

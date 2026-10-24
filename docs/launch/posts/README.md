@@ -11,6 +11,10 @@ Drafts only. Nothing here has been posted.
 | x-thread.md | X |
 | mcp-directories.md | Smithery, mcp.so, awesome-mcp-servers |
 
+## Rules
+
+- Post only from the roarbrowser account or with "I'm the developer" in the first lines. Never ask anyone to upvote or review, and never post as a user.
+
 ## Checklist
 
 - [ ] Demo video recorded and uploaded; replace `[VIDEO]` and link it in every post

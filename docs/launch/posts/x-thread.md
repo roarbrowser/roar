@@ -1,7 +1,7 @@
 # X thread
 
 1/
-The Browser Company put Arc in maintenance mode in May 2025 to focus on Dia, which is closed source with a built-in assistant.
+The Browser Company put Arc in maintenance mode in May 2025 (https://browsercompany.substack.com/p/letter-to-arc-members-2025) to focus on Dia, which is closed source with a built-in assistant.
 
 Roar is the other answer: an open-source sidebar browser for macOS, built on Chromium (CEF), with a built-in MCP server. Your agent, not theirs.
 
@@ -21,7 +21,7 @@ Pages an agent opens become real tabs in your sidebar, not stray windows. Watch 
 Agents can reach you. notify_user puts a card in the sidebar. ask_user shows buttons, waits for your click, and hands it back to the agent. Needs-you cards raise a macOS notification when Roar is in the background.
 
 5/
-You decide where agents go. Each space has its own switch; ghost tabs are always off-limits. A dot in the sidebar shows whether agents can reach the space you're in, and one click blocks them. Or run agents in a hidden headless Roar with its own profile.
+You decide where agents go. Each space has its own switch; ghost tabs are hidden from agents. A dot in the sidebar shows whether agents can reach the space you're in, and one click blocks them. Or run agents in a hidden headless Roar with its own profile.
 
 6/
 It's also the sidebar browser I use all day: spaces with separate logins, pinned tabs, tab groups, tabs that archive themselves, split view, command bar, reader mode, page to Markdown, Chrome extensions with uBlock Origin Lite.
@@ -29,14 +29,15 @@ It's also the sidebar browser I use all day: spaces with separate logins, pinned
 7/
 Leaving Arc? Your spaces and pinned tabs come over on first launch. Chrome, Edge, Firefox, Safari and Dia import too.
 
-macOS (Apple Silicon and Intel), early.
+macOS 13+ on Apple Silicon (Intel build coming), early.
 
 8/
 A browser doesn't need a company behind it.
 
-MIT licensed, so nobody can shelve it. The AI is whatever agent you already run.
+MIT licensed, so the code stays open: if I ever stop, anyone can fork it and keep it going. The AI is whatever agent you already run.
 
 9/
 Free: https://roarbrowser.app
 Feedback and issues welcome:
 https://github.com/roarbrowser/roar
+Roar is independent; not affiliated with or endorsed by The Browser Company, Google, Anthropic, Anysphere or OpenAI.

@@ -4,15 +4,15 @@ Check the sidebar rules and flair before posting (see README.md in this folder).
 
 ## Title
 
-Arc went into maintenance mode, so I built an open-source sidebar browser nobody can shelve
+Arc went into maintenance mode, so I built an open-source sidebar browser anyone can fork
 
 ## Body
 
 Disclosure: I'm the developer. It's free and MIT licensed.
 
-I lived in Arc. In May 2025 The Browser Company put it in maintenance mode to build Dia, and that was that: a company decided my browser was done. Dia is closed source with their AI built in, which isn't what I wanted either.
+I lived in Arc. In May 2025 The Browser Company [put it in maintenance mode](https://browsercompany.substack.com/p/letter-to-arc-members-2025) to build Dia, and Arc stopped getting new features. Dia is closed source with their AI built in, which isn't what I wanted either.
 
-So I built Roar. MIT licensed, so nobody can shelve it, and it keeps the parts of Arc I used every day:
+So I built Roar. MIT licensed, so the code stays open: if I ever stop, anyone can fork it and keep it going, and it keeps the parts of Arc I used every day:
 
 - Vertical sidebar with spaces (⌃1–⌃9), each with its own logins
 - Pinned tabs, pinned groups (nested folders included), tab groups, split view (⌘\)
@@ -35,4 +35,4 @@ Repo and download: https://github.com/roarbrowser/roar
 
 If you try it, tell me which Arc feature you miss most. That decides what I build next.
 
-Roar is independent and not affiliated with or endorsed by The Browser Company, Google, Anthropic, Anysphere (Cursor) or the uBlock Origin project.
+Roar is independent and not affiliated with or endorsed by The Browser Company, Apple, Google, Anthropic, OpenAI, Microsoft/GitHub, Anysphere (Cursor), Alibaba (Qwen) or the uBlock Origin project. Product names are trademarks of their owners.

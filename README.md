@@ -31,7 +31,7 @@
 | A vertical sidebar with spaces, each with its own logins | One command to connect: `claude mcp add roar …` |
 | Split view, a command bar and Reader mode | Pages it opens appear as tabs you can watch or take over |
 | Tabs that archive themselves when you stop using them | A way to ask you a question or ping you when it's done |
-| Chrome extensions, with uBlock Origin Lite built in | Only the spaces you allow; ghost tabs are always off-limits |
+| Chrome extensions, with uBlock Origin Lite built in | Only the spaces you allow; ghost tabs are hidden from agents |
 | Import from Arc, Chrome, Safari, Firefox, Edge or Dia | A Chromium-compatible browser, so sites work as in Chrome |
 
 ## Install
@@ -44,7 +44,7 @@ About five minutes. Needs macOS 13 or later; no Node.js.
 brew install --cask roarbrowser/tap/roar
 ```
 
-Windows builds are paused for 1.0.x, so releases carry no Windows files; when they return: on Windows, run `Roar-windows-x64-setup.exe` (or `-arm64-setup.exe`) to install Roar into Program Files with a Start menu entry, or unzip `Roar-windows-x64.zip` anywhere and run `Roar.exe` (portable, no install). Either way your data lives in `%APPDATA%\Roar`. Windows has no auto-update yet: install each new release over the old one.
+Windows builds are paused for 1.0.x, so releases carry no Windows files; when they return: on Windows, run `Roar-windows-x64-setup.exe` (or `-arm64-setup.exe`) to install Roar into Program Files with a Start menu entry, or unzip `Roar-windows-x64.zip` anywhere and run `Roar.exe` (portable, no install). Either way your data lives in `%APPDATA%\Roar`. Windows checks for updates with WinSparkle.
 
 **2. First open.** Roar is signed with a Developer ID and notarized, so it opens like any app you download: macOS asks once whether to open it. Click **Open**.
 
@@ -81,10 +81,10 @@ On first launch Roar offers to bring over your Arc spaces and pinned tabs. Updat
 
 *A browser doesn't need a company behind it.*
 
-The Browser Company put Arc in maintenance mode in May 2025 to build Dia. Dia is closed source
+The Browser Company [put Arc in maintenance mode in May 2025](https://browsercompany.substack.com/p/letter-to-arc-members-2025) to build Dia. Dia is closed source
 with a built-in assistant.
 
-Roar is the other answer. MIT licensed, so nobody can shelve it. No built-in assistant;
+Roar is the other answer. MIT licensed, so the code stays open: if I ever stop, anyone can fork it and keep it going. No built-in assistant;
 bring the agent you already use and plug it in over MCP. Your spaces and pinned tabs come
 over on first launch.
 
@@ -194,20 +194,38 @@ port 9444) started on demand.
 
 ## Network & privacy
 
-Roar's own code has no analytics or usage tracking: nothing in Roar's source reports what you do to
-me or anyone else. These are the connections Roar's own code makes (Chromium's are below):
+Roar has no account or server of its own and its code sends no analytics. Update checks and downloads
+go to GitHub, which sees your IP address under GitHub's privacy statement; the project sees only
+aggregate download counts. These are the connections Roar's own code makes that we know of (Chromium's are below):
 
 - **Updates:** Sparkle checks `raw.githubusercontent.com/roarbrowser/roar/main/appcast.xml`
-  (the Intel build uses its own appcast) and downloads new releases from GitHub.
+  (the Intel and Windows builds use their own appcasts) and downloads new releases from GitHub.
+  Checks send no system profile; GitHub sees your IP address and Roar's version, as with any download.
 - **Search:** what you type in the command bar or new tab goes to your search engine
   (DuckDuckGo by default; changeable in Settings). Web search for the chat uses DuckDuckGo's
   HTML page from a throwaway profile.
-- **AI providers:** only the ones you configure, with your key (for example `api.openai.com`,
-  `api.anthropic.com`) or a local server on `localhost`.
-- **Gmail in the sidebar:** if you turn it on, Roar reads `mail.google.com/mail/feed/atom` with
-  that space's own Google cookies.
-- **GitHub pull requests folder:** if you turn it on, Roar runs your `gh` CLI (`gh api search/issues`),
-  which talks to GitHub with your `gh` login.
+- **AI providers:** only the ones you set up: an API with your key (for example `api.openai.com`,
+  `api.anthropic.com`), a local server on `localhost`, or an AI command-line tool you have installed
+  and signed in to (such as Claude Code), which sends your messages, and any page text you include,
+  to that tool's own service under its own terms.
+- **Gmail in the sidebar (on by default):** Roar checks each space's unread Gmail
+  (`mail.google.com/mail/u/<n>/feed/atom`, up to 6 accounts) with that space's own Google cookies,
+  at launch and every few minutes. Turn it off in Settings > Sidebar modules.
+- **Outlook in the sidebar (on by default):** when a space is signed in to Outlook, Roar loads
+  `outlook.cloud.microsoft` in a hidden page with that space's cookies to list unread inbox mail.
+  Turn it off in Settings > Sidebar modules.
+- **GitHub pull requests folder (on by default when the gh CLI is installed):** Roar runs
+  `gh api search/issues` with your `gh` login at launch and every 10 minutes.
+- **Savanna (easter egg):** opening it reads your GitHub login through `gh` and loads your public
+  contributions calendar from `github.com`.
+- **Page text index (on by default):** to search pages you've visited, Roar keeps their text in its
+  data folder on your computer (not from ghost tabs). Nothing is sent anywhere; turn it off in Settings > Privacy.
+- **AI agents:** any agent you connect (through Roar's MCP server or the debugging port) can see and
+  act on the pages in spaces you allow agents in, signed in as you, and what it reads goes to that
+  agent's AI provider. Ghost tabs are hidden from agents. Turn a space's agent access off by clicking
+  its dot in the sidebar. The agent port is on by default; turn it off in Settings > Agents if you
+  don't use agents. You are responsible for what agents you connect do in your accounts; Roar is
+  provided as is, without warranty, under the MIT License.
 - **Dictation:** the speech model is downloaded from Hugging Face the first time you use it.
 - **uBlock Origin Lite:** ships with its filter rules built in; Roar fetches no lists for it.
 - **AI sites in the sidebar:** the sites you open there (for example `chatgpt.com`, `claude.ai`,
@@ -297,5 +315,6 @@ Roar 0.37.14 is no longer offered for download, but its written offer still runs
 
 Roar is released under the [MIT License](LICENSE). Chrome, Google, Arc, Dia, Safari, Apple, macOS, Claude, Anthropic, Cursor, Codex, ChatGPT, OpenAI, Ollama, uBlock Origin and other product names are trademarks of their owners;
 Roar is not affiliated with or endorsed by them and names them only to say what it works with. The build fetches third-party code
-that keeps its own license: [CEF](https://bitbucket.org/chromiumembedded/cef) (BSD) and
-[uBlock Origin Lite](https://github.com/uBlockOrigin/uBOL-home) (GPLv3).
+that keeps its own license, including [CEF](https://bitbucket.org/chromiumembedded/cef)/Chromium (BSD and others),
+FFmpeg (LGPL-2.1), [uBlock Origin Lite](https://github.com/uBlockOrigin/uBOL-home) (GPLv3), and
+Bun/JavaScriptCore (MIT/LGPL-2) in roar-mcp; see THIRD_PARTY_NOTICES.txt.

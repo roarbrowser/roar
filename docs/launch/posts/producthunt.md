@@ -5,7 +5,7 @@
 **Tagline (≤60):** The open-source browser your AI agent can drive (48)
 
 **Description (≤260):**
-An open-source sidebar browser for macOS with a built-in MCP server. Arc's best ideas, no company that can shelve it, and your own agent instead of a built-in one: any MCP client (Claude Code, Cursor, others) opens real tabs and asks you in the sidebar. (225)
+An open-source sidebar browser for macOS with a built-in MCP server. The sidebar workflow Arc users know, open source anyone can fork, and your own agent instead of a built-in one: any MCP client opens real tabs and asks you in the sidebar. (240)
 
 **Gallery captions:**
 
@@ -23,10 +23,10 @@ An open-source sidebar browser for macOS with a built-in MCP server. Arc's best 
 
 Hi Product Hunt, I'm the maker of Roar.
 
-The Browser Company put Arc in maintenance mode in May 2025 to build Dia, a closed-source browser with their AI built in. I wanted the opposite: a sidebar browser nobody can shelve, where the AI is the agent I already use.
+The Browser Company [put Arc in maintenance mode in May 2025](https://browsercompany.substack.com/p/letter-to-arc-members-2025) to build Dia, a closed-source browser with their AI built in. I wanted the opposite: an open-source sidebar browser anyone can fork, where the AI is the agent I already use.
 
 Roar is that. Spaces with separate logins, pinned tabs, tabs that archive themselves, split view, a command bar, reader mode, Chrome extensions with uBlock Origin Lite. Your terminal agent sessions (Claude Code, Codex and others) live in the sidebar too, so you see which one needs you. It also ships an MCP server, so Claude, Cursor or any MCP client can drive it. When an agent opens a page, it shows up as a tab in your sidebar. It can leave you a note or ask you a question with buttons and wait for your answer. You choose which spaces agents can reach, and one click on the sidebar dot blocks them from the space you're in.
 
 Your Arc spaces and pinned tabs come over on first launch. It's free and MIT licensed. macOS only and early, so bug reports and feature requests on GitHub are very welcome: https://github.com/roarbrowser/roar
 
-Roar is independent and not affiliated with or endorsed by The Browser Company, Google, Anthropic, Anysphere (Cursor) or the uBlock Origin project.
+Roar is independent and not affiliated with or endorsed by The Browser Company, Apple, Google, Anthropic, OpenAI, Microsoft/GitHub, Anysphere (Cursor), Alibaba (Qwen) or the uBlock Origin project. Product names are trademarks of their owners.

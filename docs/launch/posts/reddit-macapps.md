@@ -10,7 +10,7 @@ Roar: a free, open-source sidebar browser for macOS that your own AI agent can d
 
 I'm the developer. Roar is free and MIT licensed.
 
-**Problem.** Arc has been in maintenance mode since May 2025, and its successor, Dia, is closed source with The Browser Company's AI built in. I wanted a sidebar browser in the spirit of Arc whose source is open, so it can't be shelved, and I wanted my own agent to work in the same browser I use (logins included) where I can see and stop it.
+**Problem.** Arc has been [in maintenance mode since May 2025](https://browsercompany.substack.com/p/letter-to-arc-members-2025), and The Browser Company's newer browser, Dia, is closed source with The Browser Company's AI built in. I wanted a sidebar browser in the spirit of Arc whose source is open, so anyone can fork it, and I wanted my own agent to work in the same browser I use (logins included) where I can see and stop it.
 
 **Comparison.** Against Arc and Dia: Roar is open source, and instead of a built-in assistant any MCP client drives it. Against a plain Chrome automation profile: agent pages show up as real tabs in your sidebar, with your logins.
 
@@ -25,7 +25,7 @@ Features:
 - Import from Arc (spaces and pinned tabs), Chrome, Edge, Firefox, Safari and Dia
 - Built-in MCP server: `claude mcp add roar -- /Applications/Roar.app/Contents/Resources/roar-mcp`
 - Agents can send you sidebar cards (`notify_user`) or ask you a question with buttons (`ask_user`)
-- Agents allowed per space; ghost tabs always off-limits; one click blocks the current space
+- Agents allowed per space; ghost tabs hidden from agents; one click blocks the current space
 - Agent sessions: your Claude Code, Codex, Gemini CLI, Qwen Code and Copilot CLI sessions in the sidebar, showing what each is doing and which need you; reply, send a page with a prompt, or start a new one in a folder or a scratch folder, or put one side by side with a page in split view
 - Copied links come out clean: Outlook/Teams Safe Links unwrapped, tracking parameters removed, your own list too
 - Headed or headless agent mode
@@ -34,8 +34,8 @@ Signed with a Developer ID and notarized, with Sparkle auto-updates you can turn
 
 Also on Homebrew: `brew install --cask roarbrowser/tap/roar`.
 
-Limits: macOS only (Apple Silicon and Intel builds), early.
+Limits: macOS 13+ on Apple Silicon (Intel build coming), early.
 
 https://github.com/roarbrowser/roar
 
-Roar is independent and not affiliated with or endorsed by The Browser Company, Google, Anthropic, Anysphere (Cursor) or the uBlock Origin project.
+Roar is independent and not affiliated with or endorsed by The Browser Company, Apple, Google, Anthropic, OpenAI, Microsoft/GitHub, Anysphere (Cursor), Alibaba (Qwen) or the uBlock Origin project. Product names are trademarks of their owners.
