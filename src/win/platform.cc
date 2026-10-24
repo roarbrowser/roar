@@ -127,7 +127,7 @@ int RunTool(const std::string& exe, const std::vector<std::string>& args, std::s
   auto drain = [](HANDLE h, std::string* to) {
     char buf[4096];
     DWORD n;
-    while (ReadFile(h, buf, sizeof buf, &n, nullptr) && n) if (to) to->append(buf, n);
+    while (::ReadFile(h, buf, sizeof buf, &n, nullptr) && n) if (to) to->append(buf, n);
     CloseHandle(h);
   };
   std::thread e(drain, err_r, err);
