@@ -32,9 +32,10 @@ DEVID="$(security find-identity -v -p codesigning | awk -F'"' '/Developer ID App
 # have always used) and, once third_party/cef-x64 exists, Roar-<v>-intel.dmg with its own feed.
 ARCHES=(arm64); [[ -d third_party/cef-x64 ]] && ARCHES+=(x64)
 # x64 notices need their own committed copy (build.sh diffs against it); refuse until it exists.
-[[ ! -d third_party/cef-x64 || -f THIRD_PARTY_NOTICES-x64.txt ]] || { echo "release.sh: third_party/cef-x64 exists but THIRD_PARTY_NOTICES-x64.txt is not committed (scripts/gen-notices.sh third_party/cef-x64)" >&2; exit 1; }
+[[ ! -d third_party/cef-x64 ]] || git ls-files --error-unmatch THIRD_PARTY_NOTICES-x64.txt >/dev/null 2>&1 || { echo "release.sh: third_party/cef-x64 exists but THIRD_PARTY_NOTICES-x64.txt is not committed (scripts/gen-notices.sh third_party/cef-x64)" >&2; exit 1; }
 # ALLOW_HEVC=1 is for local builds only; shipping HEVC needs clearance, not an env override.
 [[ -z ${ALLOW_HEVC:-} ]] || { echo "release.sh: unset ALLOW_HEVC; releases never bypass the HEVC gate" >&2; exit 1; }
+# Never delete old releases or tags: shipped notices and 3-year written offers point at their source assets.
 STAGE="$(mktemp -d)"
 trap 'rm -rf "$STAGE"' EXIT
 ROAR_NOTARY_PROFILE="${ROAR_NOTARY_PROFILE:-roar-notary}"
@@ -112,6 +113,9 @@ GN_FILES=(gn-args.txt)
 if [[ -d third_party/cef-x64 ]]; then
   cp "$(scripts/cef-args-gn.sh third_party/cef-x64 || [[ $? == 2 ]])" "$STAGE/gn-args-x64.txt"
   GN_FILES+=(gn-args-x64.txt)
+  # One FFmpeg/Chromium source set serves both arches only while both CEFs are the same version.
+  cmp -s <(sed -n 's/^CEF Version: *//p' third_party/cef/README.txt) <(sed -n 's/^CEF Version: *//p' third_party/cef-x64/README.txt) \
+    || { echo "release.sh: arm64 and x64 CEF versions differ; publish per-arch FFmpeg/Chromium source" >&2; exit 1; }
 fi
 tar -czf "$STAGE/roar-cef-patches.tar.gz" -C scripts cef-patches -C "$STAGE" "${GN_FILES[@]}"
 UBOL_SRC="$STAGE/uBOL-home-$UBOL_VERSION.tar.gz"
