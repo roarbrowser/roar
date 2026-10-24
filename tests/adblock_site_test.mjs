@@ -6,9 +6,11 @@ import { createServer } from 'node:http';
 import { mkdtempSync, realpathSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { cdpAuth } from './cdp_auth.mjs';
 
 const bin = process.argv[2];
 const data = realpathSync(mkdtempSync(join(tmpdir(), 'roar-adblock-')));
+cdpAuth(data);
 const port = await new Promise((ok) => { const s = createServer().listen(0, '127.0.0.1', () => { const p = String(s.address().port); s.close(() => ok(p)); }); });
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 let failed = 0;

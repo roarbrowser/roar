@@ -9,6 +9,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { isDeepStrictEqual } from 'node:util';
+import { cdpAuth } from './cdp_auth.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const WIN = process.platform === 'win32';
@@ -42,7 +43,10 @@ let current = null;  // Never leave a test Roar running, even when interrupted.
 process.on('exit', () => current?.kill());
 for (const sig of ['SIGINT', 'SIGTERM']) process.on(sig, () => process.exit(1));
 if (await fetch(`http://127.0.0.1:${PORT}/json/version`).then(() => true, () => false)) throw new Error(`port ${PORT} is taken; run again`);
+let authDir = '';
+cdpAuth(() => authDir);
 function launch(dir) {
+  authDir = dir;
   const p = spawn(EXE, ['--headless=new', '--noerrdialogs', '--load-extension=' + EXT], {
     env: { ...process.env, ROAR_DATA_DIR: dir, ROAR_CDP_PORT: String(PORT), ROAR_UI_CDP: '1' }, stdio: 'ignore',
   });

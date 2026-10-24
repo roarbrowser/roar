@@ -5,10 +5,12 @@ import { createServer } from 'node:http';
 import { mkdtempSync, readFileSync, realpathSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { cdpAuth } from './cdp_auth.mjs';
 
 const bin = process.argv[2];
 const script = readFileSync(join(import.meta.dirname, '../resources/ui/outlook-mail.js'), 'utf8');
 const data = realpathSync(mkdtempSync(join(tmpdir(), 'roar-olmail-')));
+cdpAuth(data);
 const port = String(9500 + Math.floor(Math.random() * 300));
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 let failed = 0;

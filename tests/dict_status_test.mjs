@@ -4,8 +4,10 @@ import { spawn } from 'node:child_process';
 import { mkdtempSync, realpathSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { cdpAuth } from './cdp_auth.mjs';
 
 const data = realpathSync(mkdtempSync(join(tmpdir(), 'roar-dict-')));
+cdpAuth(data);
 const port = String(9800 + Math.floor(Math.random() * 150));
 const roar = spawn(process.argv[2], ['--headless=new', '--noerrdialogs'], { env: { ...process.env, ROAR_UI_CDP: '1', ROAR_CDP_PORT: port, ROAR_DATA_DIR: data }, stdio: 'ignore' });
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));

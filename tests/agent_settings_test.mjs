@@ -5,9 +5,11 @@ import { createServer } from 'node:http';
 import { mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { cdpAuth } from './cdp_auth.mjs';
 
 const [bin, shots] = process.argv.slice(2);
 const data = realpathSync(mkdtempSync(join(tmpdir(), 'roar-agset-')));
+cdpAuth(data);
 const free = () => new Promise((ok) => { const s = createServer().listen(0, '127.0.0.1', () => { const p = String(s.address().port); s.close(() => ok(p)); }); });
 const port = await free();
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));

@@ -4,8 +4,10 @@ import { spawn } from 'node:child_process';
 import { mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { cdpAuth } from './cdp_auth.mjs';
 
 const data = realpathSync(mkdtempSync(join(tmpdir(), 'roar-reorder-')));
+cdpAuth(data);
 const port = String(9800 + Math.floor(Math.random() * 150));
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const list = async () => (await fetch(`http://127.0.0.1:${port}/json/list`)).json();

@@ -7,11 +7,13 @@ import { mkdtempSync, realpathSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createInterface } from 'node:readline';
+import { cdpAuth } from './cdp_auth.mjs';
 
 const bin = process.argv[2];
 const root = join(import.meta.dirname, '..');
 // Real path: Roar matches CDP targets to spaces by profile path, and macOS's tmpdir is a symlink.
 const data = realpathSync(mkdtempSync(join(tmpdir(), 'roar-scope-')));
+cdpAuth(data);
 // A free port from the OS: a random one can land on another test run's Roar, and this test then drives that instance.
 const port = await new Promise((ok) => { const s = createServer().listen(0, '127.0.0.1', () => { const p = String(s.address().port); s.close(() => ok(p)); }); });
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));

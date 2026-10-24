@@ -5,9 +5,11 @@ import { spawn } from 'node:child_process';
 import { mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { cdpAuth } from './cdp_auth.mjs';
 
 const [bin, shot] = process.argv.slice(2);
 const data = realpathSync(mkdtempSync(join(tmpdir(), 'roar-link-')));
+cdpAuth(data);
 const port = String(9800 + Math.floor(Math.random() * 150));
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 let failed = 0;

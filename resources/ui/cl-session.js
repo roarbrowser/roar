@@ -53,6 +53,7 @@ const agentIcon = (c, size = 14) => {
 // A session's own colors (settings.agentColors, {sessionId: {w: "#rrggbb", t: "#rrggbb"}}): w tints its window and
 // sidebar row, t its terminal. 0.26.2 saved one string, "#rrggbb" or "#rrggbb/t".
 const CL_COLORS = ['#000000', '#808080', '#ffffff', '#e5484d', '#f76b15', '#ffc53d', '#46a758', '#12a594', '#0090ff', '#8e4ec6', '#d6409f'];
+const CL_COLOR_NAMES = { '#000000': 'Black', '#808080': 'Gray', '#ffffff': 'White', '#e5484d': 'Red', '#f76b15': 'Orange', '#ffc53d': 'Yellow', '#46a758': 'Green', '#12a594': 'Teal', '#0090ff': 'Blue', '#8e4ec6': 'Purple', '#d6409f': 'Pink' };
 const clColors = (s) => { try { return JSON.parse(s?.settings?.agentColors || '{}') || {}; } catch { return {}; } };
 const clHex = (c) => (/^#[0-9a-f]{6}$/i.test(c || '') ? c : '');
 const clPair = (s, id) => {

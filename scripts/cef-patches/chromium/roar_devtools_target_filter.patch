@@ -72,16 +72,63 @@ diff --git content/browser/devtools/devtools_agent_host_impl.cc content/browser/
 diff --git content/browser/devtools/devtools_http_handler.cc content/browser/devtools/devtools_http_handler.cc
 --- content/browser/devtools/devtools_http_handler.cc
 +++ content/browser/devtools/devtools_http_handler.cc
-@@ -68,6 +68,8 @@
- #endif
+@@ -24,6 +24,7 @@
+ #include "base/memory/raw_ptr.h"
+ #include "base/memory/ref_counted_memory.h"
+ #include "base/message_loop/message_pump_type.h"
++#include "base/no_destructor.h"
+ #include "base/strings/escape.h"
+ #include "base/strings/string_number_conversions.h"
+ #include "base/strings/string_util.h"
+@@ -69,7 +70,35 @@
  
  namespace content {
-+
+ 
 +bool RoarDevToolsTargetAllowed(DevToolsAgentHost* host);
- 
++
  namespace {
++
++// Roar: the per-launch token remote clients must present, as an X-Roar-Token
++// header or (WebSocket only) a roar_token= query parameter. Empty refuses all.
++// Read and written on the UI thread.
++std::string& RoarCdpToken() {
++  static base::NoDestructor<std::string> token;
++  return *token;
++}
++
++bool RoarTokenOk(const net::HttpServerRequestInfo& info) {
++  const std::string& want = RoarCdpToken();
++  std::string got = info.GetHeaderValue("x-roar-token");
++  size_t q = info.path.find("roar_token=");
++  if (got.empty() && q != std::string::npos && q > 0 &&
++      (info.path[q - 1] == '?' || info.path[q - 1] == '&')) {
++    got = info.path.substr(q + 11, info.path.find('&', q) - q - 11);
++  }
++  if (want.empty() || got.size() != want.size()) {
++    return false;
++  }
++  unsigned char diff = 0;  // Constant time.
++  for (size_t i = 0; i < want.size(); ++i) {
++    diff |= want[i] ^ got[i];
++  }
++  return diff == 0;
++}
  
-@@ -647,6 +649,10 @@
+ const char kDevToolsHandlerThreadName[] = "Chrome_DevToolsHandlerThread";
+ 
+@@ -586,6 +615,11 @@
+   if (mode_ ==
+       DevToolsAgentHost::RemoteDebuggingServerMode::kWithApprovalOnly) {
+     Send404(connection_id);
++    return;
++  }
++  if (!RoarTokenOk(info)) {
++    SendJson(connection_id, net::HTTP_FORBIDDEN, std::nullopt,
++             "Roar CDP token required");
+     return;
+   }
+   // Trim /json
+@@ -647,6 +681,10 @@
                                    for_tab ? DevToolsManagerDelegate::kTab
                                            : DevToolsManagerDelegate::kFrame)
              : DevToolsAgentHost::GetOrCreateAll();
@@ -92,7 +139,7 @@ diff --git content/browser/devtools/devtools_http_handler.cc content/browser/dev
  
      RespondToJsonList(connection_id, info.GetHeaderValue("host"),
                        std::move(list), for_tab);
-@@ -690,7 +696,7 @@
+@@ -690,7 +728,7 @@
    if (command == "activate" || command == "close") {
      scoped_refptr<DevToolsAgentHost> agent_host =
          DevToolsAgentHost::GetForId(target_id);
@@ -101,8 +148,25 @@ diff --git content/browser/devtools/devtools_http_handler.cc content/browser/dev
        SendJson(connection_id, net::HTTP_NOT_FOUND, std::nullopt,
                 "No such target id: " + target_id);
        return;
-@@ -868,7 +874,7 @@
-   std::string target_id = request.path.substr(strlen(kPageUrlPrefix));
+@@ -829,6 +867,11 @@
+     return;
+   }
+ 
++  if (!RoarTokenOk(request)) {
++    Send403(connection_id, "Roar CDP token required");
++    return;
++  }
++
+   // If we require user approval, we do not require guid.
+   if (mode_ ==
+       DevToolsAgentHost::RemoteDebuggingServerMode::kWithApprovalOnly) {
+@@ -865,10 +908,11 @@
+     return;
+   }
+ 
+-  std::string target_id = request.path.substr(strlen(kPageUrlPrefix));
++  std::string target_id(
++      PathWithoutParams(request.path.substr(strlen(kPageUrlPrefix))));
    scoped_refptr<DevToolsAgentHost> agent =
        DevToolsAgentHost::GetForId(target_id);
 -  if (!agent) {
@@ -110,6 +174,17 @@ diff --git content/browser/devtools/devtools_http_handler.cc content/browser/dev
      Send500(connection_id, "No such target id: " + target_id);
      return;
    }
+@@ -1059,4 +1103,10 @@
+   return dictionary;
+ }
+ 
++// Roar: sets the token (found with dlsym); call on the UI thread.
++extern "C" __attribute__((visibility("default"))) void roar_set_devtools_token(
++    const char* token) {
++  RoarCdpToken() = token ? token : "";
++}
++
+ }  // namespace content
 diff --git content/browser/devtools/protocol/target_handler.cc content/browser/devtools/protocol/target_handler.cc
 --- content/browser/devtools/protocol/target_handler.cc
 +++ content/browser/devtools/protocol/target_handler.cc

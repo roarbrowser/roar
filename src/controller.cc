@@ -75,6 +75,9 @@ bool HandleMailConsole(CefRefPtr<CefBrowser> browser, const std::string& text); 
 
 namespace {
 
+// "Send to agent" page files. Per-user temp (no spaces, unlike Application Support): an @-mention stops at a space.
+std::filesystem::path ClaudePagesDir() { return std::filesystem::temp_directory_path() / "roar-claude-pages"; }
+
 // contexts_ key of the profile ghost tabs share.
 constexpr int kGhostContext = -1;
 // A direct child of the root cache path, as Chrome-style CEF requires.
@@ -282,7 +285,8 @@ class ExtensionPopupViewDelegate : public CefBrowserViewDelegate {
       shim_ = kShim;
       shim_.replace(shim_.find("%s"), 2, ToJson(quoted));
       // chrome-extension://<id>/, for finding this extension's worker.
-      origin_ = url.substr(0, url.find('/', strlen("chrome-extension://")) + 1);
+      size_t slash = url.find('/', strlen("chrome-extension://"));
+      origin_ = slash == std::string::npos ? url + "/" : url.substr(0, slash + 1);
     }
     void OnDevToolsEvent(CefRefPtr<CefBrowser> browser, const CefString& method,
                          const void* params, size_t params_size) override {
@@ -1129,6 +1133,7 @@ void Controller::Start() {
   // Roar's CEF patch (scripts/cef-patches) routes CDP Target.createTarget here,
   // so MCP new_page opens a Roar tab instead of a bare Chrome window.
   // The CEF loader opens the framework RTLD_LOCAL, so look in its own image.
+  cdp_token_ = platform::RandomToken();
   using Hook = int (*)(const char*);
 #ifdef _WIN32
   // TODO(windows): the patched libcef.dll must export these (a .def entry or __declspec(dllexport)).
@@ -1148,10 +1153,14 @@ void Controller::Start() {
     using Filter = bool (*)(int, const char*);
     if (auto filter = reinterpret_cast<void (*)(Filter)>(sym("roar_set_devtools_target_filter")))
       filter([](int id, const char* path) { return Controller::Get()->AgentMayReach(id, path); });
+    // CDP HTTP and WebSocket clients must present this launch's token (scripts/cef-patches).
+    if (auto set = reinterpret_cast<void (*)(const char*)>(sym("roar_set_devtools_token"))) set(cdp_token_.c_str());
 #ifndef _WIN32
     break;
 #endif
   }
+  // <data>/cdp-token (0600, AtomicWrite): roar-mcp reads it for CDP and agent.hello.
+  if (!AtomicWrite(State::Get().Dir() + "/cdp-token", cdp_token_)) LOG(ERROR) << "Couldn't write cdp-token";
   cdp_on_ = platform::CdpEnabled();
   State& state = State::Get();
   state.Load();
@@ -1563,7 +1572,12 @@ int Controller::NewTabFrom(CefRefPtr<CefBrowser> opener, const std::string& url,
     if (ctx && ctx->IsSharingWith(CefRequestContext::GetGlobalContext())) space = 0;
     for (const auto& [sp, c] : contexts_)
       if (space < 0 && sp != kGhostContext && c && ctx && (ctx->IsSame(c) || ctx->IsSharingWith(c))) space = sp;
-    if (space < 0 || !State::Get().FindSpace(space)) return 0;
+    if (space < 0 || !State::Get().FindSpace(space)) {
+      // Never fall back to the active space: that would carry the link into another profile's logins.
+      LOG(WARNING) << "NewTabFrom: no space for the popup's profile; link dropped";
+      ShowHint("Couldn't open that link: its profile is gone");
+      return 0;
+    }
   }
   return NewTab(url, activate, false, 0, space, ghost, from ? from->id : 0);
 }
@@ -4339,18 +4353,20 @@ bool Controller::HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> 
   }
   // Owner pids are guessable: a roar-mcp connection proves its owner with the token Roar handed it first.
   if (trusted && hint_ && hint_->GetBrowser() && hint_->GetBrowser()->IsSame(browser) &&
-      (cmd == "agent.hello" || cmd == "agent.spaces" || cmd == "agent.space" || cmd == "agent.group" || cmd == "agent.release")) {
+      (cmd == "agent.hello" || cmd == "agent.spaces" || cmd == "agent.space" || cmd == "agent.group" || cmd == "agent.release" ||
+       cmd == "agent.expire" || cmd == "agent.drive" || cmd == "agent.front" || cmd == "agent.rename")) {
     std::string owner = msg->GetString("owner").ToString();
-    if (owner.empty()) return callback->Failure(1, "owner is required"), true;
+    if (owner.empty()) return callback->Failure(403, "owner is required: update roar-mcp"), true;
     auto it = mcp_tokens_.find(owner);
     if (cmd == "agent.hello") {
-      if (it != mcp_tokens_.end()) return callback->Failure(403, "owner already connected"), true;
-      std::string token = platform::RandomToken();
-      mcp_tokens_[owner] = token;
-      return callback->Success(token), true;
+      // Only a process that can read <data>/cdp-token may connect; a refreshed roar-mcp (same owner) gets the same token.
+      if (cdp_token_.empty() || msg->GetString("launch").ToString() != cdp_token_)
+        return callback->Failure(403, "bad launch token: restart the Roar MCP server"), true;
+      if (it == mcp_tokens_.end()) it = mcp_tokens_.emplace(owner, platform::RandomToken()).first;
+      return callback->Success(it->second), true;
     }
     if (it == mcp_tokens_.end() || it->second != msg->GetString("token").ToString())
-      return callback->Failure(403, "unknown connection"), true;
+      return callback->Failure(403, "unknown connection: send agent.hello again to reconnect"), true;
   }
   if (!trusted) {
     if (cmd == "index.result") {
@@ -4412,12 +4428,12 @@ bool Controller::HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> 
         while (!body.empty() && (static_cast<unsigned char>(body.back()) & 0xC0) == 0x80) body.pop_back();
         if (!body.empty() && static_cast<unsigned char>(body.back()) >= 0xC0) body.pop_back();
       }
-      // Per-user temp (no spaces, unlike Application Support): an @-mention stops at a space.
-      std::filesystem::path dir = std::filesystem::temp_directory_path() / "roar-claude-pages";
+      std::filesystem::path dir = ClaudePagesDir();
       std::error_code ec;
       std::filesystem::create_directories(dir, ec);
+      std::filesystem::permissions(dir, std::filesystem::perms::owner_all, ec);  // 0700; removed on quit.
       std::filesystem::path file = dir / (platform::RandomToken() + ".md");
-      std::ofstream(file) << "Page: " << title << "\nURL: " << tab->url << "\n\n" << body << "\n";
+      AtomicWrite(file.string(), "Page: " + title + "\nURL: " + tab->url + "\n\n" + body + "\n");  // 0600.
       // Every hooked CLI takes an @path mention; Aider takes /add <path> instead.
       std::string tool = "claude", sid = target.substr(7);
       for (size_t i = 0; i < claude_->GetSize(); ++i)
@@ -4930,8 +4946,9 @@ bool Controller::HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> 
     v->SetDictionary(d);
     callback->Success(ToJson(v));
   } else if (cmd == "agent.front") {
-    // new_page with background: false: show the tab the agent just opened.
+    // new_page with background: false: show the tab the agent just opened, if this connection opened it.
     Tab* t = FindTab(last_target_tab_);
+    if (t && t->mcp_owner != msg->GetString("owner").ToString()) t = nullptr;
     if (t && t->space == State::Get().active_space) ActivateTab(t->id);
     // Roar in the background stays there (FocusTab): a sidebar card says the tab is up instead.
     NotifyPref pref = NotifyGet(State::Get().settings.notifications, "agentPage");
@@ -4952,7 +4969,7 @@ bool Controller::HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> 
   } else if (cmd == "agent.drive") {
     // roar-mcp names the page an agent acts on; that tab wears the agent frame while the
     // agent stays attached. clear: the agent's session ended. Answers nothing about tabs.
-    std::string who = msg->GetString("agent").ToString();
+    std::string who = "#" + msg->GetString("owner").ToString();  // The verified owner, not the caller's agent string.
     if (msg->GetBool("clear")) {
       driving_.erase(who);
     } else {
@@ -5117,7 +5134,9 @@ bool Controller::HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> 
     auto closed = [&](int space) { Space* sp = st.FindSpace(space); return from_agent && !(sp && sp->agents); };
     if (kind == "tab") {
       Tab* t = FindTab(int_arg("id"));
-      if (!t || t->ghost || closed(t->space)) return callback->Failure(0, "No such tab"), true;
+      // From the bridge, only a tab this connection opened.
+      if (!t || t->ghost || closed(t->space) || (from_agent && t->mcp_owner != msg->GetString("owner").ToString()))
+        return callback->Failure(0, "No such tab"), true;
       old = t->name, t->name = name;
     } else if (kind == "group") {
       TabGroup* g = st.FindGroup(int_arg("id"));
@@ -5145,10 +5164,11 @@ bool Controller::HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> 
   } else if (cmd == "agent.expire") {
     // The MCP server gave up on an ask_user (timeout, cancel) by key, or its connection ended (owner):
     // the card goes, so no late click answers nobody. A waiting ask hears "timed out".
-    std::string key = msg->GetString("key").ToString(), owner = msg->GetString("owner").ToString();
+    std::string key = msg->GetString("key").ToString(), owner = msg->GetString("owner").ToString().substr(0, 20);
     std::vector<int> ids;
+    // Only the verified owner's cards (the token check above); a key narrows to one of them.
     for (auto& a : agent_alerts_)
-      if ((!key.empty() && a.key == key) || (!owner.empty() && a.owner == owner)) {
+      if (!owner.empty() && a.owner == owner && (key.empty() || a.key == key)) {
         if (a.answer) a.answer->Success("timed out"), a.answer = nullptr;
         ids.push_back(a.id);
       }
@@ -6198,6 +6218,8 @@ bool Controller::CanCloseShell() {
   closing_ = true;
   SaveNow();
   State::Get().SavePages();
+  std::error_code ec;
+  std::filesystem::remove_all(ClaudePagesDir(), ec);
   for (auto& t : tabs_) {
     if (auto b = t.view ? t.view->GetBrowser() : nullptr) b->GetHost()->CloseBrowser(true);
     if (t.window) t.window->Close();

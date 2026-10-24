@@ -50,7 +50,7 @@ p { margin: 0; color: var(--ink-2); line-height: 1.55; font-size: 14px; max-widt
 #roar .jaw { transform-origin: 50% 0; animation: roar-jaw .5s .65s ease-in-out both; }
 #roar .ring { fill: none; stroke: var(--mane); stroke-width: 3.5; opacity: 0; animation: roar-ring .75s calc(.7s + var(--i) * .13s) ease-out; }
 #roar .word { font: 800 clamp(28px, 6vmin, 48px) var(--round); letter-spacing: -.03em; color: var(--ink); animation: roar-rise .45s .8s cubic-bezier(.2, .9, .2, 1) both; }
-#roar .word b { color: var(--mane); }
+#roar .word b { color: var(--mane-ink); }
 @keyframes roar-bg { from { opacity: 0; } }
 @keyframes roar-pop { from { transform: scale(.2); opacity: 0; } }
 @keyframes roar-petal { from { transform: translate(calc(var(--dx) * 1px), calc(var(--dy) * 1px)) scale(0); } }

@@ -4,6 +4,7 @@
 #include <fstream>
 #include <sstream>
 
+#include "include/cef_parser.h"
 #include "include/cef_scheme.h"
 #include "include/wrapper/cef_helpers.h"
 #include "include/wrapper/cef_stream_resource_handler.h"
@@ -43,10 +44,19 @@ class UiSchemeFactory : public CefSchemeHandlerFactory {
     std::string path = url.substr(std::string(kUiOrigin).size());
     path = path.substr(0, path.find_first_of("?#"));
     if (path.empty()) path = "welcome.html";
-    if (path.find("..") != std::string::npos) return nullptr;
+    path = CefURIDecode(path, true, static_cast<cef_uri_unescape_rule_t>(UU_SPACES | UU_PATH_SEPARATORS |
+                                                                           UU_URL_SPECIAL_CHARS_EXCEPT_PATH_SEPARATORS)).ToString();
     // The license notices live beside ui/ in Resources (the app folder on Windows).
     bool notice = path == "THIRD_PARTY_NOTICES.txt" || path == "CREDITS.html";
-    auto stream = CefStreamReader::CreateForFile(platform::ResourcePath(notice ? path : "ui/" + path));
+    std::string file = platform::ResourcePath(notice ? path : "ui/" + path);
+    if (!notice) {  // The decoded, canonical path must stay under ui/.
+      std::error_code ec;
+      auto root = std::filesystem::weakly_canonical(platform::ResourcePath("ui"), ec);
+      auto real = std::filesystem::weakly_canonical(file, ec);
+      auto rel = real.lexically_relative(root);
+      if (ec || rel.empty() || *rel.begin() == "..") return nullptr;
+    }
+    auto stream = CefStreamReader::CreateForFile(file);
     if (!stream) return nullptr;
     // Refuse to be framed, so a web page cannot embed (and clickjack) Roar UI.
     CefResponse::HeaderMap headers;

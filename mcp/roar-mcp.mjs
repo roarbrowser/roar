@@ -37,15 +37,19 @@ const WIN = process.platform === 'win32';
 const HOME = process.env.HOME || homedir();
 const APP = process.env.ROAR_APP || (WIN ? dirname(process.execPath) : join(dirname(process.execPath), '..', '..'));
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+// Roar's data dir; pickPort moves it to the headless Roar's when that is the one used.
+let dataDir = process.env.ROAR_DATA_DIR || (WIN ? join(process.env.APPDATA || join(HOME, 'AppData', 'Roaming'), 'Roar') : join(HOME, 'Library/Application Support/Roar'));
+// This Roar launch's CDP token (<data>/cdp-token, 0600): its CDP port refuses clients without it.
+const cdpToken = () => { try { return readFileSync(join(dataDir, 'cdp-token'), 'utf8').trim(); } catch { return ''; } };
+const cdpHeaders = () => ({ 'X-Roar-Token': cdpToken() });
 const get = async (port, path) => {
-  try { const r = await fetch(`http://127.0.0.1:${port}${path}`, { signal: AbortSignal.timeout(2000) }); return r.ok ? await r.text() : null; }
+  try { const r = await fetch(`http://127.0.0.1:${port}${path}`, { signal: AbortSignal.timeout(2000), headers: cdpHeaders() }); return r.ok ? await r.text() : null; }
   catch { return null; }
 };
 const up = async (port) => (await get(port, '/json/version')) !== null;
 const waitFor = async (check) => { for (let i = 0; i < 40 && !(await check()); i++) await sleep(500); };
 
 async function pickPort() {
-  const dataDir = process.env.ROAR_DATA_DIR || (WIN ? join(process.env.APPDATA || join(HOME, 'AppData', 'Roaming'), 'Roar') : join(HOME, 'Library/Application Support/Roar'));
   const stateFile = join(dataDir, 'state.json');
   let headless = false;
   try { headless = JSON.parse(readFileSync(stateFile, 'utf8')).settings?.agentHeadless === true; } catch {}
@@ -54,6 +58,7 @@ async function pickPort() {
   let written = '';
   try { written = readFileSync(join(dataDir, 'cdp-port'), 'utf8').trim(); } catch {}
   const port = fixed || (headless ? '9444' : (/^\d+$/.test(written) ? written : '9222'));
+  if (!fixed && headless) dataDir = join(HOME, '.roar-headless');
   const bin = WIN ? join(APP, 'Roar.exe') : join(APP, 'Contents/MacOS/Roar');
   if (!fixed && headless && !(await up(port))) {
     const data = join(HOME, '.roar-headless');
@@ -62,7 +67,7 @@ async function pickPort() {
     await waitFor(() => up(port));
     // CDP answers before Roar's UI exists; an agent attaching then sees no pages.
     await waitFor(async () => (await get(port, '/json/list'))?.includes('roar://ui/hint'));
-    await fetch(`http://127.0.0.1:${port}/json/new?about:blank`, { method: 'PUT' }).catch(() => {});
+    await fetch(`http://127.0.0.1:${port}/json/new?about:blank`, { method: 'PUT', headers: cdpHeaders() }).catch(() => {});
   } else if (!(await up(port))) {
     // Anchored: a headless Roar runs the same binary, with arguments.
     let running = true;
@@ -100,7 +105,7 @@ setInterval(() => { if (owned.size && Date.now() - lastCall > IDLE_MS) release()
 const PAGE_LINE = /^(\d+): (?:.*\((\S+)\)|(\S+))( \[selected\])?(?: isolatedContext=\S+)?$/gm;
 const afterIds = new Set();  // new_page/select_page: the page exists (and is selected) once the child answers.
 // Keyed per connection: every Claude Code session has the same clientInfo name.
-const drive = (url) => url && sidebarAsk({ cmd: 'agent.drive', agent: agent + '#' + OWNER, url }, 3000).catch(() => {});
+const drive = (url) => url && sidebarAsk({ cmd: 'agent.drive', agent, owner: OWNER, url }, 3000).catch(() => {});
 const listIds = new Set(), initIds = new Set();
 // Sent with the initialize reply: clients that support server instructions (Claude Code and others) put
 // them in the agent's context, so the person never has to say "use Roar".
@@ -121,7 +126,7 @@ Use Roar whenever a task touches the web: opening, reading or checking a page, s
 - ask_user asks the person a question with buttons in Roar and waits for the answer; use it when you cannot go on without a decision.`;
 const frontIds = new Set();  // new_page calls that asked for the foreground.
 const pending = new Map();  // ask_user request id -> its card key, so a cancel drops the card.
-const expire = (key) => sidebarAsk({ cmd: 'agent.expire', key }, 3000).catch(() => {});
+const expire = (key) => sidebarAsk({ cmd: 'agent.expire', key, owner: OWNER }, 3000).catch(() => {});
 
 const TOOLS = [
   {
@@ -206,21 +211,23 @@ async function sidebarAsk(payload, timeoutMs) {
 async function bridgeAsk(payload, timeoutMs) {
   if (payload.owner && payload.cmd !== 'agent.hello') {
     // One hello even when the first calls race; a failed one is retried by the next call.
-    tokenP ??= TOKEN ? Promise.resolve(TOKEN) : sidebarAsk({ cmd: 'agent.hello', owner: OWNER }, 3000).catch((e) => { tokenP = null; throw e; });
+    // Hello proves this process can read Roar's token file; a refreshed roar-mcp (same owner) gets the same token back.
+    tokenP ??= TOKEN ? Promise.resolve(TOKEN) : sidebarAsk({ cmd: 'agent.hello', owner: OWNER, launch: cdpToken() }, 3000).catch((e) => { tokenP = null; throw e; });
     TOKEN = await tokenP;
     payload = { ...payload, token: TOKEN };
   }
-  const targets = await (await fetch(`http://127.0.0.1:${port}/json/list`, { signal: AbortSignal.timeout(2000) })).json();
+  const targets = await (await fetch(`http://127.0.0.1:${port}/json/list`, { signal: AbortSignal.timeout(2000), headers: cdpHeaders() })).json();
   const sidebar = targets.find((t) => t.url.startsWith('roar://ui/hint.html'));
   if (!sidebar) throw new Error('Roar is not reachable on port ' + port);
-  const ws = new WebSocket(sidebar.webSocketDebuggerUrl);
+  const ws = new WebSocket(sidebar.webSocketDebuggerUrl, { headers: cdpHeaders() });
   await new Promise((ok, fail) => { ws.onopen = ok; ws.onerror = () => fail(new Error('could not connect to Roar')); });
   try {
     return await new Promise((ok, fail) => {
       // Only a wait:true ask treats the timeout as an answer; any other call failed.
       const timer = setTimeout(() => payload.wait ? ok('timed out') : fail(new Error('Roar did not answer in time')), timeoutMs);
       ws.onmessage = (ev) => {
-        const r = JSON.parse(ev.data);
+        let r;
+        try { r = JSON.parse(ev.data); } catch { return; }  // Not ours to answer; the timer still runs.
         if (r.id !== 1) return;
         clearTimeout(timer);
         if (r.result?.exceptionDetails) fail(new Error(r.result.exceptionDetails.exception?.description || 'Roar refused the alert'));
@@ -239,7 +246,8 @@ async function bridgeAsk(payload, timeoutMs) {
 const NO_PROFILE = 'No Roar profile allows agents; turn one on in Roar\'s sidebar (right-click a space).';
 const agentSpaces = async () => {
   let r = await sidebarAsk({ cmd: 'agent.spaces', owner: OWNER }, 10000);
-  if (typeof r === 'string') r = JSON.parse(r);
+  if (typeof r === 'string') try { r = JSON.parse(r); } catch { throw new Error(`Roar did not list its profiles (${r}).`); }
+  if (!r || typeof r !== 'object') throw new Error('Roar did not list its profiles.');
   return r;
 };
 // A click comes back as {"choice","index"}; "dismissed" / "timed out" / "opened" stay plain strings.
@@ -298,7 +306,7 @@ async function callOwn(id, name, args) {
       for (const i of items) {
         const kind = String(i.kind), id = kind === 'session' ? String(i.id) : Number(i.id), name = plain(i.name, 80);
         try {
-          const old = await sidebarAsk({ cmd: 'agent.rename', kind, id, name }, 10000);
+          const old = await sidebarAsk({ cmd: 'agent.rename', kind, id, name, owner: OWNER }, 10000);
           lines.push(`Renamed ${kind} ${i.id}${old ? ` from "${old}"` : ''} to "${name}".`);
         } catch (e) { lines.push(`Could not rename ${kind} ${i.id}: ${e.message}`); }
       }
@@ -338,10 +346,11 @@ async function callOwn(id, name, args) {
 
 // The agent's session ended: questions still on screen can no longer be answered.
 async function shutdown(code) {
-  await sidebarAsk({ cmd: 'agent.drive', agent: agent + '#' + OWNER, clear: true }, 2000).catch(() => {});
+  await sidebarAsk({ cmd: 'agent.drive', agent, owner: OWNER, clear: true }, 2000).catch(() => {});
   await release();  // The connection ended: its pages go.
   await sidebarAsk({ cmd: 'agent.expire', owner: OWNER }, 3000).catch(() => {});  // Every card of this connection.
   rmSync(toolsFile, { force: true });
+  rmSync(cdpConfig, { force: true });
   process.exit(code);
 }
 for (const sig of ['SIGTERM', 'SIGINT', 'SIGHUP']) process.on(sig, () => shutdown(0));
@@ -349,7 +358,17 @@ for (const sig of ['SIGTERM', 'SIGINT', 'SIGHUP']) process.on(sig, () => shutdow
 // Compiled: modules sit beside the executable. From source (bun/node roar-mcp.mjs): mcp/node_modules.
 const compiled = process.argv[1]?.startsWith('/$bunfs/');
 const modules = compiled ? join(dirname(process.execPath), 'roar-mcp-modules') : join(import.meta.dirname, 'node_modules');
-const child = spawn(process.execPath, [join(modules, 'chrome-devtools-mcp/build/src/bin/chrome-devtools-mcp.js'), '--browserUrl', `http://127.0.0.1:${port}`],
+// The browser's WebSocket with Roar's token: --browserUrl can't send it. A new Roar launch changes both, so refresh() below.
+const launchToken = cdpToken();
+const browserWs = JSON.parse(await get(port, '/json/version') || '{}').webSocketDebuggerUrl || `ws://127.0.0.1:${port}/devtools/browser`;
+// In a 0600 config file, not argv, which every local user can read with ps.
+const cdpConfig = join(dataDir, 'agent-mcp', `${process.pid}.cdp.json`);
+try {
+  mkdirSync(dirname(cdpConfig), { recursive: true });
+  writeFileSync(cdpConfig + '.tmp', JSON.stringify({ wsEndpoint: browserWs, wsHeaders: JSON.stringify({ 'X-Roar-Token': launchToken }) }), { mode: 0o600 });
+  renameSync(cdpConfig + '.tmp', cdpConfig);
+} catch {}
+const child = spawn(process.execPath, [join(modules, 'chrome-devtools-mcp/build/src/bin/chrome-devtools-mcp.js'), '--config', cdpConfig],
   { stdio: ['pipe', 'pipe', 'inherit'], env: { ...process.env, BUN_BE_BUN: '1' } });
 child.on('exit', (code) => shutdown(code ?? 0));
 
@@ -363,7 +382,8 @@ const stamp = () => { try { const s = statSync(process.execPath); return `${s.in
 const born = stamp();
 let inner = null, initLine = '';
 // Also polled: after an update the client's next request may already be a call to a tool only the new build has.
-setInterval(() => { if (!inner && initLine && born && stamp() !== born) refresh(); }, 15000).unref();
+// A relaunched Roar has a new CDP token, which the child's connection can't pick up: hand over the same way.
+setInterval(() => { if (!inner && initLine && ((born && stamp() !== born) || (launchToken && cdpToken() && cdpToken() !== launchToken))) refresh(); }, 15000).unref();
 function refresh() {
   inner = spawn(process.execPath, [], { stdio: ['pipe', 'pipe', 'inherit'], env: { ...process.env, ROAR_MCP_PPID: PPID, ROAR_MCP_OWNER: OWNER, ROAR_MCP_TOKEN: TOKEN } });
   child.removeAllListeners('exit');  // The old child still answers calls in flight.
@@ -408,7 +428,7 @@ createInterface({ input: child.stdout }).on('line', (line) => {
   const front = msg.id !== undefined && frontIds.delete(msg.id) && msg.result && !msg.result.isError;
   const list = msg.result?.content?.some((c) => /^## Pages$/m.test(c.text ?? ''));
   if (front || list) return void (async () => {
-    if (front) await sidebarAsk({ cmd: 'agent.front' }, 5000).catch(() => {});
+    if (front) await sidebarAsk({ cmd: 'agent.front', owner: OWNER }, 5000).catch(() => {});
     if (list) await hideForeign(msg).catch(() => {});
   })().finally(() => out(msg));
   out(msg);

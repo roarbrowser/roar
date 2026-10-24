@@ -17,7 +17,8 @@ bool IsWebStore(const std::string& url) {
 
 void RegisterSchemes(CefRawPtr<CefSchemeRegistrar> registrar) {
   // No CORS or fetch access: web pages have no business reading Roar's UI.
-  registrar->AddCustomScheme(kScheme, CEF_SCHEME_OPTION_STANDARD | CEF_SCHEME_OPTION_SECURE);
+  registrar->AddCustomScheme(kScheme, CEF_SCHEME_OPTION_STANDARD | CEF_SCHEME_OPTION_SECURE |
+                                          CEF_SCHEME_OPTION_DISPLAY_ISOLATED);
 }
 
 void RendererApp::OnWebKitInitialized() {

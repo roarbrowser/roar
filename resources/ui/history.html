@@ -57,7 +57,7 @@ input:focus { outline: 2px solid var(--mane); outline-offset: -1px; }
 .entry .x:hover { background: var(--rule); color: var(--ink); }
 .empty { color: var(--ink-3); padding: 24px 6px; }
 .pick { width: 15px; height: 15px; min-width: 0; padding: 0; flex: none; margin: 0; accent-color: var(--mane); opacity: 0; }
-.entry:hover .pick, .entry.sel .pick, .pick:checked, .picking .pick { opacity: 1; }
+.entry:hover .pick, .entry.sel .pick, .pick:checked, .pick:focus-visible, .picking .pick { opacity: 1; }
 .entry.picked { background: var(--mane-soft); }
 .bulk { display: none; width: 100%; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 8px; background: var(--ground); font-size: 12.5px; color: var(--ink-2); }
 .bulk.on { display: flex; }
@@ -92,7 +92,7 @@ button:focus-visible, a:focus-visible { outline: 2px solid var(--mane); outline-
       <div class="bulk" id="bulk"><span class="count" id="bulk-count"></span><button class="primary" id="bulk-open">Open in new tabs</button><button id="bulk-remove">Remove</button><button id="bulk-clear">Clear</button></div>
       <div class="keys"><kbd>/</kbd> search · <kbd>↑</kbd><kbd>↓</kbd> move · <kbd>↩</kbd> open · <kbd>⌘↩</kbd> new tab · <kbd>⌫</kbd> remove · <kbd>space</kbd> select · shift-click selects a range · click a site to see only it · <kbd>g</kbd> group by site</div>
     </div>
-    <div id="list"><div class="empty">Loading…</div></div>
+    <div id="list" aria-live="polite"><div class="empty">Loading…</div></div>
   </main>
 </div>
 <script src="bridge.js"></script>

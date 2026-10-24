@@ -142,7 +142,8 @@ namespace {
 // Splits a SpaceKey back into its space and URL.
 std::pair<int, std::string> SplitKey(const std::string& key) {
   size_t tab = key.find('\t');
-  if (tab == std::string::npos) return {0, key};
+  // Only "<digits>\t<url>" is a space key; anything else is a space-0 URL that holds a tab.
+  if (tab == std::string::npos || tab == 0 || key.find_first_not_of("0123456789") != tab) return {0, key};
   return {std::atoi(key.c_str()), key.substr(tab + 1)};
 }
 }  // namespace
@@ -269,11 +270,17 @@ void State::Load() {
     spaces.clear();
     for (size_t i = 0; i < list->GetSize(); ++i) {
       auto sp = list->GetDictionary(i);
+      // A missing or repeated id would become a second space 0 (or alias another space): skip it.
+      if (!sp || (sp->GetType("id") != VTYPE_INT && sp->GetType("id") != VTYPE_DOUBLE) ||
+          FindSpace(static_cast<int>(Num(sp, "id"))))
+        continue;
       spaces.push_back({static_cast<int>(Num(sp, "id")), Str(sp, "name", "Space"), Str(sp, "color", ""), {}});
       if (auto pins = sp->GetList("pinnedExtensions"))
         for (size_t j = 0; j < pins->GetSize(); ++j) spaces.back().pinned_extensions.push_back(pins->GetString(j));
       spaces.back().agents = Bool(sp, "agents", true);
     }
+    // Space 0 (the global profile) must always exist.
+    if (!FindSpace(0)) spaces.insert(spaces.begin(), {0, "Personal"});
   }
   active_space = static_cast<int>(Num(d, "activeSpace"));
   github_space = static_cast<int>(Num(d, "githubSpace", -1));
@@ -432,10 +439,12 @@ void State::SetPageText(int space, const std::string& url, const std::string& ti
                         const std::string& text) {
   if (url.rfind("http", 0) != 0 || text.empty()) return;
   std::string clipped = text.substr(0, kMaxPageChars);
-  // Don't cut a UTF-8 sequence in half.
-  while (!clipped.empty() && (static_cast<unsigned char>(clipped.back()) & 0xC0) == 0x80)
+  // Don't cut a UTF-8 sequence in half (only when clipped: an intact last character stays).
+  if (clipped.size() < text.size())
+    while (!clipped.empty() && (static_cast<unsigned char>(clipped.back()) & 0xC0) == 0x80)
+      clipped.pop_back();
+  if (clipped.size() < text.size() && !clipped.empty() && (static_cast<unsigned char>(clipped.back()) & 0x80))
     clipped.pop_back();
-  if (!clipped.empty() && (static_cast<unsigned char>(clipped.back()) & 0x80)) clipped.pop_back();
   pages[SpaceKey(space, url)] = {title, clipped, NowSeconds(), space, url};
   TrimOldest(pages, kMaxPages, [](const auto& p) { return p.indexed_at; });
 }

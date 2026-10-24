@@ -6,10 +6,12 @@ import { mkdtempSync, mkdirSync, realpathSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createInterface } from 'node:readline';
+import { cdpAuth } from './cdp_auth.mjs';
 
 const bin = process.argv[2];
 const root = join(import.meta.dirname, '..');
 const data = realpathSync(mkdtempSync(join(tmpdir(), 'roar-cards-')));
+cdpAuth(data);
 const port = String(9800 + Math.floor(Math.random() * 150));
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 let failed = 0;

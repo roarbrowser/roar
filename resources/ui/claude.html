@@ -137,7 +137,7 @@ async function meta() {
   $('color-chip').style.setProperty('--chip-t', pair.t || 'var(--ground)');
   for (const b of $('color-on').children) b.setAttribute('aria-pressed', String((b.dataset.on === 't') === colorTerm));
   if (!$('colors').contains(document.activeElement))
-    $('colors').innerHTML = ['', ...CL_COLORS].map((x) => `<button data-color="${x}" aria-pressed="${x === tint}" title="${x ? 'Color this session' : 'No color'}" style="background:${x || 'var(--ink-3)'}"></button>`).join('');
+    $('colors').innerHTML = ['', ...CL_COLORS].map((x) => `<button data-color="${x}" aria-pressed="${x === tint}" title="${x ? 'Color this session' : 'No color'}" aria-label="${x ? CL_COLOR_NAMES[x] : 'No color'}" style="background:${x || 'var(--ink-3)'}"></button>`).join('');
   colorState = s;
   const st = c.acked && c.state === 'needs_you' ? 'working' : (c.state || 'idle');
   $('state').textContent = [STATES[st] || st, c.doing || (c.prompt || '').split('\n')[0]].filter(Boolean).join(' · ');

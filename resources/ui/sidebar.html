@@ -1942,7 +1942,7 @@ const COLORS = ['', '#e5484d', '#f76b15', '#ffc53d', '#46a758', '#12a594', '#009
 const COLOR_NAMES = { '#e5484d': 'Red', '#f76b15': 'Orange', '#ffc53d': 'Yellow', '#46a758': 'Green', '#12a594': 'Teal', '#0090ff': 'Blue', '#8e4ec6': 'Purple', '#d6409f': 'Pink' };
 function renderSwatches() {
   const sp = state?.spaces.find((x) => x.id === menuSpace);
-  $('swatches').innerHTML = COLORS.map((c) => `<button data-color="${c}" aria-pressed="${(sp?.color || '') === c}" title="${c || 'Default'}" style="background:${c || 'var(--ink-3)'}"></button>`).join('');
+  $('swatches').innerHTML = COLORS.map((c) => `<button data-color="${c}" aria-pressed="${(sp?.color || '') === c}" title="${c || 'Default'}" aria-label="${COLOR_NAMES[c] || 'Default'}" style="background:${c || 'var(--ink-3)'}"></button>`).join('');
 }
 $('swatches').addEventListener('mousedown', (e) => e.preventDefault());
 $('swatches').addEventListener('click', (e) => {
