@@ -1,0 +1,11 @@
+third_party/
+build/
+.DS_Store
+CLAUDE.local.md
+.mcp.json
+docs/media/takes/
+marketing/commercial/
+dictate/mac/.build/
+docs/launch/
+docs/brand/
+scripts/demo/

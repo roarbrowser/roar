@@ -1,0 +1,632 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Settings</title>
+<link rel="stylesheet" href="roar.css">
+<style>
+body { background: var(--panel); overflow-y: auto; }
+.wrap { max-width: 860px; margin: 0 auto; padding: 36px 28px 96px; display: grid; grid-template-columns: 170px 1fr; gap: 0 36px; }
+.top { grid-column: 1 / -1; display: flex; align-items: center; gap: 16px; margin-bottom: 22px; }
+h1 { margin: 0; font: 800 30px/1 var(--round); letter-spacing: -.02em; flex: 1; }
+#search { width: 220px; padding: 7px 11px; border-radius: 8px; border: 1px solid var(--rule); background: var(--ground); color: var(--ink); font: 13px var(--ui); }
+nav { position: sticky; top: 24px; align-self: start; display: grid; gap: 2px; }
+nav a { color: var(--ink-2); text-decoration: none; padding: 6px 10px; border-radius: 7px; font-weight: 500; }
+nav a:hover, nav a[aria-current="true"] { background: var(--ground); color: var(--ink); }
+nav .tips { margin-top: 14px; font-size: 12px; color: var(--ink-3); }
+main { display: grid; gap: 30px; min-width: 0; align-content: start; }
+section[hidden] { display: none; }
+details.group { border: 1px solid var(--rule); border-radius: 10px; padding: 0 14px; margin-top: 14px; }
+details.as-more summary, details.group summary { color: var(--ink-3); }
+.btn.on { color: var(--ok); }
+section { display: grid; gap: 2px; scroll-margin-top: 20px; }
+h2 { margin: 0 0 6px; font: 700 16px var(--round); }
+h3 { margin: 14px 0 6px; font: 600 12.5px var(--ui); color: var(--ink-3); }
+.row { display: flex; align-items: center; gap: 12px; min-height: 40px; padding: 6px 0; border-bottom: 1px solid var(--rule); flex-wrap: wrap; }
+.row > .name { flex: 1; min-width: 180px; }
+.row small { display: block; color: var(--ink-3); font-size: 12px; }
+.row small[data-state=running], .row small[data-state=available] { color: var(--ok); }
+.row .fix { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 6px; }
+.row .fix code { font: 12px var(--mono); padding: 4px 8px; border-radius: 6px; background: var(--ground); box-shadow: inset 0 0 0 1px var(--rule); user-select: all; overflow-wrap: anywhere; }
+.row .end { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+select, input[type=text], input[type=password] { font: 13px var(--ui); padding: 5px 9px; border-radius: 7px; border: 1px solid var(--rule); background: var(--ground); color: var(--ink); }
+input.query { font: 12.5px var(--mono); width: 300px; max-width: 100%; }
+.module { border: 1px solid var(--rule); border-radius: 10px; padding: 4px 14px; margin-bottom: 10px; }
+.module > .row:last-child, .module fieldset > .row:last-child { border-bottom: 0; }
+.module .head .name { font-weight: 600; display: grid; grid-template-columns: 24px 1fr; align-items: center; }
+.module .head .name small { grid-column: 2; font-weight: 400; }
+.module .head svg { width: 16px; height: 16px; color: var(--ink-2); }
+.module fieldset { padding-left: 24px; }
+fieldset .reason { padding: 4px 0 8px; }
+.agent-row { display: flex; gap: 8px; align-items: center; min-width: 200px; }
+.agent-row .on { color: var(--ok); }
+.tool-row .agent-icon { vertical-align: -3px; margin-right: 8px; }
+details summary { cursor: default; padding: 8px 0; font-weight: 500; color: var(--ink-2); }
+pre { margin: 6px 0; font: 12px/1.6 var(--mono); background: var(--ground); border-radius: 8px; padding: 12px 14px; overflow-x: auto; color: var(--ink-2); }
+.nomatch { display: none !important; }
+.empty { color: var(--ink-3); padding: 12px 0; }
+@media (max-width: 640px) { .wrap { grid-template-columns: 1fr; } nav { position: static; grid-auto-flow: column; overflow-x: auto; } }
+.status.warn { color: var(--mane-ink, #d9822b); }
+/* Agents: a grid of cards, CLIs first in their order (drag a card, or arrow keys on its handle). */
+.as-hint { margin: -2px 0 12px; font-size: 12px; color: var(--ink-3); }
+.as-list { list-style: none; margin: 0 0 10px; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 10px; }
+.as-list > .empty { grid-column: 1 / -1; }
+.row.as-card { position: relative; display: grid; grid-template-rows: auto 1fr auto; align-items: start; gap: 6px; min-height: 0; padding: 14px; border: 1px solid var(--rule); border-radius: 12px; background: var(--ground); transition: border-color .15s, box-shadow .15s; }
+.row.as-card:hover { border-color: color-mix(in srgb, var(--mane) 35%, var(--rule)); }
+.as-card.on { border-color: color-mix(in srgb, var(--ok) 35%, var(--rule)); }
+.as-card.wide { grid-column: 1 / -1; }
+.as-card.drop { box-shadow: 0 0 0 2px var(--mane); }
+.as-card.away .name { color: var(--ink-2); }
+.as-top { display: flex; align-items: center; gap: 10px; }
+.as-top .name { flex: 1; font: 600 14px var(--round); min-width: 0; }
+.as-av { flex: none; display: grid; place-items: center; width: 28px; height: 28px; border-radius: 8px; background: var(--panel); box-shadow: inset 0 0 0 1px var(--rule); }
+.row small.as-st { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--ink-3); }
+.as-st::before { content: ""; flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--rule); }
+.as-st[data-state=available] { color: var(--ok); } .as-st[data-state=available]::before { background: var(--ok); }
+.as-st.warn { color: var(--mane-ink); } .as-st.warn::before { background: var(--mane); }
+.as-st.live::before { animation: as-pulse 1.8s ease-out infinite; }
+@keyframes as-pulse { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--ok) 60%, transparent); } 100% { box-shadow: 0 0 0 7px transparent; } }
+.as-act { display: flex; justify-content: flex-end; gap: 6px; min-height: 30px; align-items: end; }
+.as-act .btn { padding: 5px 12px; background: var(--panel); }
+.as-act .btn:not(.quiet) { color: var(--mane-ink); }
+.as-act .btn.quiet { background: none; color: var(--ink-3); }
+.as-act .btn.quiet:hover { color: var(--danger); background: none; }
+.grip { display: grid; gap: 2px; padding: 6px 4px; border-radius: 5px; cursor: grab; color: var(--ink-3); background: none; opacity: 0; transition: opacity .15s; }
+.as-card:hover .grip, .grip:focus-visible { opacity: 1; }
+.grip i { display: block; width: 10px; height: 1.5px; background: currentColor; border-radius: 1px; }
+.grip:hover, .grip:focus-visible { color: var(--ink); background: var(--panel); }
+.as-banner { display: flex; align-items: center; gap: 10px; padding: 6px 6px 6px 12px; margin-bottom: 10px; border-radius: 999px; background: var(--mane-soft); color: var(--ink); font-size: 12.5px; }
+.as-banner::before { content: ""; flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--mane); }
+.as-banner span { flex: 1; }
+.as-banner .btn { padding: 4px 12px; border-radius: 999px; background: var(--mane); color: #2a1604; font-weight: 600; }
+details.as-more { margin-top: 2px; }
+details.as-more .as-list { margin-top: 4px; }
+/* Sessions and Browsing: one rounded block each. */
+.blk { border: 1px solid var(--rule); border-radius: 12px; padding: 4px 16px; margin-top: 14px; }
+.blk h3 { margin: 10px 0 2px; font: 700 11px var(--ui); letter-spacing: .06em; text-transform: uppercase; }
+.blk .row:last-child, .blk fieldset .row:last-child { border-bottom: 0; }
+.sp-row { align-items: flex-start; }
+.sp-chips { display: flex; flex-wrap: wrap; gap: 6px; flex-basis: 100%; padding-bottom: 4px; }
+.sp-chip { display: inline-flex; align-items: center; gap: 7px; padding: 5px 12px 5px 10px; border-radius: 999px; font-size: 12.5px; color: var(--ink-2); box-shadow: inset 0 0 0 1px var(--rule); }
+.sp-chip input { appearance: none; margin: 0; width: 8px; height: 8px; border-radius: 50%; box-shadow: inset 0 0 0 1.5px var(--ink-3); }
+.sp-chip:has(input:checked) { background: var(--mane-soft); color: var(--mane-ink); box-shadow: none; }
+.sp-chip input:checked { background: var(--mane); box-shadow: 0 0 0 2px color-mix(in srgb, var(--mane) 35%, transparent); }
+.sp-chip:has(input:focus-visible) { outline: 2px solid var(--mane); outline-offset: 1px; }
+/* Notifications: one row per type, columns line up under .nt-head. */
+.nt-head, .row.nt { display: grid; grid-template-columns: 1fr 92px 56px 40px; gap: 12px; align-items: center; }
+.nt-head { font-size: 12px; color: var(--ink-3); padding: 4px 0; border-bottom: 1px solid var(--rule); }
+.nt-head span, .row.nt > :not(.name) { justify-self: center; }
+.row.nt select { width: 92px; }
+.row.nt input[data-nt-mac] { width: 16px; height: 16px; margin: 0; accent-color: var(--mane); }
+.row.nt.off .name { color: var(--ink-2); }
+p.reason a { color: inherit; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top"><h1>Settings</h1><input id="search" type="search" placeholder="Search settings" aria-label="Search settings" spellcheck="false"><button class="btn" id="close">Close</button></div>
+  <nav aria-label="Settings categories">
+    <a href="#general">General</a><a href="#tabs">Tabs &amp; Sidebar</a><a href="#modules">Sidebar modules</a>
+    <a href="#dictation">Dictation</a><a href="#chat">Model chat</a><a href="#agents">Agents</a><a href="#notifications">Notifications</a><a href="#privacy">Privacy</a><a href="#backup">Backup</a><a href="#advanced">Advanced</a>
+    <a href="#" class="tips" id="tips">Tips &amp; shortcuts</a>
+  </nav>
+  <main>
+    <section id="general"><h2>General</h2>
+      <div class="row"><span class="name">Default browser<small id="default-status"></small></span><span class="end"><button class="btn" id="make-default">Make Roar the default</button></span></div>
+      <div class="row"><label class="name" for="ask-default">Remind me at launch when Roar isn't the default</label><input type="checkbox" class="switch" id="ask-default" data-set="askDefault"></div>
+      <div class="row"><label class="name" for="engine">Search engine</label><select id="engine">
+        <option value="https://duckduckgo.com/?q=">DuckDuckGo</option><option value="https://www.google.com/search?q=">Google</option>
+        <option value="https://www.bing.com/search?q=">Bing</option><option value="https://kagi.com/search?q=">Kagi</option>
+        <option value="https://search.brave.com/search?q=">Brave Search</option><option value="https://www.startpage.com/do/search?q=">Startpage</option>
+        <option value="https://www.ecosia.org/search?q=">Ecosia</option></select></div>
+      <div class="row"><label class="name" for="after-updates">After updates<small>Bring back open tabs when Roar relaunches. Pinned tabs always come back.</small></label><select id="after-updates" data-set="afterUpdates">
+        <option value="ask">Ask</option><option value="restore">Always restore</option><option value="never">Never restore</option></select></div>
+      <div class="row"><span class="name">Import from<small>Bookmarks, pinned tabs, extensions, and spaces from Arc.</small></span><span class="end" id="imports">
+        <button class="chip" data-import="arc">Arc</button><button class="chip" data-import="chrome">Chrome</button><button class="chip" data-import="safari">Safari</button>
+        <button class="chip" data-import="firefox">Firefox</button><button class="chip" data-import="edge">Edge</button><button class="chip" data-import="dia">Dia</button></span></div>
+      <p class="reason">Add extensions like Dark Reader, LastPass or 1Password from the <a href="https://chromewebstore.google.com/" id="cws">Chrome Web Store</a>.</p>
+    </section>
+
+    <section id="tabs"><h2>Tabs &amp; Sidebar</h2>
+      <div class="row"><span class="name" id="archive-label">Archive idle tabs after<small>Pinned tabs stay. Archived brings one back.</small></span>
+        <div class="segmented" role="group" aria-labelledby="archive-label" data-seg="archiveAfterHours">
+          <button data-v="6">6 h</button><button data-v="12">12 h</button><button data-v="24">1 day</button><button data-v="168">1 week</button><button data-v="0">Never</button></div></div>
+      <h3>Pinned tiles</h3>
+      <div class="row"><label class="name" for="pin-cols">Tiles per row</label><select id="pin-cols" data-set="pinnedColumns" data-kind="number">
+        <option value="0">Fit to width</option><option>2</option><option>3</option><option>4</option><option>5</option><option>6</option><option>7</option><option>8</option></select></div>
+      <div class="row"><label class="name" for="pin-center">Center a short last row</label><input type="checkbox" class="switch" id="pin-center" data-set="pinnedCentered"></div>
+      <h3>Spaces</h3>
+      <div class="row"><span class="name"><span id="spaces"></span><small>Rename, remove and agent access are in each space's sidebar menu.</small></span><span class="end"><button class="btn" id="space-add">Add space</button></span></div>
+    </section>
+
+    <section id="modules"><h2>Sidebar modules</h2>
+      <div class="module" data-module="github">
+        <div class="row head"><label class="name" for="gh-on"><span data-icon="github"></span>Pull requests<small id="gh-status">Checking GitHub CLI…</small></label><input type="checkbox" class="switch" id="gh-on"></div>
+        <fieldset id="gh-opts">
+          <div class="row"><label class="name" for="gh-query">GitHub search query<small>Refreshes every 10 minutes.</small></label><span class="end"><input type="text" class="query" id="gh-query" spellcheck="false"><button class="btn" id="gh-reset">Reset</button></span></div>
+        </fieldset>
+      </div>
+      <div class="module" data-module="gmail">
+        <div class="row head"><label class="name" for="gm-on"><span data-icon="gmail"></span>Unread mail<small id="gm-status"></small></label><input type="checkbox" class="switch" id="gm-on"></div>
+        <fieldset id="gm-opts">
+          <div class="row" id="gm-account-row"><span class="name">Gmail in this space<small id="gm-account"></small></span><button class="btn" id="gm-signout">Sign out</button></div>
+        </fieldset>
+      </div>
+      <div class="module" data-module="outlook">
+        <div class="row head"><label class="name" for="ol-on"><span data-icon="outlook"></span>Outlook icon<small>Shows while this space is signed in to Outlook.</small></label><input type="checkbox" class="switch" id="ol-on"></div>
+        <div class="row"><label class="name" for="ol-mail">Unread mail (Outlook)<small>Lists unread inbox mail under the icon. Off, the icon just opens Outlook.</small></label><input type="checkbox" class="switch" id="ol-mail"></div>
+      </div>
+      <div class="module">
+        <div class="row head"><label class="name" for="art-on"><span data-icon="link"></span>Claude Artifacts<small>Artifacts you open get their own section. Ones an agent opens stay in Tabs.</small></label><input type="checkbox" class="switch" id="art-on" data-set="artifactGroup"></div>
+      </div>
+    </section>
+
+    <section id="dictation"><h2>Dictation</h2>
+      <div class="row"><label class="name" for="dict-on">Dictation<small>Speak into any text field. Speech becomes text on this Mac; no audio leaves it.</small></label><input type="checkbox" class="switch" id="dict-on" data-set="dictation"></div>
+      <fieldset id="dict-opts" style="border:0;margin:0;padding:0">
+        <p class="reason" id="dict-reason">Turn on Dictation to choose its shortcut and get the speech model.</p>
+        <div class="row"><label class="name" for="dict-key">Shortcut<small id="dict-key-note">Starts and stops dictation. Click, then press the keys.</small></label><input type="text" id="dict-key" readonly style="width:150px;text-align:center" aria-describedby="dict-key-note"></div>
+        <div class="row"><span class="name">Speech model<small id="dict-model" role="status"></small></span><span class="end"><button class="btn" id="dict-get">Download now</button><button class="btn" id="dict-remove">Remove downloaded model</button></span></div>
+      </fieldset>
+    </section>
+
+    <section id="chat"><h2>Model chat</h2>
+      <p class="reason">Chat with a model on this Mac, or OpenAI, Anthropic and Perplexity with your own API key. Keys stay in your Keychain.</p>
+      <div id="ask-llm-row"></div>
+      <div class="row"><label class="name" for="chat-default">Default model<small id="chat-default-note">Models from the servers that answer now.</small></label><select id="chat-default"></select></div>
+      <h3>Your subscriptions</h3>
+      <p class="reason" id="code-copy">Coding assistants you've installed use your own plan, no API key. Each runs in a macOS sandbox: it reads only its own folders and reaches the network over HTTPS. Only Claude Code can be sent a tab.</p>
+      <div id="chat-providers"></div>
+      <div class="row"><span class="name">Add an OpenAI-compatible server<small>Any server with /v1/chat/completions, like vLLM or LiteLLM.</small></span>
+        <span class="end"><input type="text" id="chat-add-name" placeholder="Name" aria-label="New server name" style="width:110px"><input type="text" id="chat-add-url" class="query" placeholder="http://localhost:8000/v1" aria-label="New server URL" style="width:220px"><button class="btn" id="chat-add">Add</button></span></div>
+    </section>
+
+    <section id="agents"><h2>Agents</h2>
+      <p class="as-hint">Drag to reorder. Rename with AI uses the first agent with a running session; Shift-click to pick another.<span hidden>Agent order. Tools you use. Show more, copy config.</span></p>
+      <div id="agent-setup"></div>
+      <div class="blk"><h3>Sessions</h3>
+        <div class="row"><span class="name" id="view-label">Show sessions as<small>Each session can switch on its own.</small></span>
+          <div class="segmented" role="group" aria-labelledby="view-label" data-seg="agentTerminal">
+            <button data-v="false">Chat</button><button data-v="true">Terminal</button></div></div>
+        <div class="row"><label class="name" for="cl-side">Sessions in the sidebar<small>When off, Ask chats still show under AI.</small><span hidden>Agent sessions in the sidebar</span></label><input type="checkbox" class="switch" id="cl-side" data-set="claudeSidebar"></div>
+        <div class="row"><label class="name" for="af-on">Agent files row<small>Opens CLAUDE.md, AGENTS.md and rules in one click.</small></label><input type="checkbox" class="switch" id="af-on" data-set="agentFilesRow"></div>
+      </div>
+      <div class="blk"><h3>Browsing</h3>
+        <div class="row"><label class="name" for="cdp-on" title="Close it before a site that flags automated browsers">Let agents use Roar<span hidden>Agents can browse with Roar</span></label><span class="end"><button class="btn" id="cdp-relaunch" hidden>Relaunch to apply</button><input type="checkbox" class="switch" id="cdp-on" data-set="cdpEnabled"></span></div>
+        <fieldset id="agent-opts">
+          <div class="row"><span class="name" id="mode-label">Where agents browse<small id="mode-note"></small></span>
+            <div class="segmented" role="group" aria-labelledby="mode-label" data-seg="agentHeadless">
+              <button data-v="false">With you</button><button data-v="true">In the background</button></div></div>
+          <div class="row sp-row"><span class="name">Spaces agents can reach<small>Or click a space’s dot in the sidebar; a ring means agents can reach it. Ghost tabs always stay private.</small><span hidden>Spaces agents can see</span></span><div id="agent-spaces" class="sp-chips"></div></div>
+        </fieldset>
+      </div>
+      <p class="reason">Session alerts live in <a href="#notifications" data-goto="notifications">Notifications</a>.</p>
+      <details class="group" id="card-diag"><summary>Cards in the sidebar now</summary>
+        <div class="row"><span class="name">Where each card came from and why it's still up<small>Dismiss answers a waiting question with “dismissed”.</small></span><span class="end"><button class="btn" id="cards-refresh">Refresh</button></span></div>
+        <div id="agent-cards"></div>
+      </details>
+    </section>
+
+    <section id="notifications"><h2>Notifications</h2>
+      <p class="reason">Cards appear in the sidebar. Done cards count time only while Roar is in front.</p>
+      <div class="nt-head" aria-hidden="true"><span></span><span>Clears after</span><span>macOS</span><span>On</span></div>
+      <div id="notify-rows"></div>
+      <div class="row"><label class="name" for="dock-badge">Count on the Dock icon<small>A red number on Roar's Dock icon for sessions and agents that need you.</small></label><input type="checkbox" class="switch" id="dock-badge"></div>
+    </section>
+
+    <section id="privacy"><h2>Privacy</h2>
+      <div class="row"><label class="name" for="index-on">Remember the text of pages I visit<small id="index-status"></small></label><span class="end"><button class="btn" id="forget" hidden>Forget saved text</button><input type="checkbox" class="switch" id="index-on" data-set="indexPages"></span></div>
+      <div class="row" id="otp-row"><label class="name" for="otp-on">Fill verification codes from Messages<small id="otp-note">When a site texts you a sign-in code, Roar offers it in the code box so you don't have to copy it. Roar reads only texts from the last few minutes, only when you're in a code field, and never saves or sends them. Needs Full Disk Access.</small></label><input type="checkbox" class="switch" id="otp-on" data-set="messagesCodes"></div>
+      <div class="row" id="otp-mail-row"><label class="name" for="otp-mail-on">Fill verification codes from Apple Mail<small id="otp-mail-note">When a site emails you a sign-in code, Roar offers it in the code box. Roar reads only emails in the Apple Mail app received in the last few minutes, only when you're in a code field, and never saves or sends them. Web mail like Gmail in a browser isn't covered. Needs Full Disk Access.</small></label><input type="checkbox" class="switch" id="otp-mail-on" data-set="mailCodes"></div>
+      <div class="module">
+        <div class="row head"><label class="name" for="clean-links"><span data-icon="link"></span>Clean links I copy<small>Copy Link Address gives the real link. Links you open never change.</small></label><input type="checkbox" class="switch" id="clean-links" data-set="cleanLinks"></div>
+        <fieldset id="clean-opts">
+          <div class="row"><label class="name" for="cl-safe">Unwrap Outlook and Teams Safe Links</label><input type="checkbox" class="switch" id="cl-safe" data-set="cleanSafeLinks"></div>
+          <div class="row"><label class="name" for="cl-mcas">Remove Microsoft Defender's .mcas.ms proxy</label><input type="checkbox" class="switch" id="cl-mcas" data-set="cleanMcas"></div>
+          <div class="row"><label class="name" for="cl-track">Remove tracking parameters<small>utm_*, fbclid, gclid, msclkid and similar.</small></label><input type="checkbox" class="switch" id="cl-track" data-set="cleanTracking"></div>
+          <div class="row"><label class="name" for="cl-params">Also remove these parameters<small>Comma-separated. End with * to match a prefix.</small></label><input type="text" class="query" id="cl-params" data-set="cleanParams" spellcheck="false" placeholder="ref, src_*"></div>
+        </fieldset>
+      </div>
+    </section>
+
+    <section id="backup"><h2>Backup</h2>
+      <h3>What to include</h3>
+      <div class="row"><label class="name" for="bk-settings">Settings, spaces and tabs<small>Also pinned tabs, folders, bookmarks and site permissions.</small></label><input type="checkbox" class="switch" id="bk-settings" checked></div>
+      <div class="row"><label class="name" for="bk-extensions">Extensions and their data<small>Such as userscripts and uBlock filters. Needs Settings.</small></label><input type="checkbox" class="switch" id="bk-extensions" checked></div>
+      <div class="row"><label class="name" for="bk-browsing">Browsing data (cookies, history, sessions)<small id="bk-browsing-note">The file then holds your sign-ins. Keep it as safe as a password.</small></label><input type="checkbox" class="switch" id="bk-browsing"></div>
+      <p class="status">Passwords and API keys are never exported. Cookies restore only on the same kind of computer.</p>
+      <div class="row"><span class="name">Export<small>Saves what's on above to one .roarbackup file.</small></span><button class="btn" id="bk-export">Export…</button></div>
+      <div class="row"><span class="name">Import<small>Saves a safety backup first, then replaces and restarts.</small></span><button class="btn" id="bk-import">Import…</button></div>
+      <div id="bk-preview" hidden>
+        <p class="status" id="bk-summary"></p>
+        <div class="end"><button class="btn" id="bk-cancel">Cancel</button><button class="btn" id="bk-confirm">Replace and restart</button></div>
+      </div>
+      <p class="status" id="bk-result" hidden></p>
+    </section>
+
+    <section id="advanced"><h2>Advanced</h2>
+      <h3>Updates</h3>
+      <div class="row"><label class="name" for="au-check">Check for updates automatically<small id="au-note">Once a day.</small></label><input type="checkbox" class="switch" id="au-check" data-set="autoUpdateChecks"></div>
+      <div class="row"><label class="name" for="au-dl">Download and install updates automatically<small>Off: Roar asks first.</small></label><input type="checkbox" class="switch" id="au-dl" data-set="autoUpdateDownloads"></div>
+      <div class="row"><span class="name">Check now</span><span class="end"><button class="btn" id="check-updates">Check for updates</button><button class="btn" id="update-chromium" title="Rebuilds Roar on the newest stable Chromium from its source checkout">Update Chromium</button></span></div>
+      <h3>Automation</h3>
+      <div class="row"><span class="name">CDP port<small>Agents and any CDP client connect on <code id="port">127.0.0.1:9222</code>.</small></span></div>
+      <details class="row"><summary>AppleScript example</summary>
+        <pre>tell application "Roar"
+  open url "https://example.com"
+  execute javascript "document.title"
+  get URL of every tab
+end tell</pre>
+      </details>
+      <h3>About</h3>
+      <div class="row"><span class="name">Open-source licenses<small>Licenses and notices for software Roar includes.</small></span><span class="end"><button class="btn" id="licenses">Open-source licenses</button><button class="btn" id="credits">Chromium credits</button></span></div>
+      <div class="row"><span class="name">Onboarding<small>The first-run steps again. Nothing is reset.</small></span><button class="btn" id="onboarding">Show onboarding</button></div>
+      <h3>Reset</h3>
+      <div class="row"><span class="name">Reset settings<small>Defaults, then onboarding. Tabs, spaces, bookmarks, extensions and logins stay.</small></span><button class="btn" id="reset-all">Reset settings…</button></div>
+      <div class="row"><span class="name">Reset Roar<small>Deletes all tabs, spaces, logins, history and extensions.</small></span><button class="btn" id="reset-roar">Reset Roar…</button></div>
+    </section>
+  </main>
+</div>
+<script src="bridge.js"></script>
+<script src="module-icons.js"></script>
+<script src="cl-session.js"></script>
+<script src="agent-setup.js"></script>
+<script src="chat-core.js"></script>
+<script>
+// Agent CLIs need macOS sandbox-exec; the Windows build can't start them yet.
+if (/^Win/.test(navigator.platform)) document.getElementById('code-copy').textContent = "Coding assistants can't run here yet: on Windows, Roar has no sandbox for them.";
+const $ = (id) => document.getElementById(id);
+const GH_DEFAULT = 'is:open is:pr author:@me archived:false';  // Matches Settings::github_query.
+let last = null;
+const setup = agentSetup($('agent-setup'), { llm: false, list: true });
+$('ask-llm-row').innerHTML = llmRowHtml();  // ⌘T's AI lives with Model chat; onboarding keeps it with agents.
+const showLlm = llmPicker($('as-llm'), () => refresh());
+$('reset-all').onclick = () => { if (confirm('Reset every setting to its default? Tabs, spaces, bookmarks, extensions and logins stay.')) ask({ cmd: 'settings.reset' }).then(apply); };
+$('licenses').onclick = () => ask({ cmd: 'open', text: 'roar://ui/THIRD_PARTY_NOTICES.txt', newTab: true });
+$('credits').onclick = () => ask({ cmd: 'open', text: 'roar://ui/CREDITS.html', newTab: true });
+$('onboarding').onclick = () => ask({ cmd: 'open', text: 'roar://ui/welcome.html', newTab: true });
+$('reset-roar').onclick = () => { if (confirm('Reset Roar? Roar quits, deletes all its tabs, spaces, logins, history and extensions, and starts fresh. This can’t be undone.')) ask({ cmd: 'run', id: 'factoryReset' }); };
+const set = (settings) => ask({ cmd: 'settings.set', settings }).then(apply);
+const refresh = () => ask({ cmd: 'state' }).then(apply);
+
+// Notifications: same ids, order and defaults as NotifyTypes (src/notify_prefs.h); saved in
+// settings.notifications as "id:on:secs:mac,…". Hidden words keep the old switches' names searchable.
+const NOTIFY = [
+  ['sessionDone', 'Session finished', 'An agent session finished its turn.', [1, 45, 1], 'Alert me when a session finishes. Auto-dismiss done cards. Also send a macOS notification.'],
+  ['sessionNeeds', 'Session needs you', 'An agent session is waiting for you.', [1, 120, 1], 'Alert me when a session needs me.'],
+  ['agentDone', 'Agent messages', 'Updates an agent sends you, such as “done”.', [1, 45, 0], 'notify_user done info cards'],
+  ['agentNeeds', 'Agent needs you', 'An agent is blocked. Questions it asks always show.', [1, 120, 1], 'notify_user needs_you ask_user'],
+  ['agentPage', 'Agent opened a page', 'While Roar is in the background.', [1, 45, 0], ''],
+  ['update', 'Update available', 'A new version of Roar is ready to install.', [0, 0, 0], ''],
+  ['download', 'Download finished', 'A file finished downloading.', [0, 15, 0], ''],
+  ['dictation', 'Dictation stopped', 'For example, no speech was heard.', [0, 15, 0], ''],
+  ['error', 'Something failed', 'A download, an import, or an agent session that didn’t start.', [0, 45, 0], 'errors'],
+];
+const DISMISS = [[0, 'Never'], [5, '5 s'], [15, '15 s'], [30, '30 s'], [45, '45 s'], [120, '2 min']];
+const notifyParse = (str) => {
+  const m = {};
+  for (const e of (str || '').split(',')) {
+    const [id, on, secs, mac] = e.split(':');
+    if (/^[01]$/.test(on) && /^\d+$/.test(secs) && /^[01]$/.test(mac)) m[id] = [+on, +secs, +mac];
+  }
+  return Object.fromEntries(NOTIFY.map(([id, , , d]) => [id, m[id] || d]));
+};
+$('notify-rows').innerHTML = NOTIFY.map(([id, name, note, , kw]) => `<div class="row nt" data-nt="${id}"><span class="name">${esc(name)}<small>${esc(note)}</small>${kw ? `<span hidden>${esc(kw)}</span>` : ''}</span>
+  <select data-nt-secs aria-label="${esc(name)}: clears after">${DISMISS.map(([v, l]) => `<option value="${v}">${l}</option>`).join('')}</select>
+  <input type="checkbox" data-nt-mac aria-label="${esc(name)}: also send a macOS notification">
+  <input type="checkbox" class="switch" data-nt-on aria-label="${esc(name)}"></div>`).join('');
+function notifyShow(st) {
+  const m = notifyParse(st.notifications);
+  for (const r of document.querySelectorAll('[data-nt]')) {
+    const [on, secs, mac] = m[r.dataset.nt], sel = r.querySelector('[data-nt-secs]');
+    if (![...sel.options].some((o) => +o.value === secs)) sel.add(new Option(secs + ' s', secs));
+    if (document.activeElement !== sel) sel.value = String(secs);
+    r.querySelector('[data-nt-on]').checked = !!on;
+    r.querySelector('[data-nt-mac]').checked = !!mac;
+    sel.disabled = r.querySelector('[data-nt-mac]').disabled = !on;
+    r.classList.toggle('off', !on);
+  }
+}
+$('notify-rows').onchange = () => set({ notifications: [...document.querySelectorAll('[data-nt]')].map((r) =>
+  [r.dataset.nt, +r.querySelector('[data-nt-on]').checked, +r.querySelector('[data-nt-secs]').value, +r.querySelector('[data-nt-mac]').checked].join(':')).join(',') });
+for (const el of document.querySelectorAll('[data-icon]')) el.innerHTML = MODULE_ICONS[el.dataset.icon];
+
+// Updates controls in place, so focus never moves (no container is rebuilt here).
+function apply(s) {
+  if (typeof s === 'string') s = JSON.parse(s);
+  last = s;
+  const st = s.settings;
+  for (const i of document.querySelectorAll('[data-set]')) {
+    const v = st[i.dataset.set];
+    if (i.type === 'checkbox') i.checked = v === true;
+    else if (document.activeElement !== i) i.value = String(v ?? '');
+  }
+  for (const g of document.querySelectorAll('[data-seg]'))
+    for (const b of g.querySelectorAll('button')) b.setAttribute('aria-pressed', String(b.dataset.v === String(st[g.dataset.seg])));
+  const engine = $('engine');
+  if (![...engine.options].some((o) => o.value === st.searchUrl)) engine.add(new Option('Custom: ' + st.searchUrl, st.searchUrl));
+  engine.value = st.searchUrl;
+  $('make-default').hidden = st.isDefaultBrowser;
+  $('default-status').textContent = st.isDefaultBrowser ? 'Roar is your default browser.' : 'Links from other apps open elsewhere.';
+  $('default-status').className = st.isDefaultBrowser ? 'status ok' : '';
+  $('spaces').textContent = s.spaces.map((sp) => sp.name).join(' · ');
+  $('gh-on').checked = s.github.enabled;
+  $('gh-opts').disabled = !s.github.enabled;
+  if (document.activeElement !== $('gh-query')) $('gh-query').value = s.github.query;
+  $('gm-on').checked = s.gmail.enabled;
+  $('ol-on').checked = s.settings.outlookIcon;
+  $('ol-mail').checked = s.settings.outlookMail;
+  $('dock-badge').checked = s.settings.dockBadge;
+  $('gm-opts').disabled = !s.gmail.enabled;
+  $('gm-status').textContent = s.gmail.status || 'Reads Gmail with the login you already have in each space.';
+  $('gm-account-row').hidden = !s.gmail.enabled || s.gmail.signedOut || !(s.gmail.accounts?.length || s.gmail.account);
+  $('gm-account').textContent = (s.gmail.accounts || []).map((a) => a.address).filter(Boolean).join(', ') || s.gmail.account || '';
+  $('agent-opts').disabled = !st.cdpEnabled;
+  setup.refresh();
+  showLlm(st);
+  if (!chatRefresh.done) chatRefresh.done = true, chatRefresh(st);
+  $('clean-opts').disabled = !st.cleanLinks;
+  $('update-chromium').hidden = !st.canBuildChromium;
+  $('au-check').disabled = !st.updaterOn;
+  $('au-dl').disabled = !st.updaterOn || !st.autoUpdateChecks;
+  $('au-note').textContent = st.updaterOn ? 'Once a day.' : 'Updates are off in test and headless instances.';
+  $('mode-note').textContent = st.agentHeadless
+    ? 'Agents get a separate, hidden Roar with its own profile: none of your logins, nothing in this window.'
+    : 'Agents open tabs here, signed in as you, so you can watch.';
+  // Only a build without Roar's CEF patch needs a relaunch to apply it.
+  $('cdp-relaunch').hidden = st.cdpLive || st.cdpEnabled === st.cdpOn;
+  notifyShow(st);
+  // One switch per space (the same flag as "Allow agents" in a space's sidebar menu).
+  if (!$('agent-spaces').contains(document.activeElement))
+    $('agent-spaces').innerHTML = s.spaces.map((sp) => `<label class="sp-chip"><input type="checkbox" data-space-agents="${sp.id}"${sp.agents ? ' checked' : ''}>${esc(sp.name)}</label>`).join('');
+  $('index-status').textContent = st.pageCount ? `${st.pageCount} ${st.pageCount === 1 ? 'page' : 'pages'} saved on this Mac, so ⌘T finds them by what they said.` : 'So ⌘T finds pages by what they said. Nothing saved yet.';
+  $('forget').hidden = !st.pageCount;
+  $('port').textContent = '127.0.0.1:' + st.cdpPort;
+  dictShow(s.dictation, st);
+  const cards = s.alerts || [];
+  const cardsHtml = cards.length ? cards.map((a) => `<div class="row" data-card="${a.id}"><span class="name">${esc(a.title)}<small>${esc([alertChat(a, s) || a.agent || 'Roar', a.ask ? 'ask' : 'notify', a.level, Math.round(Date.now() / 1000 - a.time) + ' s old', a.owner ? (a.alive ? 'connection alive' : 'connection gone') : 'no connection', alertWhy(a)].join(' · '))}</small></span><span class="end"><button class="btn" data-card-dismiss="${a.id}">Dismiss</button></span></div>`).join('')
+    : '<div class="row"><span class="name"><small>No agent cards.</small></span></div>';
+  if ($('agent-cards').innerHTML !== cardsHtml && !$('agent-cards').contains(document.activeElement)) $('agent-cards').innerHTML = cardsHtml;
+}
+$('cards-refresh').onclick = refresh;
+$('agent-cards').onclick = (e) => { const b = e.target.closest('[data-card-dismiss]'); if (b) ask({ cmd: 'agent.answer', id: +b.dataset.cardDismiss, choice: '' }).then(refresh); };
+
+// Dictation. The shortcut box records a key combo in ParseHotkey's format (src/dictation.h): at least one modifier.
+const MAC = /Mac/.test(navigator.platform);
+const keyLabel = (k) => MAC ? k.replace(/Cmd\+/i, '⌘').replace(/Ctrl\+/i, '⌃').replace(/Alt\+/i, '⌥').replace(/Shift\+/i, '⇧') : k;  // ⌥⇧Space
+function dictShow(d, st) {
+  if (!d) return;
+  $('dict-opts').disabled = !st.dictation;
+  $('dict-reason').hidden = st.dictation;
+  if (document.activeElement !== $('dict-key')) $('dict-key').value = keyLabel(st.dictationKey);
+  if (d.keyTaken) $('dict-key-note').textContent = 'That shortcut is in use by another app. Click the box and press a different one.';
+  const pct = Math.round((d.progress || 0) * 100), have = d.diskMb > 0;
+  const busy = ['downloading', 'preparing', 'loading'].includes(d.state);
+  $('dict-model').textContent = d.state === 'downloading' ? `Downloading: ${pct}% of ${d.modelMb} MB`
+    : d.state === 'preparing' ? 'Preparing the model for this device. The first time can take a few minutes.'
+    : d.state === 'error' && d.detail ? d.detail
+    : have ? `Downloaded, ${d.diskMb} MB on this device.`
+    : `Not downloaded yet. About ${d.modelMb} MB; it downloads the first time you dictate.`;
+  $('dict-get').hidden = have || busy;
+  $('dict-remove').hidden = !have;
+  clearTimeout(dictShow.t);
+  if (busy) dictShow.t = setTimeout(refresh, 700);
+}
+$('dict-get').onclick = () => ask({ cmd: 'dictation.load' }).then(refresh);
+$('dict-remove').onclick = () => { if (confirm('Remove the speech model? Dictation downloads it again the next time you use it.')) ask({ cmd: 'dictation.removeModel' }).then(refresh); };
+$('dict-key').onkeydown = (e) => {
+  if (e.key === 'Tab') return;
+  e.preventDefault();
+  if (e.key === 'Escape') return $('dict-key').blur();
+  const k = e.code === 'Space' ? 'Space' : /^Key[A-Z]$/.test(e.code) ? e.code.slice(3) : /^Digit\d$/.test(e.code) ? e.code.slice(5) : /^F([1-9]|1[0-2])$/.test(e.code) ? e.code : '';
+  const mods = [e.metaKey && 'Cmd', e.ctrlKey && 'Ctrl', e.altKey && 'Alt', e.shiftKey && 'Shift'].filter(Boolean);
+  if (!k) return;  // Still holding modifiers.
+  if (!mods.length) return void ($('dict-key-note').textContent = `Add ${MAC ? '⌘, ⌃, ⌥ or ⇧' : 'Ctrl, Alt or Shift'} so the shortcut doesn't replace typing.`);
+  $('dict-key-note').textContent = 'Starts and stops dictation. Click, then press the keys.';
+  set({ dictationKey: [...mods, k].join('+') }).then(() => $('dict-key').blur());
+};
+
+document.querySelectorAll('[data-set]').forEach((i) => i.onchange = () => set({
+  [i.dataset.set]: i.type === 'checkbox' ? i.checked : i.dataset.kind === 'number' ? +i.value : i.value }));
+// Fill codes from Messages reads ~/Library/Messages, which only Full Disk Access opens (macOS only).
+$('otp-row').hidden = $('otp-mail-row').hidden = /^Win/.test(navigator.platform);
+for (const [on, note, mail] of [['otp-on', 'otp-note', false], ['otp-mail-on', 'otp-mail-note', true]])
+  $(on).addEventListener('change', () => {
+    if ($(on).checked) ask({ cmd: 'messages.access', mail }).then((ok) => {
+      if (ok !== '1') $(note).textContent = 'Roar opened Full Disk Access in System Settings. Turn on Roar there, then quit and reopen Roar.';
+    });
+  });
+document.querySelectorAll('[data-seg]').forEach((g) => g.onclick = (e) => {
+  const b = e.target.closest('button[data-v]');
+  if (b) set({ [g.dataset.seg]: JSON.parse(b.dataset.v) });
+});
+$('agent-spaces').onchange = (e) => {
+  const b = e.target.closest('[data-space-agents]');
+  if (b) ask({ cmd: 'space.agents', id: +b.dataset.spaceAgents, on: b.checked }).then(refresh);
+};
+$('engine').onchange = () => set({ searchUrl: $('engine').value });
+// PRs show in one space; turning them on here while they're bound to another moves them here.
+$('gh-on').onchange = () => ($('gh-on').checked ? ask({ cmd: 'settings.set', settings: { githubFolder: false } }) : Promise.resolve()).then(() => set({ githubFolder: $('gh-on').checked }));
+$('gh-query').onchange = () => set({ githubQuery: $('gh-query').value.trim() || GH_DEFAULT });
+$('gh-reset').onclick = () => { $('gh-query').value = GH_DEFAULT; set({ githubQuery: GH_DEFAULT }); };
+$('ol-on').onchange = () => set({ outlookIcon: $('ol-on').checked });
+$('ol-mail').onchange = () => set({ outlookMail: $('ol-mail').checked });
+$('dock-badge').onchange = () => set({ dockBadge: $('dock-badge').checked });
+$('gm-on').onchange = () => set({ gmailFolder: $('gm-on').checked });
+$('gm-signout').onclick = () => {
+  if (confirm('Sign out of every Google account in this space? Google can’t sign out just one.')) ask({ cmd: 'run', id: 'gmailSignOut' }).then(refresh);
+};
+$('make-default').onclick = () => ask({ cmd: 'browser.makeDefault' }).then(refresh);
+$('forget').onclick = () => ask({ cmd: 'run', id: 'forgetPages' }).then(refresh);
+$('space-add').onclick = () => ask({ cmd: 'space.add', name: '' }).then(refresh);
+$('imports').onclick = (e) => { const b = e.target.closest('[data-import]'); if (b) ask({ cmd: 'run', id: 'import:' + b.dataset.import }).then(refresh); };
+$('cdp-relaunch').onclick = () => ask({ cmd: 'run', id: 'relaunch' });
+$('check-updates').onclick = () => ask({ cmd: 'run', id: 'checkUpdates' });
+$('update-chromium').onclick = () => ask({ cmd: 'run', id: 'updateChromium' });
+$('close').onclick = () => ask({ cmd: 'tab.closeSelf' });
+
+// Backup: export to / import from a .roarbackup file (src/backup.h).
+const bkCats = () => ['settings', 'extensions', 'browsing'].filter((c) => $('bk-' + c).checked);
+const bkSize = (n) => n > 1e9 ? (n / 1e9).toFixed(1) + ' GB' : n > 1e6 ? (n / 1e6).toFixed(1) + ' MB' : Math.ceil(n / 1e3) + ' KB';
+const bkResult = (text, warn) => { const r = $('bk-result'); r.hidden = false; r.textContent = text; r.classList.toggle('warn', !!warn); };
+const bkSkipped = (list) => list && list.length ? ' Skipped: ' + list.join('; ') + '.' : '';
+$('bk-extensions').onchange = () => { if ($('bk-extensions').checked) $('bk-settings').checked = true; };
+$('bk-settings').onchange = () => { if (!$('bk-settings').checked) $('bk-extensions').checked = false; };
+$('bk-export').onclick = async () => {
+  const categories = bkCats();
+  if (!categories.length) return bkResult('Tick at least one thing to back up.', true);
+  if (categories.includes('browsing') && !confirm('The backup will hold your cookies and history, so anyone with the file can be signed in as you. Export anyway?')) return;
+  bkResult('Exporting…');
+  try {
+    const r = await ask({ cmd: 'backup.export', categories });
+    if (r.cancelled) return $('bk-result').hidden = true;
+    if (r.error) return bkResult('Export failed: ' + r.error, true);
+    bkResult(`Saved ${r.files} files (${bkSize(r.bytes)}) to ${r.path}.` + bkSkipped(r.skipped), r.skipped.length > 0);
+  } catch (e) { bkResult('Export failed: ' + e.message, true); }
+};
+let bkManifest = null;
+$('bk-import').onclick = async () => {
+  $('bk-result').hidden = true;
+  try {
+    const m = await ask({ cmd: 'backup.inspect' });
+    if (m.cancelled) return;
+    bkManifest = m;
+    const names = { settings: 'settings, spaces and tabs', extensions: 'extensions and their data', browsing: 'browsing data' };
+    const count = {}, bytes = {};
+    for (const i of m.items) { count[i.category] = (count[i.category] || 0) + 1; bytes[i.category] = (bytes[i.category] || 0) + i.size; }
+    const what = m.categories.map((c) => `${names[c] || c} (${count[c] || 0} files, ${bkSize(bytes[c] || 0)})`).join(', ');
+    $('bk-summary').textContent = `Backup from Roar ${m.roarVersion || '?'} on ${m.platform || '?'}, made ${new Date(m.created).toLocaleString()}. ` +
+      `Restores ${what}. This replaces the same things in this Roar; a safety backup of the current state is saved first.` +
+      (m.categories.includes('browsing') && m.platform !== (MAC ? 'mac' : 'windows') ? ' Cookies from another kind of computer may not sign you in.' : '') +
+      bkSkipped((m.skipped || []).map((s) => s.path + ': ' + s.reason));
+    $('bk-preview').hidden = false;
+  } catch (e) { bkResult('Import failed: ' + e.message, true); }
+};
+$('bk-cancel').onclick = () => { $('bk-preview').hidden = true; bkManifest = null; };
+$('bk-confirm').onclick = async () => {
+  if (!bkManifest) return;
+  $('bk-preview').hidden = true;
+  bkResult('Saving a safety backup, then checking the backup…');
+  try {
+    const r = await ask({ cmd: 'backup.restore', path: bkManifest.file, categories: bkManifest.categories, ubolId: bkManifest.ubolId || '' });
+    bkResult(`Ready: ${r.files} files go in when Roar restarts. Safety backup: ${r.safety}. Restarting…`);
+    setTimeout(() => ask({ cmd: 'run', id: 'relaunch' }), 1500);
+  } catch (e) { bkResult('Import failed, nothing changed: ' + e.message, true); }
+};
+document.querySelectorAll('[data-goto]').forEach((a) => a.onclick = (e) => { e.preventDefault(); showTab(a.dataset.goto); });
+$('cws').onclick = (e) => { e.preventDefault(); ask({ cmd: 'open', text: e.target.href, newTab: true }); };
+$('tips').onclick = (e) => { e.preventDefault(); ask({ cmd: 'open', text: 'roar://ui/welcome.html#tips', newTab: true }); };
+
+// Tabs: one section shown at a time; the last one opened comes back next time.
+const tabs = [...document.querySelectorAll('nav a[href^="#"]:not(.tips)')];
+function showTab(id) {
+  if (id === 'ask') id = 'chat';  // Ask's settings live in Model chat, not a tab of their own.
+  if (!document.getElementById(id)?.matches('main section')) id = 'general';
+  for (const sec of document.querySelectorAll('main section')) sec.hidden = sec.id !== id;
+  for (const a of tabs) a.setAttribute('aria-current', String(a.hash === '#' + id));
+  try { localStorage.setItem('settingsTab', id); } catch {}
+  // Keeps the hash current so a later link to #agents is a change and fires hashchange.
+  if (location.hash !== '#' + id) history.replaceState(null, '', '#' + id);
+}
+tabs.forEach((a) => a.addEventListener('click', (e) => { e.preventDefault(); showTab(a.hash.slice(1)); }));
+let saved = 'general';
+try { saved = localStorage.getItem('settingsTab') || saved; } catch {}
+showTab(location.hash.slice(1) || saved);
+// A link to another section while Settings is open (sidebar's agent pop-ups) only changes the hash.
+addEventListener('hashchange', () => showTab(location.hash.slice(1)));
+
+// Search: hides rows (and modules) whose text doesn't match across every tab, then shows a tab
+// with a match (the current one if it has any). A class, not hidden, so it never fights apply()'s own hidden rows.
+$('search').oninput = () => {
+  const q = $('search').value.trim().toLowerCase();
+  const miss = (el) => !!q && !el.textContent.toLowerCase().includes(q);
+  const hits = [];
+  for (const sec of document.querySelectorAll('main section')) {
+    for (const r of sec.querySelectorAll('.row')) {
+      const head = r.closest('.module')?.querySelector('.head');
+      r.classList.toggle('nomatch', miss(r) && (!head || miss(head)));
+    }
+    for (const m of sec.querySelectorAll('.module')) {
+      const any = !!m.querySelector('.row:not(.nomatch)');
+      m.classList.toggle('nomatch', !any);
+      if (any) m.querySelector('.head').classList.remove('nomatch');  // Keep the module's own switch in view.
+    }
+    // A match inside a closed group opens it.
+    for (const d of sec.querySelectorAll('details')) if (q && d.querySelector('.row:not(.nomatch)')) d.open = true;
+    if (q && sec.querySelector('.row:not(.nomatch)')) hits.push(sec.id);
+  }
+  const cur = document.querySelector('main section:not([hidden])')?.id;
+  if (hits.length && !hits.includes(cur)) showTab(hits[0]);
+};
+
+// Model chat providers: the list is the chatProviders setting; keys go straight to the Keychain.
+// Each provider is probed in the background (chatCore.detectProviders); rows show "Checking…" until then,
+// and detected providers move to the top.
+async function chatRefresh(st) {
+  const list = [...chatCore.parseProviders(st.chatProviders), ...chatCore.CLI_PROVIDERS], box = $('chat-providers'), sel = $('chat-default');
+  const row = (p) => p.kind === 'cli' ? `<div class="row" data-p="${esc(p.id)}"><span class="name">${esc(p.name)}<small data-state="${p.state || ''}">${esc(p.label || 'Checking…')}</small>${p.run ? `<span class="fix"><code>${esc(p.run)}</code><button class="btn" data-copy="${esc(p.run)}">Copy</button><button class="btn" data-recheck>Check again</button></span>` : ''}${p.after ? `<small>${esc(p.after)}</small>` : ''}</span><span class="end"><small style="max-width:360px">${esc(p.isolation.replace(/\s*Runs under a macOS sandbox.*$/, ''))}</small></span></div>`
+    : `<div class="row" data-p="${esc(p.id)}"><span class="name">${esc(p.name)}<small data-state="${p.state || ''}">${esc(p.label || 'Checking…')}</small></span>
+    <span class="end"><input type="text" class="query" data-url value="${esc(p.url)}" aria-label="${esc(p.name)} URL" spellcheck="false" style="width:240px">
+    ${p.get ? `<button class="btn" data-get="${esc(p.get)}">Get ${esc(p.name)}</button>` : ''}
+    ${p.key ? `<input type="password" data-key placeholder="${p.state === 'available' ? '••••••••' : 'API key'}" aria-label="${esc(p.name)} API key" autocomplete="off" style="width:150px"><button class="btn" data-savekey>Save key</button>${p.state === 'available' ? '<button class="btn" data-delkey>Remove key</button>' : ''}` : '<button class="btn" data-remove>Remove</button>'}</span></div>`;
+  const paint = (rows) => { if (!box.contains(document.activeElement)) box.innerHTML = rows.filter((p) => p.kind === 'cli').map(row).join('') + '<h3>API keys and local servers</h3>' + rows.filter((p) => p.kind !== 'cli').map(row).join(''); };  // Don't rebuild under the cursor.
+  const gen = (chatRefresh.gen = (chatRefresh.gen || 0) + 1);
+  if (!box.children.length) paint(list);
+  const found = await chatCore.detectProviders(list, ask);
+  if (gen !== chatRefresh.gen) return;  // A newer refresh started meanwhile.
+  paint(found);
+  if (document.activeElement === sel) return;
+  sel.innerHTML = '<option value="">First available</option>' + found.filter((p) => p.models.length).map((p) => `<optgroup label="${esc(p.kind === 'cli' ? p.name + ' (your subscription)' : p.name)}">${p.models.map((x) => `<option value="${esc(p.id + '|' + x)}">${esc(x)}</option>`).join('')}</optgroup>`).join('');
+  if (st.chatModel && ![...sel.options].some((o) => o.value === st.chatModel)) sel.add(new Option(st.chatModel.split('|').pop() + ' (offline)', st.chatModel));
+  sel.value = st.chatModel || '';
+}
+const chatSave = (list) => set({ chatProviders: JSON.stringify(list) }).then(() => chatRefresh(last.settings));
+$('chat-default').onchange = () => set({ chatModel: $('chat-default').value });
+$('chat-providers').addEventListener('change', (e) => {
+  if (!e.target.matches('[data-url]')) return;
+  const id = e.target.closest('[data-p]').dataset.p, list = chatCore.parseProviders(last.settings.chatProviders);
+  const p = list.find((x) => x.id === id), url = e.target.value.trim();
+  if (!/^https?:\/\/\S+$/.test(url)) return void (e.target.value = p.url);
+  p.url = url;
+  e.target.blur();
+  chatSave(list);
+});
+$('chat-providers').addEventListener('click', async (e) => {
+  const row = e.target.closest('[data-p]');
+  if (!row) return;
+  const id = row.dataset.p, list = chatCore.parseProviders(last.settings.chatProviders);
+  if (e.target.matches('[data-copy]')) return void navigator.clipboard.writeText(e.target.dataset.copy).then(() => { e.target.textContent = 'Copied'; setTimeout(() => (e.target.textContent = 'Copy'), 1500); });
+  if (e.target.matches('[data-recheck]')) return void chatRefresh(last.settings);
+  if (e.target.matches('[data-get]')) return void ask({ cmd: 'open', text: e.target.dataset.get, newTab: true });
+  try {
+    if (e.target.matches('[data-savekey]')) {
+      const k = row.querySelector('[data-key]').value.trim();
+      if (!k) return;
+      await ask({ cmd: 'chat.keySet', provider: id, key: k });
+      row.querySelector('[data-key]').value = '';
+    } else if (e.target.matches('[data-delkey]')) await ask({ cmd: 'chat.keySet', provider: id, key: '' });
+    else if (e.target.matches('[data-remove]')) return chatSave(list.filter((p) => p.id !== id));
+    else return;
+    e.target.blur();
+    chatRefresh(last.settings);
+  } catch (err) { alert(err.message); }
+});
+$('chat-add').onclick = () => {
+  const name = $('chat-add-name').value.trim(), url = $('chat-add-url').value.trim(), list = chatCore.parseProviders(last.settings.chatProviders);
+  if (!name || !/^https?:\/\/\S+$/.test(url)) return $('chat-add-url').focus();
+  let id = name.toLowerCase().replace(/[^\w-]+/g, '-').slice(0, 30) || 'server';
+  while (list.some((p) => p.id === id)) id += '-2';
+  list.push({ id, name, url });
+  $('chat-add-name').value = $('chat-add-url').value = '';
+  chatSave(list);
+};
+
+refresh();
+ask({ cmd: 'github.status' }).then((status) => {
+  const el = $('gh-status');
+  el.textContent = { ok: 'Connected through the GitHub CLI', missing: 'Install the GitHub CLI (gh) first', 'signed-out': 'Run “gh auth login” in Terminal first' }[status] || status;
+  el.className = status === 'ok' ? 'status ok' : 'status';
+});
+</script>
+</body>
+</html>

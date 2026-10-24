@@ -1,0 +1,284 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Command bar</title>
+<link rel="stylesheet" href="roar.css">
+<style>
+/* The native window supplies the rounded corners and shadow. */
+html, body { background: var(--panel); overflow: hidden; }
+.panel { display: flex; flex-direction: column; max-height: 440px; }
+.field:focus-within { box-shadow: inset 0 -2px 0 var(--mane); }
+.field { display: flex; align-items: center; gap: 10px; padding: 0 14px 0 18px; height: 58px; border-bottom: 1px solid var(--rule); }
+input { flex: 1; min-width: 0; border: 0; outline: 0; background: transparent; color: var(--ink); font: 500 20px/1 var(--round); letter-spacing: -.005em; }
+input::placeholder { color: var(--ink-3); }
+.route { font: 600 11.5px var(--ui); color: var(--mane-ink); background: var(--mane-soft); border-radius: 6px; padding: 3px 8px; white-space: nowrap; }
+.list { overflow-y: auto; padding: 6px; }
+.item { display: flex; align-items: center; gap: 10px; height: 38px; padding: 0 10px; border-radius: 8px; width: 100%; text-align: left; }
+.item.sel { background: var(--hover); }
+.item .icon { width: 18px; height: 18px; flex: none; display: grid; place-items: center; color: var(--ink-2); }
+.item .icon svg { width: 15px; height: 15px; }
+.item .fav { width: 16px; height: 16px; display: grid; place-items: center; border-radius: 4px; overflow: hidden; }
+.item .fav img { width: 16px; height: 16px; }
+.item .fav.letter { background: var(--rule); color: var(--ink-2); font: 700 10px var(--round); }
+.item .text { flex: 1; min-width: 0; display: flex; gap: 8px; align-items: baseline; overflow: hidden; }
+.item .title { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 13.5px; }
+.item .url { color: var(--ink-3); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex-shrink: 1000; }
+.item .kind { color: var(--ink-3); font-size: 11.5px; white-space: nowrap; }
+.item.hit { height: auto; min-height: 38px; padding: 7px 10px; align-items: flex-start; }
+.item.hit .text { flex-direction: column; gap: 2px; align-items: stretch; }
+.item.hit .snip { color: var(--ink-2); font-size: 12px; line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.item.hit mark { background: var(--mane-soft); color: var(--mane-ink); border-radius: 2px; }
+.section { color: var(--ink-3); font-size: 11.5px; font-weight: 600; padding: 8px 10px 4px; }
+.foot { display: flex; gap: 14px; padding: 8px 16px; border-top: 1px solid var(--rule); color: var(--ink-3); font-size: 11.5px; }
+</style>
+</head>
+<body>
+<div class="panel">
+  <div class="field">
+    <input id="q" autocomplete="off" spellcheck="false" placeholder="Search, enter an address, or type > for commands" aria-label="Search or enter address" role="combobox" aria-controls="list" aria-expanded="true" aria-autocomplete="list">
+    <span class="route" id="route" hidden></span>
+  </div>
+  <div class="list" id="list" role="listbox"></div>
+  <div class="foot"><span><kbd>↵</kbd> go</span><span><kbd>↑</kbd><kbd>↓</kbd> choose</span><span><kbd>esc</kbd> close</span></div>
+</div>
+<script src="bridge.js"></script>
+<script>
+const COMMANDS = [
+  { id: 'clean', title: 'Clean up tabs', keys: '⇧⌘K', words: 'archive tidy broom close' },
+  { id: 'copyMarkdown', title: 'Copy page as Markdown', keys: '⇧⌘C', words: 'extract text md clipboard' },
+  { id: 'saveMarkdown', title: 'Save page as Markdown', keys: '', words: 'extract download md file' },
+  { id: 'askLlm', title: 'Ask about this page with…', keys: '', words: 'llm ai chat send gpt claude gemini perplexity', children: [
+    { id: 'askLlm:chatgpt', title: 'ChatGPT', keys: '', words: 'llm ai openai gpt' },
+    { id: 'askLlm:claude', title: 'Claude', keys: '', words: 'llm ai anthropic' },
+    { id: 'askLlm:gemini', title: 'Gemini', keys: '', words: 'llm ai google bard' },
+    { id: 'askLlm:perplexity', title: 'Perplexity', keys: '', words: 'llm ai search' },
+    { id: 'askLlm:grok', title: 'Grok', keys: '', words: 'llm ai xai' },
+    { id: 'askLlm:mistral', title: 'Le Chat', keys: '', words: 'llm ai mistral' },
+    { id: 'askLlm:deepseek', title: 'DeepSeek', keys: '', words: 'llm ai' },
+    { id: 'askLlm:copilot', title: 'Copilot', keys: '', words: 'llm ai microsoft bing' },
+    { id: 'askLlm:kimi', title: 'Kimi', keys: '', words: 'llm ai moonshot' },
+  ] },
+  { id: 'modelChat', title: 'Ask a model', keys: '', words: 'ask ai llm chat ollama lm studio llama jan openai anthropic gpt claude local model direct' },
+  { id: 'agentChat', title: 'Ask your terminal agent about this page', keys: '', words: 'ai chat claude code codex gemini qwen copilot cli session terminal' },
+  { id: 'agentSend', title: 'Send tab to agent session…', keys: '', words: 'ai attach share claude code codex gemini qwen copilot cli session terminal', children: [] },
+  { id: 'find', title: 'Find in page', keys: '⌘F', words: 'search text match' },
+  { id: 'zoomIn', title: 'Zoom in', keys: '⌘+', words: 'bigger larger magnify' },
+  { id: 'zoomOut', title: 'Zoom out', keys: '⌘−', words: 'smaller shrink' },
+  { id: 'zoomReset', title: 'Actual size', keys: '⌘0', words: 'zoom reset default 100' },
+  { id: 'print', title: 'Print page', keys: '⌘P', words: 'pdf paper' },
+  { id: 'reader', title: 'Reader mode', keys: '⌥⌘R', words: 'article clean distraction readable' },
+  { id: 'mute', title: 'Mute or unmute tab', keys: '', words: 'sound audio silence' },
+  { id: 'downloads', title: 'Show downloads', keys: '⇧⌘J', words: 'files saved progress' },
+  { id: 'history', title: 'Show all history', keys: '⌘Y', words: 'browsing visited search past' },
+  { id: 'agentmd', title: 'Agent files browser', keys: '', words: 'agents.md claude md instructions memory gemini cursor rules copilot windsurf cline kiro roo skills' },
+  { id: 'pip', title: 'Picture in picture', keys: '⇧⌘P', words: 'video pip float' },
+  { id: 'float', title: 'Float tab in a mini window', keys: '⇧⌘F', words: 'pip document always on top' },
+  { id: 'split', title: 'Split view', keys: '⌘\\', words: 'side by side two tabs pane' },
+  { id: 'newSpace', title: 'New space', keys: '', words: 'profile workspace container' },
+  { id: 'nextSpace', title: 'Next space', keys: '⇧⌘]', words: 'switch profile workspace' },
+  { id: 'prevSpace', title: 'Previous space', keys: '⇧⌘[', words: 'switch profile workspace' },
+  { id: 'clearHistory', title: 'Clear history in this space', keys: '', words: 'forget privacy delete browsing' },
+  { id: 'clearCookies', title: 'Clear cookies in this space', keys: '', words: 'sign out logout privacy delete site data' },
+  { id: 'forgetPages', title: 'Forget saved page text', keys: '', words: 'search index privacy clear' },
+  { id: 'pin', title: 'Pin or unpin tab', keys: '⌘D', words: 'pin favorite' },
+  { id: 'reopen', title: 'Reopen archived tab', keys: '⇧⌘T', words: 'restore undo closed' },
+  { id: 'clearArchive', title: 'Clear archived tabs', keys: '', words: 'forget archive empty' },
+  { id: 'sidebar', title: 'Toggle sidebar', keys: '⌥⌘B', words: 'hide show' },
+  { id: 'github', title: 'Refresh pull requests', keys: '', words: 'github pr live folder' },
+  { id: 'gmail', title: 'Refresh mail', keys: '', words: 'gmail email inbox unread live folder' },
+  { id: 'devtools', title: 'Developer tools', keys: '⌥⌘I', words: 'inspect console' },
+  { id: 'extensions', title: 'Manage extensions', keys: '', words: 'addons chrome' },
+  { id: 'import:arc', title: 'Import from Arc', keys: '', words: 'spaces pinned tabs folders migrate arc' },
+  { id: 'import:chrome', title: 'Import from Chrome', keys: '', words: 'bookmarks pinned tabs extensions profiles migrate chrome' },
+  { id: 'import:edge', title: 'Import from Edge', keys: '', words: 'bookmarks pinned tabs extensions profiles migrate edge' },
+  { id: 'import:firefox', title: 'Import from Firefox', keys: '', words: 'bookmarks pinned tabs extensions profiles migrate firefox' },
+  { id: 'import:safari', title: 'Import from Safari', keys: '', words: 'bookmarks pinned tabs extensions profiles migrate safari' },
+  { id: 'import:dia', title: 'Import from Dia', keys: '', words: 'bookmarks pinned tabs extensions profiles migrate dia' },
+  { id: 'bookmarkAdd', title: 'Bookmark this page', keys: '', words: 'bookmark save favorite star' },
+  { id: 'readLaterAdd', title: 'Add to Read Later', keys: '', words: 'read later reading list save' },
+  { id: 'bookmarks', title: 'Organize bookmarks', keys: '', words: 'bookmarks organizer read later manage' },
+  { id: 'settings', title: 'Settings', keys: '⌘,', words: 'preferences options onboarding' },
+];
+const ICON = {
+  search: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="7" cy="7" r="4.5"/><path d="m10.5 10.5 3 3"/></svg>',
+  open: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="8" cy="8" r="6"/><path d="M2 8h12M8 2c2 2.2 2 9.8 0 12M8 2c-2 2.2-2 9.8 0 12"/></svg>',
+  run: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="m4 4 4 4-4 4M9 12h4"/></svg>',
+};
+const $ = (id) => document.getElementById(id);
+const q = $('q');
+let items = [];
+let sel = 0;
+let newTab = true;
+let seq = 0;
+const ASK = COMMANDS.find((c) => c.id === 'askLlm'), ALL_LLMS = ASK.children;
+delete ASK.children;  // A single command once syncLlms names the chosen AI.
+// Agent commands only with the Agents module on; Send lists the live sessions.
+const AGENT = COMMANDS.filter((c) => c.id.startsWith('agent')), SEND = AGENT[1];
+const syncLlms = () => ask({ cmd: 'state' }).then((st) => {
+  st = typeof st === 'string' ? JSON.parse(st) : st;
+  SEND.children = (st.claude?.items || []).filter((c) => c.live && /^[\w-]+$/.test(c.id))
+    .map((c) => ({ id: 'agentSend:' + c.id, title: c.project || c.id, keys: '', words: [c.tool || 'claude', c.doing || ''].join(' ') }));
+  for (const c of AGENT) {
+    const want = st.settings?.claudeSidebar !== false && (c !== SEND || SEND.children.length), at = COMMANDS.indexOf(c);
+    if (!want && at >= 0) COMMANDS.splice(at, 1);
+    else if (want && at < 0) COMMANDS.splice(3, 0, c);
+  }
+  // The AI chosen in Settings > Model chat "Ask about this page with" (askLlms; older saves listed several, the first wins), listed first.
+  const pick = ALL_LLMS.find((c) => c.id.slice(7) === (st.settings?.askLlms || '').split(',')[0]);
+  const at = COMMANDS.indexOf(ASK);
+  if (at >= 0) COMMANDS.splice(at, 1);
+  if (pick) COMMANDS.unshift(Object.assign(ASK, { id: pick.id, title: `Ask ${pick.title} about this page`, words: ASK.words + ' ' + pick.words }));
+}).catch(() => {});
+syncLlms();
+window.addEventListener('focus', syncLlms);  // The bar is one page shown again and again.
+
+let submenu = null;  // A command whose children are listed instead of COMMANDS.
+
+function looksLikeUrl(text) {
+  if (/^[a-z][a-z0-9+.-]*:/i.test(text) && !/\s/.test(text)) return true;
+  const host = text.split(/[/?#]/)[0];
+  return !/\s/.test(text) && (host.includes('.') || host.startsWith('localhost')) && !host.endsWith('.');
+}
+
+function score(cmd, text) {
+  const hay = (cmd.title + ' ' + cmd.words).toLowerCase();
+  return text.split(/\s+/).every((w) => hay.includes(w));
+}
+
+async function update() {
+  const raw = q.value.trim();
+  const commandMode = raw.startsWith('>');
+  const text = (commandMode ? raw.slice(1) : raw).trim().toLowerCase();
+  const mine = ++seq;
+  const next = [];
+  if (submenu) {
+    for (const c of submenu.children) if (score(c, raw.toLowerCase())) next.push({ type: 'run', ...c });
+  } else if (commandMode) {
+    for (const c of COMMANDS) {
+      if (score(c, text)) next.push({ type: 'run', ...c });
+      // Typed text also reaches a submenu's entries, named with their parent.
+      else if (text && c.children)
+        for (const k of c.children) if (score(k, text)) next.push({ type: 'run', ...k, title: `${c.title}: ${k.title}` });
+    }
+  } else {
+    if (raw) {
+      const url = looksLikeUrl(raw);
+      next.push({ type: url ? 'open' : 'search', title: url ? raw : raw, sub: url ? 'Open' : 'Search the web' });
+    }
+    let found = [];
+    try { found = await ask({ cmd: 'suggest', q: raw }); } catch {}
+    if (mine !== seq) return;
+    // An empty field never lands on Ask: Enter there opens a page, not an open chat or AI tab.
+    for (const f of found) if (raw || !/^roar:\/\/ui\/chat\.html/.test(f.url || '')) next.push({ type: f.kind, ...f });
+    if (raw.length > 1) for (const c of COMMANDS) if (score(c, text) && next.length < 11) next.push({ type: 'run', ...c });
+  }
+  items = next;
+  sel = 0;
+  render();
+}
+
+function render() {
+  const route = { open: 'Open', search: 'Search', tab: 'Switch to tab', history: 'Open', archived: 'Restore', run: 'Run', text: 'Open' };
+  const top = items[sel];
+  $('route').hidden = !top;
+  if (top) $('route').textContent = route[top.type] + (top.type === 'open' || top.type === 'search' || top.type === 'history' ? (newTab ? ' in new tab' : '') : '');
+  if (!items.length) {
+    $('list').innerHTML = submenu || q.value.trim().startsWith('>') ? '<div class="section">No matching commands</div>'
+      : '<div class="section">Type to search the web, your tabs and history. Start with &gt; for commands.</div>';
+    $('q').removeAttribute('aria-activedescendant');
+    fit();
+    return;
+  }
+  const words = q.value.trim().toLowerCase().split(/\s+/).filter((w) => w.length > 1);
+  let textHeader = false;
+  $('list').innerHTML = items.map((it, i) => {
+    let icon, title, sub = '';
+    if (it.type === 'text') {
+      const head = textHeader ? '' : '<div class="section">Found in page text</div>';
+      textHeader = true;
+      const where = it.id ? '<span class="kind">Open tab</span>' : '';
+      return `${head}<button class="item hit${i === sel ? ' sel' : ''}" data-i="${i}" id="opt-${i}" role="option" aria-selected="${i === sel}"><span class="icon">${iconHtml('', it.url)}</span><span class="text"><span class="title">${esc(it.title || hostOf(it.url))} <span class="url">${esc(hostOf(it.url))}</span></span><span class="snip">${highlight(it.detail, words)}</span></span>${where}</button>`;
+    }
+    if (it.type === 'search') { icon = ICON.search; title = esc(it.title); sub = '<span class="kind">Search the web</span>'; }
+    else if (it.type === 'open') { icon = ICON.open; title = esc(it.title); sub = '<span class="kind">Open address</span>'; }
+    else if (it.type === 'run') { icon = ICON.run; title = esc(it.title); sub = it.keys ? `<kbd>${it.keys}</kbd>` : `<span class="kind">${it.children ? 'Choose ›' : 'Command'}</span>`; }
+    else {
+      icon = iconHtml('', it.url);
+      title = esc(it.title || hostOf(it.url));
+      const kind = { tab: 'Open tab', history: 'History', archived: 'Archived' }[it.type];
+      sub = `<span class="kind">${kind}</span>`;
+      return `<button class="item${i === sel ? ' sel' : ''}" data-i="${i}" id="opt-${i}" role="option" aria-selected="${i === sel}"><span class="icon">${icon}</span><span class="text"><span class="title">${title}</span><span class="url">${esc(hostOf(it.url))}</span></span>${sub}</button>`;
+    }
+    return `<button class="item${i === sel ? ' sel' : ''}" data-i="${i}" id="opt-${i}" role="option" aria-selected="${i === sel}"><span class="icon">${icon}</span><span class="text"><span class="title">${title}</span></span>${sub}</button>`;
+  }).join('');
+  $('q').setAttribute('aria-activedescendant', 'opt-' + sel);
+  fit();
+}
+
+// Escapes the snippet and marks the query words, matching on the raw text.
+function highlight(text, words) {
+  if (!words.length) return esc(text);
+  const re = new RegExp('(' + words.map((w) => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|') + ')', 'gi');
+  return String(text).split(re).map((part, i) => (i % 2 ? `<mark>${esc(part)}</mark>` : esc(part))).join('');
+}
+
+// Ask Roar to size the window to the panel.
+let lastHeight = 0;
+function fit() {
+  const h = Math.ceil(document.querySelector('.panel').getBoundingClientRect().height);
+  if (h !== lastHeight) { lastHeight = h; ask({ cmd: 'commandbar.size', height: h }).catch(() => {}); }
+}
+
+function openSubmenu(cmd) {
+  submenu = cmd;
+  q.value = '';
+  q.placeholder = cmd.title + ': choose one';
+  update();
+}
+
+function closeSubmenu() {
+  submenu = null;
+  q.value = '>';
+  q.placeholder = 'Search, enter an address, or type > for commands';
+  update();
+}
+
+function choose(it) {
+  if (!it) return;
+  if (it.children) openSubmenu(it);
+  else if (it.type === 'run') ask({ cmd: 'run', id: it.id });
+  else if (it.type === 'tab' || (it.type === 'text' && it.id)) ask({ cmd: 'tab.activate', id: it.id });
+  else if (it.type === 'text') ask({ cmd: 'open', text: it.url, newTab });
+  else if (it.type === 'archived') ask({ cmd: 'archive.restore', index: it.id });
+  else ask({ cmd: 'open', text: it.type === 'history' ? it.url : q.value, newTab });
+}
+
+q.addEventListener('input', update);
+q.addEventListener('keydown', (e) => {
+  if (e.key === 'ArrowDown' || (e.ctrlKey && e.key === 'n')) { sel = Math.min(items.length - 1, sel + 1); render(); e.preventDefault(); }
+  else if (e.key === 'ArrowUp' || (e.ctrlKey && e.key === 'p')) { sel = Math.max(0, sel - 1); render(); e.preventDefault(); }
+  else if (e.key === 'Enter') { choose(items[sel]); e.preventDefault(); }
+  else if (e.key === 'Escape') { if (submenu) closeSubmenu(); else ask({ cmd: 'commandbar.hide' }); e.preventDefault(); }
+  else if (e.key === 'Backspace' && submenu && !q.value) { closeSubmenu(); e.preventDefault(); }
+});
+$('list').addEventListener('mousedown', (e) => {
+  const b = e.target.closest('[data-i]');
+  if (b) { e.preventDefault(); choose(items[+b.dataset.i]); }
+});
+window.addEventListener('blur', () => setTimeout(() => { if (!document.hasFocus()) ask({ cmd: 'commandbar.hide' }); }, 120));
+
+window.roar = {
+  open(isNewTab, url, ghost) {
+    newTab = isNewTab;
+    submenu = null;
+    q.placeholder = ghost ? 'New ghost tab: search or enter an address' : 'Search, enter an address, or type > for commands';
+    q.value = url || '';
+    q.focus();
+    q.select();
+    update();
+  },
+};
+</script>
+</body>
+</html>

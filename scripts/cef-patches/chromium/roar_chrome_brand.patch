@@ -1,0 +1,13 @@
+diff --git components/embedder_support/user_agent_utils.cc components/embedder_support/user_agent_utils.cc
+--- components/embedder_support/user_agent_utils.cc
++++ components/embedder_support/user_agent_utils.cc
+@@ -171,6 +171,9 @@
+ #if !BUILDFLAG(CHROMIUM_BRANDING)
+   brand = version_info::GetProductName();
+ #endif
++  // Roar: report the Google Chrome brand its user agent already claims; a
++  // Chromium-only brand list beside a Chrome UA reads as automation to bot checks.
++  brand = "Google Chrome";
+ 
+   std::string brand_version =
+       output_version_type == blink::UserAgentBrandVersionType::kFullVersion

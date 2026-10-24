@@ -1,0 +1,214 @@
+# Builds Roar for Windows (x64) from main on every push; a tagged release commit also publishes it.
+# Windows ships stock CEF (no H.264/AAC); see docs/cef-builds.md for the built-in decoder follow-up.
+name: Windows build
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      tag: { description: "Attach the build to this existing release (e.g. v0.36.3)", required: false }
+permissions:
+  contents: read
+concurrency:
+  group: windows-${{ github.ref }}
+  cancel-in-progress: false  # Finish the running build; only the newest waiting push runs next.
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { arch: x64, runner: windows-2025, cef: windows64, msvc: x64, triplet: x64-windows }
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: ilammy/msvc-dev-cmd@v1.13.0
+        with:
+          arch: ${{ matrix.msvc }}
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.2  # Same as the Mac build; older bun cannot read mcp/bun.lock.
+      - uses: actions/cache@v4
+        with:
+          path: third_party/cef
+          key: cef-${{ matrix.cef }}-${{ hashFiles('scripts/fetch-cef.ps1') }}
+      - name: Fetch CEF
+        shell: pwsh
+        timeout-minutes: 15
+        env:
+          ROAR_CEF_ARCH: ${{ matrix.cef }}
+        run: ./scripts/fetch-cef.ps1
+      - name: SQLite3 (vcpkg)
+        shell: pwsh
+        run: '& "$env:VCPKG_INSTALLATION_ROOT\vcpkg.exe" install sqlite3:${{ matrix.triplet }}'
+      - name: Build dictation engine
+        shell: pwsh
+        timeout-minutes: 15
+        env:
+          ROAR_CEF_ARCH: ${{ matrix.cef }}
+        run: ./scripts/build-dictate.ps1
+      - name: Build
+        shell: pwsh
+        timeout-minutes: 60
+        env:
+          ROAR_CEF_ARCH: ${{ matrix.cef }}
+          TRIPLET: ${{ matrix.triplet }}
+        run: |
+          $env:ROAR_CMAKE_ARGS = "-DCMAKE_TOOLCHAIN_FILE=$env:VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake -DVCPKG_TARGET_TRIPLET=$env:TRIPLET"
+          ./scripts/build.ps1
+      - name: Smoke test (updater packaged)
+        shell: pwsh
+        run: |
+          foreach ($f in 'Roar.exe', 'WinSparkle.dll') { if (-not (Test-Path "build\src\Release\$f")) { throw "missing $f" } }
+          if (-not (Select-String -Quiet -SimpleMatch 'appcast-windows-${{ matrix.arch }}.xml' build\src\Release\Roar.exe)) { throw 'appcast URL not in Roar.exe' }
+      # Compile the installer (and its uninstaller) on every build, not only at release.
+      - name: Installer
+        shell: pwsh
+        run: |
+          choco install innosetup -y --no-progress
+          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" /DVersion=0.0.0 "/DArch=${{ matrix.arch }}" "/DSource=$PWD\build\src\Release" /O. scripts\roar.iss
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: roar-windows-${{ matrix.arch }}-unsigned
+          path: build/src/Release
+          retention-days: 7
+  # A release commit (tagged v*): attach both zips to its GitHub release, which the website links to.
+  publish:
+    needs: build
+    if: (github.ref == 'refs/heads/main' || inputs.tag != '') && vars.WINDOWS_PAUSED != '1'
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    permissions:
+      contents: write
+      actions: read  # Artifact ids for SignPath.
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - id: tag
+        run: |
+          git fetch --tags -q https://github.com/${{ github.repository }}
+          echo "tag=${{ inputs.tag || '' }}$( [ -n "${{ inputs.tag }}" ] || git tag --points-at "$GITHUB_SHA" | grep '^v' | head -1)" >> "$GITHUB_OUTPUT"
+      - if: steps.tag.outputs.tag != ''
+        uses: actions/download-artifact@v4
+      # SignPath Foundation signs releases once the repo variable SIGNPATH_ORGANIZATION_ID and the secret
+      # SIGNPATH_API_TOKEN exist; without them the zips ship unsigned.
+      - if: steps.tag.outputs.tag != '' && vars.SIGNPATH_ORGANIZATION_ID != ''
+        id: ids
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for a in x64; do
+            echo "$a=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/artifacts" -q ".artifacts[] | select(.name == \"roar-windows-$a-unsigned\") | .id")" >> "$GITHUB_OUTPUT"
+          done
+      - if: steps.ids.outputs.x64 != ''
+        uses: signpath/github-action-submit-signing-request@c92b958760219087e01f8d67a1669ed57afe2627  # v2
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: roar
+          signing-policy-slug: release-signing
+          artifact-configuration-slug: windows
+          github-artifact-id: ${{ steps.ids.outputs.x64 }}
+          wait-for-completion: true
+          wait-for-completion-timeout-in-seconds: 21600  # Approval is by hand; GitHub's job limit is 6 h.
+          output-artifact-directory: signed-x64
+      - if: steps.tag.outputs.tag != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.tag.outputs.tag }}
+        run: |
+          # The signed copy when SignPath returned one, else the unsigned build.
+          for a in x64; do d="signed-$a"; [ -d "$d" ] || d="roar-windows-$a-unsigned"; (cd "$d" && zip -qr "../Roar-windows-$a.zip" .); done
+          # release.sh creates the release right after pushing the tag; wait for it.
+          for i in $(seq 1 30); do gh release view "$TAG" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1 && break; sleep 20; done
+          gh release upload "$TAG" Roar-windows-x64.zip --clobber -R "$GITHUB_REPOSITORY"
+      # The installers are built from the same (signed when available) files as the zips.
+      - if: steps.tag.outputs.tag != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: roar-windows-zips
+          path: Roar-windows-*.zip
+          retention-days: 1
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
+  # Program Files installers (Inno Setup) beside the portable zips.
+  installer:
+    needs: publish
+    if: needs.publish.outputs.tag != ''
+    runs-on: windows-2025
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          name: roar-windows-zips
+      - shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.publish.outputs.tag }}
+        run: |
+          choco install innosetup -y --no-progress
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          foreach ($a in 'x64') {
+            Expand-Archive "Roar-windows-$a.zip" "src-$a"
+            & $iscc "/DVersion=$($env:TAG.TrimStart('v'))" "/DArch=$a" "/DSource=$PWD\src-$a" /O. scripts\roar.iss
+            if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          }
+          gh release upload $env:TAG Roar-windows-x64-setup.exe --clobber -R $env:GITHUB_REPOSITORY
+  # WinSparkle feed: one appcast per arch on main, pointing at this release's EdDSA-signed installers.
+  appcast:
+    needs: [publish, installer]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.publish.outputs.tag }}
+          ED_KEY: ${{ secrets.WINSPARKLE_ED_KEY }}
+        run: |
+          set -euo pipefail
+          umask 077; printf '%s\n' "$ED_KEY" > "$RUNNER_TEMP/ed.pem"
+          # The key must match the public key compiled into Roar, or every update would be rejected.
+          pub=$(openssl pkey -in "$RUNNER_TEMP/ed.pem" -pubout -outform DER | tail -c 32 | base64 -w0)
+          git show "$TAG:src/win/platform.cc" | grep -qF "\"$pub\"" || { echo "WINSPARKLE_ED_KEY does not match the app's public key"; exit 1; }
+          plist=$(git show "$TAG:resources/Info.plist.in")
+          short=${TAG#v}; build=$(sed -n 's/.*CFBundleVersion<\/key><string>\([^<]*\).*/\1/p' <<<"$plist")
+          for a in x64; do
+            f=Roar-windows-$a-setup.exe
+            gh release download "$TAG" -p "$f" -R "$GITHUB_REPOSITORY"
+            sig=$(openssl pkeyutl -sign -inkey "$RUNNER_TEMP/ed.pem" -rawin -in "$f" | base64 -w0)
+            cat > appcast-windows-$a.xml <<XML
+          <?xml version="1.0" encoding="utf-8"?>
+          <rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle">
+            <channel>
+              <title>Roar for Windows ($a)</title>
+              <item>
+                <title>Roar $short</title>
+                <sparkle:releaseNotesLink>https://github.com/$GITHUB_REPOSITORY/releases/tag/$TAG</sparkle:releaseNotesLink>
+                <pubDate>$(date -R)</pubDate>
+                <enclosure url="https://github.com/$GITHUB_REPOSITORY/releases/download/$TAG/$f" sparkle:version="$build" sparkle:shortVersionString="$short" sparkle:os="windows" sparkle:installerArguments="/SILENT /SP- /NOCANCEL /NORESTART" sparkle:edSignature="$sig" length="$(stat -c%s "$f")" type="application/octet-stream"/>
+              </item>
+            </channel>
+          </rss>
+          XML
+          done
+          rm -f "$RUNNER_TEMP/ed.pem" Roar-windows-*-setup.exe
+          git config user.name roarbrowser && git config user.email 342802191+roarbrowser@users.noreply.github.com
+          git add appcast-windows-*.xml
+          git diff --cached --quiet && exit 0
+          git commit -qm "Windows appcast: $TAG"
+          for i in 1 2 3; do git pull -q --rebase origin main && git push -q origin HEAD:main && exit 0; sleep 10; done; exit 1

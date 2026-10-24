@@ -1,0 +1,69 @@
+diff --git content/renderer/media/render_media_client.cc content/renderer/media/render_media_client.cc
+--- content/renderer/media/render_media_client.cc
++++ content/renderer/media/render_media_client.cc
+@@ -20,9 +20,10 @@
+ #include "media/video/video_encode_accelerator.h"
+ #include "ui/display/display_switches.h"
+ 
++// Roar: on mac also query VideoToolbox profiles so H.264 decodes without FFmpeg.
+ namespace {
+ 
+-#if BUILDFLAG(PLATFORM_HAS_OPTIONAL_HEVC_DECODE_SUPPORT)
++#if BUILDFLAG(PLATFORM_HAS_OPTIONAL_HEVC_DECODE_SUPPORT) || BUILDFLAG(IS_MAC)
+ void UpdateDecoderVideoProfilesInternal(
+     const media::SupportedVideoDecoderConfigs& supported_configs) {
+   base::flat_set<media::VideoCodecProfile> media_profiles;
+@@ -80,7 +81,7 @@ void RenderMediaClient::SetGpuFeatureInfo(
+ RenderMediaClient::RenderMediaClient()
+     : main_task_runner_(base::SingleThreadTaskRunner::GetCurrentDefault()) {
+   DCHECK_CALLED_ON_VALID_SEQUENCE(main_thread_sequence_checker_);
+-#if BUILDFLAG(PLATFORM_HAS_OPTIONAL_HEVC_DECODE_SUPPORT) || \
++#if BUILDFLAG(PLATFORM_HAS_OPTIONAL_HEVC_DECODE_SUPPORT) || BUILDFLAG(IS_MAC) || \
+     BUILDFLAG(ENABLE_MOJO_AUDIO_DECODER)
+   RenderThreadImpl::current()->BindHostReceiver(
+       interface_factory_for_supported_profiles_.BindNewPipeAndPassReceiver());
+@@ -92,7 +93,7 @@ RenderMediaClient::RenderMediaClient()
+ #endif  // BUILDFLAG(PLATFORM_HAS_OPTIONAL_HEVC_DECODE_SUPPORT) ||
+         // BUILDFLAG(ENABLE_MOJO_AUDIO_DECODER)
+ 
+-#if BUILDFLAG(PLATFORM_HAS_OPTIONAL_HEVC_DECODE_SUPPORT)
++#if BUILDFLAG(PLATFORM_HAS_OPTIONAL_HEVC_DECODE_SUPPORT) || BUILDFLAG(IS_MAC)
+   // We'll first try to query the supported video decoder configurations
+   // asynchronously. If IsDecoderSupportedVideoType() is called before we get a
+   // response, that method will block if its not on the main thread or fall
+@@ -161,7 +162,7 @@ bool RenderMediaClient::IsDecoderSupportedAudioType(
+ 
+ bool RenderMediaClient::IsDecoderSupportedVideoType(
+     const media::VideoType& type) {
+-#if BUILDFLAG(PLATFORM_HAS_OPTIONAL_HEVC_DECODE_SUPPORT)
++#if BUILDFLAG(PLATFORM_HAS_OPTIONAL_HEVC_DECODE_SUPPORT) || BUILDFLAG(IS_MAC)
+   if (!did_video_decoder_update_.IsSignaled()) {
+     // The asynchronous request didn't complete in time, so we must now block
+     // or retrieve the information synchronously.
+@@ -265,7 +266,7 @@ void RenderMediaClient::OnAudioDecoderDisconnected() {
+ }
+ 
+ void RenderMediaClient::OnVideoDecoderDisconnected() {
+-#if BUILDFLAG(PLATFORM_HAS_OPTIONAL_HEVC_DECODE_SUPPORT)
++#if BUILDFLAG(PLATFORM_HAS_OPTIONAL_HEVC_DECODE_SUPPORT) || BUILDFLAG(IS_MAC)
+   OnGetSupportedVideoDecoderConfigs(media::SupportedVideoDecoderConfigs(),
+                                     media::VideoDecoderType::kUnknown);
+ #endif  // BUILDFLAG(PLATFORM_HAS_OPTIONAL_HEVC_DECODE_SUPPORT)
+@@ -282,7 +283,7 @@ void RenderMediaClient::OnGetSupportedVideoDecoderConfigs(
+     const media::SupportedVideoDecoderConfigs& configs,
+     media::VideoDecoderType type) {
+   DCHECK_CALLED_ON_VALID_SEQUENCE(main_thread_sequence_checker_);
+-#if BUILDFLAG(PLATFORM_HAS_OPTIONAL_HEVC_DECODE_SUPPORT)
++#if BUILDFLAG(PLATFORM_HAS_OPTIONAL_HEVC_DECODE_SUPPORT) || BUILDFLAG(IS_MAC)
+   if (did_video_decoder_update_.IsSignaled()) {
+     return;
+   }
+@@ -313,7 +314,7 @@ void RenderMediaClient::OnGetSupportedAudioDecoderConfigs(
+   did_audio_decoder_update_.Signal();
+ 
+   audio_decoder_for_supported_configs_.reset();
+-#if BUILDFLAG(PLATFORM_HAS_OPTIONAL_HEVC_DECODE_SUPPORT)
++#if BUILDFLAG(PLATFORM_HAS_OPTIONAL_HEVC_DECODE_SUPPORT) || BUILDFLAG(IS_MAC)
+   if (did_video_decoder_update_.IsSignaled()) {
+     interface_factory_for_supported_profiles_.reset();
+   }

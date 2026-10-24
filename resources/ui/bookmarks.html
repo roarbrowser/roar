@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Bookmarks</title>
+<link rel="stylesheet" href="roar.css">
+<style>
+body { background: var(--panel); overflow-y: auto; overflow-x: hidden; }
+main { box-sizing: border-box; width: 100%; max-width: 760px; margin: 0 auto; padding: 48px 28px 96px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 18px; }
+h1 { margin: 0; font: 800 34px/1 var(--round); letter-spacing: -.02em; }
+.bar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.seg { display: flex; background: var(--ground); border-radius: 9px; padding: 3px; gap: 2px; }
+.seg button { padding: 5px 12px; border-radius: 7px; color: var(--ink-2); font-weight: 500; }
+.seg button[aria-pressed="true"] { background: var(--panel); color: var(--ink); box-shadow: 0 1px 2px rgba(0,0,0,.12); }
+.bar input { flex: 1; min-width: 0; font: 13px var(--ui); padding: 7px 10px; border-radius: 8px; border: 1px solid var(--rule); background: var(--ground); color: var(--ink); }
+ul { list-style: none; margin: 0; padding: 0; }
+ul ul { padding-left: 20px; }
+.node { display: flex; align-items: center; gap: 8px; height: 32px; padding: 0 6px; border-radius: 7px; }
+.node:hover { background: var(--hover); }
+.node .title { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; text-align: left; }
+.node .url { color: var(--ink-3); font-size: 11.5px; max-width: 40%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.node .tools { display: none; gap: 2px; }
+.node:hover .tools, .node:focus-within .tools { display: flex; }
+.tools button, .tools select { color: var(--ink-2); padding: 2px 6px; border-radius: 5px; font-size: 12px; }
+.tools button:hover { background: var(--rule); color: var(--ink); }
+.tools select { background: var(--ground); border: 1px solid var(--rule); color: var(--ink-2); max-width: 140px; }
+.folder > .node .title { font-weight: 600; }
+.chev { width: 9px; height: 9px; flex: none; transition: transform .12s; color: var(--ink-3); }
+.folder.closed > .node .chev { transform: rotate(-90deg); }
+.folder.closed > ul { display: none; }
+.node input { flex: 1; font: 13px var(--ui); padding: 3px 6px; border-radius: 5px; border: 1px solid var(--mane); background: var(--ground); color: var(--ink); }
+.empty { color: var(--ink-3); padding: 24px 6px; }
+.when { color: var(--ink-3); font-size: 11.5px; font-variant-numeric: tabular-nums; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Bookmarks</h1>
+  <div class="bar">
+    <div class="seg" role="group" aria-label="View">
+      <button id="v-bookmarks" aria-pressed="true">Bookmarks</button>
+      <button id="v-later" aria-pressed="false">Read Later</button>
+    </div>
+    <input id="filter" type="search" placeholder="Filter" aria-label="Filter">
+    <button class="btn" id="new-folder">New folder</button>
+  </div>
+  <div id="list" aria-live="polite"><div class="empty">Loading…</div></div>
+</main>
+<script src="bridge.js"></script>
+<script>
+const $ = (id) => document.getElementById(id);
+let lib = { bookmarks: [], readLater: [] };
+let view = 'bookmarks';
+const closed = new Set();
+
+// Each node gets a path like "0.3.1" so edits can find it again.
+const at = (path) => {
+  const parts = path.split('.').map(Number);
+  let list = lib.bookmarks;
+  for (let i = 0; i < parts.length - 1; i++) list = list[parts[i]].children;
+  return { list, index: parts[parts.length - 1] };
+};
+const save = () => ask({ cmd: 'library.set', bookmarks: lib.bookmarks, readLater: lib.readLater }).catch(() => {});
+const folders = (list = lib.bookmarks, prefix = '', depth = 0, out = [{ path: 'top', label: 'Top level' }]) => {
+  list.forEach((n, i) => {
+    if (!n.children) return;
+    const path = prefix + i;
+    out.push({ path, label: ' '.repeat(depth) + n.title });
+    folders(n.children, path + '.', depth + 1, out);
+  });
+  return out;
+};
+const ago = (s) => {
+  const d = Date.now() / 1000 - s;
+  return d < 3600 ? Math.max(1, Math.round(d / 60)) + 'm' : d < 86400 ? Math.round(d / 3600) + 'h' : Math.round(d / 86400) + 'd';
+};
+const matches = (n, q) => !q || (n.title + ' ' + (n.url || '')).toLowerCase().includes(q) ||
+  (n.children || []).some((c) => matches(c, q));
+
+function tree(list, prefix, q) {
+  const dests = folders();
+  return '<ul>' + list.map((n, i) => {
+    const path = prefix + i;
+    if (!matches(n, q)) return '';
+    const tools = `<span class="tools">
+      <button data-act="rename" data-path="${path}" title="Rename">Rename</button>
+      <button data-act="up" data-path="${path}" title="Move up" aria-label="Move ${esc(n.title)} up">↑</button>
+      <button data-act="down" data-path="${path}" title="Move down" aria-label="Move ${esc(n.title)} down">↓</button>
+      <select data-act="move" data-path="${path}" aria-label="Move to folder"><option value="">Move to…</option>${
+        dests.filter((f) => f.path !== path && !f.path.startsWith(path + '.')).map((f) => `<option value="${f.path}">${esc(f.label)}</option>`).join('')}</select>
+      <button data-act="delete" data-path="${path}" title="Delete">Delete</button></span>`;
+    if (n.children) {
+      const shut = closed.has(path) && !q;
+      return `<li class="folder${shut ? ' closed' : ''}"><div class="node"><svg class="chev" viewBox="0 0 10 10" fill="currentColor"><path d="M1 3h8L5 8z"/></svg>
+        <button class="title" data-act="toggle" data-path="${path}">${esc(n.title)}</button><span class="url">${n.children.length}</span>${tools}</div>${tree(n.children, path + '.', q)}</li>`;
+    }
+    return `<li><div class="node">${iconHtml('', n.url)}<button class="title" data-open="${esc(n.url)}" title="${esc(n.url)}">${esc(n.title || n.url)}</button><span class="url">${esc(hostOf(n.url))}</span>${tools}</div></li>`;
+  }).join('') + '</ul>';
+}
+
+function render() {
+  const q = $('filter').value.trim().toLowerCase();
+  $('v-bookmarks').setAttribute('aria-pressed', view === 'bookmarks');
+  $('v-later').setAttribute('aria-pressed', view === 'later');
+  $('new-folder').hidden = view !== 'bookmarks';
+  if (view === 'bookmarks') {
+    $('list').innerHTML = lib.bookmarks.length ? tree(lib.bookmarks, '', q)
+      : '<div class="empty">No bookmarks yet. Use Bookmarks → Bookmark This Page, or File → Import From.</div>';
+  } else {
+    const items = lib.readLater.map((n, i) => ({ n, i })).filter(({ n }) => matches(n, q)).reverse();
+    $('list').innerHTML = items.length ? '<ul>' + items.map(({ n, i }) => `<li><div class="node">${iconHtml('', n.url)}
+      <button class="title" data-open="${esc(n.url)}" title="${esc(n.url)}">${esc(n.title || n.url)}</button>
+      <span class="when">${n.added ? ago(n.added) : ''}</span><span class="url">${esc(hostOf(n.url))}</span>
+      <span class="tools"><button data-act="done" data-index="${i}">Mark read</button></span></div></li>`).join('') + '</ul>'
+      : '<div class="empty">Nothing to read later. Use Bookmarks → Add to Read Later.</div>';
+  }
+}
+
+document.addEventListener('click', (e) => {
+  const open = e.target.closest('[data-open]');
+  if (open) return ask({ cmd: 'open', text: open.dataset.open, newTab: e.metaKey || e.shiftKey });
+  const b = e.target.closest('button[data-act]');
+  if (!b) return;
+  const { act, path } = b.dataset;
+  if (act === 'done') { lib.readLater.splice(+b.dataset.index, 1); save(); return render(); }
+  const { list, index } = at(path);
+  if (act === 'toggle') { closed.has(path) ? closed.delete(path) : closed.add(path); return render(); }
+  if (act === 'delete') {
+    const n = list[index];
+    if (n.children && !confirm(`Delete "${n.title}" and its ${n.children.length} items?`)) return;
+    list.splice(index, 1);
+  } else if (act === 'up' && index > 0) {
+    [list[index - 1], list[index]] = [list[index], list[index - 1]];
+  } else if (act === 'down' && index < list.length - 1) {
+    [list[index + 1], list[index]] = [list[index], list[index + 1]];
+  } else if (act === 'rename') {
+    const title = b.closest('.node').querySelector('.title');
+    const input = document.createElement('input');
+    input.value = list[index].title;
+    title.replaceWith(input);
+    input.select();
+    const done = (keep) => { if (keep && input.value.trim()) { list[index].title = input.value.trim(); save(); } render(); };
+    input.onkeydown = (k) => { if (k.key === 'Enter') done(true); else if (k.key === 'Escape') done(false); };
+    input.onblur = () => done(true);
+    return;
+  } else return;
+  save();
+  render();
+});
+document.addEventListener('change', (e) => {
+  const s = e.target.closest('select[data-act="move"]');
+  if (!s || !s.value) return;
+  // Resolve the destination before removing the node, while paths are still valid.
+  const target = s.value === 'top' ? lib.bookmarks : (() => { const d = at(s.value); return d.list[d.index].children; })();
+  const { list, index } = at(s.dataset.path);
+  target.push(list.splice(index, 1)[0]);
+  save();
+  render();
+});
+$('new-folder').onclick = () => { lib.bookmarks.push({ title: 'New folder', children: [] }); save(); render(); };
+$('v-bookmarks').onclick = () => { view = 'bookmarks'; render(); };
+$('v-later').onclick = () => { view = 'later'; render(); };
+$('filter').oninput = render;
+if (location.hash === '#later') view = 'later';
+const load = () => ask({ cmd: 'library.get' }).then((r) => {
+  lib = typeof r === 'string' ? JSON.parse(r) : r;
+  lib.bookmarks ||= []; lib.readLater ||= [];
+  render();
+}).catch(() => { document.getElementById('list').innerHTML = '<div class="empty">Couldn\'t load bookmarks.</div>'; });
+load();
+// Pick up items added from the menu while this page is open.
+window.addEventListener('focus', load);
+</script>
+</body>
+</html>

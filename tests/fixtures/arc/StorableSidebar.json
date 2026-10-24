@@ -1,0 +1,109 @@
+{
+  "sidebarSyncState": {"container": {"value": {}}},
+  "version": 1,
+  "sidebar": {
+    "containers": [
+      {"global": {}},
+      {
+        "topAppsContainerIDs": ["TOPAPPS-1"],
+        "spaces": [
+          "SPACE-WORK",
+          {
+            "id": "SPACE-WORK",
+            "title": "Work",
+            "profile": {"default": true},
+            "containerIDs": ["unpinned", "WORK-UNPINNED", "pinned", "WORK-PINNED"],
+            "customInfo": {
+              "iconType": {"emoji_v2": "💼"},
+              "windowTheme": {
+                "semanticColorPalette": {"appearanceBased": {"light": {"title": {"red": 0.1, "green": 0.1, "blue": 0.1}}}},
+                "background": {"single": {"_0": {"style": {"color": {"_0": {"blendedSingleColor": {"_0": {
+                  "color": {"red": 0.2, "green": 0.4, "blue": 0.8, "alpha": 1, "colorSpace": "extendedSRGB"},
+                  "isMonochrome": false}}}}}}}},
+                "primaryColorPalette": {"midTone": {"red": 0.5, "green": 0.5, "blue": 0.5}}
+              }
+            }
+          },
+          "SPACE-HOME",
+          {
+            "id": "SPACE-HOME",
+            "title": "Personal",
+            "profile": {"default": true},
+            "containerIDs": ["pinned", "HOME-PINNED", "unpinned", "HOME-UNPINNED"],
+            "customInfo": {"iconType": {"icon": "house"}}
+          },
+          "SPACE-SIDE",
+          {
+            "id": "SPACE-SIDE",
+            "title": "Side \"Project\"",
+            "profile": {"custom": {"_0": {"directoryBasename": "Profile 1"}}},
+            "containerIDs": ["pinned", "SIDE-PINNED", "unpinned", "SIDE-UNPINNED"],
+            "customInfo": {"windowTheme": {"background": {"single": {"_0": {"style": {"color": {"_0": {"blendedSingleColor": {"_0": {
+              "color": {"red": 1, "green": 0.5, "blue": 0, "alpha": 1}}}}}}}}}}}
+          }
+        ],
+        "items": [
+          "WORK-PINNED",
+          {"id": "WORK-PINNED", "parentID": null, "childrenIds": ["W1", "WF", "W2"], "title": null,
+           "data": {"itemContainer": {"containerType": {"spaceItems": {"_0": "SPACE-WORK"}}}}, "isUnread": false, "createdAt": 700000000},
+          "W1",
+          {"id": "W1", "parentID": "WORK-PINNED", "childrenIds": [], "title": null,
+           "data": {"tab": {"savedTitle": "Inbox - Mail", "savedURL": "https://mail.example.com/", "timeLastActiveAt": 7.1e8, "savedMuteStatus": "allowAudio"}}},
+          "WF",
+          {"id": "WF", "parentID": "WORK-PINNED", "childrenIds": ["WF1", "WFS", "WFN"], "title": "Projects",
+           "data": {"list": {}}},
+          "WF1",
+          {"id": "WF1", "parentID": "WF", "childrenIds": [], "title": "Roadmap",
+           "data": {"tab": {"savedTitle": "Q4 roadmap - Docs", "savedURL": "https://docs.example.com/roadmap"}}},
+          "WFS",
+          {"id": "WFS", "parentID": "WF", "childrenIds": ["WFS1", "WFS2"], "title": null,
+           "data": {"splitView": {"layoutOrientation": "horizontal"}}},
+          "WFS1",
+          {"id": "WFS1", "parentID": "WFS", "childrenIds": [], "title": null,
+           "data": {"tab": {"savedTitle": "Design", "savedURL": "https://design.example.com/"}}},
+          "WFS2",
+          {"id": "WFS2", "parentID": "WFS", "childrenIds": [], "title": null,
+           "data": {"tab": {"savedTitle": "Tickets", "savedURL": "https://tickets.example.com/"}}},
+          "WFN",
+          {"id": "WFN", "parentID": "WF", "childrenIds": ["WFN1"], "title": "Archive",
+           "data": {"list": {}}},
+          "WFN1",
+          {"id": "WFN1", "parentID": "WFN", "childrenIds": [], "title": null,
+           "data": {"tab": {"savedTitle": "Old spec", "savedURL": "https://docs.example.com/old-spec"}}},
+          "W2",
+          {"id": "W2", "parentID": "WORK-PINNED", "childrenIds": [], "title": null,
+           "data": {"tab": {"savedTitle": "Calendar", "savedURL": "https://calendar.example.com/"}}},
+          "WORK-UNPINNED",
+          {"id": "WORK-UNPINNED", "parentID": null, "childrenIds": ["WU1"], "title": null,
+           "data": {"itemContainer": {"containerType": {"spaceItems": {"_0": "SPACE-WORK"}}}}},
+          "WU1",
+          {"id": "WU1", "parentID": "WORK-UNPINNED", "childrenIds": [], "title": null,
+           "data": {"tab": {"savedTitle": "Some news", "savedURL": "https://news.example.com/today"}}},
+          "HOME-PINNED",
+          {"id": "HOME-PINNED", "parentID": null, "childrenIds": ["H1", "H2"], "title": null,
+           "data": {"itemContainer": {"containerType": {"spaceItems": {"_0": "SPACE-HOME"}}}}},
+          "H1",
+          {"id": "H1", "parentID": "HOME-PINNED", "childrenIds": [], "title": null,
+           "data": {"tab": {"savedTitle": "YouTube", "savedURL": "https://www.youtube.com/"}}},
+          "H2",
+          {"id": "H2", "parentID": "HOME-PINNED", "childrenIds": [], "title": null,
+           "data": {"easel": {"easelID": "E1"}}},
+          "HOME-UNPINNED",
+          {"id": "HOME-UNPINNED", "parentID": null, "childrenIds": [], "title": null,
+           "data": {"itemContainer": {"containerType": {"spaceItems": {"_0": "SPACE-HOME"}}}}},
+          "SIDE-PINNED",
+          {"id": "SIDE-PINNED", "parentID": null, "childrenIds": ["SF"], "title": null,
+           "data": {"itemContainer": {"containerType": {"spaceItems": {"_0": "SPACE-SIDE"}}}}},
+          "SF",
+          {"id": "SF", "parentID": "SIDE-PINNED", "childrenIds": ["SF1"], "title": "Research",
+           "data": {"list": {}}},
+          "SF1",
+          {"id": "SF1", "parentID": "SF", "childrenIds": [], "title": null,
+           "data": {"tab": {"savedTitle": "Café notes", "savedURL": "https://example.org/notes?a=1&b=2"}}},
+          "TOPAPPS-1",
+          {"id": "TOPAPPS-1", "parentID": null, "childrenIds": [], "title": null, "data": {"itemContainer": {"containerType": {"topApps": {"_0": {"default": {}}}}}}}
+        ]
+      }
+    ]
+  }
+}

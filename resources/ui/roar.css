@@ -1,0 +1,96 @@
+/* Layout: a narrow sidebar column of stacked groups; overlays float as single panels. */
+/* Lion palette: warm cream and cocoa by day, cocoa night in dark mode; petal-mane orange accents. */
+:root {
+  --ground: #fff1e2;
+  --panel: #fff9f0;
+  --ink: #4a2e18;
+  --ink-2: #7a5a40;
+  --ink-3: #7d604a;
+  --rule: #f0dcc4;
+  --hover: #ffe6cc;
+  --selected: #fff9f0;
+  --mane: #ff7a00;
+  --mane-ink: #a04700;
+  --mane-soft: #ffe2b8;
+  --danger: #b4372f;
+  --ok: #23794a;
+  --shadow: 0 1px 2px rgba(74, 46, 24, .08), 0 12px 36px rgba(74, 46, 24, .16);
+  --ui: -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif;
+  --round: ui-rounded, "SF Pro Rounded", -apple-system, "Helvetica Neue", sans-serif;
+  --mono: ui-monospace, "SF Mono", Menlo, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --ground: #1e140c;
+    --panel: #2a1d12;
+    --ink: #fbeedd;
+    --ink-2: #d2b89c;
+    --ink-3: #a3876f;
+    --rule: #3d2b1c;
+    --hover: #332417;
+    --selected: #3a2918;
+    --mane: #ff9a2e;
+    --mane-ink: #ffc72c;
+    --mane-soft: #4a2c10;
+    --danger: #ef7a70;
+    --ok: #5cc488;
+    --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 16px 40px rgba(0, 0, 0, .45);
+    color-scheme: dark;
+  }
+}
+.lion { display: inline-block; flex: none; background: url(lion.svg) center / contain no-repeat; }
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+body { font: 13px/1.4 var(--ui); color: var(--ink); -webkit-font-smoothing: antialiased; }
+button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: default; }
+button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible {
+  outline: 2px solid var(--mane-ink); outline-offset: 1px;
+}
+.wordmark { font-family: var(--round); font-weight: 700; letter-spacing: -.01em; }
+kbd {
+  font: 11px var(--ui); color: var(--ink-3); border: 1px solid var(--rule);
+  border-radius: 4px; padding: 0 4px; white-space: nowrap;
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+/* hidden always hides, even where a page sets display on the element. */
+[hidden] { display: none !important; }
+/* Shared controls. Booleans are .switch checkboxes, choices are .segmented; every page saves live. */
+.btn { background: var(--ground); border-radius: 8px; padding: 7px 12px; font-weight: 500; }
+.btn:hover:not(:disabled) { background: var(--hover); }
+.btn.primary { background: var(--mane); color: #2a1604; font-weight: 600; padding: 9px 18px; }
+.btn.primary:hover:not(:disabled) { background: var(--mane); filter: brightness(1.05); }
+.btn:disabled { opacity: .5; }
+input.switch { appearance: none; flex: none; width: 30px; height: 18px; margin: 0; border-radius: 9px; background: var(--rule); position: relative; transition: background .15s; }
+input.switch::after { content: ""; position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgba(0, 0, 0, .25); transition: transform .15s; }
+input.switch:not(:checked) { box-shadow: inset 0 0 0 1px var(--ink-3); }
+input.switch:checked { background: var(--mane); }
+input.switch:checked::after { transform: translateX(12px); }
+input.switch:disabled { opacity: .45; }
+.chip { padding: 4px 11px; border-radius: 999px; font-size: 12px; color: var(--ink-2); box-shadow: inset 0 0 0 1px var(--rule); }
+.chip:hover:not(:disabled) { color: var(--ink); background: var(--hover); }
+.chip.ok { color: var(--ok); box-shadow: inset 0 0 0 1px var(--ok); }
+.chip[aria-pressed="true"] { background: var(--mane-soft); color: var(--mane-ink); box-shadow: none; }
+.segmented { display: inline-flex; padding: 2px; gap: 2px; border-radius: 8px; background: var(--ground); }
+.segmented button { padding: 4px 11px; border-radius: 6px; font-size: 12.5px; color: var(--ink-2); }
+.segmented button:hover:not(:disabled) { color: var(--ink); }
+.segmented button[aria-pressed="true"] { background: var(--panel); color: var(--ink); box-shadow: 0 1px 2px rgba(0, 0, 0, .12); }
+.status { font-size: 12.5px; color: var(--ink-3); }
+.status.ok { color: var(--ok); } .status.err { color: var(--danger); }
+fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
+fieldset:disabled > :not(.reason) { opacity: .5; }
+fieldset .reason { display: none; font-size: 12px; color: var(--ink-3); }
+fieldset:disabled .reason { display: block; }
+/* Slash commands in agent chat and terminal (slash-mark.js); the mirror draws a field's text with them colored. */
+.slash { color: var(--mane-ink); }
+pre .slash { color: var(--mane); }
+.slash-wrap { display: grid; flex: 1; min-width: 0; }
+.slash-wrap > * { grid-area: 1 / 1; width: 100%; min-width: 0; }
+.slash-mirror { pointer-events: none; overflow: hidden; overflow-wrap: break-word; border-style: solid; border-color: transparent; color: var(--ink); }
+.slash-on { color: transparent !important; caret-color: var(--ink); }
+/* Claude Code install notice (agent-setup.js claudeInstallHtml). */
+.as-install { display: block; }
+.as-install small { display: block; }
+.as-fix { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 6px 0 4px; }
+.as-fix code { font: 12px var(--mono); padding: 4px 8px; border-radius: 6px; background: var(--ground); box-shadow: inset 0 0 0 1px var(--rule); user-select: all; overflow-wrap: anywhere; }
+.tiles .as-install { grid-column: 1 / -1; }

@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle">
+  <channel>
+    <item>
+      <title>1.3.0</title>
+      <pubDate>Sat, 24 Oct 2026 13:33:48 +0000</pubDate>
+      <sparkle:version>10300</sparkle:version>
+      <sparkle:shortVersionString>1.3.0</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[Intel Macs are now supported. CDP connections need a per-launch token on Apple Silicon (Intel in 1.4). Agents can only act on their own tabs. Popups and extension windows stay in their own space. A missing space 0 in state.json is repaired. Accessibility contrast and focus fixes. Clearer privacy disclosures and third-party notices. Windows preview.]]></description>
+      <enclosure url="https://github.com/roarbrowser/roar/releases/download/v1.3.0/Roar-1.3.0-intel.dmg" type="application/octet-stream" sparkle:edSignature="Hig5IndMs/HBEKPAgZvNfhC7AsGb3wGnwtSVYz3ad9TDzg5YuLR2LfxhAW5gOLjxX3Hq/C9U4HApmMuEtZO/Bg==" length="228800243"/>
+    </item>
+  </channel>
+</rss>
