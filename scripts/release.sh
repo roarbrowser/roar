@@ -155,8 +155,8 @@ gh release create "$TAG" "${DMGS[@]}" "$UBOL_ZIP" "$UBOL_SRC" "$FFMPEG_SRC" "$ST
 find "$ROOT/build" -maxdepth 1 -name 'Roar-*.dmg' ! -name "Roar-$VERSION.dmg" ! -name "Roar-$VERSION-intel.dmg" -delete
 push -q HEAD:main
 # The tap (roarbrowser/homebrew-tap, Casks/roar.rb) is what `brew install` reads.
-TAP_SHA="$(command gh api repos/roarbrowser/homebrew-tap/contents/Casks/roar.rb -q .sha)"
-command gh api -X PUT repos/roarbrowser/homebrew-tap/contents/Casks/roar.rb -f message="roar $VERSION" \
+TAP_SHA="$(gh api repos/roarbrowser/homebrew-tap/contents/Casks/roar.rb -q .sha)"
+gh api -X PUT repos/roarbrowser/homebrew-tap/contents/Casks/roar.rb -f message="roar $VERSION" \
   -f content="$(base64 < packaging/homebrew/roar.rb)" -f sha="$TAP_SHA" \
   -f 'author[name]=roarbrowser' -f 'author[email]=342802191+roarbrowser@users.noreply.github.com' \
   -f 'committer[name]=roarbrowser' -f 'committer[email]=342802191+roarbrowser@users.noreply.github.com' >/dev/null
