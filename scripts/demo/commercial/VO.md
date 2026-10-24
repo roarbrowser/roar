@@ -6,10 +6,10 @@ Eight full sentences read as one continuous narration, like a nature film follow
 | start | line | on-screen caption |
 |---|---|---|
 | 0.1 | Meet Roar, the browser your AI can drive. | Meet Roar, the browser your AI can drive. |
-| 4.29 | As the morning begins, mail and pull requests wait in the sidebar, and the spec sits beside your inbox. | As the morning begins, mail and pull requests wait in the sidebar, and the spec sits beside your inbox. |
-| 12.76 | Reader mode clears the noise, and Command T finds any tab. | Reader mode clears the noise, and ⌘T finds any tab. |
-| 18.87 | Then you hand the hunt to your own AI, and it keeps its tabs together. | Then you hand the hunt to your own AI, and it keeps its tabs together. |
-| 25.96 | It works where you're signed in, while you watch from inside Roar. | It works where you're signed in, while you watch from inside Roar. |
-| 31.99 | It asks before paying, as you asked, then renames the group when the venue is booked. | It asks before paying, as you asked, then renames the group when the venue is booked. |
-| 40.29 | As evening falls, your personal space stays out of reach. | As evening falls, your personal space stays out of reach. |
-| 46.08 | With Roar, your AI hunts, and you make the call. | With Roar, your AI hunts, and you make the call. |
+| 2.89 | As the morning begins, mail and pull requests wait in the sidebar, and the spec sits beside your inbox. | As the morning begins, mail and pull requests wait in the sidebar, and the spec sits beside your inbox. |
+| 9.15 | Reader mode clears the noise, and Command T finds any tab. | Reader mode clears the noise, and ⌘T finds any tab. |
+| 12.68 | Then you hand the hunt to your own AI, and it keeps its tabs together. | Then you hand the hunt to your own AI, and it keeps its tabs together. |
+| 16.58 | It works where you're signed in, while you watch from inside Roar. | It works where you're signed in, while you watch from inside Roar. |
+| 20.12 | It asks before paying, as you asked, then renames the group when the venue is booked. | It asks before paying, as you asked, then renames the group when the venue is booked. |
+| 24.96 | As evening falls, your personal space stays out of reach. | As evening falls, your personal space stays out of reach. |
+| 28.29 | With Roar, your AI hunts, and you make the call. | With Roar, your AI hunts, and you make the call. |

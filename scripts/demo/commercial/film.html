@@ -117,9 +117,9 @@ html, body { width: 1920px; height: 1080px; overflow: hidden; background: var(--
 <div id="fine" class="abs">Free and open source (MIT) · Apple Silicon Macs · Any MCP agent · Demo data is fictional</div>
 
 <script>
-const DUR = 51.4;
+const DUR = 32.39;
 // The picture's own clock (0-45 s) mapped onto the narration's: [film t, picture t] anchors at each sentence start.
-const WARP = [[0, 0], [4.24, 3.0], [12.71, 13.7], [18.82, 17.2], [25.91, 24.4], [31.94, 30.6], [40.24, 37.6], [46.03, 40.4], [51.4, 45]];
+const WARP = [[0, 0], [2.84, 3.0], [9.1, 13.7], [12.63, 17.2], [16.53, 24.4], [20.07, 30.6], [24.91, 37.6], [28.24, 40.4], [32.39, 45]];
 const warp = (t) => { const i = Math.max(1, WARP.findIndex((a) => a[0] >= t)); const [a, b] = [WARP[i - 1], WARP[i] || WARP.at(-1)]; return b[0] === a[0] ? b[1] : a[1] + (b[1] - a[1]) * Math.min(1, Math.max(0, (t - a[0]) / (b[0] - a[0]))); };
 const clamp = (x, a = 0, b = 1) => Math.min(b, Math.max(a, x));
 const p = (t, a, b) => clamp((t - a) / (b - a));
