@@ -1,0 +1,34 @@
+# Libraries Bun (BUN_VERSION in scripts/build.sh) statically links into Resources/roar-mcp on macOS,
+# at the commits bun-v<version> pins (scripts/build/deps/*.ts; in-tree ones at the bun tag or the WebKit commit).
+# Not listed: libuv and sqlite (Windows / non-static only), ICU (macOS roar-mcp links the system libicucore).
+# scripts/fetch-bun-licenses.sh downloads each file into licenses/bun-deps/<name>-<file>; gen-notices.sh
+# prints them and check-notices.sh requires the marker line of each in the roar-mcp section.
+# name	repo	ref	file	marker (a line of the licence text)
+tinycc	oven-sh/tinycc	05f0fafaa3be31e31d7b4b5c17dc60f62c991171	COPYING	GNU LESSER GENERAL PUBLIC LICENSE
+boringssl	oven-sh/boringssl	41bf9b59c2ebf277a7aa427e1ecad5cc80dd4d4f	LICENSE	Apache License
+brotli	google/brotli	v1.1.0	LICENSE	Copyright (c) 2009, 2010, 2013-2016 by the Brotli Authors.
+c-ares	c-ares/c-ares	c7a3138dcfe3bb0eaaf10c0c24c36dc66dc790ab	LICENSE.md	Daniel Stenberg
+highway	google/highway	2607d3b5b0113992fe84d3848859eae13b3b52c1	LICENSE	Apache License
+libarchive	libarchive/libarchive	ded82291ab41d5e355831b96b0e1ff49e24d8939	COPYING	libarchive
+libdeflate	ebiggers/libdeflate	c8c56a20f8f621e6a966b716b31f1dedab6a41e3	COPYING	Eric Biggers
+libjpeg-turbo	libjpeg-turbo/libjpeg-turbo	e352b02f794f701407b39af08576035ba3360d60	LICENSE.md	libjpeg-turbo Licenses
+libjpeg-turbo	libjpeg-turbo/libjpeg-turbo	e352b02f794f701407b39af08576035ba3360d60	README.ijg	Independent JPEG Group
+libspng	randy408/libspng	fb768002d4288590083a476af628e51c3f1d47cd	LICENSE	Randy
+libwebp	webmproject/libwebp	b7e29b9d75bd31422b00c2a446d49d7af06c328d	COPYING	Copyright (c) 2010, Google Inc. All rights reserved.
+libwebp	webmproject/libwebp	b7e29b9d75bd31422b00c2a446d49d7af06c328d	PATENTS	Additional IP Rights Grant (Patents)
+lol-html	oven-sh/lol-html	725ce499aa9b71e38b7a2d0a9fbb6d7294a4079e	LICENSE	Cloudflare
+ls-hpack	litespeedtech/ls-hpack	8905c024b6d052f083a3d11d0a169b3c2735c8a1	LICENSE	LiteSpeed
+ls-qpack	litespeedtech/ls-qpack	1e9c5b8e59f8161c54f168a570c8bfdc59ded0c3	LICENSE	LiteSpeed
+lsquic	litespeedtech/lsquic	3181911301b1aa4f54c1ed690901abc674ee08fb	LICENSE	LiteSpeed
+lsquic	litespeedtech/lsquic	3181911301b1aa4f54c1ed690901abc674ee08fb	LICENSE.chrome	The Chromium Authors
+mimalloc	oven-sh/mimalloc	6a64e1ba7f5b2130d4efccb67ec87fd0003f0f6a	LICENSE	Microsoft
+picohttpparser	h2o/picohttpparser	066d2b1e9ab820703db0837a7255d92d30f0c9f5	picohttpparser.h	Kazuho Oku
+zlib-ng	zlib-ng/zlib-ng	12731092979c6d07f42da27da673a9f6c7b13586	LICENSE.md	Jean-loup Gailly and Mark Adler
+zstd	facebook/zstd	f8745da6ff1ad1e7bab384bd1f9d742439278e99	LICENSE	BSD License
+hdrhistogram	HdrHistogram/HdrHistogram_c	be60a9987ee48d0abf0d7b6a175bad8d6c1585d1	LICENSE.txt	Gil Tene
+rust-argon2	sru-systems/rust-argon2	ed81866f163f0c7026aa6fd8388adf37242eb32a	LICENSE-MIT	Permission is hereby granted
+simdutf	oven-sh/WebKit	2e2aa2290fac856d6f451ceacb58f7f5b44dd057	Source/WTF/wtf/simdutf/LICENSE-simdutf.txt	simdutf
+uSockets	oven-sh/bun	bun-v1.4.2	packages/bun-usockets/LICENSE	Apache License
+uWebSockets	oven-sh/bun	bun-v1.4.2	packages/bun-uws/LICENSE	Apache License
+clap	oven-sh/bun	bun-v1.4.2	src/clap/LICENSE	unencumbered software
+libbase64	aklomp/base64	e4cc438b7a8f2780b15f88aed24a89927f6bd6c6	LICENSE	Alfred Klomp

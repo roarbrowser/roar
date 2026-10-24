@@ -1,0 +1,499 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Agent session</title>
+<link rel="stylesheet" href="roar.css">
+<style>
+/* One agent session (any hooked CLI), live: its terminal screen (tmux or cmux) and a reply box. */
+body { background: var(--panel); margin: 0; height: 100vh; display: flex; flex-direction: column; }
+header { display: flex; align-items: center; gap: 10px; padding: 14px 20px 10px; }
+h1 { margin: 0; font: 800 22px/1.1 var(--round); letter-spacing: -.01em; }
+.state { font-size: 12px; color: var(--ink-3); flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dot { width: 9px; height: 9px; border-radius: 50%; background: var(--ink-3); flex: none; }
+.dot.working, .dot.starting { background: var(--ok); } .dot.needs_you { background: var(--mane); }
+pre { flex: 1; margin: 0 20px; padding: 14px 16px; overflow: auto; border-radius: 10px; background: #15100c; color: #eadfd2; font: 12.5px/1.45 var(--mono); white-space: pre; }
+/* Short screens (a CLI's fullscreen UI is only as tall as its terminal) sit at the bottom, like a terminal;
+   the spacer shrinks to nothing once the text overflows, so scrolling still works. */
+#screen { display: flex; flex-direction: column; }
+#screen::before { content: ''; flex: 1 0 0; }
+.err { color: var(--ink-3); font: 13px var(--ui); white-space: normal; }
+form { display: flex; gap: 8px; padding: 10px 20px 4px; }
+form input { flex: 1; min-width: 0; padding: 9px 12px; border-radius: 9px; border: 0; background: var(--ground); color: var(--ink); font: 14px var(--ui); box-shadow: inset 0 0 0 1px var(--rule); }
+#attach-why { margin: 0 20px; }
+#tab-menu { position: fixed; z-index: 9; max-height: 60vh; overflow-y: auto; min-width: 220px; max-width: 360px; padding: 6px; border-radius: 10px; background: var(--ground); box-shadow: 0 0 0 1px var(--rule), 0 8px 24px rgb(0 0 0 / .3); }
+#tab-menu h4 { margin: 6px 8px 4px; font: 600 11px var(--ui); color: var(--ink-3); }
+#tab-menu button { display: block; width: 100%; text-align: left; padding: 6px 8px; border-radius: 6px; color: var(--ink); font: 13px var(--ui); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#tab-menu button:hover, #tab-menu button:focus { background: var(--hover); }
+form button:not(.btn) { background: var(--mane); color: #2a1604; font-weight: 600; border-radius: 9px; padding: 0 16px; }
+.swatches { display: flex; gap: 5px; }
+.swatches button { width: 14px; height: 14px; padding: 0; border-radius: 50%; box-shadow: inset 0 0 0 1px rgba(255,255,255,.15); }
+.swatches button[aria-pressed="true"] { box-shadow: 0 0 0 2px var(--ink); }
+body.tint { background: color-mix(in srgb, var(--cl-bg) 14%, var(--panel)); }
+body.tint-t pre { background: color-mix(in srgb, var(--cl-term) 22%, #15100c); }
+#color-on button { padding: 2px 8px; font-size: 11.5px; }
+/* One chip (window color left, terminal right); hover or focus opens the picker under it. */
+.colorpick { position: relative; display: flex; }
+.chip-dot { width: 18px; height: 18px; padding: 0; border-radius: 50%; box-shadow: inset 0 0 0 1px rgba(255,255,255,.25);
+  background: linear-gradient(90deg, var(--chip-w, var(--ground)) 50%, var(--chip-t, var(--ground)) 50%); }
+.colorpick .pop { position: absolute; top: 100%; right: -6px; z-index: 9; display: none; flex-direction: column; gap: 8px; margin-top: 6px; padding: 10px;
+  border-radius: 10px; background: var(--ground); box-shadow: 0 0 0 1px var(--rule), 0 8px 24px rgb(0 0 0 / .3); }
+.colorpick .pop::before { content: ''; position: absolute; inset: -8px 0 auto; height: 8px; }  /* Keeps hover alive across the gap. */
+.colorpick:hover .pop, .colorpick:focus-within .pop { display: flex; }
+.colorpick .swatches button[data-color=""] { background: linear-gradient(135deg, transparent 45%, var(--ink-3) 45% 55%, transparent 55%) !important; }
+.colorpick .swatches { display: grid; grid-template-columns: repeat(6, 14px); gap: 7px; }
+.keys { display: flex; flex-wrap: wrap; gap: 6px; padding: 6px 20px 16px; }
+.keys button { background: var(--ground); border-radius: 7px; padding: 4px 10px; font: 12px var(--mono); color: var(--ink-2); }
+.keys button:hover { background: var(--hover); color: var(--ink); }
+/* Chat view: the same session read from the CLI's transcript as bubbles; the terminal is one switch away. */
+body.chat-mode #screen, body.chat-mode #reply, body.chat-mode .keys, body:not(.chat-mode) #chat, body:not(.chat-mode) #chatform { display: none !important; }
+#chat { flex: 1; overflow: auto; margin: 0 20px; display: flex; flex-direction: column; gap: 10px; padding: 8px 0 12px; }
+#msgs { display: flex; flex-direction: column; gap: 10px; }
+.msg { max-width: min(760px, 88%); padding: 10px 14px; border-radius: 14px; overflow-wrap: anywhere; font: 14px/1.55 var(--ui); }
+.msg.user { align-self: flex-end; background: var(--mane-soft); border-bottom-right-radius: 4px; white-space: pre-wrap; }
+.msg.assistant { align-self: flex-start; background: var(--ground); border-bottom-left-radius: 4px; }
+.msg > :first-child { margin-top: 0; } .msg > :last-child { margin-bottom: 0; }
+.msg p { margin: 0 0 8px; } .msg ul, .msg ol { margin: 0 0 8px; padding-left: 22px; }
+.msg blockquote { margin: 0 0 8px; padding-left: 10px; border-left: 3px solid var(--rule); color: var(--ink-2); }
+.msg code { font: 12px var(--mono); background: var(--panel); padding: 1px 4px; border-radius: 4px; }
+.msg a { color: var(--mane-ink); }
+.who { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+.code { position: relative; margin: 0 0 8px; }
+.code pre { margin: 0; font: 12px/1.55 var(--mono); background: var(--panel); color: var(--ink); border: 1px solid var(--rule); border-radius: 8px; padding: 30px 14px 12px; overflow-x: auto; white-space: pre; }
+.code pre code { background: none; padding: 0; }
+.code .copy { position: absolute; top: 6px; right: 6px; font-size: 11px; padding: 2px 8px; border-radius: 6px; background: var(--ground); color: var(--ink-2); }
+details.chip { align-self: flex-start; max-width: 88%; font: 12.5px var(--ui); color: var(--ink-2); }
+details.chip summary { cursor: pointer; padding: 4px 10px; border-radius: 999px; background: var(--ground); box-shadow: inset 0 0 0 1px var(--rule); list-style: none; }
+details.chip summary::before { content: '▸ '; } details.chip[open] summary::before { content: '▾ '; }
+details.chip summary:focus-visible, #view button:focus-visible, #ask button:focus-visible { outline: 2px solid var(--mane); outline-offset: 1px; }
+details.chip ul { margin: 6px 0 0; padding-left: 26px; font: 12px/1.5 var(--mono); color: var(--ink-3); }
+#working { align-self: flex-start; font: italic 13px var(--ui); color: var(--ink-3); }
+#working::before { content: '● '; animation: pulse 1.2s ease-in-out infinite; }
+@keyframes pulse { 50% { opacity: .3; } }
+@media (prefers-reduced-motion: reduce) { #working::before { animation: none; } }
+#ask { align-self: stretch; padding: 12px 14px; border-radius: 12px; background: var(--ground); box-shadow: inset 0 0 0 2px var(--mane); font: 14px var(--ui); }
+#ask p { margin: 0 0 10px; font-weight: 600; }
+#ask .opts { display: flex; flex-wrap: wrap; gap: 8px; }
+#ask .opts button { padding: 6px 12px; border-radius: 8px; background: var(--panel); color: var(--ink); box-shadow: inset 0 0 0 1px var(--rule); text-align: left; }
+#ask .opts button:first-child { background: var(--mane); color: #2a1604; font-weight: 600; box-shadow: none; }
+.note { margin: 0; font: 13px var(--ui); color: var(--ink-3); }
+#chatform { display: flex; gap: 8px; padding: 10px 20px 16px; align-items: flex-end; }
+#chatform textarea { flex: 1; min-width: 0; resize: none; max-height: 40vh; padding: 9px 12px; border-radius: 9px; border: 0; background: var(--ground); color: var(--ink); font: 14px/1.4 var(--ui); box-shadow: inset 0 0 0 1px var(--rule); }
+#chatform button { background: var(--mane); color: #2a1604; font-weight: 600; border-radius: 9px; padding: 9px 16px; }
+#view { flex: none; }
+/* / command suggestions, above whichever box is being typed in. */
+#slash-menu { position: fixed; z-index: 9; max-height: 40vh; overflow-y: auto; min-width: 220px; max-width: 420px; padding: 6px; border-radius: 10px; background: var(--ground); box-shadow: 0 0 0 1px var(--rule), 0 8px 24px rgb(0 0 0 / .3); }
+#slash-menu div { padding: 5px 8px; border-radius: 6px; color: var(--ink); font: 13px var(--mono); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: default; }
+#slash-menu div[aria-selected="true"] { background: var(--hover); }
+#slash-menu div b { color: var(--mane-ink); font-weight: 600; }
+#chat-off { margin: 0 20px 8px; }
+</style>
+</head>
+<body>
+<header><span class="dot" id="dot" aria-hidden="true"></span><span id="icon"></span><h1 id="name">Agent session</h1><span class="state" id="state" role="status"></span><span class="segmented" id="view" role="group" aria-label="View"><button type="button" data-view="chat" title="The conversation as a chat">Chat</button><button type="button" data-view="terminal" title="The live terminal, with every key">Terminal</button></span><span class="colorpick"><button class="chip-dot" id="color-chip" aria-label="Session colors" aria-haspopup="true"></button><span class="pop"><span class="segmented" id="color-on" role="group" aria-label="Color"><button data-on="w">Window</button><button data-on="t">Terminal</button></span><span class="swatches" id="colors" role="group" aria-label="Session color"></span></span></span><button class="btn" id="attach">Send tab</button><button class="btn" id="beside" title="Split this view beside the web page you used last">Side by side</button><button class="btn" id="focus" title="Bring its terminal window to the front">Terminal</button></header>
+<p class="status" id="chat-off" role="note" hidden></p>
+<pre id="screen" aria-live="off"></pre>
+<section id="chat" aria-label="Conversation"><p class="note" id="chat-note" hidden></p><div id="msgs" role="log" aria-live="polite" aria-relevant="additions"></div><div id="ask" role="group" aria-labelledby="ask-q" hidden></div><div id="working" role="status" hidden>Working…</div></section>
+<form id="chatform"><textarea id="ctext" rows="1" placeholder="Message… (Enter sends, Shift+Enter for a new line)" aria-label="Message to the agent"></textarea><button>Send</button></form>
+<form id="reply"><input id="text" placeholder="Reply… (/ for commands; empty Enter accepts)" autocomplete="off" spellcheck="false" aria-label="Reply"><button>Send</button></form>
+<p class="status" id="attach-why" hidden></p>
+<div class="ctx" id="tab-menu" role="menu" hidden></div>
+<div class="ctx" id="slash-menu" role="listbox" aria-label="Commands" hidden></div>
+<div class="keys" role="group" aria-label="Keys"></div>
+<script src="bridge.js"></script>
+<script src="cl-session.js"></script>
+<script src="chat-core.js"></script>
+<script src="slash-mark.js"></script>
+<script>
+const $ = (id) => document.getElementById(id);
+const params = new URLSearchParams(location.search), cwd = params.get('cwd') || '';
+let id = params.get('id') || '';
+const keys = document.querySelector('.keys');
+keys.innerHTML = clSession.keysHtml();
+const STATES = { needs_you: 'Needs you', working: 'Working', idle: 'Idle', starting: 'Starting' };
+
+async function meta() {
+  const s = await ask({ cmd: 'state' }).then((x) => typeof x === 'string' ? JSON.parse(x) : x);
+  const items = s.claude?.items || [];
+  let c = items.find((x) => x.id === id);
+  // Opened on claude-ctl's new-* stand-in (?cwd=): follow the real session that replaces it.
+  if (!c && cwd && id.startsWith('new-')) {
+    c = items.find((x) => x.cwd === cwd && !x.id.startsWith('new-'));
+    if (c) { history.replaceState(null, '', `?id=${encodeURIComponent(id = c.id)}`); if (view) remember(view); }
+    else return void ($('state').textContent = 'Starting…');
+  }
+  if (!c) { $('state').textContent = 'This session has ended.'; $('dot').className = 'dot'; $('reply').hidden = $('screen').hidden = keys.hidden = $('focus').hidden = $('chat').hidden = $('chatform').hidden = $('view').hidden = true; return; }
+  document.title = `${c.project} · ${agentName(c)}`;
+  $('icon').innerHTML = agentIcon(c, 18);
+  $('icon').title = agentName(c);
+  $('name').textContent = c.project;
+  // Window and terminal each have their own color; the switch picks which one the dots set.
+  const pair = clPair(s, c.id), tint = colorTerm ? pair.t : pair.w;
+  document.body.classList.toggle('tint', !!pair.w);
+  document.body.classList.toggle('tint-t', !!pair.t);
+  document.body.style.setProperty('--cl-bg', pair.w || 'transparent');
+  document.body.style.setProperty('--cl-term', pair.t || 'transparent');
+  $('color-chip').style.setProperty('--chip-w', pair.w || 'var(--ground)');
+  $('color-chip').style.setProperty('--chip-t', pair.t || 'var(--ground)');
+  for (const b of $('color-on').children) b.setAttribute('aria-pressed', String((b.dataset.on === 't') === colorTerm));
+  if (!$('colors').contains(document.activeElement))
+    $('colors').innerHTML = ['', ...CL_COLORS].map((x) => `<button data-color="${x}" aria-pressed="${x === tint}" title="${x ? 'Color this session' : 'No color'}" aria-label="${x ? CL_COLOR_NAMES[x] : 'No color'}" style="background:${x || 'var(--ink-3)'}"></button>`).join('');
+  colorState = s;
+  const st = c.acked && c.state === 'needs_you' ? 'working' : (c.state || 'idle');
+  $('state').textContent = [STATES[st] || st, c.doing || (c.prompt || '').split('\n')[0]].filter(Boolean).join(' · ');
+  $('dot').className = 'dot ' + st;
+  $('reply').hidden = $('screen').hidden = keys.hidden = $('chatform').hidden = !c.live;
+  session = c;
+  setView(view || recalled() || (s.settings?.agentTerminal ? 'terminal' : 'chat'));
+  // This page is the active tab, so "+ This tab" means the web tab used most recently before it.
+  webTabs = s.tabs.filter((t) => !t.ghost && !t.active && /^https?:/.test(t.url || '')).sort((a, b) => a.idleSeconds - b.idleSeconds);
+  const web = webTabs[0];
+  $('attach').disabled = !web || !c.live;
+  $('attach').hidden = !c.live;
+  $('attach').title = web ? 'Pick a tab: Roar saves it as Markdown and types @file into the prompt. Text in the reply box goes with it and Enter sends both; with none, no Enter' : 'Open a web page in this space first';
+  $('attach-why').hidden = !!web || !c.live;
+  if (c.cwd !== slashCwd) {
+    slashCwd = c.cwd;
+    ask({ cmd: 'claude.commands', cwd: c.cwd || '' }).then((x) => {
+      const own = typeof x === 'string' ? JSON.parse(x) : x || [];
+      slashNames = [...new Set([...(SLASH[c.tool || 'claude'] || []), ...own])];
+    });
+  }
+  $('attach-why').textContent = 'Open a web page in this space first: only web pages can be attached.';
+}
+let webTabs = [], slashCwd, slashNames = [];
+// Built-in / commands per CLI, offered with the user's own commands and skills.
+const SLASH = {
+  claude: ['clear', 'compact', 'context', 'cost', 'model', 'config', 'resume', 'review', 'init', 'memory', 'mcp', 'agents', 'permissions', 'hooks', 'status', 'help', 'exit', 'rewind', 'export', 'usage'],
+  codex: ['new', 'model', 'approvals', 'review', 'diff', 'compact', 'status', 'mcp', 'init', 'mention', 'quit'],
+  gemini: ['clear', 'compress', 'chat', 'memory', 'mcp', 'tools', 'stats', 'settings', 'help', 'quit'],
+  copilot: ['clear', 'model', 'mcp', 'agent', 'cwd', 'usage', 'help', 'exit'],
+};
+const esc = (t) => String(t).replace(/[&<>"]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[ch]);
+// Text in the reply box goes with the page as its prompt.
+let colorState = null, colorTerm = false;
+const saveColor = (hex) => {
+  const all = clColors(colorState), pair = { ...clPair(colorState, id), [colorTerm ? 't' : 'w']: hex || '' };
+  if (pair.w || pair.t) all[id] = pair; else delete all[id];
+  return ask({ cmd: 'settings.set', settings: { agentColors: JSON.stringify(all) } }).then(meta);
+};
+$('color-on').onclick = (e) => {
+  const b = e.target.closest('[data-on]');
+  if (!b || !colorState) return;
+  colorTerm = b.dataset.on === 't';
+  meta();
+};
+$('colors').onclick = (e) => {
+  const b = e.target.closest('[data-color]');
+  if (!b || !colorState) return;
+  saveColor(b.dataset.color);
+};
+$('beside').onclick = () => ask({ cmd: 'claude.beside', id });
+// Claude Code's fullscreen UI runs on the terminal's alternate screen, which has no tmux scrollback,
+// so a wheel past the mirror's own scroll range pages the session itself.
+let wheel = 0, paging = false;
+$('screen').addEventListener('wheel', async (e) => {
+  const pre = $('screen'), up = e.deltaY < 0;
+  if (up ? pre.scrollTop > 0 : pre.scrollTop + pre.clientHeight < pre.scrollHeight - 1) return;
+  e.preventDefault();
+  if ((wheel += e.deltaY) > -120 && wheel < 120 || paging) return;
+  wheel = 0; paging = true;
+  await clSession.ctl(id, 'send', up ? 'key:pgup' : 'key:pgdn');
+  paging = false; screen();
+}, { passive: false });
+// The screen is read-only: a click there, or typing anywhere outside a field, goes to the reply box.
+$('screen').addEventListener('click', () => { if (!getSelection().toString() && !$('reply').hidden) $('text').focus(); });
+document.addEventListener('keydown', (e) => {
+  if ($('reply').hidden || e.metaKey || e.ctrlKey || e.altKey || e.key.length !== 1) return;
+  if (e.target.closest?.('input, textarea, select, [contenteditable]')) return;
+  $(view === 'chat' ? 'ctext' : 'text').focus();  // The key's character then lands in the box.
+});
+// Send tab asks which tab, pinned ones first.
+$('attach').onclick = () => {
+  const m = $('tab-menu');
+  if (!m.hidden) return void (m.hidden = true);
+  const group = (label, list) => list.length ? `<h4>${label}</h4>` + list.map((t) => `<button role="menuitem" data-tab="${t.id}" title="${esc(t.url)}">${esc(t.title || t.url)}</button>`).join('') : '';
+  m.innerHTML = group('Pinned', webTabs.filter((t) => t.pinned)) + group('Tabs', webTabs.filter((t) => !t.pinned));
+  const r = $('attach').getBoundingClientRect();
+  m.style.top = r.bottom + 6 + 'px';
+  m.style.right = Math.max(8, innerWidth - r.right) + 'px';
+  m.hidden = false;
+  m.querySelector('button')?.focus();
+};
+$('tab-menu').onclick = async (e) => {
+  const b = e.target.closest('[data-tab]');
+  if (!b) return;
+  $('tab-menu').hidden = true;
+  await ask({ cmd: 'claude.sendTab', id, tab: +b.dataset.tab, text: $('text').value.trim() });
+  $('text').value = '';
+};
+document.addEventListener('mousedown', (e) => { if (!e.target.closest('#tab-menu, #attach')) $('tab-menu').hidden = true; });
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') $('tab-menu').hidden = true; });
+
+// Shows a failed control call in the screen area; true when |out| was an error.
+const shownError = (out) => {
+  const why = clSession.error(out);
+  if (why) $('screen').replaceChildren(Object.assign(document.createElement('div'), { className: 'err', textContent: why }));
+  return !!why;
+};
+
+let busy = false;
+// Scales the mirrored screen so its widest line fits the pane (side by side makes it narrow).
+function fit() {
+  const pre = $('screen'), cols = Math.max(40, ...pre.textContent.split('\n').map((l) => l.length));
+  const w = pre.clientWidth - 32;  // padding
+  if (w > 0) pre.style.fontSize = Math.max(8, Math.min(12.5, w / (cols * 0.6))) + 'px';
+}
+addEventListener('resize', fit);
+
+// tmux's SGR colors (capture-pane -e) as spans, so the mirror reads like the real terminal.
+const ANSI16 = ['#2e2a27', '#e5484d', '#46a758', '#ffc53d', '#3b8cff', '#c56ad6', '#12a5a4', '#d8d0c6', '#8a8079', '#ff6b6b', '#6fd36f', '#ffe08a', '#7ab4ff', '#e09cf0', '#5fd8d6', '#ffffff'];
+const ansi256 = (n) => {
+  if (n < 16) return ANSI16[n];
+  if (n >= 232) { const v = 8 + (n - 232) * 10; return `rgb(${v},${v},${v})`; }
+  n -= 16; const c = (x) => (x ? 55 + x * 40 : 0);
+  return `rgb(${c(Math.floor(n / 36))},${c(Math.floor(n / 6) % 6)},${c(n % 6)})`;
+};
+function ansiHtml(raw) {
+  let st = {}, out = '';
+  const parts = raw.replace(/\x1b\[[\d;?]*[A-Za-ln-z]|\x1b[()][\w]|\x1b\][^\x07]*\x07/g, '').split(/\x1b\[([\d;]*)m/);
+  for (let i = 0; i < parts.length; i++) {
+    if (i % 2) {
+      const c = parts[i] === '' ? [0] : parts[i].split(';').map(Number);
+      for (let j = 0; j < c.length; j++) {
+        const k = c[j];
+        if (k === 0) st = {};
+        else if (k === 1) st.b = 1; else if (k === 2) st.d = 1; else if (k === 3) st.i = 1; else if (k === 4) st.u = 1; else if (k === 7) st.r = 1;
+        else if (k === 22) st.b = st.d = 0; else if (k === 23) st.i = 0; else if (k === 24) st.u = 0; else if (k === 27) st.r = 0;
+        else if (k >= 30 && k <= 37) st.fg = ANSI16[k - 30]; else if (k >= 90 && k <= 97) st.fg = ANSI16[k - 82];
+        else if (k >= 40 && k <= 47) st.bg = ANSI16[k - 40]; else if (k >= 100 && k <= 107) st.bg = ANSI16[k - 92];
+        else if (k === 39) st.fg = ''; else if (k === 49) st.bg = '';
+        else if ((k === 38 || k === 48) && c[j + 1] === 5) { st[k === 38 ? 'fg' : 'bg'] = ansi256(c[j + 2] & 255); j += 2; }
+        else if ((k === 38 || k === 48) && c[j + 1] === 2) { st[k === 38 ? 'fg' : 'bg'] = `rgb(${c[j + 2]},${c[j + 3]},${c[j + 4]})`; j += 4; }
+      }
+    } else if (parts[i]) {
+      let [fg, bg] = st.r ? [st.bg || '#15100c', st.fg || '#eadfd2'] : [st.fg, st.bg];
+      const css = (fg ? `color:${fg};` : '') + (bg ? `background:${bg};` : '') + (st.b ? 'font-weight:700;' : '') + (st.d ? 'opacity:.6;' : '') + (st.i ? 'font-style:italic;' : '') + (st.u ? 'text-decoration:underline;' : '');
+      const t = slashMark.html(esc(parts[i]));
+      out += css ? `<span style="${css}">${t}</span>` : t;
+    }
+  }
+  return out;
+}
+const plain = (l) => l.replace(/\x1b\[[\d;?]*[A-Za-z]/g, '');
+// The CLI's own input box (rule, ❯ line(s), rule) at the bottom duplicates the reply box below, so it's cut.
+function dropPromptBox(raw) {
+  const lines = raw.split('\n'), rule = (l) => /^\s*[─━]{10,}\s*$/.test(plain(l));
+  let b = -1, a = -1;
+  for (let i = lines.length - 1; i >= Math.max(0, lines.length - 40); i--) if (rule(lines[i])) { if (b < 0) b = i; else { a = i; break; } }
+  if (a < 0 || b - a > 15 || !lines.slice(a + 1, b).some((l) => /^\s*[❯>]/.test(plain(l)))) return raw;
+  lines.splice(a, b - a + 1);
+  if (a < lines.length) lines[a] = '\x1b[0m' + lines[a];  // The cut lines held resets; don't let their colors run on.
+  return lines.join('\n');
+}
+
+let lastRaw = '';
+async function screen() {
+  if (busy || document.hidden || $('screen').hidden || view === 'chat') return;
+  busy = true;
+  try {
+    let out = await clSession.ctl(id, 'screen', 'color');
+    if (shownError(out)) return;
+    const pre = $('screen'), atBottom = pre.scrollTop + pre.clientHeight >= pre.scrollHeight - 8;
+    // One <span> so the text stays a single flex item in the #screen column.
+    if (lastRaw !== (out = dropPromptBox(out.replace(/\s+$/, '')))) { lastRaw = out; pre.innerHTML = `<span>${ansiHtml(out)}</span>`; fit(); if (atBottom) pre.scrollTop = pre.scrollHeight; }
+  } finally { busy = false; }
+}
+
+$('reply').onsubmit = async (e) => {
+  e.preventDefault();
+  if (shownError(await clSession.reply(id, $('text').value))) return;
+  $('text').value = '';
+  screen();
+};
+keys.onclick = async (e) => {
+  const b = e.target.closest('[data-k]');
+  if (b && !shownError(await clSession.key(id, b))) screen();
+};
+$('focus').onclick = async () => shownError(await clSession.ctl(id, 'focus'));
+
+// --- Chat view ---------------------------------------------------------------------------------------
+// The view each session last used (this page's own storage), else Settings > Agents' default.
+let view = '', session = null, chatSig = '', chatBusy = false, askSig = '';
+const recalled = () => { try { return localStorage.getItem('agentView:' + id) || ''; } catch { return ''; } };
+const remember = (v) => { try { localStorage.setItem('agentView:' + id, v); } catch {} };
+function setView(v) {
+  if (v === view) return;
+  view = v;
+  document.body.classList.toggle('chat-mode', v === 'chat');
+  for (const b of $('view').children) b.setAttribute('aria-pressed', String(b.dataset.view === v));
+  v === 'chat' ? chat() : screen();
+}
+$('view').onclick = (e) => {
+  const b = e.target.closest('[data-view]');
+  if (b && !b.disabled) { remember(b.dataset.view); setView(b.dataset.view); }
+};
+const fmtTime = (at) => { const d = new Date(at); return isNaN(d) ? '' : d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }); };
+function item(x) {
+  if (x.kind === 'tools') {
+    const d = document.createElement('details');
+    d.className = 'chip';
+    d.innerHTML = `<summary>${esc(x.summary)}</summary><ul>${x.details.map((t) => `<li>${esc(t)}</li>`).join('')}</ul>`;
+    return d;
+  }
+  const m = document.createElement('div'), who = x.kind === 'user' ? 'You' : agentName(session);
+  m.className = 'msg ' + x.kind;
+  m.title = [who, fmtTime(x.at)].filter(Boolean).join(' · ');
+  // The speaker is in the text for screen readers, not only in the side and color.
+  m.innerHTML = `<span class="who">${esc(who)}: </span>` + (x.kind === 'user' ? slashMark.html(esc(x.text)) : chatCore.renderMarkdown(x.text));
+  return m;
+}
+const note = (t) => { $('chat-note').hidden = !t; $('chat-note').textContent = t || ''; };
+async function chat() {
+  if (chatBusy || document.hidden || view !== 'chat' || !session) return;
+  chatBusy = true;
+  try {
+    // bridge.js hands back JSON replies already parsed; an "error: …" reply stays a string.
+    let d;
+    try { d = await ask({ cmd: 'claude.ctl', action: 'chat', id }); } catch (e) { d = 'error: ' + (e?.message || e); }
+    if (typeof d === 'string') try { d = JSON.parse(d); } catch { return note(clSession.error(d) || 'Could not read this session.'); }
+    if (!d.supported) {
+      // No transcript Roar can read for this CLI: the terminal is the only faithful view.
+      $('view').querySelector('[data-view="chat"]').disabled = true;
+      $('view').querySelector('[data-view="chat"]').title = `Chat view isn't available for ${agentName(session)} yet`;
+      $('chat-off').hidden = false;
+      $('chat-off').textContent = `Chat view isn't available for ${agentName(session)} yet, so this session shows its terminal.`;
+      return setView('terminal');
+    }
+    const box = $('chat'), atBottom = box.scrollTop + box.clientHeight >= box.scrollHeight - 24;
+    const sig = JSON.stringify(d.items);
+    if (sig !== chatSig) {
+      // Rebuilt whole, so keep the activity chips the reader had open.
+      const open = new Set([...$('msgs').querySelectorAll('details[open]')].map((x) => x.dataset.i));
+      chatSig = sig;
+      $('msgs').replaceChildren(...d.items.map((x, i) => { const el = item(x); el.dataset.i = i; if (open.has(String(i))) el.open = true; return el; }));
+    }
+    note(d.items.length ? '' : 'No messages yet. Say something below to start.');
+    const st = session.acked && session.state === 'needs_you' ? 'working' : session.state;
+    $('working').hidden = !(d.busy || st === 'working') || !!d.prompt;
+    $('working').textContent = session.doing && st === 'working' ? session.doing + '…' : 'Working…';
+    showAsk(d.prompt, st === 'needs_you' && /^Approve:|permission/i.test(session.ask || session.doing || ''));
+    if (atBottom) box.scrollTop = box.scrollHeight;
+  } finally { chatBusy = false; }
+}
+// A choice the CLI shows on screen, as buttons that press its keys; one Roar can't read sends the reader to the terminal.
+function showAsk(p, needsTerminal) {
+  const sig = JSON.stringify([p, needsTerminal]);
+  if (sig === askSig) return;
+  askSig = sig;
+  const box = $('ask');
+  box.hidden = !p && !needsTerminal;
+  if (p) box.innerHTML = `<p id="ask-q">${esc(p.question || 'The agent is asking:')}</p><div class="opts">${p.options.map((o) => `<button type="button" data-key="${esc(o.key)}">${esc(o.label)}</button>`).join('')}</div>`;
+  else if (needsTerminal) box.innerHTML = `<p id="ask-q">The agent needs you in the terminal.</p><div class="opts"><button type="button" data-switch>Switch to Terminal</button></div>`;
+}
+$('ask').onclick = async (e) => {
+  const b = e.target.closest('button');
+  if (!b) return;
+  if (b.dataset.switch !== undefined) return void (remember('terminal'), setView('terminal'));
+  for (const x of $('ask').querySelectorAll('button')) x.disabled = true;
+  await clSession.ctl(id, 'send', b.dataset.key);
+  askSig = '';
+  setTimeout(chat, 300);
+};
+$('msgs').addEventListener('click', (e) => {
+  const b = e.target.closest('.copy');
+  if (b) navigator.clipboard.writeText(b.parentElement.querySelector('code').textContent).then(() => { b.textContent = 'Copied'; setTimeout(() => (b.textContent = 'Copy'), 1200); });
+});
+const grow = () => { const t = $('ctext'); t.style.height = 'auto'; t.style.height = t.scrollHeight + 'px'; };
+$('ctext').addEventListener('input', grow);
+$('ctext').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); $('chatform').requestSubmit(); }
+});
+$('chatform').onsubmit = async (e) => {
+  e.preventDefault();
+  const text = $('ctext').value.trim();
+  if (!text) return;
+  // The terminal reply box's own send path (types the text, then Enter).
+  const why = clSession.error(await clSession.reply(id, text));
+  if (why) return note(why);
+  $('ctext').value = ''; grow();
+  $('chat').scrollTop = $('chat').scrollHeight;
+  setTimeout(chat, 400);
+};
+
+// --- / command autocomplete -------------------------------------------------------------------------
+// Typing "/" at the start of either box lists the CLI's commands and the user's and project's own;
+// arrows move, Tab or Enter fills one in, Escape closes.
+let slashBox = null, slashHits = [], slashAt = 0;
+function slashShow() {
+  const m = $('slash-menu');
+  m.innerHTML = slashHits.map((n, i) => `<div role="option" data-i="${i}" aria-selected="${i === slashAt}">/${esc(n)}</div>`).join('');
+  const q = slashBox.value.slice(1);
+  if (q) for (const d of m.children) d.innerHTML = d.innerHTML.replace('/' + esc(q), `/<b>${esc(q)}</b>`);
+  m.hidden = false;
+  const r = slashBox.getBoundingClientRect();
+  m.style.left = r.left + 'px';
+  m.style.bottom = innerHeight - r.top + 6 + 'px';
+  m.children[slashAt]?.scrollIntoView({ block: 'nearest' });
+}
+const slashHide = () => { $('slash-menu').hidden = true; slashBox = null; };
+function slashUpdate(box) {
+  const mt = /^\/(\S*)$/.exec(box.value);
+  if (!mt) return slashHide();
+  const q = mt[1].toLowerCase();
+  const pre = slashNames.filter((n) => n.toLowerCase().startsWith(q));
+  slashHits = [...pre, ...slashNames.filter((n) => !pre.includes(n) && n.toLowerCase().includes(q))].slice(0, 50);
+  if (!slashHits.length || (slashHits.length === 1 && slashHits[0].toLowerCase() === q)) return slashHide();
+  if (box !== slashBox) slashAt = 0;
+  slashBox = box; slashAt = Math.min(slashAt, slashHits.length - 1);
+  slashShow();
+}
+function slashPick(i) {
+  const box = slashBox;
+  box.value = '/' + slashHits[i] + ' ';
+  slashHide();
+  box.focus();
+  box.dispatchEvent(new Event('input'));
+}
+for (const box of [$('text'), $('ctext')]) slashMark.field(box);
+// A pasted image is saved by Roar and goes in as an @path mention, which every hooked CLI reads as a file.
+for (const box of [$('text'), $('ctext')]) box.addEventListener('paste', async (e) => {
+  const files = [...(e.clipboardData?.files || [])].filter((f) => /^image\/(png|jpeg|gif|webp)$/.test(f.type));
+  if (!files.length) return;
+  e.preventDefault();
+  for (const f of files) {
+    const data = await new Promise((r) => { const fr = new FileReader(); fr.onload = () => r(String(fr.result).split(',')[1]); fr.readAsDataURL(f); });
+    let path;
+    try { path = await ask({ cmd: 'claude.saveImage', ext: f.type === 'image/jpeg' ? 'jpg' : f.type.slice(6), data }); } catch (err) { $('attach-why').hidden = false; $('attach-why').textContent = 'Couldn\'t paste the image: ' + (err?.message || err); continue; }
+    const at = box.selectionStart ?? box.value.length, ins = (at && !/\s$/.test(box.value.slice(0, at)) ? ' ' : '') + '@' + path + ' ';
+    box.value = box.value.slice(0, at) + ins + box.value.slice(box.selectionEnd ?? at);
+    box.selectionStart = box.selectionEnd = at + ins.length;
+    box.dispatchEvent(new Event('input'));
+  }
+});
+for (const box of [$('text'), $('ctext')]) {
+  box.addEventListener('input', () => slashUpdate(box));
+  box.addEventListener('blur', () => setTimeout(() => { if (slashBox === box && document.activeElement !== box) slashHide(); }, 150));
+  // Capture, so an open list takes Enter before the box's own send handler.
+  box.addEventListener('keydown', (e) => {
+    if (slashBox !== box || $('slash-menu').hidden || e.isComposing) return;
+    const n = slashHits.length;
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') slashAt = (slashAt + (e.key === 'ArrowDown' ? 1 : n - 1)) % n, slashShow();
+    else if (e.key === 'Tab' || (e.key === 'Enter' && !e.shiftKey)) slashPick(slashAt);
+    else if (e.key === 'Escape') slashHide();
+    else return;
+    e.preventDefault(); e.stopImmediatePropagation();
+  }, true);
+}
+$('slash-menu').addEventListener('mousedown', (e) => {
+  const d = e.target.closest('[data-i]');
+  e.preventDefault();
+  if (d) slashPick(+d.dataset.i);
+});
+
+meta().then(() => (view === 'chat' ? chat() : screen()));
+setInterval(() => (view === 'chat' ? chat() : screen()), 1000);
+setInterval(meta, 3000);
+</script>
+</body>
+</html>

@@ -1,0 +1,18 @@
+diff --git chrome/browser/devtools/chrome_devtools_manager_delegate.cc chrome/browser/devtools/chrome_devtools_manager_delegate.cc
+index bef86af906..c9f8e7b7c5 100644
+--- chrome/browser/devtools/chrome_devtools_manager_delegate.cc
++++ chrome/browser/devtools/chrome_devtools_manager_delegate.cc
+@@ -332,6 +332,13 @@ std::string ChromeDevToolsManagerDelegate::GetTargetType(
+   if (cef::IsAlloyContents(web_contents, /*primary_only=*/true)) {
+     return DevToolsAgentHost::kTypePage;
+   }
++  // Roar: CEF sets a Chrome-style browser's delegate before the tab joins a
++  // tab strip, so its DevTools host is created (and announced) while it has
++  // no TabInterface. Report it as a page, or CDP clients such as puppeteer
++  // treat Target.createTarget's new tab as "other" and never get a Page.
++  if (cef::IsBrowserContents(web_contents)) {
++    return DevToolsAgentHost::kTypePage;
++  }
+ #endif
+ 
+   return DevToolsAgentHost::kTypeOther;

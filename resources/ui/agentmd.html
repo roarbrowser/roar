@@ -1,0 +1,285 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Agent files</title>
+<link rel="stylesheet" href="roar.css">
+<style>
+body { background: var(--panel); margin: 0; height: 100vh; display: grid; grid-template-columns: 320px minmax(0, 1fr); overflow: hidden; }
+aside { border-right: 1px solid var(--rule); display: flex; flex-direction: column; min-height: 0; }
+aside header { padding: 22px 16px 10px; }
+h1 { margin: 0 0 12px; font: 800 22px/1 var(--round); letter-spacing: -.02em; }
+h1 small { font: 500 12px var(--ui); color: var(--ink-3); margin-left: 6px; letter-spacing: 0; }
+input { box-sizing: border-box; width: 100%; font: 13px var(--ui); padding: 8px 11px; border-radius: 8px; border: 1px solid var(--rule); background: var(--ground); color: var(--ink); }
+input:focus { outline: 2px solid var(--mane); outline-offset: -1px; }
+#list { overflow-y: auto; padding: 4px 8px 24px; flex: 1; }
+#list ul { list-style: none; margin: 0; padding: 0; }
+#list h2 { margin: 0; font: inherit; }
+#list li > button { display: block; width: 100%; text-align: left; padding: 7px 10px; border-radius: 8px; color: var(--ink-2); font: 500 12.5px var(--ui); }
+#list li > button:hover { background: var(--hover); color: var(--ink); }
+#list li > button[aria-current="true"] { background: var(--mane-soft); color: var(--mane-ink); }
+#list b { display: block; color: var(--ink); font-weight: 650; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#list span { display: block; color: var(--ink-3); font-size: 11.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+main { overflow-y: auto; min-height: 0; }
+main .bar { position: sticky; top: 0; background: var(--panel); padding: 18px 28px 10px; border-bottom: 1px solid var(--rule); display: flex; gap: 10px; align-items: center; }
+main .bar code { flex: 1; font: 12px ui-monospace, monospace; color: var(--ink-2); overflow-wrap: anywhere; }
+main .bar .btn { padding: 5px 10px; font-size: 12.5px; }
+main .bar .btn.ok { color: var(--ok); }
+pre { margin: 0; padding: 20px 28px 80px; font: 12.5px/1.6 ui-monospace, monospace; color: var(--ink); white-space: pre-wrap; overflow-wrap: anywhere; }
+#chips { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px; }
+.filters { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 8px; }
+.filters select { min-width: 0; font: 12px var(--ui); padding: 5px 6px; border-radius: 7px; border: 1px solid var(--rule); background: var(--ground); color: var(--ink); }
+.selbar { display: flex; align-items: center; gap: 8px; margin-top: 10px; font: 12px var(--ui); color: var(--ink-2); }
+.selbar label { flex: 1; display: flex; gap: 6px; align-items: center; }
+.selbar input, #list li > input { width: auto; margin: 0; accent-color: var(--mane); }
+.selbar .btn { padding: 4px 10px; font-size: 12px; } .selbar .btn:not(:disabled) { color: var(--danger); }
+#list li { display: flex; align-items: center; gap: 4px; } #list li > input { flex: none; margin-left: 8px; }
+#list li > button { min-width: 0; }
+#list i { font-style: normal; font-weight: 500; color: var(--ink-3); margin-left: 6px; font-size: 11px; }
+#list .kind { display: flex; width: 100%; align-items: center; gap: 6px; padding: 10px 10px 4px; font: 700 11px var(--ui); text-transform: uppercase; letter-spacing: .04em; color: var(--ink-3); background: none; }
+#list .kind:hover { background: none; color: var(--ink); }
+#list .kind::before { content: '▾'; transition: transform .12s; }
+#list .kind[aria-expanded="false"]::before { transform: rotate(-90deg); }
+#list .kind em { font-style: normal; font-weight: 500; }
+textarea { box-sizing: border-box; width: 100%; min-height: calc(100vh - 70px); margin: 0; padding: 20px 28px 80px; border: 0; resize: none; font: 12.5px/1.6 ui-monospace, monospace; color: var(--ink); background: var(--ground); }
+textarea:focus { outline: 2px solid var(--mane); outline-offset: -2px; }
+#msg { font: 12px var(--ui); color: var(--ink-3); }
+#msg.err, #tmsg.err { color: var(--danger); } #msg.ok, #tmsg.ok { color: var(--ok); }
+#tmsg { font: 12px var(--ui); margin-top: 6px; } #tmsg:empty { display: none; }
+#confirm { display: flex; gap: 8px; align-items: center; padding: 8px 28px; background: var(--mane-soft); color: var(--ink); font: 13px var(--ui); }
+#confirm span { flex: 1; }
+#confirm .btn { padding: 4px 10px; font-size: 12.5px; background: var(--panel); }
+#confirm #discard { color: var(--danger); }
+.empty { padding: 40px 28px; color: var(--ink-3); font: 13px var(--ui); }
+/* Narrow windows: the list on top (a third of the height), the file below. */
+@media (max-width: 720px) {
+  body { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 38vh) minmax(0, 1fr); }
+  aside { border-right: 0; border-bottom: 1px solid var(--rule); }
+  aside header { padding: 14px 14px 8px; }
+  main .bar { padding: 10px 14px; flex-wrap: wrap; }
+  main .bar code { flex-basis: 100%; order: 9; }
+  pre, textarea { padding: 14px 14px 60px; }
+  textarea { min-height: 50vh; }
+}
+</style>
+</head>
+<body>
+<aside>
+  <header>
+    <h1>Agent files<small id="count">Searching your home folder…</small></h1>
+    <input id="q" type="search" placeholder="Search names and paths" aria-label="Search files" autofocus>
+    <div class="filters">
+      <select id="f-project" aria-label="Project"></select>
+      <select id="f-group" aria-label="Group by"><option value="project">By project</option><option value="kind">By agent</option></select>
+      <select id="f-date" aria-label="Which date"><option value="mtime">Changed</option><option value="ctime">Created</option><option value="atime">Last opened</option></select>
+      <select id="f-age" aria-label="When"><option value="">Any time</option><option value="-7">In the past week</option><option value="-30">In the past month</option><option value="90">Over 3 months ago</option><option value="365">Over a year ago</option></select>
+    </div>
+    <div id="chips" role="group" aria-label="Filter by agent"></div>
+    <div class="selbar"><label><input type="checkbox" id="selall"> <span id="selnote">Select all shown</span></label><button class="btn" id="trash" disabled>Move to Trash</button></div>
+    <div id="tmsg" role="status"></div>
+  </header>
+  <nav id="list" aria-label="Agent files by kind"></nav>
+</aside>
+<main>
+  <div class="bar" id="bar" hidden><button class="btn" id="edit">Edit</button><button class="btn primary" id="save" hidden>Save</button><button class="btn" id="cancel" hidden>Cancel</button><code id="path"></code><span id="msg" role="status"></span><button class="btn" id="copy">Copy path</button><button class="btn" id="reveal">Reveal in Finder</button></div>
+  <div id="confirm" role="alertdialog" aria-label="Unsaved changes" hidden><span>Discard your unsaved changes?</span><button class="btn" id="discard">Discard</button><button class="btn" id="keep">Keep editing</button></div>
+  <pre id="text"></pre>
+  <textarea id="editor" hidden aria-label="File contents" spellcheck="false"></textarea>
+  <div class="empty" id="empty">Pick a file to read it. Roar looks for CLAUDE.md, AGENTS.md, GEMINI.md, Cursor, Copilot, Windsurf, Cline, Kiro, Roo, Continue and Junie rules, Claude commands, agents and skills, and similar files under your home folder.</div>
+</main>
+<script src="bridge.js"></script>
+<script>
+const $ = (id) => document.getElementById(id);
+const home = (p) => p.replace(/^\/Users\/[^/]+/, '~');
+const KINDS = ['Claude', 'Cursor', 'Copilot', 'Gemini', 'AGENTS/Codex', 'Windsurf', 'Cline', 'Kiro', 'Roo', 'Continue', 'Junie', 'Aider', 'Other'];
+let files = [], current = '', text = '', collapsed = new Set(), picked = new Set();
+let filter = { q: '', kinds: [], project: '', group: 'project', date: 'mtime', age: '' };
+try { filter = { ...filter, ...JSON.parse(localStorage.getItem('agentFilesFilter') || '{}') }; } catch {}
+$('q').value = filter.q || '';
+for (const k of ['group', 'date', 'age']) $('f-' + k).value = filter[k];
+const save = () => { try { localStorage.setItem('agentFilesFilter', JSON.stringify(filter)); } catch {} };
+const kindOf = (f) => KINDS.includes(f.kind) ? f.kind : 'Other';
+const DATE = { mtime: 'changed', ctime: 'created', atime: 'opened' };
+const ago = (sec) => {
+  const d = (Date.now() / 1000 - sec) / 86400;
+  return !sec ? 'unknown' : d < 1 / 24 ? 'just now' : d < 1 ? Math.round(d * 24) + ' h ago' : d < 45 ? Math.round(d) + ' d ago' : d < 365 ? Math.round(d / 30) + ' mo ago' : (d / 365).toFixed(1).replace(/\.0$/, '') + ' y ago';
+};
+
+function chips() {
+  const present = KINDS.filter((k) => files.some((f) => kindOf(f) === k));
+  $('chips').replaceChildren(...present.map((k) => {
+    const b = document.createElement('button');
+    b.className = 'chip'; b.textContent = k; b.dataset.kind = k;
+    b.setAttribute('aria-pressed', filter.kinds.includes(k));
+    return b;
+  }));
+  // Projects with the most files first.
+  const counts = {};
+  for (const f of files) counts[f.project] = (counts[f.project] || 0) + 1;
+  const names = Object.keys(counts).sort((a, b) => counts[b] - counts[a] || a.localeCompare(b));
+  if (filter.project && !counts[filter.project]) filter.project = '';
+  $('f-project').innerHTML = `<option value="">All projects</option>` + names.map((n) => `<option value="${esc(n)}">${esc(n)} (${counts[n]})</option>`).join('');
+  $('f-project').value = filter.project;
+}
+
+// Age filter: negative = within the last N days, positive = older than N days.
+function shownFiles() {
+  const q = filter.q.toLowerCase(), now = Date.now() / 1000, n = +filter.age;
+  return files.filter((f) => {
+    if (filter.kinds.length && !filter.kinds.includes(kindOf(f))) return false;
+    if (filter.project && f.project !== filter.project) return false;
+    if (q && !f.path.toLowerCase().includes(q)) return false;
+    const t = f[filter.date] || 0, days = (now - t) / 86400;
+    return !n || (n < 0 ? days <= -n : t && days > n);
+  }).sort((a, b) => (b[filter.date] || 0) - (a[filter.date] || 0));
+}
+
+// One disclosure heading and one list per project (or per agent).
+function draw() {
+  const shown = shownFiles(), byProject = filter.group === 'project';
+  for (const p of [...picked]) if (!shown.some((f) => f.path === p)) picked.delete(p);
+  const keys = byProject ? [...new Set(shown.map((f) => f.project))] : KINDS;
+  const out = [];
+  keys.forEach((k, i) => {
+    const group = shown.filter((f) => (byProject ? f.project : kindOf(f)) === k);
+    if (!group.length) return;
+    const open = !collapsed.has(k), h = document.createElement('h2'), b = document.createElement('button'), ul = document.createElement('ul');
+    b.className = 'kind'; b.dataset.group = k;
+    b.setAttribute('aria-expanded', open);
+    b.setAttribute('aria-controls', 'g' + i);
+    b.innerHTML = '<span></span><em></em>';
+    b.children[0].textContent = k; b.children[1].textContent = group.length;
+    if (byProject) b.title = home(group[0].root || '');
+    h.append(b);
+    ul.id = 'g' + i; ul.hidden = !open;
+    for (const f of group) {
+      const li = document.createElement('li'), box = document.createElement('input'), fb = document.createElement('button');
+      const name = f.path.split('/').at(-1), rel = home(f.path).slice(home(f.root || '').length).replace(/^\//, '');
+      box.type = 'checkbox'; box.dataset.pick = f.path; box.checked = picked.has(f.path);
+      box.setAttribute('aria-label', 'Select ' + home(f.path));
+      fb.dataset.path = f.path; fb.title = home(f.path);
+      if (f.path === current) fb.setAttribute('aria-current', 'true');
+      fb.innerHTML = '<b></b><span></span>';
+      fb.firstChild.textContent = name;
+      const tag = document.createElement('i'); tag.textContent = byProject ? kindOf(f) : f.project; fb.firstChild.append(tag);
+      fb.lastChild.textContent = `${DATE[filter.date]} ${ago(f[filter.date])} · ${rel || name}`;
+      li.append(box, fb); ul.append(li);
+    }
+    out.push(h, ul);
+  });
+  $('list').replaceChildren(...out);
+  $('count').textContent = shown.length === files.length ? files.length + (files.length === 1 ? ' file' : ' files') : `${shown.length} of ${files.length} files`;
+  syncPicked(shown);
+}
+function syncPicked(shown = shownFiles()) {
+  $('trash').disabled = !picked.size;
+  $('trash').textContent = picked.size ? `Move ${picked.size} to Trash` : 'Move to Trash';
+  $('selall').checked = shown.length > 0 && shown.every((f) => picked.has(f.path));
+  $('selall').indeterminate = picked.size > 0 && !$('selall').checked;
+}
+$('selall').onchange = () => {
+  for (const f of shownFiles()) $('selall').checked ? picked.add(f.path) : picked.delete(f.path);
+  draw();
+};
+$('list').addEventListener('change', (e) => {
+  const b = e.target.closest('[data-pick]');
+  if (!b) return;
+  b.checked ? picked.add(b.dataset.pick) : picked.delete(b.dataset.pick);
+  syncPicked();
+});
+$('trash').onclick = async () => {
+  const n = picked.size;
+  if (!n || !confirm(`Move ${n} agent ${n === 1 ? 'file' : 'files'} to the Trash? You can put them back from the Trash in Finder.`)) return;
+  const paths = [...picked], out = String(await ask({ cmd: 'agentmd.trash', paths }).catch(() => '0 ' + n));
+  const [moved, failed] = out.split(' ').map(Number);
+  files = files.filter((f) => !picked.has(f.path) || failed);  // Re-list below when some failed.
+  if (failed) files = await ask({ cmd: 'agentmd.list' });
+  if (paths.includes(current)) { current = ''; $('bar').hidden = true; $('text').textContent = ''; $('empty').hidden = false; }
+  picked.clear();
+  chips(); draw();
+  $('tmsg').textContent = failed ? `Moved ${moved}; ${failed} couldn't be moved.` : `Moved ${moved} to the Trash.`;
+  $('tmsg').className = failed ? 'err' : 'ok';
+};
+for (const k of ['project', 'group', 'date', 'age']) $('f-' + k).onchange = () => { filter[k] = $('f-' + k).value; save(); draw(); };
+
+function editing(on) {
+  $('editor').hidden = !on; $('text').hidden = on;
+  $('save').hidden = $('cancel').hidden = !on;
+  $('edit').hidden = on;
+  if (on) { $('editor').value = text; $('editor').focus(); }
+}
+const note = (m, err) => { $('msg').textContent = m; $('msg').className = err ? 'err' : m ? 'ok' : ''; };
+
+async function show(path) {
+  current = path; draw(); editing(false); note('');
+  try { text = await ask({ cmd: 'agentmd.read', path }); }
+  catch { text = ''; note('Couldn\u2019t read this file.', true); }
+  $('text').textContent = text;
+  $('path').textContent = home(path);
+  $('bar').hidden = false; $('empty').hidden = true;
+  document.querySelector('main').scrollTop = 0;
+}
+
+// Unsaved edits: leaving the editor (another file, Cancel, Escape) asks first, in the page.
+let pending = null;
+const dirty = () => !$('editor').hidden && $('editor').value !== text;
+function leave(then) {
+  if (!dirty()) return then();
+  pending = then;
+  $('confirm').hidden = false;
+  $('keep').focus();
+}
+const settle = (go) => { const f = pending; pending = null; $('confirm').hidden = true; if (go && f) f(); else $('editor').focus(); };
+$('discard').onclick = () => settle(true);
+$('keep').onclick = () => settle(false);
+
+$('list').onclick = (e) => {
+  const b = e.target.closest('button');
+  if (!b) return;
+  if (b.dataset.group) {
+    const k = b.dataset.group; collapsed.has(k) ? collapsed.delete(k) : collapsed.add(k);
+    draw();
+    return $('list').querySelector(`[data-group="${CSS.escape(k)}"]`).focus();  // draw() rebuilt it.
+  }
+  leave(() => show(b.dataset.path));
+};
+// Roar opens a file here from the sidebar's recent list: ?path= on a new tab, this on an open one.
+window.__roarOpen = (path) => leave(() => show(path));
+$('chips').onclick = (e) => {
+  const b = e.target.closest('button');
+  if (!b) return;
+  const k = b.dataset.kind;
+  filter.kinds = filter.kinds.includes(k) ? filter.kinds.filter((x) => x !== k) : [...filter.kinds, k];
+  save(); chips(); draw();
+};
+$('q').oninput = () => { filter.q = $('q').value; save(); draw(); };
+$('copy').onclick = () => navigator.clipboard.writeText(current).then(() => {
+  $('copy').textContent = 'Copied'; $('copy').classList.add('ok'); note('Path copied');
+  setTimeout(() => { $('copy').textContent = 'Copy path'; $('copy').classList.remove('ok'); }, 1500);
+}, () => note('Couldn\u2019t copy the path.', true));
+$('reveal').onclick = () => ask({ cmd: 'agentmd.reveal', path: current }).catch(() => note('Couldn\u2019t reveal this file.', true));
+$('edit').onclick = () => { note(''); editing(true); };
+$('cancel').onclick = () => leave(() => { note(''); editing(false); });
+document.addEventListener('keydown', (e) => {
+  if ($('editor').hidden) return;
+  if (e.key === 's' && e.metaKey) { e.preventDefault(); if ($('confirm').hidden) $('save').onclick(); }
+  else if (e.key === 'Escape') { e.preventDefault(); $('confirm').hidden ? $('cancel').onclick() : settle(false); }
+});
+$('save').onclick = async () => {
+  const value = $('editor').value;
+  try {
+    await ask({ cmd: 'agentmd.write', path: current, text: value });
+    text = value; $('text').textContent = text; editing(false); note('Saved');
+  } catch (e) { note('Couldn\u2019t save: ' + (e?.message || e), true); }
+};
+
+(async () => {
+  try { files = (await ask({ cmd: 'agentmd.list' })).sort((a, b) => b.mtime - a.mtime); }
+  catch { $('count').textContent = "Couldn't list agent files"; return; }
+  chips(); draw();
+  const want = new URLSearchParams(location.search).get('path');
+  if (want) show(want);
+})();
+</script>
+</body>
+</html>

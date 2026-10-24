@@ -1,0 +1,287 @@
+diff --git chrome/browser/devtools/protocol/target_handler.cc chrome/browser/devtools/protocol/target_handler.cc
+--- chrome/browser/devtools/protocol/target_handler.cc
++++ chrome/browser/devtools/protocol/target_handler.cc
+@@ -86,6 +86,10 @@
+   return protocol::Response::Success();
+ }
+ 
++namespace content {
++bool RoarDevToolsContextAllowed(BrowserContext* context);
++}  // namespace content
++
+ #if BUILDFLAG(ENABLE_CEF)
+ namespace cef {
+ // Roar: defined in cef/libcef/browser/chrome/roar_create_target.cc.
+@@ -198,6 +202,12 @@
+     }
+   }
+ #endif
++
++  // Roar: the embedder hides this profile from CDP clients, so open nothing in it.
++  if (!content::RoarDevToolsContextAllowed(profile)) {
++    return protocol::Response::ServerError(
++        "This Roar profile does not allow agents");
++  }
+ 
+   create_new_window = !target_browser_interface;
+ 
+diff --git content/browser/devtools/devtools_agent_host_impl.cc content/browser/devtools/devtools_agent_host_impl.cc
+--- content/browser/devtools/devtools_agent_host_impl.cc
++++ content/browser/devtools/devtools_agent_host_impl.cc
+@@ -35,6 +35,7 @@
+ #include "content/public/browser/devtools_external_agent_proxy_delegate.h"
+ #include "content/public/browser/devtools_manager_delegate.h"
+ #include "content/public/browser/devtools_socket_factory.h"
++#include "content/public/browser/web_contents.h"
+ #include "content/public/common/content_switches.h"
+ #include "net/base/ip_endpoint.h"
+ #include "services/network/public/mojom/network_context.mojom.h"
+@@ -135,8 +136,32 @@
+ }
+ #endif
+ 
++// Roar: the embedder's filter for the targets remote CDP clients may see.
++// Gets the target's WebContents (null when asking about a profile alone).
++bool (*g_roar_target_filter)(WebContents*, BrowserContext*) = nullptr;
++
+ }  // namespace
+ 
++// Roar: set by cef/libcef/browser/chrome/roar_devtools_filter.cc.
++void RoarSetDevToolsTargetFilter(bool (*filter)(WebContents*,
++                                                BrowserContext*)) {
++  g_roar_target_filter = filter;
++}
++
++// Roar: false hides |host| from Target.* and the HTTP endpoints. Hosts
++// without a WebContents (service workers, the browser target) always pass.
++bool RoarDevToolsTargetAllowed(DevToolsAgentHost* host) {
++  WebContents* contents = host ? host->GetWebContents() : nullptr;
++  return !g_roar_target_filter || !contents ||
++         g_roar_target_filter(contents, contents->GetBrowserContext());
++}
++
++// Roar: false when remote clients may not open pages in |context|.
++bool RoarDevToolsContextAllowed(BrowserContext* context) {
++  return !g_roar_target_filter || !context ||
++         g_roar_target_filter(nullptr, context);
++}
++
+ const char DevToolsAgentHost::kTypeTab[] = "tab";
+ const char DevToolsAgentHost::kTypePage[] = "page";
+ const char DevToolsAgentHost::kTypeFrame[] = "iframe";
+diff --git content/browser/devtools/devtools_http_handler.cc content/browser/devtools/devtools_http_handler.cc
+--- content/browser/devtools/devtools_http_handler.cc
++++ content/browser/devtools/devtools_http_handler.cc
+@@ -24,6 +24,7 @@
+ #include "base/memory/raw_ptr.h"
+ #include "base/memory/ref_counted_memory.h"
+ #include "base/message_loop/message_pump_type.h"
++#include "base/no_destructor.h"
+ #include "base/strings/escape.h"
+ #include "base/strings/string_number_conversions.h"
+ #include "base/strings/string_util.h"
+@@ -69,7 +70,35 @@
+ 
+ namespace content {
+ 
++bool RoarDevToolsTargetAllowed(DevToolsAgentHost* host);
++
+ namespace {
++
++// Roar: the per-launch token remote clients must present, as an X-Roar-Token
++// header or (WebSocket only) a roar_token= query parameter. Empty refuses all.
++// Read and written on the UI thread.
++std::string& RoarCdpToken() {
++  static base::NoDestructor<std::string> token;
++  return *token;
++}
++
++bool RoarTokenOk(const net::HttpServerRequestInfo& info) {
++  const std::string& want = RoarCdpToken();
++  std::string got = info.GetHeaderValue("x-roar-token");
++  size_t q = info.path.find("roar_token=");
++  if (got.empty() && q != std::string::npos && q > 0 &&
++      (info.path[q - 1] == '?' || info.path[q - 1] == '&')) {
++    got = info.path.substr(q + 11, info.path.find('&', q) - q - 11);
++  }
++  if (want.empty() || got.size() != want.size()) {
++    return false;
++  }
++  unsigned char diff = 0;  // Constant time.
++  for (size_t i = 0; i < want.size(); ++i) {
++    diff |= want[i] ^ got[i];
++  }
++  return diff == 0;
++}
+ 
+ const char kDevToolsHandlerThreadName[] = "Chrome_DevToolsHandlerThread";
+ 
+@@ -586,6 +615,11 @@
+   if (mode_ ==
+       DevToolsAgentHost::RemoteDebuggingServerMode::kWithApprovalOnly) {
+     Send404(connection_id);
++    return;
++  }
++  if (!RoarTokenOk(info)) {
++    SendJson(connection_id, net::HTTP_FORBIDDEN, std::nullopt,
++             "Roar CDP token required");
+     return;
+   }
+   // Trim /json
+@@ -647,6 +681,10 @@
+                                   for_tab ? DevToolsManagerDelegate::kTab
+                                           : DevToolsManagerDelegate::kFrame)
+             : DevToolsAgentHost::GetOrCreateAll();
++    // Roar: hide targets the embedder keeps from remote clients.
++    std::erase_if(list, [](const scoped_refptr<DevToolsAgentHost>& host) {
++      return !RoarDevToolsTargetAllowed(host.get());
++    });
+ 
+     RespondToJsonList(connection_id, info.GetHeaderValue("host"),
+                       std::move(list), for_tab);
+@@ -690,7 +728,7 @@
+   if (command == "activate" || command == "close") {
+     scoped_refptr<DevToolsAgentHost> agent_host =
+         DevToolsAgentHost::GetForId(target_id);
+-    if (!agent_host) {
++    if (!agent_host || !RoarDevToolsTargetAllowed(agent_host.get())) {
+       SendJson(connection_id, net::HTTP_NOT_FOUND, std::nullopt,
+                "No such target id: " + target_id);
+       return;
+@@ -829,6 +867,11 @@
+     return;
+   }
+ 
++  if (!RoarTokenOk(request)) {
++    Send403(connection_id, "Roar CDP token required");
++    return;
++  }
++
+   // If we require user approval, we do not require guid.
+   if (mode_ ==
+       DevToolsAgentHost::RemoteDebuggingServerMode::kWithApprovalOnly) {
+@@ -865,10 +908,11 @@
+     return;
+   }
+ 
+-  std::string target_id = request.path.substr(strlen(kPageUrlPrefix));
++  std::string target_id(
++      PathWithoutParams(request.path.substr(strlen(kPageUrlPrefix))));
+   scoped_refptr<DevToolsAgentHost> agent =
+       DevToolsAgentHost::GetForId(target_id);
+-  if (!agent) {
++  if (!agent || !RoarDevToolsTargetAllowed(agent.get())) {
+     Send500(connection_id, "No such target id: " + target_id);
+     return;
+   }
+@@ -1059,4 +1103,10 @@
+   return dictionary;
+ }
+ 
++// Roar: sets the token (found with dlsym); call on the UI thread.
++extern "C" __attribute__((visibility("default"))) void roar_set_devtools_token(
++    const char* token) {
++  RoarCdpToken() = token ? token : "";
++}
++
+ }  // namespace content
+diff --git content/browser/devtools/protocol/target_handler.cc content/browser/devtools/protocol/target_handler.cc
+--- content/browser/devtools/protocol/target_handler.cc
++++ content/browser/devtools/protocol/target_handler.cc
+@@ -40,10 +40,20 @@
+ #include "content/public/common/url_constants.h"
+ #include "url/url_constants.h"
+ 
++namespace content {
++bool RoarDevToolsTargetAllowed(DevToolsAgentHost* host);
++}  // namespace content
++
+ namespace content::protocol {
+ 
+ namespace {
+ 
++// Roar: GetForId that treats a target the embedder hides as missing.
++scoped_refptr<DevToolsAgentHost> RoarGetForId(const std::string& id) {
++  scoped_refptr<DevToolsAgentHost> host = DevToolsAgentHost::GetForId(id);
++  return host && RoarDevToolsTargetAllowed(host.get()) ? host : nullptr;
++}
++
+ constexpr net::NetworkTrafficAnnotationTag
+     kSettingsProxyConfigTrafficAnnotation =
+         net::DefineNetworkTrafficAnnotation("devtools_proxy_config", R"(
+@@ -938,6 +948,10 @@
+   if (!auto_attach_target_filter_->Match(*host)) {
+     return false;
+   }
++  // Roar: only the browser target's auto-attach spans tabs.
++  if (access_mode_ == AccessMode::kBrowser && !RoarDevToolsTargetAllowed(host)) {
++    return false;
++  }
+   if (auto_attached_sessions_.contains(host)) {
+     return false;
+   }
+@@ -1197,7 +1211,7 @@
+   }
+   // TODO(dgozman): only allow reported hosts.
+   scoped_refptr<DevToolsAgentHost> agent_host =
+-      DevToolsAgentHost::GetForId(target_id);
++      RoarGetForId(target_id);
+   if (!agent_host) {
+     return Response::InvalidParams(kTargetNotFound);
+   }
+@@ -1267,7 +1281,7 @@
+   }
+   // TODO(dgozman): only allow reported hosts.
+   scoped_refptr<DevToolsAgentHost> agent_host(
+-      DevToolsAgentHost::GetForId(target_id));
++      RoarGetForId(target_id));
+   if (!agent_host) {
+     return Response::InvalidParams(kTargetNotFound);
+   }
+@@ -1281,7 +1295,7 @@
+   }
+   // TODO(dgozman): only allow reported hosts.
+   scoped_refptr<DevToolsAgentHost> agent_host(
+-      DevToolsAgentHost::GetForId(target_id));
++      RoarGetForId(target_id));
+   if (!agent_host) {
+     return Response::InvalidParams(kTargetNotFound);
+   }
+@@ -1292,7 +1306,7 @@
+ Response TargetHandler::CloseTarget(const std::string& target_id,
+                                     bool* out_success) {
+   scoped_refptr<DevToolsAgentHost> agent_host =
+-      DevToolsAgentHost::GetForId(target_id);
++      RoarGetForId(target_id);
+   if (!agent_host) {
+     return Response::InvalidParams(kTargetNotFound);
+   }
+@@ -1320,7 +1334,7 @@
+     return;
+   }
+   scoped_refptr<DevToolsAgentHost> agent_host =
+-      DevToolsAgentHost::GetForId(target_id);
++      RoarGetForId(target_id);
+   if (!agent_host) {
+     callback->sendFailure(Response::InvalidParams(kTargetNotFound));
+     return;
+@@ -1456,7 +1470,8 @@
+   DCHECK(effective_filter);
+   *target_infos = std::make_unique<protocol::Array<Target::TargetInfo>>();
+   for (const auto& host : DevToolsAgentHost::GetOrCreateAll()) {
+-    if (effective_filter->Match(*host)) {
++    if (effective_filter->Match(*host) &&
++        RoarDevToolsTargetAllowed(host.get())) {
+ #if !BUILDFLAG(IS_ANDROID)
+       // Do not return initial WebUI as the DevTools targets.
+       // TODO(crbug.com/444358999): consider adding this into the `filter` when
+@@ -1480,7 +1495,8 @@
+ void TargetHandler::DevToolsAgentHostCreated(DevToolsAgentHost* host) {
+   DCHECK(discover());
+   DCHECK(host);
+-  if (!discover_target_filter_->Match(*host)) {
++  if (!discover_target_filter_->Match(*host) ||
++      !RoarDevToolsTargetAllowed(host)) {
+     return;
+   }
+   // If we start discovering late, all existing agent hosts will be reported,

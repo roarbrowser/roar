@@ -1,0 +1,30 @@
+<!doctype html>
+<!-- Fictional venue portal for the Roar day film (harborhall.example). Made-up venue; nothing is booked or paid. -->
+<meta charset="utf-8"><link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%2314273a'/%3E%3Ctext x='16' y='22.5' font-family='-apple-system,Helvetica' font-weight='700' font-size='18' fill='white' text-anchor='middle'%3EH%3C/text%3E%3C/svg%3E"><title>Book the Loft – Harbor Hall</title>
+<style>
+:root{--navy:#14273a;--brass:#b8893e;--paper:#f6f2ea;--ink:#1f2328;--ink2:#68707a;--line:#e3ddd2}
+*{margin:0;box-sizing:border-box}body{font:15px/1.45 -apple-system,sans-serif;color:var(--ink);background:var(--paper);-webkit-font-smoothing:antialiased}
+header{display:flex;align-items:center;gap:30px;padding:14px 40px;background:var(--navy);color:#e9e2d4;font-size:14px}header .logo{font:600 22px "Iowan Old Style","Palatino",serif;color:#fff;letter-spacing:.01em}header .me{margin-left:auto;display:flex;align-items:center;gap:9px;background:#203a52;padding:5px 12px 5px 5px;border-radius:20px}header .me i{width:26px;height:26px;border-radius:50%;background:var(--brass);display:grid;place-items:center;font:600 12px -apple-system;font-style:normal;color:#fff}
+.photo{height:250px;position:relative;overflow:hidden;background:linear-gradient(#2c3e5c 0%,#8a6b7c 45%,#e9a36a 72%,#f2c28c 78%)}
+.sun{position:absolute;left:68%;top:120px;width:90px;height:90px;border-radius:50%;background:#ffd9a0;box-shadow:0 0 70px 30px rgba(255,190,120,.45)}
+.bld{position:absolute;bottom:62px;left:6%;width:52%;height:150px;background:#3a2a2a;border-top:6px solid #2a1e1f;display:grid;grid-template-columns:repeat(12,1fr);gap:10px;padding:18px 16px}.bld i{background:#f6c672;opacity:.9;border-radius:2px;box-shadow:0 0 12px rgba(246,198,114,.6)}.bld i:nth-child(3n){opacity:.35}.bld i:nth-child(7n){opacity:.15}
+.bld2{position:absolute;bottom:62px;left:60%;width:30%;height:90px;background:#2b2326}.crane{position:absolute;bottom:150px;left:82%;width:4px;height:90px;background:#2b2326}.crane::after{content:"";position:absolute;top:0;left:-60px;width:110px;height:4px;background:#2b2326}
+.water{position:absolute;bottom:0;left:0;right:0;height:62px;background:repeating-linear-gradient(#5d5068 0 3px,#7b6478 3px 5px,#e0a06c 5px 6px,#5d5068 6px 9px)}
+.photo h1{position:absolute;left:40px;bottom:84px;color:#fff;font:600 40px/1.1 "Iowan Old Style","Palatino",serif;text-shadow:0 2px 18px rgba(0,0,0,.4)}.photo p{position:absolute;left:42px;bottom:62px;color:#f7e8d6;font-size:14px;z-index:2}
+.wrap{display:grid;grid-template-columns:1fr 340px;gap:28px;padding:28px 40px}.card{background:#fff;border-radius:14px;padding:24px 26px;border:1px solid var(--line)}
+h2{font:600 22px "Iowan Old Style","Palatino",serif;margin-bottom:4px}.hint{color:var(--ink2);margin-bottom:8px;font-size:14px}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:16px}label{display:block;font-size:13px;color:var(--ink2);margin:14px 0 6px;font-weight:500}
+input,select{width:100%;padding:11px 13px;border:1.5px solid #d9d2c5;border-radius:9px;font:15px -apple-system,sans-serif;background:#fffdf9;color:var(--ink)}input:not(:placeholder-shown){border-color:#7a95ad;background:#f7fafc}
+.pay{margin-top:22px;width:100%;padding:14px;border:0;border-radius:10px;background:var(--navy);color:#fff;font-size:16px;font-weight:600}
+.ok{display:none;margin-top:16px;padding:13px 15px;border-radius:9px;background:#e2f1e5;color:#1d5a2c;font-weight:600}body.done .ok{display:block}body.done .pay{background:#2f7a48}
+.sum div{display:flex;justify-content:space-between;padding:9px 0;border-bottom:1px solid #efe9df}.sum .t{font-weight:700;font-size:18px;border:0}.card small{display:block;color:var(--ink2);margin-top:12px;font-size:13px}
+</style>
+<header><span class="logo">Harbor Hall</span><span>Rooms</span><span>Catering</span><span>Your events</span><span class="me"><i>SR</i>Sam Rivera · Lumen</span></header>
+<div class="photo"><div class="sun"></div><div class="bld"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div><div class="bld2"></div><div class="crane"></div><div class="water"></div><h1>The Loft</h1><p>Pier 7, third floor. Up to 60 guests, harbor views.</p></div>
+<div class="wrap"><div class="card"><h2>Book a date</h2><p class="hint">Holds release at noon on the day they expire.</p>
+<label for="name">Event name</label><input id="name" placeholder=" ">
+<div class="row"><div><label for="date">Date</label><input id="date" placeholder=" "></div><div><label for="guests">Guests</label><input id="guests" placeholder=" "></div></div>
+<label for="cat">Catering</label><select id="cat"><option>No catering</option><option>Lunch buffet, $28 per guest</option><option>Coffee and pastries, $12 per guest</option></select>
+<button class="pay" id="pay">Pay $480 deposit</button><div class="ok">Booked. The Loft, Thursday Sep 18. Confirmation HH-2418.</div></div>
+<div class="card sum"><h2 style="margin-bottom:12px">Your quote</h2><div><span>The Loft, full day</span><span>$1,600</span></div><div><span>Projector and sound</span><span>Included</span></div><div><span>Balance due Sep 11</span><span>$1,120</span></div><div class="t"><span>Deposit today</span><span>$480</span></div><small>Charged to Lumen team card ending 4242.</small></div></div>
+<script>document.getElementById('pay').onclick=()=>document.body.classList.add('done')</script>

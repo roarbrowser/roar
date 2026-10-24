@@ -1,0 +1,17 @@
+Frameworks/Chromium Embedded Framework.framework/Chromium Embedded Framework
+Frameworks/Chromium Embedded Framework.framework/Libraries/libcef_sandbox.dylib
+Frameworks/Chromium Embedded Framework.framework/Libraries/libvk_swiftshader.dylib
+Frameworks/Chromium Embedded Framework.framework/Libraries/libvulkan.dylib
+Frameworks/Roar Helper (Alerts).app/Contents/MacOS/Roar Helper (Alerts)
+Frameworks/Roar Helper (GPU).app/Contents/MacOS/Roar Helper (GPU)
+Frameworks/Roar Helper (Plugin).app/Contents/MacOS/Roar Helper (Plugin)
+Frameworks/Roar Helper (Renderer).app/Contents/MacOS/Roar Helper (Renderer)
+Frameworks/Roar Helper.app/Contents/MacOS/Roar Helper
+Frameworks/Sparkle.framework/Versions/B/Autoupdate
+Frameworks/Sparkle.framework/Versions/B/Sparkle
+Frameworks/Sparkle.framework/Versions/B/Updater.app/Contents/MacOS/Updater
+Frameworks/Sparkle.framework/Versions/B/XPCServices/Downloader.xpc/Contents/MacOS/Downloader
+Frameworks/Sparkle.framework/Versions/B/XPCServices/Installer.xpc/Contents/MacOS/Installer
+MacOS/Roar
+Resources/roar-dictate
+Resources/roar-mcp

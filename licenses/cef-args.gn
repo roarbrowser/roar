@@ -1,0 +1,8 @@
+# Principal codec-relevant GN args intended for the CEF bundled with Roar 0.37.14 and earlier (full args.gn
+# unavailable for that build; not verified against the binary). A rebuilt CEF ships its own args.gn and this is unused.
+is_official_build=true
+proprietary_codecs=true
+ffmpeg_branding=Chromium
+media_use_openh264=false
+enable_ffmpeg_video_decoders=false
+chrome_pgo_phase=0

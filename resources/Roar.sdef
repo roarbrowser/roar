@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE dictionary SYSTEM "file://localhost/System/Library/DTDs/sdef.dtd">
+<dictionary title="Roar Terminology" xmlns:xi="http://www.w3.org/2003/XInclude">
+  <xi:include href="file:///System/Library/ScriptingDefinitions/CocoaStandard.sdef"
+              xpointer="xpointer(/dictionary/suite)"/>
+  <suite name="Roar Suite" code="RoaR" description="Control Roar tabs.">
+    <class-extension extends="application">
+      <cocoa class="NSApplication"/>
+      <element type="tab" access="r"><cocoa key="roarTabs"/></element>
+      <property name="active tab" code="RaCT" type="tab" access="r"
+                description="The tab shown in the window.">
+        <cocoa key="activeRoarTab"/>
+      </property>
+    </class-extension>
+    <class name="tab" code="RTab" plural="tabs" description="A browser tab.">
+      <cocoa class="RoarScriptTab"/>
+      <property name="id" code="ID  " type="integer" access="r"><cocoa key="uniqueID"/></property>
+      <property name="URL" code="rURL" type="text" description="Setting it navigates the tab.">
+        <cocoa key="URL"/>
+      </property>
+      <property name="title" code="rTTL" type="text" access="r"><cocoa key="title"/></property>
+      <property name="pinned" code="rPIN" type="boolean"><cocoa key="pinned"/></property>
+      <property name="loading" code="rLDG" type="boolean" access="r"><cocoa key="loading"/></property>
+    </class>
+    <command name="open url" code="RoaROpnU" description="Open a URL in a new tab.">
+      <cocoa class="RoarOpenURLCommand"/>
+      <direct-parameter type="text" description="The URL to open."/>
+      <result type="tab"/>
+    </command>
+    <command name="execute javascript" code="RoaRExJS"
+             description="Run JavaScript in a tab (the active tab by default). Returns whether it was sent.">
+      <cocoa class="RoarExecuteCommand"/>
+      <direct-parameter type="text"/>
+      <parameter name="in" code="inTb" type="tab" optional="yes"><cocoa key="tab"/></parameter>
+      <result type="boolean"/>
+    </command>
+    <command name="focus tab" code="RoaRFocT" description="Show a tab.">
+      <cocoa class="RoarTabCommand"/>
+      <direct-parameter type="tab"/>
+    </command>
+    <command name="close tab" code="RoaRClsT" description="Close a tab.">
+      <cocoa class="RoarTabCommand"/>
+      <direct-parameter type="tab"/>
+    </command>
+    <command name="clean up tabs" code="RoaRClnT"
+             description="Archive every unpinned tab except the active one.">
+      <cocoa class="RoarRunCommand"/>
+    </command>
+    <command name="copy page as markdown" code="RoaRCpMD"
+             description="Copy the active page to the clipboard as Markdown.">
+      <cocoa class="RoarRunCommand"/>
+    </command>
+  </suite>
+</dictionary>

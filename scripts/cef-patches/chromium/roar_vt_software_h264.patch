@@ -1,0 +1,49 @@
+diff --git media/gpu/mac/video_toolbox_video_decoder.cc media/gpu/mac/video_toolbox_video_decoder.cc
+--- media/gpu/mac/video_toolbox_video_decoder.cc
++++ media/gpu/mac/video_toolbox_video_decoder.cc
+@@ -42,7 +42,9 @@
+ namespace {
+ 
+ bool SupportsH264() {
+-  return VTIsHardwareDecodeSupported(kCMVideoCodecType_H264);
++  // Roar: FFmpeg's H.264 decoder is not built; VideoToolbox's software decoder
++  // covers Macs (and VMs) without an H.264 hardware decoder.
++  return true;
+ }
+ 
+ bool InitializeVP9() {
+@@ -473,10 +475,14 @@
+   // TODO(crbug.com/40227557): Exclude resolutions that are not accelerated.
+   // TODO(crbug.com/40227557): Check if higher resolutions are supported.
+   if (!gpu_workarounds.disable_accelerated_h264_decode && SupportsH264()) {
++    // Roar: H.264 may fall back to the OS software decoder
++    // (video_toolbox_h264_accelerator.cc), so report the minimum possible size,
++    // as kHevcMinSize does below.
++    constexpr gfx::Size kH264MinSize(16, 16);
+     supported.emplace_back(
+         /*profile_min=*/H264PROFILE_BASELINE,
+         /*profile_max=*/H264PROFILE_HIGH,
+-        /*coded_size_min=*/kMinSize,
++        /*coded_size_min=*/kH264MinSize,
+         /*coded_size_max=*/kLegacyMaxSize,
+         /*allow_encrypted=*/false,
+         /*require_encrypted=*/false);
+diff --git media/gpu/mac/video_toolbox_h264_accelerator.cc media/gpu/mac/video_toolbox_h264_accelerator.cc
+--- media/gpu/mac/video_toolbox_h264_accelerator.cc
++++ media/gpu/mac/video_toolbox_h264_accelerator.cc
+@@ -174,13 +174,9 @@
+   first_decode_ = false;
+ 
+   VideoToolboxDecompressionSessionMetadata session_metadata = {
+-#if defined(ARCH_CPU_X86_FAMILY)
+-      // Allow software decoding on Intel hardware where the cutoff is around
+-      // 480p and breaks tests.
++      // Roar: VideoToolbox is the only H.264 decoder, so let it fall back to
++      // software (Intel builds did already; arm64 required hardware).
+       /*allow_software_decoding=*/true,
+-#else
+-      /*allow_software_decoding=*/false,
+-#endif  // defined(ARCH_CPU_X86_FAMILY)
+       /*bit_depth=*/8,
+       /*chroma_sampling=*/VideoChromaSampling::k420,
+       /*has_alpha=*/false,

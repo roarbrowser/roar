@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Find</title>
+<link rel="stylesheet" href="roar.css">
+<style>
+/* The native window supplies the rounded corners and shadow. */
+html, body { background: var(--panel); overflow: hidden; }
+.bar { display: flex; align-items: center; gap: 6px; height: 46px; padding: 0 8px 0 14px; }
+input { flex: 1; min-width: 0; border: 0; outline: 0; background: transparent; color: var(--ink); font: 500 15px var(--round); }
+input:focus-visible { outline: none; }
+.bar:focus-within { box-shadow: inset 0 0 0 2px var(--mane-ink); }
+input::placeholder { color: var(--ink-3); }
+.count { color: var(--ink-3); font: 12px var(--ui); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.count.none { color: var(--danger); }
+button { width: 26px; height: 26px; border-radius: 6px; display: grid; place-items: center; color: var(--ink-2); flex: none; }
+button:hover { background: var(--hover); color: var(--ink); }
+button svg { width: 14px; height: 14px; }
+</style>
+</head>
+<body>
+<div class="bar" role="search">
+  <input id="q" autocomplete="off" spellcheck="false" placeholder="Find in page" aria-label="Find in page">
+  <span class="count" id="count" role="status" aria-live="polite"></span>
+  <button id="prev" title="Previous (⇧↵)" aria-label="Previous match"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m3 10 5-5 5 5"/></svg></button>
+  <button id="next" title="Next (↵)" aria-label="Next match"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m3 6 5 5 5-5"/></svg></button>
+  <button id="close" title="Close (esc)" aria-label="Close"><svg viewBox="0 0 12 12" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="m3 3 6 6M9 3l-6 6"/></svg></button>
+</div>
+<script src="bridge.js"></script>
+<script>
+const $ = (id) => document.getElementById(id);
+const q = $('q');
+const go = (forward, next) => ask({ cmd: 'find', text: q.value, forward, next }).catch(() => {});
+window.roar = {
+  open(text) {
+    q.value = text || '';
+    $('count').textContent = '';
+    q.focus();
+    q.select();
+    if (q.value) go(true, false);
+  },
+  result(active, count) {
+    const el = $('count');
+    el.classList.toggle('none', !!q.value && count === 0);
+    el.textContent = !q.value ? '' : count === 0 ? 'No matches' : active + ' of ' + count;
+  },
+};
+q.addEventListener('input', () => go(true, false));
+q.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') { e.preventDefault(); go(!e.shiftKey, true); }
+  else if (e.key === 'Escape') { e.preventDefault(); ask({ cmd: 'find.close' }); }
+});
+$('next').onclick = () => { go(true, true); q.focus(); };
+$('prev').onclick = () => { go(false, true); q.focus(); };
+$('close').onclick = () => ask({ cmd: 'find.close' });
+</script>
+</body>
+</html>

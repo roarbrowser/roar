@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>CFBundleDevelopmentRegion</key><string>en</string>
+  <key>CFBundleDisplayName</key><string>Roar</string>
+  <key>CFBundleExecutable</key><string>Roar</string>
+  <key>CFBundleIconFile</key><string>roar.icns</string>
+  <key>CFBundleIdentifier</key><string>com.roarbrowser.roar</string>
+  <key>CFBundleInfoDictionaryVersion</key><string>6.0</string>
+  <key>CFBundleName</key><string>Roar</string>
+  <key>CFBundlePackageType</key><string>APPL</string>
+  <key>CFBundleShortVersionString</key><string>1.3.0</string>
+  <key>CFBundleVersion</key><string>10300</string>
+  <key>LSMinimumSystemVersion</key><string>13.0</string>
+  <key>NSPrincipalClass</key><string>RoarApplication</string>
+  <key>NSHighResolutionCapable</key><true/>
+  <key>NSSupportsAutomaticGraphicsSwitching</key><true/>
+  <key>NSAppleScriptEnabled</key><true/>
+  <key>OSAScriptingDefinition</key><string>Roar.sdef</string>
+  <key>NSBluetoothAlwaysUsageDescription</key><string>Websites can use Bluetooth to sign in with passkeys on your phone or a security key.</string>
+  <key>NSCameraUsageDescription</key><string>Websites you allow can use the camera.</string>
+  <key>NSMicrophoneUsageDescription</key><string>Websites you allow can use the microphone, and Roar uses it for dictation, transcribed on this device.</string>
+  <key>NSLocationUsageDescription</key><string>Websites you allow can use your location.</string>
+  <key>NSAppleEventsUsageDescription</key><string>Roar brings the terminal running your coding agent's session forward when you ask it to.</string>
+  <key>NSLocationWhenInUseUsageDescription</key><string>Websites you allow can use your location.</string>
+  <key>SUFeedURL</key><string>https://raw.githubusercontent.com/roarbrowser/roar/main/appcast.xml</string>
+  <key>SUPublicEDKey</key><string>dTKkB+OrdfD/zFbY1cIwwhY5K7nQdBZ3WO/Qdng8tyw=</string>
+  <key>SUEnableAutomaticChecks</key><true/>
+  <key>SUEnableSystemProfiling</key><false/>
+  <key>CFBundleURLTypes</key>
+  <array>
+    <dict>
+      <key>CFBundleURLName</key><string>Web site URL</string>
+      <key>CFBundleURLSchemes</key><array><string>http</string><string>https</string></array>
+    </dict>
+  </array>
+</dict>
+</plist>

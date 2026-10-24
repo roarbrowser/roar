@@ -1,0 +1,345 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Ask</title>
+<link rel="stylesheet" href="roar.css">
+<style>
+body { background: var(--panel); display: grid; height: 100vh; overflow: hidden; }
+main { display: flex; flex-direction: column; min-height: 0; min-width: 0; }
+header { display: flex; align-items: center; gap: 10px; padding: 12px 20px; border-bottom: 1px solid var(--rule); }
+header h1 { margin: 0; font: 700 16px var(--round); flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+select { font: 13px var(--ui); padding: 5px 9px; border-radius: 7px; border: 1px solid var(--rule); background: var(--ground); color: var(--ink); max-width: 280px; }
+#log { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 14px; }
+.empty { margin: auto; text-align: center; color: var(--ink-3); max-width: 360px; }
+.msg { max-width: min(760px, 88%); padding: 10px 14px; border-radius: 14px; line-height: 1.55; overflow-wrap: anywhere; }
+.msg.user { align-self: flex-end; background: var(--mane-soft); border-bottom-right-radius: 4px; white-space: pre-wrap; }
+.msg.assistant { align-self: flex-start; background: var(--ground); border-bottom-left-radius: 4px; }
+.msg.error { color: var(--danger); }
+.msg > :first-child { margin-top: 0; } .msg > :last-child { margin-bottom: 0; }
+.msg p { margin: 0 0 8px; } .msg ul, .msg ol { margin: 0 0 8px; padding-left: 22px; }
+.msg blockquote { margin: 0 0 8px; padding-left: 10px; border-left: 3px solid var(--rule); color: var(--ink-2); }
+.msg code { font: 12px var(--mono); background: var(--panel); padding: 1px 4px; border-radius: 4px; }
+.msg a { color: var(--mane-ink); }
+.code { position: relative; margin: 0 0 8px; }
+.code pre { margin: 0; font: 12px/1.55 var(--mono); background: var(--panel); border: 1px solid var(--rule); border-radius: 8px; padding: 30px 14px 12px; overflow-x: auto; }
+.code pre code { background: none; padding: 0; }
+.code .copy { position: absolute; top: 6px; right: 6px; font-size: 11px; padding: 2px 8px; border-radius: 6px; background: var(--ground); color: var(--ink-2); }
+.code .copy:hover { background: var(--hover); }
+.page { display: flex; width: fit-content; align-items: center; gap: 6px; font-size: 12px; color: var(--ink-2); background: var(--ground); border-radius: 999px; padding: 2px 10px; margin-bottom: 6px; max-width: 100%; }
+.page span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.msg.user .page { background: var(--panel); }
+.cursor::after { content: '▍'; color: var(--mane); animation: blink 1s steps(2) infinite; }
+@keyframes blink { 50% { opacity: 0; } }
+form { padding: 10px 20px 16px; display: grid; gap: 6px; }
+.box { display: flex; align-items: flex-end; gap: 8px; border: 1px solid var(--rule); background: var(--ground); border-radius: 12px; padding: 8px; }
+.box:focus-within { border-color: var(--mane-ink); }
+textarea { flex: 1; resize: none; border: 0; background: none; color: var(--ink); font: 13.5px/1.45 var(--ui); max-height: 200px; outline: none; padding: 4px 6px; }
+#send { background: var(--mane); color: #2a1604; font-weight: 600; border-radius: 9px; padding: 6px 14px; }
+#send.stop { background: var(--ink-2); color: var(--panel); }
+#send:disabled { opacity: .5; }
+.tools { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--ink-3); }
+#attach[aria-pressed="true"] { color: var(--mane-ink); background: var(--mane-soft); }
+#attach { padding: 3px 10px; font-size: 12px; }
+#note { flex: 1; text-align: right; }
+.tools:has(.as-install) { flex-wrap: wrap; }
+/* The install notice gets its own full-width line instead of squeezing beside the buttons. */
+#note:has(.as-install) { flex-basis: 100%; text-align: left; }
+#search { padding: 3px 10px; font-size: 12px; }
+#search[aria-pressed="true"] { color: var(--mane-ink); background: var(--mane-soft); }
+.sources { margin-top: 8px; padding-top: 6px; border-top: 1px solid var(--rule); font-size: 12px; color: var(--ink-2); }
+.sources ol { margin: 2px 0 0; padding-left: 20px; }
+.sources a { overflow-wrap: anywhere; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1 id="title">Ask</h1>
+    <button class="btn" id="new" type="button">New</button>
+    <select id="model" aria-label="Model"></select>
+    <button class="btn" id="settings" type="button" title="Providers, API keys and the default model">Providers</button>
+  </header>
+  <div id="log" role="log" aria-live="polite" aria-label="Conversation"></div>
+  <form id="form">
+    <div class="box">
+      <textarea id="text" rows="1" placeholder="Message the model…" aria-label="Message" spellcheck="true"></textarea>
+      <button id="send" type="submit" aria-label="Send">Send</button>
+    </div>
+    <div class="tools">
+      <button class="btn" id="search" type="button" aria-pressed="false">Search the web</button>
+      <button class="btn" id="attach" type="button" aria-pressed="false">Include this tab</button>
+      <span id="attach-name"></span>
+      <span id="note" role="status"></span>
+    </div>
+  </form>
+</main>
+<script src="bridge.js"></script>
+<script src="chat-core.js"></script>
+<script src="agent-setup.js"></script>
+<script src="slash-mark.js"></script>
+<script>
+const $ = (id) => document.getElementById(id);
+const { defaultModel, SEARCH_SYSTEM, searchMode, openRequest, addSources, CLI_PROVIDERS, pageRefusal, cliPrompt, cliParser, parseProviders, sseParser, streamDelta, requestBody, detectProviders, renderMarkdown } = chatCore;
+let providers = [], chats = [], chat = null, streaming = null, webTab = null, page = null, searchDefault = false;
+
+// Re-read first: another chat tab or the sidebar (delete) may have changed the list since this page loaded.
+const saveChats = () => ask({ cmd: 'chat.history' }).then((all) => {
+  chats = [chat, ...(Array.isArray(all) ? all : []).filter((c) => c.id !== chat.id)];
+  return ask({ cmd: 'chat.history', data: JSON.stringify(chats.slice(0, 100)) });
+}).catch((e) => note(e.message));
+// Who the sidebar row says this chat is with: an AGENT_TOOLS key for the icon (sidebar falls back to a bubble) and a name.
+const brandOf = (p) => {
+  if (p.kind === 'cli') return { brand: p.cli, brandName: p.account };
+  if (p.kind === 'anthropic') return { brand: 'claude', brandName: 'Claude' };
+  const s = (p.name + ' ' + p.url).toLowerCase();
+  return /gemini|googleapis/.test(s) ? { brand: 'gemini', brandName: p.name } : /qwen/.test(s) ? { brand: 'qwen', brandName: p.name } : { brand: 'model', brandName: p.name };
+};
+bindInstallCopy($('note'));
+const note = (t) => { $('note').textContent = t || ''; };
+const newChat = () => ({ id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6), title: '', created: Date.now(), messages: [] });
+
+function bubble(m) {
+  const d = document.createElement('div');
+  d.className = 'msg ' + m.role + (m.error ? ' error' : '');
+  const chip = m.page ? `<div class="page" title="${esc(m.page.url)}">📄 <span>${esc(m.page.title || m.page.url)}</span></div>` : '';
+  d.innerHTML = chip + (m.error ? esc(m.text) : m.role === 'user' ? slashMark.html(esc(m.text)) : renderMarkdown(m.text)) + sourcesHtml(m.sources);
+  return d;
+}
+// Links under a reply that used web search. Only http(s): a source URL comes from the web.
+function sourcesHtml(list) {
+  const ok = (list || []).filter((x) => /^https?:\/\//.test(x.url));
+  return ok.length ? `<div class="sources">Sources<ol>${ok.map((x) => `<li><a href="${esc(x.url)}" target="_blank" rel="noopener noreferrer">${esc(x.title || x.url)}</a></li>`).join('')}</ol></div>` : '';
+}
+function renderLog() {
+  $('title').textContent = chat.title || 'Ask';
+  document.title = chat.title || 'Ask';
+  $('log').innerHTML = chat.messages.length ? '' : `<p class="empty">${picked()?.kind === 'cli' ? CODE_COPY : ASK_COPY}</p>`;
+  for (const m of chat.messages) $('log').append(bubble(m));
+  $('log').scrollTop = $('log').scrollHeight;
+}
+const ASK_COPY = 'Chat with any AI: a model on your computer (Ollama, LM Studio, llama.cpp, Jan), or OpenAI or Anthropic with your own API key. Turn on Search the web for answers with sources.';
+// Agent CLIs run only under macOS sandbox-exec; the Windows build can't start them yet (platform SpawnStream).
+const CODE_COPY = /^Win/.test(navigator.platform)
+  ? "Coding assistants you've installed (Claude Code, Codex, Gemini CLI, Qwen Code) can't run here yet: on Windows, Roar has no sandbox for them."
+  : "Coding assistants you've installed (Claude Code, Codex, Gemini CLI, Qwen Code) run in a locked-down sandbox on your own plan. Sending a tab works with Claude Code only for now: Roar needs to run the agent with every tool off, and so far only Claude Code supports that here.";
+function show(c) {
+  if (streaming) stop();
+  chat = c;
+  history.replaceState(null, '', c.messages.length ? '#' + c.id : location.pathname);
+  if (c.model && [...$('model').options].some((o) => o.value === c.model)) $('model').value = c.model;
+  chat.search ??= searchDefault;
+  paintAttach();
+  renderLog();
+  $('text').focus();
+}
+
+// Models: only from providers detected now (a server that answers, or an API with a Keychain key), through
+// Roar, which adds the key. Detected providers come first.
+async function loadModels(st) {
+  providers = [...parseProviders(st.settings.chatProviders), ...CLI_PROVIDERS];
+  const all = await detectProviders(providers, ask), found = all.filter((p) => p.models.length);
+  const sel = $('model'), want = chat?.model || st.settings.chatModel;
+  sel.innerHTML = found.map((p) => `<optgroup label="${esc(p.kind === 'cli' ? p.name + ' (your subscription)' : p.name)}">${p.models.map((m) => `<option value="${esc(p.id + '|' + m)}">${esc(m)}</option>`).join('')}</optgroup>`).join('');
+  if (!sel.options.length) sel.innerHTML = '<option value="">No models found</option>';
+  if (sel.options[0].value) sel.value = defaultModel(found, want);
+  sel.disabled = !sel.options[0].value;
+  const idle = all.find((p) => p.state === 'installed');
+  // Claude Desktop alone: say Claude Code is what's missing, with its install command.
+  const desk = all.find((p) => p.id === 'cli-claude' && p.state === 'missing' && /Claude app/.test(p.label || ''));
+  note(!sel.disabled ? '' : idle ? `${idle.name}: ${idle.label}` : desk ? '' : 'Start a local model server, or add an API key in Settings > Model chat.');
+  if (sel.disabled && !idle && desk) $('note').innerHTML = claudeInstallHtml();
+  paintAttach();
+  if (!chat.messages.length) renderLog();
+}
+
+// "Include this tab": the web tab used most recently before this one (this page is the active tab).
+function pickWebTab(st) {
+  webTab = st.tabs.filter((t) => !t.ghost && !t.active && /^https?:/.test(t.url || '')).sort((a, b) => a.idleSeconds - b.idleSeconds)[0] || null;
+  paintAttach();
+}
+const picked = () => providers.find((x) => x.id === $('model').value.split('|')[0]);
+// A CLI that can't be fully cut off from the user's files never gets page text (src/model_chat.h ChatCliToolless).
+function paintAttach() {
+  const how = searchMode(picked());
+  $('search').disabled = !how || how === 'builtin';
+  $('search').setAttribute('aria-pressed', String(!!(how && how !== 'builtin' && chat?.search)));
+  $('search').title = how === 'builtin' ? `${picked().name} searches the web on its own` : !how ? "Agent CLIs run with their own tools off, so they can't search the web" : how === 'local'
+    ? 'Roar searches in a private page (no cookies or logins) and gives the model the results' : "Uses the provider's own web search";
+  const no = pageRefusal(picked());
+  if (no && page) { page = null; $('attach').setAttribute('aria-pressed', 'false'); $('attach-name').textContent = ''; }
+  $('attach').disabled = !webTab || !!no;
+  $('attach').title = no || (webTab ? `Attach “${webTab.title || webTab.url}” as Markdown` : 'Open a web page first');
+}
+$('attach').onclick = async () => {
+  if (page) { page = null; $('attach').setAttribute('aria-pressed', 'false'); $('attach-name').textContent = ''; return; }
+  if (!webTab) return;
+  note('Reading the page…');
+  try {
+    page = await Promise.race([ask({ cmd: 'chat.tab', tab: webTab.id }), new Promise((_, no) => setTimeout(() => no(new Error("Couldn't read that page")), 15000))]);
+    $('attach').setAttribute('aria-pressed', 'true');
+    $('attach-name').textContent = page.title || page.url;
+    note('');
+  } catch (e) { page = null; note(e.message); }
+};
+
+function stop() {
+  if (!streaming) return;
+  if (streaming.qid) window.roarQueryCancel(streaming.qid);
+  streaming.finish();
+}
+async function send() {
+  const text = $('text').value.trim(), [pid, ...rest] = $('model').value.split('|'), model = rest.join('|');
+  const p = providers.find((x) => x.id === pid);
+  if ((!text && !page) || !p || streaming) return;
+  const no = pageRefusal(p);
+  if (no && (page || chat.messages.some((m) => m.page))) return note(no);
+  const mode = chat.search ? searchMode(p) : '';
+  chat.model = $('model').value;
+  Object.assign(chat, brandOf(p), { updated: Date.now() });
+  history.replaceState(null, '', '#' + chat.id);
+  if (!chats.includes(chat)) chats.unshift(chat);
+  const user = { role: 'user', text, ...(page && { page }) };
+  chat.messages.push(user);
+  if (!chat.title) chat.title = (text || page.title).slice(0, 60);
+  page = null; $('attach').setAttribute('aria-pressed', 'false'); $('attach-name').textContent = '';
+  $('text').value = ''; grow();
+  renderLog();
+  if (mode === 'local') {
+    // Roar runs the search itself in a ghost page; the model only reads the results.
+    streaming = { finish: () => { streaming = null; } };
+    note('Searching the web…');
+    const query = (text || user.page.title).slice(0, 300);
+    try {
+      const r = await ask({ cmd: 'chat.search', query });
+      user.search = { tag: 'roar-web-' + Math.random().toString(36).slice(2, 10), query, results: (typeof r === 'string' ? JSON.parse(r) : r).results || [], pages: [] };
+      note('');
+    } catch (e) { note("Couldn't search the web: " + e.message); }
+    if (!streaming) return renderLog(), saveChats();  // Stopped while searching.
+    streaming = null;
+  }
+  run(p, model, mode, user, true);
+}
+
+// Streams one reply to the chat as it stands. `user` is the turn being answered; a local model may ask
+// once to open one of its search results, and only a link Roar returned (chat.search checks).
+function run(p, model, mode, user, mayOpen) {
+  const reply = { role: 'assistant', text: '' };
+  const cli = p.kind === 'cli', kind = mode === 'responses' ? 'responses' : p.kind;
+  const local = chat.messages.some((m) => m.search);
+  const request = cli
+    ? { cmd: 'chat.cli', cli: p.cli, model, prompt: cliPrompt(chat.messages) }
+    : { cmd: 'chat.request', provider: p.id, what: kind === 'responses' ? 'responses' : 'chat',
+        body: JSON.stringify(requestBody(kind, model, chat.messages, local && kind !== 'anthropic' ? SEARCH_SYSTEM : '', mode === 'anthropic')) };
+  chat.messages.push(reply);
+  renderLog();
+  const el = $('log').lastElementChild, sse = sseParser(), lines = cli && cliParser(p.cli);
+  const feed = (chunk) => cli ? lines(chunk) : sse(chunk).map((d) => streamDelta(kind, d));
+  el.classList.add('cursor');
+  $('log').setAttribute('aria-busy', 'true');
+  $('send').textContent = 'Stop'; $('send').classList.add('stop'); $('send').setAttribute('aria-label', 'Stop');
+  let raf = 0;
+  const paint = () => { raf = 0; el.innerHTML = renderMarkdown(reply.text); el.classList.add('cursor'); $('log').scrollTop = $('log').scrollHeight; };
+  const finish = async (err) => {
+    if (!streaming) return;
+    streaming = null;
+    if (err) { reply.text = (reply.text ? reply.text + '\n\n' : '') + err; reply.error = !reply.text || reply.text === err; }
+    const want = !err && user.search && openRequest(reply.text);
+    if (want && mayOpen) {
+      chat.messages.pop();
+      streaming = { finish: () => { streaming = null; } };
+      note('Opening ' + want + '…');
+      try {
+        const r = await ask({ cmd: 'chat.search', url: want });
+        const pg = typeof r === 'string' ? JSON.parse(r) : r;
+        user.search.pages.push({ url: want, title: pg.title || want, text: pg.text || '' });
+        note('');
+      } catch (e) {
+        note('');
+        streaming = null;
+        chat.messages.push({ role: 'assistant', text: `Roar didn't open ${want}: ${e.message}`, error: true });
+        return endTurn();
+      }
+      if (!streaming) return endTurn();
+      streaming = null;
+      return run(p, model, mode, user, false);
+    }
+    if (want) reply.text = 'The model asked to open another page, but Roar opens one page per question. Ask again to go further.';
+    if (user.search && !reply.error) reply.sources = [...user.search.pages, ...user.search.results].filter((x, i, all) => all.findIndex((y) => y.url === x.url) === i).map((x) => ({ url: x.url, title: x.title }));
+    if (!reply.text) chat.messages.pop();
+    endTurn();
+  };
+  const endTurn = () => {
+    $('send').textContent = 'Send'; $('send').classList.remove('stop'); $('send').setAttribute('aria-label', 'Send');
+    $('log').removeAttribute('aria-busy');
+    renderLog(); saveChats();
+  };
+  const qid = window.roarQuery({
+    request: JSON.stringify(request),
+    persistent: true,
+    onSuccess: (chunk) => {
+      for (const d of feed(chunk)) {
+        if (d.text) reply.text += d.text;
+        if (d.sources) addSources(reply, d);
+        if (d.error) return finish('Error: ' + d.error);
+      }
+      if (!raf) raf = requestAnimationFrame(paint);
+    },
+    // Roar ends the stream with code 0; anything else is the HTTP status (-1: unreachable), or for a
+    // CLI its exit code (-1: couldn't start, -2: timed out) with the end of its stderr.
+    onFailure: (code, message) => {
+      if (cli && code) return finish(code === -2 ? `${p.name} took too long and was stopped.` : code === -1 ? `Couldn't run ${p.name}: ${message}` : `${p.name} exited with ${code}${message.trim() ? ': ' + message.trim().slice(-300) : ''}`);
+      let why = message;
+      try { why = JSON.parse(message).error?.message || why; } catch {}
+      finish(code === 0 ? '' : code === -1 ? `Couldn't reach ${p.name}.` : `${p.name} returned ${code}${why ? ': ' + why.slice(0, 300) : ''}`);
+    },
+  });
+  streaming = { qid, finish: () => finish('') };
+}
+
+const grow = () => { const t = $('text'); t.style.height = 'auto'; t.style.height = Math.min(200, t.scrollHeight) + 'px'; };
+slashMark.field($('text'));
+$('text').addEventListener('input', grow);
+$('text').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); send(); }
+});
+$('form').onsubmit = (e) => { e.preventDefault(); streaming ? stop() : send(); };
+$('new').onclick = () => show(newChat());
+$('settings').onclick = () => ask({ cmd: 'open', text: 'roar://ui/settings.html#chat', newTab: true });
+$('model').onchange = () => { if (chat) chat.model = $('model').value; paintAttach(); if (chat && !chat.messages.length) renderLog(); };
+// Per chat, and the latest choice becomes the default for new chats.
+$('search').onclick = () => {
+  chat.search = !chat.search;
+  searchDefault = chat.search;
+  paintAttach();
+  ask({ cmd: 'settings.set', settings: { chatSearch: chat.search } }).catch(() => {});
+};
+$('log').addEventListener('click', (e) => {
+  const b = e.target.closest('.copy');
+  if (!b) return;
+  const text = b.parentElement.querySelector('code').textContent;
+  const done = () => { b.textContent = 'Copied'; setTimeout(() => (b.textContent = 'Copy'), 1200); };
+  navigator.clipboard.writeText(text).then(done, () => {
+    const t = Object.assign(document.createElement('textarea'), { value: text });
+    document.body.append(t); t.select(); document.execCommand('copy'); t.remove(); done();
+  });
+});
+
+(async () => {
+  try { chats = await ask({ cmd: 'chat.history' }); } catch { chats = []; }
+  if (!Array.isArray(chats)) chats = [];
+  show(chats.find((c) => c.id === location.hash.slice(1)) || newChat());
+  // The sidebar opens another chat in this tab by changing the hash.
+  addEventListener('hashchange', () => { const c = chats.find((x) => x.id === location.hash.slice(1)); if (c && c !== chat) show(c); });
+  const st = await ask({ cmd: 'state' }).then((x) => typeof x === 'string' ? JSON.parse(x) : x);
+  searchDefault = !!st.settings.chatSearch;
+  if (!chat.messages.length) chat.search = searchDefault;
+  pickWebTab(st);
+  $('model').innerHTML = '<option value="">Looking for models…</option>';
+  loadModels(st);  // Detection runs in the background; the page is usable meanwhile.
+  // Tabs change while the chat is open; keep "Include this tab" pointing at the latest one.
+  setInterval(() => ask({ cmd: 'state' }).then((x) => pickWebTab(typeof x === 'string' ? JSON.parse(x) : x)).catch(() => {}), 5000);
+})();
+</script>
+</body>
+</html>
