@@ -1,6 +1,6 @@
 # A day in Roar: voiceover
 
-Voice: David, an older British wildlife narrator from the ElevenLabs library (sIsyDvq54C8vCgtvpJac), stability .6, style .3, speed 1.1. Auditioned against Connery and Alec on lines 1 and 8.
+Voice: Elliot, a light, modern British explainer from the ElevenLabs library (8gNL8wXI7PQOc82yBLOg), stability .6, style .3. Picked 2026-10-23 over Eric, Lily, Sarah and Brian; replaces David (sIsyDvq54C8vCgtvpJac), whose older wildlife-narrator read did not fit.
 Eight full sentences read as one continuous narration, like a nature film following one animal through its day. Each sentence starts at its time + 0.1 s; the picture is time-warped to the reads (film.html WARP), and on-screen captions split each sentence across its shots word for word.
 
 | start | line | on-screen caption |
