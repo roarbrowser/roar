@@ -84,6 +84,12 @@ if (-not $WsLicense) { throw "build.ps1: missing license file in $Ws" }
 # The license files uBO Lite ships for its own bundled parts (fonts, libraries).
 $UbolLicenses = Get-ChildItem -Recurse -File $Ubol | Where-Object { $_.Name -match '(licen[cs]e|^copying)' -and $_.DirectoryName -ne $Ubol } | Sort-Object FullName
 if (-not $UbolLicenses) { throw 'build.ps1: no license files in third_party\ubol' }
+# roar-mcp.exe embeds Bun, JavaScriptCore and TinyCC: same pins as scripts/gen-notices.sh.
+$BunVersion = ((Get-Content "$Root\scripts\build.sh" | Select-String '^BUN_VERSION=(.+)$').Matches[0].Groups[1].Value)
+$WebkitCommit = ((Get-Content "$Root\scripts\gen-notices.sh" | Select-String '^WEBKIT_COMMIT=(.+)$').Matches[0].Groups[1].Value)
+$BunDeps = Get-Content "$Root\licenses\bun-deps.tsv" | Where-Object { $_ -and -not $_.StartsWith('#') } | ForEach-Object { , ($_ -split "`t") }
+$TinyccCommit = ($BunDeps | Where-Object { $_[0] -eq 'tinycc' } | Select-Object -First 1)[2]
+if (-not $BunVersion -or -not $WebkitCommit -or -not $TinyccCommit) { throw 'build.ps1: cannot read Bun/WebKit/TinyCC pins' }
 $Dl = "$Root\licenses\dictate-win"  # Licenses of roar-dictate.exe's sherpa-onnx build (scripts/build-dictate.ps1).
 $Notices = @(
   'Roar third-party notices'
@@ -107,6 +113,20 @@ $Notices = @(
   Notice 'chrome-devtools-mcp' "$Root\mcp\node_modules\chrome-devtools-mcp\LICENSE"
   Notice 'chrome-devtools-mcp: bundled third-party notices' "$Root\mcp\node_modules\chrome-devtools-mcp\build\src\third_party\THIRD_PARTY_NOTICES"
   Notice 'chrome-devtools-mcp addendum: lookup-closest-locale (MIT License)' "$Root\licenses\lookup-closest-locale-LICENSE"
+  "`n$Rule`nBun (MIT License), JavaScriptCore (LGPL) and TinyCC (LGPL-2.1), embedded in roar-mcp.exe`n$Rule`n"
+  "roar-mcp.exe is built with ``bun build --compile`` (Bun $BunVersion, https://github.com/oven-sh/bun"
+  "tag bun-v$BunVersion), which embeds the Bun runtime. Bun is MIT-licensed and statically links"
+  "JavaScriptCore/WebKit (LGPL) from https://github.com/oven-sh/WebKit at commit $WebkitCommit,"
+  "TinyCC (libtcc, LGPL-2.1) from https://github.com/oven-sh/tinycc at commit $TinyccCommit, and the"
+  'permissively licensed libraries whose licences follow. To relink roar-mcp.exe with a modified'
+  "JavaScriptCore or libtcc: build Bun bun-v$BunVersion from source with your modified WebKit or tinycc"
+  'checkout (see Bun''s LICENSE.md), then run `bun build --compile mcp/roar-mcp.mjs` from Roar''s source'
+  'with that bun. Source is also available under the written offer below.'
+  Notice "Bun $($BunVersion): LICENSE.md (verbatim from tag bun-v$BunVersion)" "$Root\licenses\bun-LICENSE.md"
+  Notice 'Bun: MIT License (standard text; Bun''s LICENSE.md names the licence without reproducing it)' "$Root\licenses\mit-LICENSE"
+  # shortcut: bun-deps.tsv is the macOS list; bun-windows-x64 also links libuv and its own ICU, add their licences there before the next Windows release.
+  foreach ($d in $BunDeps) { $b = Split-Path -Leaf $d[3]; Notice "Bun component: $($d[0]) $b ($($d[1]) at $($d[2]))" "$Root\licenses\bun-deps\$($d[0])-$b" }
+  Notice "JavaScriptCore (GNU Library General Public License v2, Source/JavaScriptCore/COPYING.LIB at oven-sh/WebKit $WebkitCommit)" "$Root\licenses\javascriptcore-COPYING.LIB"
   "`n$Rule`nDictation (roar-dictate.exe): sherpa-onnx 1.13.8 and ONNX Runtime 1.28.2`n$Rule`n"
   'roar-dictate.exe and its DLLs (sherpa-onnx-c-api.dll, sherpa-onnx-cxx-api.dll, onnxruntime.dll,'
   'onnxruntime_providers_shared.dll) come from the sherpa-onnx v1.13.8 Windows release (scripts/build-dictate.ps1).'
@@ -136,9 +156,12 @@ $Notices = @(
   "`n$Rule`nWritten offer for source code (LGPL-2.1 and GPL-3.0 components)`n$Rule`n"
   'For at least three years after the last distribution of this version of Roar, and for as'
   'long as spare parts or customer support for it are offered, the Roar project will give anyone'
-  'who asks a copy of the complete corresponding source code of the LGPL-2.1 FFmpeg library (as'
-  'built into the stock CEF binary above) and the GPL-3.0 uBO Lite extension shipped in this'
-  'version, on a medium customarily used for software interchange or by download, for no more'
+  'who asks a copy of the complete corresponding source code of: the LGPL-2.1 FFmpeg library (as'
+  'built into the stock CEF binary above); the LGPL JavaScriptCore/WebKit source (oven-sh/WebKit'
+  "commit $WebkitCommit), the LGPL-2.1 TinyCC source (oven-sh/tinycc commit $TinyccCommit) and Bun"
+  "$BunVersion source (tag bun-v$BunVersion) that roar-mcp.exe is built from; and the GPL-3.0 uBO Lite"
+  'extension shipped in this version. It comes on a medium customarily used for software'
+  'interchange or by download, for no more'
   'than the cost of physically performing the distribution. Email roarbrowser@gmail.com and name'
   'the Roar version (shown in About Roar).'
 )
