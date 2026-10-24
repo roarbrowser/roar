@@ -458,6 +458,7 @@ try { const t = localStorage.getItem('theme'); if (t) document.documentElement.d
     <a href="https://github.com/roarbrowser/roar">github.com/roarbrowser/roar</a>
     <span>MIT License (Roar's own code; bundled components keep their licenses)</span>
     <a href="https://github.com/roarbrowser/roar#network--privacy">Privacy</a>
+    <span>This site counts visits and downloads with anonymous, cookieless analytics (Aptabase).</span>
     <span>Built on Chromium (CEF)</span>
     <span>Chrome, Google, Gemini, Arc, Dia, Safari, Apple, macOS, Claude, Anthropic, Cursor, Codex, ChatGPT, OpenAI, Microsoft, Edge, Copilot, GitHub, Perplexity, Comet, Brave, Firefox, Mozilla, Opera, Genspark, Qwen, NVIDIA, Ollama, uBlock Origin and all other product names are trademarks of their owners; Roar is not affiliated with or endorsed by them.</span>
   </div>
@@ -541,6 +542,18 @@ fetch('https://api.github.com/repos/roarbrowser/roar').then(r => r.ok ? r.json()
     label()
   })
 })()
+</script>
+<script type="module">
+// Anonymous, cookieless analytics (Aptabase): a pageview plus download and GitHub clicks.
+import { init, trackEvent } from 'https://cdn.jsdelivr.net/npm/@aptabase/web@0.5.0/+esm'
+init('A-US-0940611895')
+trackEvent('pageview', { path: location.pathname })
+document.addEventListener('click', (e) => {
+  const h = e.target.closest('a')?.href || ''
+  const ev = /windows/i.test(h) ? 'download_windows' : /-intel\.dmg$/.test(h) ? 'download_intel'
+    : /\.dmg$|\/releases/.test(h) ? 'download_mac' : /github\.com\/roarbrowser\/roar\/?$/.test(h) ? 'github_click' : ''
+  if (ev) trackEvent(ev)
+})
 </script>
 </body>
 </html>
