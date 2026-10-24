@@ -92,8 +92,11 @@ who asks a copy of the complete corresponding source code of: the LGPL-2.1 FFmpe
 complete CEF and Chromium source (CEF 154.0.34+g14c5a08+chromium-154.0.8037.98, Chromium 154.0.8037.98) with Roar's
 patches and build settings; the LGPL JavaScriptCore/WebKit source (oven-sh/WebKit commit
 2e2aa2290fac856d6f451ceacb58f7f5b44dd057), the LGPL-2.1 TinyCC source (oven-sh/tinycc commit 05f0fafaa3be31e31d7b4b5c17dc60f62c991171) and Bun
-1.4.2 source (tag bun-v1.4.2) that roar-mcp is built from, with the object files
-needed to relink roar-mcp; and the GPL-3.0 uBO Lite extension shipped in this version. It comes on a medium
+1.4.2 source (tag bun-v1.4.2) that roar-mcp is built from; the complete corresponding source of roar-mcp (the mcp/ directory at
+this release's git tag, MIT), Bun 1.4.2 and the build command (`bun install --frozen-lockfile
+--production` in mcp/, then `bun build --compile --target=bun-darwin-arm64 mcp/roar-mcp.mjs`; x64 builds use
+bun-darwin-x64), so that roar-mcp can be rebuilt against a modified Bun or JavaScriptCore; and the
+GPL-3.0 uBO Lite extension shipped in this version. It comes on a medium
 customarily used for software interchange or by download, for no more than the cost of
 physically performing the distribution. Email
 roarbrowser@gmail.com and name the Roar version (shown in Roar > About Roar).
@@ -754,7 +757,7 @@ JavaScriptCore/WebKit (LGPL) from https://github.com/oven-sh/WebKit at commit
 2e2aa2290fac856d6f451ceacb58f7f5b44dd057, TinyCC (libtcc, LGPL-2.1) from https://github.com/oven-sh/tinycc at
 commit 05f0fafaa3be31e31d7b4b5c17dc60f62c991171, and the permissively licensed libraries whose licences follow.
 To relink roar-mcp with a modified JavaScriptCore or libtcc: build Bun bun-v1.4.2 from
-source (its object files plus your modified WebKit or tinycc checkout; see Bun's LICENSE.md and
+source with your modified WebKit or tinycc checkout (see Bun's LICENSE.md and
 scripts/build/deps/ in Bun's source), then run `bun build --compile mcp/roar-mcp.mjs` from
 Roar's source with that bun. Source is also available under the written offer above.
 

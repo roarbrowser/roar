@@ -307,7 +307,7 @@ Roar bundles FFmpeg (LGPL-2.1, built into the CEF framework), uBlock Origin Lite
 notices covers these and the complete CEF/Chromium source of each release.
 Each [GitHub release](https://github.com/roarbrowser/roar/releases) attaches the exact source
 for that version: `ffmpeg-<rev>.tar.gz`, `uBOL-home-<version>.tar.gz`, the uBO Lite zip and
-`roar-cef-patches.tar.gz`. For at least three years after a version's release, the source is
+`roar-cef-patches.tar.gz`. For `roar-mcp` the offer is the complete source (the `mcp/` directory at the release's git tag, MIT), the exact Bun version and the build command, so it can be rebuilt against a modified Bun or JavaScriptCore. For at least three years after a version's release, the source is
 also available on request from roarbrowser@gmail.com at no more than the cost of distribution.
 The full notices and this written offer ship in `Roar.app/Contents/Resources/THIRD_PARTY_NOTICES.txt`.
 Roar 0.37.14 is no longer offered for download, but its written offer still runs: its source (the `v0.37.14` tree, its CEF patches and FFmpeg revision) is kept and sent on request. For its complete notices, see [legal/roar-0.37.14-notices-supplement.md](legal/roar-0.37.14-notices-supplement.md).

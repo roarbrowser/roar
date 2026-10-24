@@ -159,7 +159,10 @@ $Notices = @(
   'who asks a copy of the complete corresponding source code of: the LGPL-2.1 FFmpeg library (as'
   'built into the stock CEF binary above); the LGPL JavaScriptCore/WebKit source (oven-sh/WebKit'
   "commit $WebkitCommit), the LGPL-2.1 TinyCC source (oven-sh/tinycc commit $TinyccCommit) and Bun"
-  "$BunVersion source (tag bun-v$BunVersion) that roar-mcp.exe is built from; and the GPL-3.0 uBO Lite"
+  "$BunVersion source (tag bun-v$BunVersion) that roar-mcp.exe is built from; the complete corresponding source of roar-mcp (the mcp/ directory at this"
+  "release's git tag, MIT), Bun $BunVersion and the build command (``bun install --frozen-lockfile --production`` in mcp/,"
+  'then `bun build --compile --target=bun-windows-x64 mcp/roar-mcp.mjs`), so that roar-mcp.exe can be rebuilt against a modified'
+  'Bun or JavaScriptCore; and the GPL-3.0 uBO Lite'
   'extension shipped in this version. It comes on a medium customarily used for software'
   'interchange or by download, for no more'
   'than the cost of physically performing the distribution. Email roarbrowser@gmail.com and name'
