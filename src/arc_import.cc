@@ -121,7 +121,7 @@ struct Reader {
 };
 
 // Arc's theme nests the color deep (windowTheme.background.single._0.style...);
-// the first {red, green, blue} found is the space's color.
+// the first {red, green, blue} found under it is the space's color.
 const Json* FindRgb(const Json& v) {
   if (v.type == Json::kObject) {
     if (v["red"].type == Json::kNumber && v["green"].type == Json::kNumber && v["blue"].type == Json::kNumber)
@@ -176,7 +176,11 @@ std::vector<Space> Parse(const std::string& text, std::string* error) {
     if (sp.type != Json::kObject) continue;
     Space space;
     space.name = sp["title"].str.empty() ? "Arc" : sp["title"].str;
-    if (const Json* rgb = FindRgb(sp["customInfo"]["windowTheme"])) space.color = Hex(*rgb);
+    // Real themes also carry semanticColorPalette (text, hover...) colors, often listed first.
+    const Json& theme = sp["customInfo"]["windowTheme"];
+    const Json* rgb = FindRgb(theme["background"]);
+    if (!rgb) rgb = FindRgb(theme);
+    if (rgb) space.color = Hex(*rgb);
     std::string pinned_id;
     const auto& ids = sp["containerIDs"].items;
     for (size_t k = 0; k + 1 < ids.size(); ++k)
@@ -205,6 +209,8 @@ std::vector<Space> Parse(const std::string& text, std::string* error) {
           if (!folder.empty()) name = folder + " / " + name;
           space.folders.push_back({name, {}});
           walk(item, name);
+        } else if (item["data"]["splitView"].type == Json::kObject) {
+          walk(item, folder);  // A split view's tabs sit where the split view does.
         }
       }
     };

@@ -32,9 +32,12 @@ int main() {
           "work pin urls");
     Check(w.folders.size() == 2, "folder plus nested folder");
     if (w.folders.size() == 2) {
-      Check(w.folders[0].name == "Projects" && w.folders[0].tabs.size() == 1 &&
+      Check(w.folders[0].name == "Projects" && w.folders[0].tabs.size() == 3 &&
                 w.folders[0].tabs[0].title == "Roadmap",
             "projects folder");
+      Check(w.folders[0].tabs.size() == 3 && w.folders[0].tabs[1].url == "https://design.example.com/" &&
+                w.folders[0].tabs[2].url == "https://tickets.example.com/",
+            "split view tabs land in their folder");
       Check(w.folders[1].name == "Projects / Archive" && w.folders[1].tabs.size() == 1 &&
                 w.folders[1].tabs[0].url == "https://docs.example.com/old-spec",
             "nested folder");
