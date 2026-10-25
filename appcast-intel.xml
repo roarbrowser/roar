@@ -48,5 +48,14 @@
       <description><![CDATA[Sign in from Roar: when Claude Code or Codex in Ask isn't signed in, a Sign in button runs its sign-in page in Roar and then asks your question again. Settings > Agents has the same button.]]></description>
       <enclosure url="https://github.com/roarbrowser/roar/releases/download/v1.5.0/Roar-1.5.0-intel.dmg" type="application/octet-stream" sparkle:edSignature="maXLi7c+RbgCr9JQq+8KJ+zj0CtW5wklyJZ+y8URoC7AVdBsKtv/NlOztsGdK3t0NNO1YmwzmFxW14moYhEWBA==" length="228811477"/>
     </item>
+    <item>
+      <title>1.5.1</title>
+      <pubDate>Sun, 25 Oct 2026 23:33:29 +0000</pubDate>
+      <sparkle:version>10501</sparkle:version>
+      <sparkle:shortVersionString>1.5.1</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[Agent chat now shows the messages you send. Click the terminal view to drive the agent with arrow keys, Enter, Esc and Tab. With dictation on, the Ask and agent tabs have a mic button; hover it for the shortcut. Ask and agent chat render Markdown tables.]]></description>
+      <enclosure url="https://github.com/roarbrowser/roar/releases/download/v1.5.1/Roar-1.5.1-intel.dmg" type="application/octet-stream" sparkle:edSignature="o+dhbmn2Azpn3tPltvBJlCfWr9ESoZK9b4MXuGWf/UXHxMmkbotjtYYhtU+mWqcuDbH0Ss0mrIuZqVDPUXVqCA==" length="228808335"/>
+    </item>
   </channel>
 </rss>
