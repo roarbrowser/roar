@@ -569,7 +569,11 @@ async function chatRefresh(st) {
     <span class="end"><input type="text" class="query" data-url value="${esc(p.url)}" aria-label="${esc(p.name)} URL" spellcheck="false" style="width:240px">
     ${p.get ? `<button class="btn" data-get="${esc(p.get)}">Get ${esc(p.name)}</button>` : ''}
     ${p.key ? `<input type="password" data-key placeholder="${p.state === 'available' ? '••••••••' : 'API key'}" aria-label="${esc(p.name)} API key" autocomplete="off" style="width:150px"><button class="btn" data-savekey>Save key</button>${p.state === 'available' ? '<button class="btn" data-delkey>Remove key</button>' : ''}` : '<button class="btn" data-remove>Remove</button>'}</span></div>`;
-  const paint = (rows) => { if (!box.contains(document.activeElement)) box.innerHTML = rows.filter((p) => p.kind === 'cli').map(row).join('') + '<h3>API keys and local servers</h3>' + rows.filter((p) => p.kind !== 'cli').map(row).join(''); };  // Don't rebuild under the cursor.
+  const paint = (rows) => {
+    if (box.contains(document.activeElement)) return;  // Don't rebuild under the cursor.
+    const open = box.querySelector('#chat-api')?.open ? ' open' : '';  // Collapsed by default; a repaint keeps it as the user left it.
+    box.innerHTML = rows.filter((p) => p.kind === 'cli').map(row).join('') + `<details class="group" id="chat-api"${open}><summary>API keys and local servers</summary>` + rows.filter((p) => p.kind !== 'cli').map(row).join('') + '</details>';
+  };
   const gen = (chatRefresh.gen = (chatRefresh.gen || 0) + 1);
   if (!box.children.length) paint(list);
   const found = await chatCore.detectProviders(list, ask);
