@@ -94,7 +94,7 @@ check(r.text === 'Héllo 🦁' && r.done && !r.error, 'claude stream-json: parti
 r = runCli('claude', JSON.stringify({ type: 'assistant', message: { content: [{ type: 'text', text: 'whole' }] } }) + '\n');
 check(r.text === 'whole', 'claude without partial messages: whole message used');
 r = runCli('claude', 'warning: not json\n' + JSON.stringify({ type: 'result', is_error: true, result: 'Not logged in' }) + '\n');
-check(r.error === 'Not logged in', 'claude: stray lines skipped, error result surfaces');
+check(/Terminal/.test(r.error), 'claude: stray lines skipped, not-logged-in points at Terminal');
 const codexOut = [
   { type: 'thread.started', thread_id: 't' }, { type: 'turn.started' },
   { type: 'item.completed', item: { id: 'i0', type: 'reasoning', text: 'thinking' } },

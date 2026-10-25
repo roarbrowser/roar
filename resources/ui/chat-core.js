@@ -206,6 +206,8 @@
           const t = (j.message?.content || []).filter((c) => c.type === 'text').map((c) => c.text).join('');
           return t ? { text: t } : null;
         }
+        // /login can't run in a one-shot chat; point at Terminal instead.
+        if (j.type === 'result' && /not logged in/i.test(j.result || '')) return { error: 'Claude isn’t signed in. Run “claude” once in Terminal, type /login, then try again.' };
         if (j.type === 'result') return j.is_error ? { error: String(j.result || j.subtype || 'failed') } : { done: true };
         return null;
       }
