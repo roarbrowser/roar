@@ -1107,6 +1107,8 @@ void Controller::PollDriven() {
   for (const auto& a : agent_alerts_)
     if (!a.owner.empty() && PidGone(atoi(a.owner.c_str()))) stale.push_back(a.id);
   for (int id : stale) ResolveAlert(id, "");
+  for (auto& b : std::exchange(strays_held_, {}))
+    if (b->IsValid()) AdoptStray(b, b->GetMainFrame()->GetURL());
   // The sidebar counts done cards' screen time only while Roar is the active app (state.appActive).
   static bool was_active = false;
   if (platform::AppActive() != was_active) was_active = !was_active, PushSidebar();
@@ -5685,9 +5687,6 @@ bool Controller::HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> 
 void Controller::OnBrowserCreated(CefRefPtr<CefBrowser> browser) {
   ++live_browsers_;
   browsers_[browser->GetIdentifier()] = browser;
-  // Web tabs only: Roar's own pages play no sound.
-  if (!IsUiBrowser(browser) && !browser->IsPopup() && !IsExtensionPopup(browser))
-    MediaWatcher::Attach(browser, &media_watchers_[browser->GetIdentifier()]);
 }
 
 void Controller::OnBrowserClosed(CefRefPtr<CefBrowser> browser) {
@@ -5709,6 +5708,29 @@ void Controller::OnTitle(CefRefPtr<CefBrowser> browser, const std::string& title
   PushSidebar();
 }
 
+// Takes a stray page as a Roar tab unless a CDP client is attached; a client's page in a
+// space is retried from PollDriven, so it shows up once the client leaves without closing it.
+void Controller::AdoptStray(CefRefPtr<CefBrowser> browser, const std::string& url) {
+  bool ghost = IsGhostBrowser(browser);
+  // Like a popup, the page belongs to the space whose profile it uses, never just the active one.
+  int space = ghost ? -1 : SpaceOfProfile(browser);
+  action_watch::IsPageAttached(url, [browser, url, ghost, space](bool attached) {
+    if (!browser->IsValid()) return;
+    // Ghost and foreign-profile windows (createTarget browserContextId) a client holds stay its own.
+    if (attached) {
+      if (!ghost && space >= 0) Controller::Get()->strays_held_.push_back(browser);
+      return;
+    }
+    if (!ghost && space < 0) {
+      LOG(WARNING) << "OnAddress: no space for the stray window's profile; closed";
+      Controller::Get()->ShowHint("Couldn't open that page: its profile is gone");
+    } else {
+      Controller::Get()->NewTab(url, true, false, 0, space, ghost);
+    }
+    browser->GetHost()->CloseBrowser(true);
+  });
+}
+
 void Controller::OnAddress(CefRefPtr<CefBrowser> browser, const std::string& url) {
   Tab* tab = FindTabByBrowser(browser);
   if (KeepAboveTabs(tab, IsUiBrowser(browser), url) && !IsExtensionPopup(browser))
@@ -5725,22 +5747,14 @@ void Controller::OnAddress(CefRefPtr<CefBrowser> browser, const std::string& url
   }
   if (!tab && !browser->IsPopup() && !IsExtensionPopup(browser) && !url.empty() && !StartsWith(url, "roar:") &&
       stray_seen_.insert(browser->GetIdentifier()).second && !StartsWith(url, "about:blank")) {
-    bool ghost = IsGhostBrowser(browser);
-    // Like a popup, the page belongs to the space whose profile it uses, never just the active one.
-    int space = ghost ? -1 : SpaceOfProfile(browser);
-    action_watch::IsPageAttached(url, [browser, url, ghost, space](bool attached) {
-      if (attached || !browser->IsValid()) return;
-      if (!ghost && space < 0) {
-        LOG(WARNING) << "OnAddress: no space for the stray window's profile; closed";
-        Controller::Get()->ShowHint("Couldn't open that page: its profile is gone");
-      } else {
-        Controller::Get()->NewTab(url, true, false, 0, space, ghost);
-      }
-      browser->GetHost()->CloseBrowser(true);
-    });
+    AdoptStray(browser, url);
     return;
   }
   if (!tab) return;
+  // Web tabs only: Roar's own pages play no sound. Attached here, not at creation: its DevTools
+  // session marks the page attached, which would keep a stray (no tab) from ever being adopted.
+  if (!IsUiBrowser(browser) && !browser->IsPopup() && !IsExtensionPopup(browser) && !media_watchers_.count(browser->GetIdentifier()))
+    MediaWatcher::Attach(browser, &media_watchers_[browser->GetIdentifier()]);
   // A tab's own name belongs to the page it was given on: another page (not just a #hash) drops it.
   auto page = [](const std::string& u) { return u.substr(0, u.find('#')); };
   if (!tab->name.empty() && !tab->url.empty() && page(tab->url) != page(url)) tab->name.clear();

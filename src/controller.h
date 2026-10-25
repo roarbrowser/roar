@@ -235,6 +235,7 @@ class Controller {
   void OnBrowserClosed(CefRefPtr<CefBrowser> browser);
   void OnTitle(CefRefPtr<CefBrowser> browser, const std::string& title);
   void OnAddress(CefRefPtr<CefBrowser> browser, const std::string& url);
+  void AdoptStray(CefRefPtr<CefBrowser> browser, const std::string& url);
   void OnFavicon(CefRefPtr<CefBrowser> browser, const std::string& url);
   void OnLoading(CefRefPtr<CefBrowser> browser, bool loading, bool can_back, bool can_forward);
   // A real left click at CSS-pixel (x, y) in a Gmail tab, for mail-act.js.
@@ -366,6 +367,7 @@ class Controller {
   int ghost_session_ = 0;  // Names the Ghost-<n> profile of the current ghost session.
   int active_id_ = 0;
   std::set<int> stray_seen_;  // Browsers outside Roar whose first address was seen.
+  std::vector<CefRefPtr<CefBrowser>> strays_held_;  // Strays a CDP client was attached to; PollDriven retries them.
   // Alerts agents sent through the MCP server (notify_user / ask_user), this session only.
   struct AgentAlert {
     int id = 0;
