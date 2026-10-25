@@ -68,6 +68,8 @@ const tail = (path) => {
 // their mouth, so anything opening like one is dropped (match on the opener; err toward dropping).
 const INJECTED = /^\s*(<[a-z][\w-]*[\s>/]|Caveat:|\[Request interrupted|This session is being continued|\[SYSTEM NOTIFICATION|# AGENTS\.md|Base directory for this skill)/i;
 export const injected = (text) => INJECTED.test(text);
+// Text the CLI took as a paste (Roar types replies in one burst) is logged wrapped as <pasted_content id="…">…</pasted_content id="…">: the user's own words.
+const unpaste = (t) => t.replace(/<pasted_content id="[^"]*">\n?([\s\S]*?)\n?<\/pasted_content(?: id="[^"]*")?>/g, '$1').trim();
 
 const cap = (t) => (t.length > MAX_CHARS ? t.slice(0, MAX_CHARS) + '…' : t);
 
@@ -89,7 +91,7 @@ export function parseClaude(raw) {
     const at = d.timestamp || '';
     if (d.type === 'user') {
       // tool_result blocks are the tool talking, not the user: only text blocks count.
-      const text = blocks.filter((b) => b?.type === 'text').map((b) => b.text || '').join('\n').trim();
+      const text = unpaste(blocks.filter((b) => b?.type === 'text').map((b) => b.text || '').join('\n'));
       if (text && !injected(text)) push(out, { kind: 'user', text: cap(text), at });
       continue;
     }

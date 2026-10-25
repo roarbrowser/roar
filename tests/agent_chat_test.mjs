@@ -47,6 +47,9 @@ check(items.map((x) => x.kind).join() === 'user,assistant,tools,assistant', `ord
 check(items[2].calls.length === 3, 'consecutive tool calls collapse into one chip, across tool_result turns');
 check(items[0].at === '2026-10-18T10:00:00Z', 'timestamp kept');
 
+const pasted = parseClaude(jl(user('\n\n<pasted_content id="ab12">\nfix the bug\nplease\n</pasted_content id="ab12">\n')));
+check(pasted.length === 1 && pasted[0].kind === 'user' && pasted[0].text === 'fix the bug\nplease', 'a pasted reply shows as the user\'s words');
+
 // Codex rollout: its injected context is dropped too; patches name their file.
 const cx = parseCodex(jl(
   { type: 'session_meta', payload: { id: 's' } },
