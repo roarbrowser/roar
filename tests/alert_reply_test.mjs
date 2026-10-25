@@ -24,7 +24,9 @@ check(r({ level: 'done', session: 'gone' }) === '{}', 'an ended session gets not
 check(r({ level: 'done', session: '', pid: 300 }) === '{"reply":"c"}', 'notify_user done card finds its session by agent pid');
 check(r({ level: 'done', session: '', pid: 999 }) === '{}', 'an unknown pid gets nothing');
 check(JSON.stringify(alertSession({ level: 'done', pid: 0 }, [{ id: 'z', live: true, term: {} }])) === '{}', 'no pid never matches a session without one');
-check(r({ level: 'needs_you', session: 'a' }) === '{}', 'needs-you cards keep their own behavior');
+check(r({ level: 'needs_you', session: 'a' }) === '{"reply":"a"}', 'a plain needs-you card offers Reply');
+check(r({ level: 'needs_you', session: 'a', waiting: true }) === '{}', 'a needs-you card with its own Reply keeps it');
+check(r({ level: 'needs_you', session: 'a', choices: ['Yes'] }) === '{}', 'a needs-you card with choices keeps them');
 check(r({ level: 'info', pid: 100 }) === '{}', 'info cards get nothing');
 check(JSON.stringify(alertSession({ level: 'done', session: 'a' })) === '{}', 'no sessions read yet');
 check(r({ level: 'done', session: 't' }) === '{"term":"t"}', 'a Terminal.app session gets Show terminal');

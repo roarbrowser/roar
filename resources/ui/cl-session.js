@@ -89,11 +89,12 @@ const agentRank = (s, live) => {
 };
 // Names given in Roar (settings.agentNames, {sessionId: name}) win over the CLI's own.
 const agentNames = (s) => { try { const m = JSON.parse(s?.settings?.agentNames || '{}'); return m && typeof m === 'object' && !Array.isArray(m) ? m : {}; } catch { return {}; } };
-// What a done card offers for the session that posted it (the hook card's own session, else the one
+// What a done or needs-you card offers for the session that posted it (the hook card's own session, else the one
 // whose agent pid sent notify_user): {reply: id} when Roar can type into it (tmux/cmux), {term: id}
 // when it runs in a terminal app Roar can only bring forward, else {}. |win|: no focus on Windows.
 const alertSession = (a, items, win = false) => {
-  if (a?.level !== 'done') return {};
+  // A needs-you card that asks its own question (buttons, or its own Reply) keeps those.
+  if (a?.level === 'needs_you' ? a.waiting || a.choices?.length : a?.level !== 'done') return {};
   const c = (items || []).find((c) => a.session ? c.id === a.session : a.pid > 1 && c.term?.pid === a.pid);
   return !c ? {} : c.live ? { reply: c.id } : !win && (c.term?.app || c.term?.tty) ? { term: c.id } : {};
 };
