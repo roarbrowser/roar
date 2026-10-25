@@ -130,6 +130,46 @@
   if (![task launchAndReturnError:nil]) return;
   roar::Controller::Get()->Quit();
 }
+// Roar menu > Send Diagnostics…: zips Roar's logs and version info, with the home path and URLs
+// removed, and opens a Mail draft with the zip attached. Nothing is sent until the user sends it.
+- (void)sendDiagnostics:(id)sender {
+  NSFileManager* fm = NSFileManager.defaultManager;
+  NSString* data = [NSString stringWithUTF8String:roar::State::Get().Dir().c_str()];
+  NSString* dir = [NSTemporaryDirectory() stringByAppendingPathComponent:@"Roar Diagnostics"];
+  [fm removeItemAtPath:dir error:nil];
+  [fm createDirectoryAtPath:dir withIntermediateDirectories:YES attributes:nil error:nil];
+  NSRegularExpression* url = [NSRegularExpression regularExpressionWithPattern:@"(https?|wss?|file)://\\S+" options:0 error:nil];
+  auto put = [&](NSString* name, NSString* text) {
+    if (!text) return;
+    text = [text stringByReplacingOccurrencesOfString:NSHomeDirectory() withString:@"~"];
+    text = [url stringByReplacingMatchesInString:text options:0 range:NSMakeRange(0, text.length) withTemplate:@"<url>"];
+    [text writeToFile:[dir stringByAppendingPathComponent:name] atomically:YES encoding:NSUTF8StringEncoding error:nil];
+  };
+  auto read = [](NSString* p) { return [NSString stringWithContentsOfFile:p encoding:NSUTF8StringEncoding error:nil]; };
+  NSDictionary* info = NSBundle.mainBundle.infoDictionary;
+  put(@"info.txt", [NSString stringWithFormat:@"Roar %@ (%@)\nmacOS %@\n%s\n", info[@"CFBundleShortVersionString"],
+                       info[@"CFBundleVersion"], NSProcessInfo.processInfo.operatingSystemVersionString,
+#if defined(__arm64__)
+                       "arm64"
+#else
+                       "x86_64"
+#endif
+                       ]);
+  put(@"roar.log.old", read([data stringByAppendingPathComponent:@"roar.log.old"]));
+  put(@"roar.log", read([data stringByAppendingPathComponent:@"roar.log"]));
+  put(@"Roar-update.log", read([NSHomeDirectory() stringByAppendingPathComponent:@"Library/Logs/Roar-update.log"]));
+  NSString* zip = [NSTemporaryDirectory() stringByAppendingPathComponent:@"Roar Diagnostics.zip"];
+  [fm removeItemAtPath:zip error:nil];
+  NSTask* task = [NSTask launchedTaskWithLaunchPath:@"/usr/bin/ditto" arguments:@[ @"-c", @"-k", @"--keepParent", dir, zip ]];
+  [task waitUntilExit];
+  NSURL* file = [NSURL fileURLWithPath:zip];
+  NSSharingService* mail = [NSSharingService sharingServiceNamed:NSSharingServiceNameComposeEmail];
+  mail.recipients = @[ @"roarbrowser@gmail.com" ];
+  mail.subject = [NSString stringWithFormat:@"Roar %@ diagnostics", info[@"CFBundleShortVersionString"]];
+  NSArray* items = @[ @"What happened, and what were you doing just before?\n\n", file ];
+  if (task.terminationStatus == 0 && [mail canPerformWithItems:items]) [mail performWithItems:items];
+  else [NSWorkspace.sharedWorkspace activateFileViewerSelectingURLs:@[ file ]];  // No mail app: show the zip.
+}
 - (void)toggleSidebar:(id)sender {
   roar::Controller::Get()->RunCommand("sidebar");
 }
@@ -681,6 +721,7 @@ void InstallMenu() {
   // first through OnKey; OpenSettings is idempotent either way).
   addCommand(app, @"Settings…", @"settings", @"");
   app.itemArray.lastObject.keyEquivalent = @",";
+  [app addItemWithTitle:@"Send Diagnostics…" action:@selector(sendDiagnostics:) keyEquivalent:@""].target = g_menu_target;
   [app addItemWithTitle:@"Uninstall Roar…" action:@selector(uninstallRoar:) keyEquivalent:@""].target = g_menu_target;
   [app addItem:[NSMenuItem separatorItem]];
   [app addItemWithTitle:@"Hide Roar" action:@selector(hide:) keyEquivalent:@"h"];

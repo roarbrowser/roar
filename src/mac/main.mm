@@ -151,6 +151,15 @@ int main(int argc, char* argv[]) {
                                  stringByAppendingPathComponent:@"Sessions"]
                        error:nil];
     CefString(&settings.root_cache_path) = data_dir;
+    // roar.log: what Roar > Send Diagnostics attaches. One rotation keeps it small.
+    NSString* log = [root stringByAppendingPathComponent:@"roar.log"];
+    if ([[NSFileManager.defaultManager attributesOfItemAtPath:log error:nil] fileSize] > 2 << 20) {
+      NSString* old = [log stringByAppendingString:@".old"];
+      [NSFileManager.defaultManager removeItemAtPath:old error:nil];
+      [NSFileManager.defaultManager moveItemAtPath:log toPath:old error:nil];
+    }
+    CefString(&settings.log_file) = log.UTF8String;
+    settings.log_severity = LOGSEVERITY_WARNING;
     settings.persist_session_cookies = true;
 
     CefRefPtr<roar::BrowserApp> app(new roar::BrowserApp());
