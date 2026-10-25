@@ -39,5 +39,14 @@
       <description><![CDATA[Send Diagnostics: Roar > Send Diagnostics… (Mac) and Settings > Send diagnostics (Mac and Windows) email Roar's error log with web addresses and your user folder removed. Ask: a signed-out Claude now says to run claude in Terminal and /login there.]]></description>
       <enclosure url="https://github.com/roarbrowser/roar/releases/download/v1.4.0/Roar-1.4.0-intel.dmg" type="application/octet-stream" sparkle:edSignature="wxCpZGIPE3JktpC6Hg5O0Ch+I9NTrJnp4UnVB1ld6yKdg/zqbbvweNIPtWLURVhPJWUJ8SNnpAC0ltTFxCHdBg==" length="228804040"/>
     </item>
+    <item>
+      <title>1.5.0</title>
+      <pubDate>Sun, 25 Oct 2026 16:59:21 +0000</pubDate>
+      <sparkle:version>10500</sparkle:version>
+      <sparkle:shortVersionString>1.5.0</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[Sign in from Roar: when Claude Code or Codex in Ask isn't signed in, a Sign in button runs its sign-in page in Roar and then asks your question again. Settings > Agents has the same button.]]></description>
+      <enclosure url="https://github.com/roarbrowser/roar/releases/download/v1.5.0/Roar-1.5.0-intel.dmg" type="application/octet-stream" sparkle:edSignature="maXLi7c+RbgCr9JQq+8KJ+zj0CtW5wklyJZ+y8URoC7AVdBsKtv/NlOztsGdK3t0NNO1YmwzmFxW14moYhEWBA==" length="228811477"/>
+    </item>
   </channel>
 </rss>
