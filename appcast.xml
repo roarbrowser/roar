@@ -11,5 +11,16 @@
       <description><![CDATA[Intel Macs are now supported. CDP connections need a per-launch token on Apple Silicon (Intel in 1.4). Agents can only act on their own tabs. Popups and extension windows stay in their own space. A missing space 0 in state.json is repaired. Accessibility contrast and focus fixes. Clearer privacy disclosures and third-party notices. Windows preview.]]></description>
       <enclosure url="https://github.com/roarbrowser/roar/releases/download/v1.3.0/Roar-1.3.0.dmg" type="application/octet-stream" sparkle:edSignature="HUAZNHgiAXpwN4/ueKqcNUwE11yi34q4qsP+uYiDfVl+YYP8y+chlp+diLPmHPAfmQTKrmRpXE4zhNd79EIjDw==" length="207615868"/>
     </item>
+    <item>
+      <title>1.3.1</title>
+      <pubDate>Sun, 25 Oct 2026 10:49:20 +0000</pubDate>
+      <sparkle:version>10301</sparkle:version>
+      <sparkle:shortVersionString>1.3.1</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[- Intel Macs now get the agent access token.
+- Pages agents leave open now appear as tabs instead of hiding.
+- Verification codes can now fill from Gmail as well as Apple Mail.]]></description>
+      <enclosure url="https://github.com/roarbrowser/roar/releases/download/v1.3.1/Roar-1.3.1.dmg" type="application/octet-stream" sparkle:edSignature="apFNjZEcM4PTjoXLlt9hJzLuSD4HvflqoyH341Yk2UQ/2Iw89fzft6KNfmgU+mVYxvhuZAeHETSQ9xlcycWJCw==" length="207620624"/>
+    </item>
   </channel>
 </rss>
