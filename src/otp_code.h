@@ -207,7 +207,11 @@ inline AtomCode GmailAtomCode(const std::string& x, long long now, int max_age) 
     std::string issued = XmlTag(x, "issued", p, e);
     if (std::sscanf(issued.c_str(), "%d-%d-%dT%d:%d:%d", &tm.tm_year, &tm.tm_mon, &tm.tm_mday, &tm.tm_hour, &tm.tm_min, &tm.tm_sec) != 6) continue;
     tm.tm_year -= 1900, tm.tm_mon -= 1;
+#ifdef _WIN32
+    long long when = _mkgmtime(&tm);  // Gmail writes UTC ("...Z").
+#else
     long long when = timegm(&tm);  // Gmail writes UTC ("...Z").
+#endif
     if (when < now - max_age || when > now + 60 || when <= out.at) continue;
     // Entities only (&amp; &#39;): StripHtml decodes them; the feed has no tags in text.
     std::string code = ExtractOtpCode(StripHtml(XmlTag(x, "title", p, e) + "\n" + XmlTag(x, "summary", p, e)));
