@@ -8,10 +8,12 @@ import { createServer } from 'node:http';
 import { createReadStream, existsSync, mkdtempSync, realpathSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { cdpAuth } from './cdp_auth.mjs';
 
 const bin = process.argv[2];
 const tmp = realpathSync(mkdtempSync(join(tmpdir(), 'roar-codecs-')));
 const media = join(tmp, 'm'), data = join(tmp, 'd');
+cdpAuth(data);
 spawnSync('mkdir', ['-p', media]);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 let failed = 0;

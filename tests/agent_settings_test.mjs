@@ -71,7 +71,8 @@ try {
   check((await settingsTabs()).length === 1, 'no second Settings tab');
   check(await agentsShown(), 'hash wins over the remembered section');
   // Code dialog's note links there too and closes the dialog.
-  await sidebar(`document.getElementById('cl-new').click()`);
+  // Pretend no CLI is connected: the host's real ~/.claude etc. would otherwise show tiles instead of the note.
+  await sidebar(`state.claude = { ...state.claude, tools: {} }; document.getElementById('cl-new').click()`);
   const link = await waitFor(() => sidebar(`!!document.querySelector('#cl-tiles .set-agents')`));
   check(link, 'Code dialog has a Settings › Agents link');
   await sidebar(`document.querySelector('#cl-tiles .set-agents').click()`);

@@ -76,7 +76,7 @@ try {
   check(r && r.unread === 2, 'reports the inbox unread count');
   check(r && r.items.length === 2, 'reports each unread message');
   check(r && r.items[0].title === 'Hello' && r.items[0].detail.startsWith('Ann · '), 'subject, sender and time');
-  check(r && r.items[0].url === `${site}/mail/inbox/id/${encodeURIComponent('AAQk/1=')}`, 'links the conversation in this Outlook');
+  check(r && r.items[0].url === `/mail/inbox/id/${encodeURIComponent('AAQk/1=')}`, 'links the conversation in this Outlook');
   check(r && r.items[1].title === '(no subject)' && r.items[1].detail === 'b@x' && r.items[1].url.endsWith('/AAMk2'), 'falls back to item id, address, no subject');
   check(seen.length === 2 && seen.every((s) => s.auth === 'Bearer tok1'), 'calls service.svc with the page\'s own token');
   check(seen.find((s) => s.action === 'FindItem')?.restricted === 'message:IsRead', 'asks only for unread items');
