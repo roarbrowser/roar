@@ -19,6 +19,10 @@ select { font: 13px var(--ui); padding: 5px 9px; border-radius: 7px; border: 1px
 .msg > :first-child { margin-top: 0; } .msg > :last-child { margin-bottom: 0; }
 .msg p { margin: 0 0 8px; } .msg ul, .msg ol { margin: 0 0 8px; padding-left: 22px; }
 .msg blockquote { margin: 0 0 8px; padding-left: 10px; border-left: 3px solid var(--rule); color: var(--ink-2); }
+.msg .table { overflow-x: auto; margin: 0 0 8px; }
+.msg table { border-collapse: collapse; font-size: 0.95em; }
+.msg th, .msg td { border: 1px solid var(--rule); padding: 4px 8px; text-align: left; vertical-align: top; }
+.msg th { background: var(--rule); }
 .msg code { font: 12px var(--mono); background: var(--panel); padding: 1px 4px; border-radius: 4px; }
 .msg a { color: var(--mane-ink); }
 .code { position: relative; margin: 0 0 8px; }

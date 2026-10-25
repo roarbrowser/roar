@@ -272,6 +272,15 @@
         out.push(`<div class="code"${lang}><button type="button" class="copy" aria-label="Copy code">Copy</button><pre><code>${code.join('\n')}</code></pre></div>`);
         continue;
       }
+      const cells = (r) => r.trim().replace(/^\||\|$/g, '').split('|').map((c) => inline(c.trim()));
+      if (l.includes('|') && /^\s*\|?\s*:?-+:?\s*(\|\s*:?-+:?\s*)*\|?\s*$/.test(lines[i + 1] || '')) {
+        flush();
+        const head = cells(l), rows = [];
+        for (i += 2; i < lines.length && lines[i].includes('|') && lines[i].trim(); i++) rows.push(cells(lines[i]));
+        i--;
+        out.push(`<div class="table"><table><thead><tr>${head.map((c) => `<th>${c}</th>`).join('')}</tr></thead><tbody>${rows.map((r) => `<tr>${r.map((c) => `<td>${c}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`);
+        continue;
+      }
       let m;
       if ((m = l.match(/^(#{1,6})\s+(.*)/))) { flush(); out.push(`<h${Math.min(6, m[1].length + 2)}>${inline(m[2])}</h${Math.min(6, m[1].length + 2)}>`); continue; }
       if ((m = l.match(/^\s*(?:[-*+]|(\d+)[.)])\s+(.*)/))) {

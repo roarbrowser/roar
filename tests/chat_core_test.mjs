@@ -145,6 +145,7 @@ check(!/href="javascript/i.test(evil) && /href="https:\/\/ok\.example\/\?a=1&amp
 check(evil.includes('<pre><code>&lt;b&gt;hi&lt;/b&gt;</code></pre>') && evil.includes('class="copy"'), 'code block keeps escaped source and has a copy button');
 check(md('**b** *i* `a*b*` \u0000x').includes('<strong>b</strong> <em>i</em> <code>a&#42;b&#42;</code>') && !md('\u0000<x>').includes('\u0000'), 'inline formatting, code untouched, control placeholders stripped');
 check(md('- a\n- b\n\n1. c') === '<ul><li>a</li><li>b</li></ul><ol><li>c</li></ol>', 'lists');
+check(md('Hi\n\n| A | B |\n|---|:-:|\n| `x` | **2** |\n| y | 3 |\nafter') === '<p>Hi</p><div class="table"><table><thead><tr><th>A</th><th>B</th></tr></thead><tbody><tr><td><code>x</code></td><td><strong>2</strong></td></tr><tr><td>y</td><td>3</td></tr></tbody></table></div><p>after</p>', 'tables');
 
 // Search the web.
 const P = (kind, url) => ({ kind, url, id: 'x', name: 'x' });
