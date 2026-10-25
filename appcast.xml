@@ -58,5 +58,14 @@
       <description><![CDATA[Agent chat now shows the messages you send. Click the terminal view to drive the agent with arrow keys, Enter, Esc and Tab. With dictation on, the Ask and agent tabs have a mic button; hover it for the shortcut. Ask and agent chat render Markdown tables.]]></description>
       <enclosure url="https://github.com/roarbrowser/roar/releases/download/v1.5.1/Roar-1.5.1.dmg" type="application/octet-stream" sparkle:edSignature="lkdgZCxLVpIKxYKzh0rW8WJD6AgRIHsN6ZRoXko9PqPkBF4n6FNfFTPqpUZGb26DMDn1A7JAMyyIg4wUIGr5DA==" length="207618121"/>
     </item>
+    <item>
+      <title>1.5.2</title>
+      <pubDate>Sun, 25 Oct 2026 23:52:46 +0000</pubDate>
+      <sparkle:version>10502</sparkle:version>
+      <sparkle:shortVersionString>1.5.2</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[Ask has a refresh button beside the model picker, so newly started model servers and new keys show up without reopening the tab. Agent cards that need you now have a Reply button.]]></description>
+      <enclosure url="https://github.com/roarbrowser/roar/releases/download/v1.5.2/Roar-1.5.2.dmg" type="application/octet-stream" sparkle:edSignature="XwvJzgiJn+F3NeT0upltw8sZZmtQv+Moz3DF8qggKHIe6tWmOs51KSVQssjGIFtyvbayNh2w9Ft/AWrRqUZ9Bg==" length="207618237"/>
+    </item>
   </channel>
 </rss>
