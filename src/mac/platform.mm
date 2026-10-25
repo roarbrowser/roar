@@ -166,7 +166,10 @@
   NSSharingService* mail = [NSSharingService sharingServiceNamed:NSSharingServiceNameComposeEmail];
   mail.recipients = @[ @"roarbrowser@gmail.com" ];
   mail.subject = [NSString stringWithFormat:@"Roar %@ diagnostics", info[@"CFBundleShortVersionString"]];
-  NSArray* items = @[ @"What happened, and what were you doing just before?\n\n", file ];
+  NSArray* items = @[ @"What happened, and what were you doing just before?\n\n\n\n"
+                      @"The attached zip holds only Roar's error log and its version and macOS version. "
+                      @"Web addresses and your user folder name are removed, and no browsing history, cookies, "
+                      @"passwords, tabs or page contents are included. You can open the zip to check before sending.\n", file ];
   if (task.terminationStatus == 0 && [mail canPerformWithItems:items]) [mail performWithItems:items];
   else [NSWorkspace.sharedWorkspace activateFileViewerSelectingURLs:@[ file ]];  // No mail app: show the zip.
 }
