@@ -248,7 +248,7 @@ p.reason a { color: inherit; }
       <h3>Updates</h3>
       <div class="row"><label class="name" for="au-check">Check for updates automatically<small id="au-note">Once a day.</small></label><input type="checkbox" class="switch" id="au-check" data-set="autoUpdateChecks"></div>
       <div class="row"><label class="name" for="au-dl">Download and install updates automatically<small>Off: Roar asks first.</small></label><input type="checkbox" class="switch" id="au-dl" data-set="autoUpdateDownloads"></div>
-      <div class="row"><span class="name">Check now</span><span class="end"><button class="btn" id="check-updates">Check for updates</button><button class="btn" id="update-chromium" title="Rebuilds Roar on the newest stable Chromium from its source checkout">Update Chromium</button></span></div>
+      <div class="row"><span class="name">Check now</span><span class="end"><button class="btn" id="check-updates">Check for updates</button><button class="btn" id="diagnostics" title="Emails Roar's error log to support. No browsing history, web addresses, cookies or passwords.">Send diagnostics</button><button class="btn" id="update-chromium" title="Rebuilds Roar on the newest stable Chromium from its source checkout">Update Chromium</button></span></div>
       <h3>Automation</h3>
       <div class="row"><span class="name">CDP port<small>Agents and any CDP client connect on <code id="port">127.0.0.1:9222</code>.</small></span></div>
       <details class="row"><summary>AppleScript example</summary>
@@ -462,6 +462,7 @@ $('space-add').onclick = () => ask({ cmd: 'space.add', name: '' }).then(refresh)
 $('imports').onclick = (e) => { const b = e.target.closest('[data-import]'); if (b) ask({ cmd: 'run', id: 'import:' + b.dataset.import }).then(refresh); };
 $('cdp-relaunch').onclick = () => ask({ cmd: 'run', id: 'relaunch' });
 $('check-updates').onclick = () => ask({ cmd: 'run', id: 'checkUpdates' });
+$('diagnostics').onclick = () => ask({ cmd: 'run', id: 'diagnostics' });
 $('update-chromium').onclick = () => ask({ cmd: 'run', id: 'updateChromium' });
 $('close').onclick = () => ask({ cmd: 'tab.closeSelf' });
 

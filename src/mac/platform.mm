@@ -1261,6 +1261,8 @@ void SetAutoUpdate(bool checks, bool downloads) {
   g_updater.updater.automaticallyDownloadsUpdates = checks && downloads;
 }
 
+void SendDiagnostics() { [g_menu_target sendDiagnostics:nil]; }
+
 void CheckForUpdates() {
   // Test mode checks without UI so a scratch instance never takes the front.
   if (g_updater && getenv("ROAR_SPARKLE_TEST")) [g_updater.updater checkForUpdateInformation];

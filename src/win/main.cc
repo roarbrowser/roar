@@ -97,6 +97,10 @@ int APIENTRY wWinMain(HINSTANCE instance, HINSTANCE, LPWSTR, int) {
     else if (name.rfind("Space-", 0) == 0) fs::remove_all(e.path() / "Sessions", ec);
   }
   CefString(&settings.root_cache_path) = data_dir;
+  // roar.log: what Send Diagnostics attaches. One rotation keeps it small.
+  if (fs::file_size(root / "roar.log", ec) > (2u << 20) && !ec) fs::rename(root / "roar.log", root / "roar.log.old", ec);
+  CefString(&settings.log_file) = (root / "roar.log").u8string();
+  settings.log_severity = LOGSEVERITY_WARNING;
   settings.persist_session_cookies = true;
 
   CefRefPtr<roar::BrowserApp> app(new roar::BrowserApp());

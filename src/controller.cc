@@ -3310,6 +3310,7 @@ void Controller::RunCommand(const std::string& id) {
   else if (id == "newInstance") platform::LaunchInstance();
   else if (id == "updateChromium") platform::UpdateChromium(shell_ ? shell_->GetWindowHandle() : nullptr);
   else if (id == "checkUpdates") platform::CheckForUpdates();
+  else if (id == "diagnostics") platform::SendDiagnostics();
   else if (id == "sidebar") ToggleSidebar();
   else if (id == "github") RefreshGitHub();
   else if (id == "gmail") RefreshGmail();

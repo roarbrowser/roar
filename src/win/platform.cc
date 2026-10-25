@@ -22,6 +22,7 @@
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
+#include <regex>
 #include <set>
 #include <sstream>
 #include <thread>
@@ -560,6 +561,48 @@ std::string UniqueDownloadPath(const std::string& name) {
   auto taken = [&](const fs::path& q) { return fs::exists(q, ec) || fs::exists(q.wstring() + L".crdownload", ec); };
   for (int i = 1; taken(p); ++i) p = dir / (stem.wstring() + L" (" + std::to_wstring(i) + L")" + ext.wstring());
   return U(p.wstring());
+}
+
+// Windows mail can't take an attachment from a mailto: link, so this shows the zip in Explorer and opens
+// a draft that asks for it to be attached.
+void SendDiagnostics() {
+  fs::path dir = fs::temp_directory_path() / L"Roar Diagnostics", zip = fs::temp_directory_path() / L"Roar Diagnostics.zip";
+  std::error_code ec;
+  fs::remove_all(dir, ec);
+  fs::remove(zip, ec);
+  fs::create_directories(dir, ec);
+  std::string home = KnownFolder(FOLDERID_Profile);
+  std::regex url(R"((https?|wss?|file)://\S+)");
+  auto put = [&](const wchar_t* name, std::string text) {
+    for (size_t i; !home.empty() && (i = text.find(home)) != std::string::npos;) text.replace(i, home.size(), "~");
+    std::ofstream(dir / name, std::ios::binary) << std::regex_replace(text, url, "<url>");
+  };
+  auto read = [](const fs::path& p) { std::ifstream in(p, std::ios::binary); std::stringstream ss; ss << in.rdbuf(); return ss.str(); };
+  OSVERSIONINFOW os = {sizeof(os)};
+  using RtlGetVersion = LONG(WINAPI*)(OSVERSIONINFOW*);  // GetVersionEx lies about Windows 10+.
+  if (auto f = reinterpret_cast<RtlGetVersion>(GetProcAddress(GetModuleHandleW(L"ntdll.dll"), "RtlGetVersion"))) f(&os);
+  put(L"info.txt", "Roar " + U(ROAR_VERSION) + "\nWindows " + std::to_string(os.dwMajorVersion) + "." +
+                       std::to_string(os.dwMinorVersion) + "." + std::to_string(os.dwBuildNumber) + "\nx64\n");
+  fs::path data = fs::u8path(State::Get().Dir());
+  put(L"roar.log.old", read(data / "roar.log.old"));
+  put(L"roar.log", read(data / "roar.log"));
+  std::wstring cmd = L"powershell.exe -NoProfile -NonInteractive -Command \"Compress-Archive -Path '" + dir.wstring() +
+                     L"' -DestinationPath '" + zip.wstring() + L"'\"";
+  STARTUPINFOW si = {sizeof(si)};
+  PROCESS_INFORMATION pi = {};
+  if (CreateProcessW(nullptr, cmd.data(), nullptr, nullptr, FALSE, CREATE_NO_WINDOW, nullptr, nullptr, &si, &pi)) {
+    WaitForSingleObject(pi.hProcess, 30000);
+    CloseHandle(pi.hThread);
+    CloseHandle(pi.hProcess);
+  }
+  RevealInFinder(U(fs::exists(zip, ec) ? zip.wstring() : dir.wstring()));
+  std::string body = "What happened, and what were you doing just before?\n\n\n\nPlease attach \"Roar Diagnostics.zip\" from the "
+                     "folder that just opened. It holds only Roar's error log and its version and Windows version. Web "
+                     "addresses and your user folder name are removed, and no browsing history, cookies, passwords, tabs or "
+                     "page contents are included. You can open the zip to check before sending.\n";
+  std::string mail = "mailto:roarbrowser@gmail.com?subject=" + CefURIEncode("Roar " + U(ROAR_VERSION) + " diagnostics", false).ToString() +
+                     "&body=" + CefURIEncode(body, false).ToString();
+  ShellExecuteW(nullptr, L"open", W(mail).c_str(), nullptr, nullptr, SW_SHOWNORMAL);
 }
 
 void RevealInFinder(const std::string& path) {

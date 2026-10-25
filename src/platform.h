@@ -91,6 +91,8 @@ void CopyText(const std::string& text);
 void UpdateChromium(void* window);
 // Sparkle: checks the appcast for a newer Roar release and shows its update UI.
 void CheckForUpdates();
+// Zips Roar's logs and version info (home path and URLs removed) and starts an email to support with it.
+void SendDiagnostics();
 // The running app's CFBundleVersion (Sparkle compares builds by it).
 std::string BundleBuild();
 // Moves |path| to the user's Trash (Finder's Put Back works); false when it couldn't.
