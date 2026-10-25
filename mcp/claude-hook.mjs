@@ -319,6 +319,7 @@ const CMUX_APP = 'com.cmuxterm.app';
 const WEZTERM = '/Applications/WezTerm.app/Contents/MacOS/wezterm', KITTEN = '/Applications/kitty.app/Contents/MacOS/kitten';
 // Each key as [tmux keys, cmux keys]; send-now is Claude Code's "ctrl+x ctrl+s to send now" for a queued message.
 const KEYS = { enter: [['Enter'], ['enter']], escape: [['Escape'], ['escape']], up: [['Up'], ['up']], down: [['Down'], ['down']], tab: [['Tab'], ['tab']],
+  left: [['Left'], ['left']], right: [['Right'], ['right']], backspace: [['BSpace'], ['backspace']],
   'ctrl-c': [['C-c'], ['ctrl+c']], 'send-now': [['C-x', 'C-s'], ['ctrl+x', 'ctrl+s']],
   // shortcut: cmux page key names unverified; check `cmux send-key` if wheel scrolling fails under cmux.
   pgup: [['PPage'], ['pageup']], pgdn: [['NPage'], ['pagedown']] };

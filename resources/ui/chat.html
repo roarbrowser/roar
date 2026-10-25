@@ -68,7 +68,7 @@ textarea { flex: 1; resize: none; border: 0; background: none; color: var(--ink)
   <form id="form">
     <div class="box">
       <textarea id="text" rows="1" placeholder="Message the model…" aria-label="Message" spellcheck="true"></textarea>
-      <button id="send" type="submit" aria-label="Send">Send</button>
+      <span id="mic"></span><button id="send" type="submit" aria-label="Send">Send</button>
     </div>
     <div class="tools">
       <button class="btn" id="search" type="button" aria-pressed="false">Search the web</button>
@@ -82,8 +82,10 @@ textarea { flex: 1; resize: none; border: 0; background: none; color: var(--ink)
 <script src="chat-core.js"></script>
 <script src="agent-setup.js"></script>
 <script src="slash-mark.js"></script>
+<script src="dict-mic.js"></script>
 <script>
 const $ = (id) => document.getElementById(id);
+$('mic').replaceWith(dictMic($('text')));
 const { defaultModel, SEARCH_SYSTEM, searchMode, openRequest, addSources, CLI_PROVIDERS, signedOutError, pageRefusal, cliPrompt, cliParser, parseProviders, sseParser, streamDelta, requestBody, detectProviders, renderMarkdown } = chatCore;
 let providers = [], chats = [], chat = null, streaming = null, webTab = null, page = null, searchDefault = false;
 

@@ -94,3 +94,10 @@ pre .slash { color: var(--mane); }
 .as-fix { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 6px 0 4px; }
 .as-fix code { font: 12px var(--mono); padding: 4px 8px; border-radius: 6px; background: var(--ground); box-shadow: inset 0 0 0 1px var(--rule); user-select: all; overflow-wrap: anywhere; }
 .tiles .as-install { grid-column: 1 / -1; }
+
+/* Dictation mic in an AI tab's message box (dict-mic.js); listening fills it with the mane. */
+.dict-mic { flex: none; align-self: center; display: grid; place-items: center; width: 32px; height: 32px; padding: 0; border-radius: 8px; background: transparent; color: var(--ink-2); }
+.dict-mic:hover { background: var(--hover); color: var(--ink); }
+.dict-mic.busy { color: var(--mane-ink); }
+.dict-mic[aria-pressed="true"] { background: var(--mane); color: #fff; }
+.dict-mic:focus-visible { outline: 2px solid var(--mane); outline-offset: 1px; }

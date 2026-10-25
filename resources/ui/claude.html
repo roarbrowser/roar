@@ -16,6 +16,7 @@ pre { flex: 1; margin: 0 20px; padding: 14px 16px; overflow: auto; border-radius
 /* Short screens (a CLI's fullscreen UI is only as tall as its terminal) sit at the bottom, like a terminal;
    the spacer shrinks to nothing once the text overflows, so scrolling still works. */
 #screen { display: flex; flex-direction: column; }
+#screen:focus-visible { outline: 2px solid var(--mane); outline-offset: 2px; }
 #screen::before { content: ''; flex: 1 0 0; }
 .err { color: var(--ink-3); font: 13px var(--ui); white-space: normal; }
 form { display: flex; gap: 8px; padding: 10px 20px 4px; }
@@ -25,7 +26,7 @@ form input { flex: 1; min-width: 0; padding: 9px 12px; border-radius: 9px; borde
 #tab-menu h4 { margin: 6px 8px 4px; font: 600 11px var(--ui); color: var(--ink-3); }
 #tab-menu button { display: block; width: 100%; text-align: left; padding: 6px 8px; border-radius: 6px; color: var(--ink); font: 13px var(--ui); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 #tab-menu button:hover, #tab-menu button:focus { background: var(--hover); }
-form button:not(.btn) { background: var(--mane); color: #2a1604; font-weight: 600; border-radius: 9px; padding: 0 16px; }
+form button:not(.btn, .dict-mic) { background: var(--mane); color: #2a1604; font-weight: 600; border-radius: 9px; padding: 0 16px; }
 .swatches { display: flex; gap: 5px; }
 .swatches button { width: 14px; height: 14px; padding: 0; border-radius: 50%; box-shadow: inset 0 0 0 1px rgba(255,255,255,.15); }
 .swatches button[aria-pressed="true"] { box-shadow: 0 0 0 2px var(--ink); }
@@ -83,7 +84,7 @@ details.chip ul { margin: 6px 0 0; padding-left: 26px; font: 12px/1.5 var(--mono
 .note { margin: 0; font: 13px var(--ui); color: var(--ink-3); }
 #chatform { display: flex; gap: 8px; padding: 10px 20px 16px; align-items: flex-end; }
 #chatform textarea { flex: 1; min-width: 0; resize: none; max-height: 40vh; padding: 9px 12px; border-radius: 9px; border: 0; background: var(--ground); color: var(--ink); font: 14px/1.4 var(--ui); box-shadow: inset 0 0 0 1px var(--rule); }
-#chatform button { background: var(--mane); color: #2a1604; font-weight: 600; border-radius: 9px; padding: 9px 16px; }
+#chatform button:not(.dict-mic) { background: var(--mane); color: #2a1604; font-weight: 600; border-radius: 9px; padding: 9px 16px; }
 #view { flex: none; }
 /* / command suggestions, above whichever box is being typed in. */
 #slash-menu { position: fixed; z-index: 9; max-height: 40vh; overflow-y: auto; min-width: 220px; max-width: 420px; padding: 6px; border-radius: 10px; background: var(--ground); box-shadow: 0 0 0 1px var(--rule), 0 8px 24px rgb(0 0 0 / .3); }
@@ -96,10 +97,10 @@ details.chip ul { margin: 6px 0 0; padding-left: 26px; font: 12px/1.5 var(--mono
 <body>
 <header><span class="dot" id="dot" aria-hidden="true"></span><span id="icon"></span><h1 id="name">Agent session</h1><span class="state" id="state" role="status"></span><span class="segmented" id="view" role="group" aria-label="View"><button type="button" data-view="chat" title="The conversation as a chat">Chat</button><button type="button" data-view="terminal" title="The live terminal, with every key">Terminal</button></span><span class="colorpick"><button class="chip-dot" id="color-chip" aria-label="Session colors" aria-haspopup="true"></button><span class="pop"><span class="segmented" id="color-on" role="group" aria-label="Color"><button data-on="w">Window</button><button data-on="t">Terminal</button></span><span class="swatches" id="colors" role="group" aria-label="Session color"></span></span></span><button class="btn" id="attach">Send tab</button><button class="btn" id="beside" title="Split this view beside the web page you used last">Side by side</button><button class="btn" id="focus" title="Bring its terminal window to the front">Terminal</button></header>
 <p class="status" id="chat-off" role="note" hidden></p>
-<pre id="screen" aria-live="off"></pre>
+<pre id="screen" aria-live="off" tabindex="0" aria-label="Terminal (focus it to type arrows, Enter, Esc and Tab into the agent)"></pre>
 <section id="chat" aria-label="Conversation"><p class="note" id="chat-note" hidden></p><div id="msgs" role="log" aria-live="polite" aria-relevant="additions"></div><div id="ask" role="group" aria-labelledby="ask-q" hidden></div><div id="working" role="status" hidden>Working…</div></section>
-<form id="chatform"><textarea id="ctext" rows="1" placeholder="Message… (Enter sends, Shift+Enter for a new line)" aria-label="Message to the agent"></textarea><button>Send</button></form>
-<form id="reply"><input id="text" placeholder="Reply… (/ for commands; empty Enter accepts)" autocomplete="off" spellcheck="false" aria-label="Reply"><button>Send</button></form>
+<form id="chatform"><textarea id="ctext" rows="1" placeholder="Message… (Enter sends, Shift+Enter for a new line)" aria-label="Message to the agent"></textarea><span id="cmic"></span><button>Send</button></form>
+<form id="reply"><input id="text" placeholder="Reply… (/ for commands; empty Enter accepts)" autocomplete="off" spellcheck="false" aria-label="Reply"><span id="tmic"></span><button>Send</button></form>
 <p class="status" id="attach-why" hidden></p>
 <div class="ctx" id="tab-menu" role="menu" hidden></div>
 <div class="ctx" id="slash-menu" role="listbox" aria-label="Commands" hidden></div>
@@ -108,6 +109,7 @@ details.chip ul { margin: 6px 0 0; padding-left: 26px; font: 12px/1.5 var(--mono
 <script src="cl-session.js"></script>
 <script src="chat-core.js"></script>
 <script src="slash-mark.js"></script>
+<script src="dict-mic.js"></script>
 <script>
 const $ = (id) => document.getElementById(id);
 const params = new URLSearchParams(location.search), cwd = params.get('cwd') || '';
@@ -320,6 +322,22 @@ keys.onclick = async (e) => {
   if (b && !shownError(await clSession.key(id, b))) screen();
 };
 $('focus').onclick = async () => shownError(await clSession.ctl(id, 'focus'));
+// Keys straight into the agent: anywhere on the focused terminal, and the arrows in an empty reply box
+// (Enter there already accepts). The / menu takes its own arrows first (capture listener below).
+const TERM_KEYS = { ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right', Enter: 'enter', Escape: 'escape', Tab: 'tab', Backspace: 'backspace' };
+async function termKey(e, keys) {
+  const k = keys[e.key];
+  if (!k || e.metaKey || e.ctrlKey || e.altKey || e.shiftKey || e.isComposing) return;
+  e.preventDefault();
+  if (!shownError(await clSession.ctl(id, 'send', 'key:' + k))) screen();
+}
+$('screen').addEventListener('keydown', async (e) => {
+  if (/^[0-9a-z]$/i.test(e.key) && !e.metaKey && !e.ctrlKey && !e.altKey) { e.preventDefault(); if (!shownError(await clSession.ctl(id, 'send', e.key))) screen(); return; }
+  termKey(e, TERM_KEYS);
+});
+$('text').addEventListener('keydown', (e) => { if (!$('text').value) termKey(e, { ArrowUp: 'up', ArrowDown: 'down' }); });
+$('cmic').replaceWith(dictMic($('ctext')));
+$('tmic').replaceWith(dictMic($('text')));
 
 // --- Chat view ---------------------------------------------------------------------------------------
 // The view each session last used (this page's own storage), else Settings > Agents' default.
