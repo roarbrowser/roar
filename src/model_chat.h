@@ -178,6 +178,13 @@ inline std::vector<std::string> CliChatArgs(const std::string& cli, const std::s
   return a;
 }
 
+// argv after the executable for a CLI's own browser sign-in (chat.login), or {} when it has none.
+inline std::vector<std::string> CliLoginArgs(const std::string& cli) {
+  if (cli == "claude") return {"auth", "login"};
+  if (cli == "codex") return {"login"};
+  return {};
+}
+
 // A sandbox-exec (SBPL) profile for a chat CLI child. File contents are readable only in the system dirs,
 // Homebrew, temp dirs, the CLI's install dirs (`install_dirs`), the Keychain files and its own config dir;
 // writes only in `scratch`, temp and that config dir. Network: outbound TCP 443 plus DNS. SBPL can't filter

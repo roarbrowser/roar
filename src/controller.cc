@@ -5423,6 +5423,25 @@ bool Controller::HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> 
           callback->Failure(status, status ? err.substr(err.size() > 2000 ? err.size() - 2000 : 0) : "");
         });
     if (pid) ChatProcs().push_back({bid, pid});
+  } else if (cmd == "chat.login") {
+    // {cli}: runs the CLI's own sign-in, which opens its sign-in page in the default browser and waits for
+    // the callback on localhost. Not sandboxed: fixed argv, no page text, and it must listen and write its login.
+    std::string cli = msg->GetString("cli"), home = getenv("HOME") ? getenv("HOME") : "", path = getenv("PATH") ? getenv("PATH") : "";
+    auto args = CliLoginArgs(cli);
+    if (args.empty()) return callback->Failure(-1, "No sign-in command"), true;
+#ifdef _WIN32
+    return callback->Failure(-1, "Agent CLI chat isn't on Windows yet"), true;
+#endif
+    std::string exe = FindChatCli(cli, home, path, [](const std::string& f) { return access(f.c_str(), X_OK) == 0; });
+    if (exe.empty()) return callback->Failure(-1, cli + " isn't installed"), true;
+    std::string dirs = exe.substr(0, exe.rfind('/'));
+    for (auto& d : ChatSearchDirs(home, path)) dirs += ":" + d;
+    dirs += ":/usr/bin:/bin:/usr/sbin:/sbin";
+    platform::SpawnStream(exe, args, home, dirs, "", 600, [](const std::string&) {},
+        [callback](int status, const std::string& err) {
+          if (status) callback->Failure(status, err.substr(err.size() > 500 ? err.size() - 500 : 0));
+          else callback->Success("");
+        });
   } else if (cmd == "chat.keySet") {
     std::string id = msg->GetString("provider");
     if (id.empty() || id.size() > 40 || id.find_first_not_of("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-") != std::string::npos)

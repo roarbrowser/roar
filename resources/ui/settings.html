@@ -565,7 +565,7 @@ $('search').oninput = () => {
 // and detected providers move to the top.
 async function chatRefresh(st) {
   const list = [...chatCore.parseProviders(st.chatProviders), ...chatCore.CLI_PROVIDERS], box = $('chat-providers'), sel = $('chat-default');
-  const row = (p) => p.kind === 'cli' ? `<div class="row" data-p="${esc(p.id)}"><span class="name">${esc(p.name)}<small data-state="${p.state || ''}">${esc(p.label || 'Checking…')}</small>${p.run ? `<span class="fix"><code>${esc(p.run)}</code><button class="btn" data-copy="${esc(p.run)}">Copy</button><button class="btn" data-recheck>Check again</button></span>` : ''}${p.after ? `<small>${esc(p.after)}</small>` : ''}</span><span class="end"><small style="max-width:360px">${esc(p.isolation.replace(/\s*Runs under a macOS sandbox.*$/, ''))}</small></span></div>`
+  const row = (p) => p.kind === 'cli' ? `<div class="row" data-p="${esc(p.id)}"><span class="name">${esc(p.name)}<small data-state="${p.state || ''}">${esc(p.label || 'Checking…')}</small>${p.run ? `<span class="fix"><code>${esc(p.run)}</code><button class="btn" data-copy="${esc(p.run)}">Copy</button><button class="btn" data-recheck>Check again</button></span>` : ''}${p.login ? `<span class="fix"><button class="btn" data-login="${esc(p.login)}">Sign in</button></span>` : ''}${p.after ? `<small>${esc(p.after)}</small>` : ''}</span><span class="end"><small style="max-width:360px">${esc(p.isolation.replace(/\s*Runs under a macOS sandbox.*$/, ''))}</small></span></div>`
     : `<div class="row" data-p="${esc(p.id)}"><span class="name">${esc(p.name)}<small data-state="${p.state || ''}">${esc(p.label || 'Checking…')}</small></span>
     <span class="end"><input type="text" class="query" data-url value="${esc(p.url)}" aria-label="${esc(p.name)} URL" spellcheck="false" style="width:240px">
     ${p.get ? `<button class="btn" data-get="${esc(p.get)}">Get ${esc(p.name)}</button>` : ''}
@@ -602,6 +602,10 @@ $('chat-providers').addEventListener('click', async (e) => {
   const id = row.dataset.p, list = chatCore.parseProviders(last.settings.chatProviders);
   if (e.target.matches('[data-copy]')) return void navigator.clipboard.writeText(e.target.dataset.copy).then(() => { e.target.textContent = 'Copied'; setTimeout(() => (e.target.textContent = 'Copy'), 1500); });
   if (e.target.matches('[data-recheck]')) return void chatRefresh(last.settings);
+  if (e.target.matches('[data-login]')) {
+    const b = e.target; b.disabled = true; b.textContent = 'Finish signing in on the page that opened…';
+    return void ask({ cmd: 'chat.login', cli: b.dataset.login }).catch(() => {}).finally(() => chatRefresh(last.settings));
+  }
   if (e.target.matches('[data-get]')) return void ask({ cmd: 'open', text: e.target.dataset.get, newTab: true });
   try {
     if (e.target.matches('[data-savekey]')) {

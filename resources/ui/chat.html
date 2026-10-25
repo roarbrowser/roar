@@ -80,7 +80,7 @@ textarea { flex: 1; resize: none; border: 0; background: none; color: var(--ink)
 <script src="slash-mark.js"></script>
 <script>
 const $ = (id) => document.getElementById(id);
-const { defaultModel, SEARCH_SYSTEM, searchMode, openRequest, addSources, CLI_PROVIDERS, pageRefusal, cliPrompt, cliParser, parseProviders, sseParser, streamDelta, requestBody, detectProviders, renderMarkdown } = chatCore;
+const { defaultModel, SEARCH_SYSTEM, searchMode, openRequest, addSources, CLI_PROVIDERS, signedOutError, pageRefusal, cliPrompt, cliParser, parseProviders, sseParser, streamDelta, requestBody, detectProviders, renderMarkdown } = chatCore;
 let providers = [], chats = [], chat = null, streaming = null, webTab = null, page = null, searchDefault = false;
 
 // Re-read first: another chat tab or the sidebar (delete) may have changed the list since this page loaded.
@@ -104,6 +104,12 @@ function bubble(m) {
   d.className = 'msg ' + m.role + (m.error ? ' error' : '');
   const chip = m.page ? `<div class="page" title="${esc(m.page.url)}">📄 <span>${esc(m.page.title || m.page.url)}</span></div>` : '';
   d.innerHTML = chip + (m.error ? esc(m.text) : m.role === 'user' ? slashMark.html(esc(m.text)) : renderMarkdown(m.text)) + sourcesHtml(m.sources);
+  if (m.signin) {
+    const b = document.createElement('button');
+    b.className = 'btn'; b.textContent = 'Sign in';
+    b.onclick = () => signIn(m, b);
+    d.append(document.createElement('br'), b);
+  }
   return d;
 }
 // Links under a reply that used web search. Only http(s): a source URL comes from the web.
@@ -183,6 +189,16 @@ $('attach').onclick = async () => {
   } catch (e) { page = null; note(e.message); }
 };
 
+// Runs the CLI's own sign-in (its page opens in the browser), then asks the failed question again.
+async function signIn(m, b) {
+  b.disabled = true; b.textContent = 'Finish signing in on the page that opened…';
+  try { await ask({ cmd: 'chat.login', cli: m.signin }); } catch (e) { b.disabled = false; b.textContent = 'Sign in'; return note("Sign-in didn't finish: " + e.message); }
+  const [pid, ...rest] = (chat.model || '').split('|'), p = providers.find((x) => x.id === pid);
+  chat.messages.splice(chat.messages.indexOf(m), 1);
+  const user = chat.messages[chat.messages.length - 1];
+  if (!p || streaming || user?.role !== 'user') return renderLog(), saveChats();
+  run(p, rest.join('|'), '', user, false);
+}
 function stop() {
   if (!streaming) return;
   if (streaming.qid) window.roarQueryCancel(streaming.qid);
@@ -243,7 +259,7 @@ function run(p, model, mode, user, mayOpen) {
   const finish = async (err) => {
     if (!streaming) return;
     streaming = null;
-    if (err) { reply.text = (reply.text ? reply.text + '\n\n' : '') + err; reply.error = !reply.text || reply.text === err; }
+    if (err) { reply.text = (reply.text ? reply.text + '\n\n' : '') + err; reply.error = !reply.text || reply.text === err; if (cli && signedOutError(p.cli, err)) reply.signin = p.cli; }
     const want = !err && user.search && openRequest(reply.text);
     if (want && mayOpen) {
       chat.messages.pop();

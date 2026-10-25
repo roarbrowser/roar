@@ -94,7 +94,8 @@ check(r.text === 'Héllo 🦁' && r.done && !r.error, 'claude stream-json: parti
 r = runCli('claude', JSON.stringify({ type: 'assistant', message: { content: [{ type: 'text', text: 'whole' }] } }) + '\n');
 check(r.text === 'whole', 'claude without partial messages: whole message used');
 r = runCli('claude', 'warning: not json\n' + JSON.stringify({ type: 'result', is_error: true, result: 'Not logged in' }) + '\n');
-check(/Terminal/.test(r.error), 'claude: stray lines skipped, not-logged-in points at Terminal');
+check(r.error === 'Claude isn’t signed in.', 'claude: stray lines skipped, not-logged-in surfaces');
+check(core.signedOutError('claude', r.error) && core.signedOutError('codex', 'Not logged in. Run codex login') && !core.signedOutError('gemini', 'Not logged in') && !core.signedOutError('claude', 'rate limited'), 'signed-out errors offer sign-in only for CLIs that have one');
 const codexOut = [
   { type: 'thread.started', thread_id: 't' }, { type: 'turn.started' },
   { type: 'item.completed', item: { id: 'i0', type: 'reasoning', text: 'thinking' } },
@@ -122,7 +123,7 @@ const cp = core.cliPrompt([{ role: 'user', text: 'a', page: { title: 'T', url: '
 check(cp.includes('User:\nPage: T\nURL: https://x') && cp.includes('# md') && cp.includes('Assistant:\nb') && cp.endsWith('Reply to the last User message.'), 'a longer chat becomes a transcript with the tab Markdown');
 const cc = core.CLI_PROVIDERS[0];
 check(core.cliStatus(cc, 'ok').state === 'available' && /quota/.test(core.cliStatus(cc, 'ok').label) && core.cliStatus(cc, 'signed-out').state === 'signed-out' && core.cliStatus(cc, undefined).state === 'missing', 'CLI status: ok, signed out, missing');
-check(core.CLI_PROVIDERS.every((p) => core.cliStatus(p, undefined).run === p.install && p.install) && core.cliStatus(cc, 'signed-out').run === 'claude' && !core.cliStatus(cc, 'ok').run, 'CLI status: missing offers the install command, signed out offers the sign-in command');
+check(core.CLI_PROVIDERS.every((p) => core.cliStatus(p, undefined).run === p.install && p.install) && core.cliStatus(cc, 'signed-out').login === 'claude' && core.cliStatus(core.CLI_PROVIDERS.find((p) => p.cli === 'gemini'), 'signed-out').run === 'gemini' && !core.cliStatus(cc, 'ok').run, 'CLI status: missing offers the install command, signed out offers Sign in, or the command when the CLI has none');
 check(core.cliStatus(cc, 'desktop-only').state === 'missing' && /Claude app is installed/.test(core.cliStatus(cc, 'desktop-only').label), 'CLI status: Claude Desktop alone is explained');
 check(core.providerStatus({ id: 'ollama', key: false }).get === 'https://ollama.com/download', 'a missing local server links to its download page');
 const askCli = (m) => m.cmd === 'chat.clis' ? Promise.resolve({ claude: 'ok', codex: 'signed-out', gemini: 'missing' }) : Promise.resolve({});

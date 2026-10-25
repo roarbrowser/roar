@@ -178,8 +178,11 @@
   // Why page text may not go to provider `p`, or '' when it may.
   const pageRefusal = (p) => !p || p.kind !== 'cli' || p.pages ? ''
     : `${p.name} can't be fully cut off from your files, so Roar won't send it web pages (a page could tell it to read them). Use Claude Code or an API model to include a tab.`;
+  // CLIs with a sign-in command Roar can run (chat.login); gemini and qwen sign in only from their own prompt.
+  const CLI_LOGIN = ['claude', 'codex'];
+  const signedOutError = (cli, err) => CLI_LOGIN.includes(cli) && /not (logged|signed) in|isn.t signed in|\/login|codex login|unauthori[sz]ed|\b401\b/i.test(err || '');
   const cliStatus = (p, s) => s === 'ok' ? { state: 'available', label: `Installed · runs on your ${p.account} account and its quota` }
-    : s === 'signed-out' ? { state: 'signed-out', label: `Installed, not signed in. Run “${p.cli}” once in Terminal and log in.`, run: p.cli }
+    : s === 'signed-out' ? { state: 'signed-out', label: CLI_LOGIN.includes(p.cli) ? 'Installed, not signed in.' : `Installed, not signed in. Run “${p.cli}” once in Terminal and log in.`, ...(CLI_LOGIN.includes(p.cli) ? { login: p.cli } : { run: p.cli }) }
     : s === 'desktop-only' ? { state: 'missing', label: 'The Claude app is installed, but Roar’s agent features need Claude Code, its command-line tool.', run: p.install, after: 'Then run claude once in Terminal to sign in.' }
     : { state: 'missing', label: `Not installed. Paste the install command in Terminal${p.node ? ' (needs Node.js 20 or later)' : ''}, then run “${p.cli}” once to sign in.`, run: p.install };
 
@@ -207,7 +210,7 @@
           return t ? { text: t } : null;
         }
         // /login can't run in a one-shot chat; point at Terminal instead.
-        if (j.type === 'result' && /not logged in/i.test(j.result || '')) return { error: 'Claude isn’t signed in. Run “claude” once in Terminal, type /login, then try again.' };
+        if (j.type === 'result' && /not logged in/i.test(j.result || '')) return { error: 'Claude isn’t signed in.' };
         if (j.type === 'result') return j.is_error ? { error: String(j.result || j.subtype || 'failed') } : { done: true };
         return null;
       }
@@ -327,7 +330,7 @@
       onSuccess: (chunk) => { for (const d of cli ? lines(chunk) : sse(chunk).map((x) => streamDelta(p.kind, x))) { if (d.text) text += d.text; if (d.error) err = d.error; } },
       onFailure: (code, message) => (code === 0 && !err ? done(text) : fail(new Error(err || `${p.name} failed (${code}) ${String(message || '').slice(0, 200)}`))) });
   });
-  const api = { defaultModel, renamePrompt, renameKeys, parseNames, oneShot, SEARCH_SYSTEM, searchMode, openRequest, addSources, webSearchTool, CLI_PROVIDERS, pageRefusal, cliStatus, cliPrompt, cliParser, parseProviders, sseParser, streamDelta, requestBody, modelIds, providerStatus, detectProviders, renderMarkdown };
+  const api = { defaultModel, renamePrompt, renameKeys, parseNames, oneShot, SEARCH_SYSTEM, searchMode, openRequest, addSources, webSearchTool, CLI_PROVIDERS, CLI_LOGIN, signedOutError, pageRefusal, cliStatus, cliPrompt, cliParser, parseProviders, sseParser, streamDelta, requestBody, modelIds, providerStatus, detectProviders, renderMarkdown };
   if (typeof module === 'object') module.exports = api;
   else globalThis.chatCore = api;
 })();
