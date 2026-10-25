@@ -1,5 +1,5 @@
 // Fill codes from Messages / Mail: under a focused verification-code field, offers a code texted or
-// mailed to this Mac. Injected by Controller::OnLoading while settings.messagesCodes or mailCodes is on. The page never
+// mailed to this Mac, or in this space's unread Gmail. Injected by Controller::OnLoading while settings.messagesCodes or mailCodes is on. The page never
 // gets the code until the person picks it in Roar's native menu, which calls __roarOtpFill.
 window.__roarOtp = (nonce) => {
   if (window.__roarOtpOn) return;

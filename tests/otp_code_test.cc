@@ -9,6 +9,7 @@ using roar::ExtractOtpCode;
 using roar::TypedStreamText;
 using roar::EmlxText;
 using roar::MimeText;
+using roar::GmailAtomCode;
 
 int main() {
   assert(ExtractOtpCode("Your verification code is 482913.") == "482913");
@@ -51,5 +52,21 @@ int main() {
   assert(EmlxText("") == "" && EmlxText("12") == "");
   assert(roar::IsSentMailbox("imap://u@h/Sent%20Messages") && roar::IsSentMailbox("imap://u@h/%5BGmail%5D/Sent%20Mail") && roar::IsSentMailbox("ews://x/Drafts"));
   assert(!roar::IsSentMailbox("imap://u@h/Sentry") && !roar::IsSentMailbox("imap://u@h/INBOX") && !roar::IsSentMailbox("imap://u@h/Sent%20Stuff/Bills"));
+  {
+    // Gmail Atom feed: newest recent entry with a code wins; old entries and the feed title are ignored.
+    std::string feed =
+        "<feed><title>Gmail - Inbox for me@example.com</title><fullcount>3</fullcount>"
+        "<entry><title>Your code</title><summary>Use 111111 to sign in</summary><issued>2026-10-24T11:00:00Z</issued></entry>"
+        "<entry><title>Sign in to Acme</title><summary>Your verification code is 482913. It expires soon.</summary><issued>2026-10-24T12:01:00Z</issued></entry>"
+        "<entry><title>Lunch &amp; stuff</title><summary>See you at 1230</summary><issued>2026-10-24T12:02:00Z</issued></entry>"
+        "</feed>";
+    long long now = 1792843380;  // 2026-10-24T12:03:00Z
+    auto a = GmailAtomCode(feed, now, 180);
+    assert(a.account == "me@example.com");
+    assert(a.code == "482913");
+    assert(a.at == now - 120);
+    assert(GmailAtomCode(feed, now + 600, 180).code.empty());  // All too old.
+    assert(GmailAtomCode("<feed><title>Gmail</title></feed>", now, 180).code.empty());
+  }
   std::puts("otp_code ok");
 }

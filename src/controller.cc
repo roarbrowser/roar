@@ -62,6 +62,7 @@
 
 #include "browser_app.h"
 #include "library.h"
+#include "otp_code.h"
 #include "client.h"
 #include "platform.h"
 #include "shared.h"
@@ -133,6 +134,9 @@ std::map<int, std::pair<std::string, double>> g_mail_nonces;
 // Browser id -> the nonce otp-fill.js was started with; only its requests are answered.
 std::map<int, std::string> g_otp_nonces;
 constexpr int kOtpMaxAgeSecs = 180;  // Fill codes from Messages / Mail offers texts and mail this recent.
+// Browser id -> the last Gmail check for its code field, made with that tab's space's cookies.
+struct OtpGmail { int space = 0; double fetched = 0; bool pending = false; std::string code; long long at = 0; };
+std::map<int, OtpGmail> g_otp_gmail;
 // Each run waits ~33 s for a fresh page plus several ~20 s polls; 5 minutes covers it.
 constexpr double kMailNonceSecs = 300;
 
@@ -655,6 +659,8 @@ CefRefPtr<CefListValue> ChatIndex(const std::string& json) {
 constexpr char kGmailFeed[] = "https://mail.google.com/mail/feed/atom";
 constexpr int kGmailMaxAccounts = 6;
 std::string GmailFeedUrl(int index) {
+  // Test hook: a scratch instance reads a local feed instead (scripts/test-gmail-codes.sh).
+  if (const char* stub = std::getenv("ROAR_GMAIL_FEED_URL")) return stub + std::string("?u=") + std::to_string(index);
   return "https://mail.google.com/mail/u/" + std::to_string(index) + "/feed/atom";
 }
 
@@ -906,6 +912,56 @@ void StartGmailFetch(int space, int index, int attempt, GmailFeed so_far) {
   CefURLRequest::Create(request, new GmailFetch(space, index, attempt, std::move(so_far)),
                         context ? context : CefRequestContext::GetGlobalContext());
 }
+
+// Fill codes from Mail's Gmail source: reads each signed-in account's unread feed in the tab's space,
+// keeps the newest recent code in g_otp_gmail, then re-asks so the offer shows. Nothing is stored on disk.
+class OtpGmailFetch : public CefURLRequestClient {
+ public:
+  OtpGmailFetch(CefRefPtr<CefBrowser> browser, std::string line, int space, int index, std::vector<std::string> seen, AtomCode best)
+      : browser_(browser), line_(std::move(line)), space_(space), index_(index), seen_(std::move(seen)), best_(best) {}
+  static void Start(CefRefPtr<CefBrowser> browser, std::string line, int space, int index, std::vector<std::string> seen, AtomCode best) {
+    auto request = CefRequest::Create();
+    request->SetURL(GmailFeedUrl(index));
+    request->SetFirstPartyForCookies("https://mail.google.com/");
+    request->SetFlags(UR_FLAG_ALLOW_STORED_CREDENTIALS | UR_FLAG_DISABLE_CACHE);
+    auto context = Controller::Get()->ContextFor(space);
+    CefURLRequest::Create(request, new OtpGmailFetch(browser, std::move(line), space, index, std::move(seen), best),
+                          context ? context : CefRequestContext::GetGlobalContext());
+  }
+  void OnRequestComplete(CefRefPtr<CefURLRequest> request) override {
+    int code = request->GetResponse() ? request->GetResponse()->GetStatus() : 0;
+    if (request->GetRequestStatus() == UR_SUCCESS && code == 200) {
+      AtomCode one = GmailAtomCode(body_, static_cast<long long>(NowSeconds()), kOtpMaxAgeSecs);
+      bool repeat = one.account.empty() || std::find(seen_.begin(), seen_.end(), one.account) != seen_.end();
+      if (!repeat) {
+        if (!one.code.empty() && one.at > best_.at) best_ = one;
+        seen_.push_back(one.account);
+        if (index_ + 1 < kGmailMaxAccounts) return Start(browser_, line_, space_, index_ + 1, std::move(seen_), best_);
+      }
+    }
+    auto it = g_otp_gmail.find(browser_->GetIdentifier());
+    if (it == g_otp_gmail.end() || it->second.space != space_) return;  // Closed, or moved to another space.
+    it->second.pending = false;
+    it->second.code = best_.code;
+    it->second.at = best_.at;
+    if (!best_.code.empty()) Controller::Get()->OnOtp(browser_, line_);
+  }
+  void OnUploadProgress(CefRefPtr<CefURLRequest>, int64_t, int64_t) override {}
+  void OnDownloadProgress(CefRefPtr<CefURLRequest>, int64_t, int64_t) override {}
+  void OnDownloadData(CefRefPtr<CefURLRequest>, const void* data, size_t size) override {
+    if (body_.size() < (1 << 20)) body_.append(static_cast<const char*>(data), size);
+  }
+  bool GetAuthCredentials(bool, const CefString&, int, const CefString&, const CefString&, CefRefPtr<CefAuthCallback>) override { return false; }
+
+ private:
+  CefRefPtr<CefBrowser> browser_;
+  std::string line_;
+  int space_, index_;
+  std::vector<std::string> seen_;
+  AtomCode best_;
+  std::string body_;
+  IMPLEMENT_REFCOUNTING(OtpGmailFetch);
+};
 
 // Tells the controller when a space's profile has finished loading.
 // Roar leaves passwords and form fill to a password manager extension; turn
@@ -5905,6 +5961,7 @@ void Controller::OnMailPageLoaded(CefRefPtr<CefBrowser> browser) {
 void Controller::OnMailPageClosed(CefRefPtr<CefBrowser> browser) {
   g_mail_nonces.erase(browser->GetIdentifier());
   g_otp_nonces.erase(browser->GetIdentifier());
+  g_otp_gmail.erase(browser->GetIdentifier());
   for (auto it = mail_pages_.begin(); it != mail_pages_.end(); ++it)
     if (it->second.browser && it->second.browser->IsSame(browser)) return void(mail_pages_.erase(it));
 }
@@ -5923,8 +5980,22 @@ void Controller::OnOtp(CefRefPtr<CefBrowser> browser, const std::string& line) {
   long long text_at = 0, mail_at = 0;
   std::string text = set.messages_codes ? library::RecentMessagesCode(kOtpMaxAgeSecs, &text_at) : "";
   std::string mail = set.mail_codes ? library::RecentMailCode(kOtpMaxAgeSecs, &mail_at) : "";
+  // Gmail, signed in in this tab's own space; never for ghost tabs. A field focus starts one fresh check.
+  std::string gmail;
+  long long gmail_at = 0;
+  if (set.mail_codes && !tab->ghost) {
+    OtpGmail& g = g_otp_gmail[browser->GetIdentifier()];
+    if (g.space != tab->space) g = OtpGmail{tab->space};
+    if (ask && !g.pending && NowSeconds() - g.fetched > 5) {
+      g.pending = true, g.fetched = NowSeconds();
+      OtpGmailFetch::Start(browser, line, tab->space, 0, {}, AtomCode{});
+    }
+    if (NowSeconds() - g.at < kOtpMaxAgeSecs) gmail = g.code, gmail_at = g.at;
+  }
   bool from_mail = !mail.empty() && (text.empty() || mail_at > text_at);
   std::string code = from_mail ? mail : text;
+  bool from_gmail = !gmail.empty() && (code.empty() || gmail_at > (from_mail ? mail_at : text_at));
+  if (from_gmail) code = gmail;
   if (code.empty()) return;
   auto frame = browser->GetMainFrame();
   if (ask) {
@@ -5934,7 +6005,7 @@ void Controller::OnOtp(CefRefPtr<CefBrowser> browser, const std::string& line) {
   // The code reaches the page only from this native menu: the page could fake its own "pick".
   int id = tab->id;
   std::string url = frame->GetURL();
-  platform::PopupMenu({"Fill " + code + (from_mail ? " from Mail" : " from Messages")}, [this, id, url, code](int) {
+  platform::PopupMenu({"Fill " + code + (from_gmail ? " from Gmail" : from_mail ? " from Mail" : " from Messages")}, [this, id, url, code](int) {
     Tab* t = FindTab(id);
     auto b = t && t->view ? t->view->GetBrowser() : nullptr;
     if (b && id == active_id_ && b->GetMainFrame()->GetURL().ToString() == url)
@@ -6001,6 +6072,7 @@ void Controller::OnLoading(CefRefPtr<CefBrowser> browser, bool loading, bool can
     if ((State::Get().settings.messages_codes || State::Get().settings.mail_codes) && StartsWith(tab->url, "http")) {
       std::string& nonce = g_otp_nonces[browser->GetIdentifier()];
       nonce = platform::RandomToken();
+      g_otp_gmail.erase(browser->GetIdentifier());
       ExecuteScript(tab->id, platform::ReadResource("ui/otp-fill.js") + "\n;window.__roarOtp(" + JsString(nonce) + ");");
     }
     if (!tab->ghost) {

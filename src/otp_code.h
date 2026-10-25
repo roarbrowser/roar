@@ -1,9 +1,11 @@
-// One-time codes from texts and Apple Mail (Fill codes from Messages / Mail). Header-only and CEF-free so
+// One-time codes from texts, Apple Mail and Gmail (Fill codes from Messages / Mail). Header-only and CEF-free so
 // tests/otp_code_test.cc can check it standalone.
 #pragma once
 
 #include <cctype>
+#include <cstdio>
 #include <cstdlib>
+#include <ctime>
 #include <string>
 
 namespace roar {
@@ -178,6 +180,40 @@ inline bool IsSentMailbox(std::string url) {
   std::string n = url.substr(url.find_last_of('/') + 1);
   for (char& c : n) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
   return n == "sent" || n.rfind("sent ", 0) == 0 || n == "drafts" || n == "draft";
+}
+
+// The text between <tag> and </tag> after |from|, or "" (ends at |end|).
+inline std::string XmlTag(const std::string& x, const std::string& tag, size_t from, size_t end) {
+  size_t a = x.find("<" + tag + ">", from);
+  if (a == std::string::npos || a >= end) return "";
+  a += tag.size() + 2;
+  size_t b = x.find("</" + tag + ">", a);
+  return b == std::string::npos || b > end ? "" : x.substr(a, b - a);
+}
+
+// One Gmail Atom feed (/mail/u/<n>/feed/atom): the feed's account, and the newest code in an
+// entry's title plus summary issued within |max_age| seconds of |now| (its time in *at).
+struct AtomCode { std::string account, code; long long at = 0; };
+inline AtomCode GmailAtomCode(const std::string& x, long long now, int max_age) {
+  AtomCode out;
+  size_t first = x.find("<entry>");
+  std::string t = StripHtml(XmlTag(x, "title", 0, first));  // "Gmail - Inbox for name@example.com"
+  size_t at = t.rfind(" for ");
+  if (at != std::string::npos) out.account = t.substr(at + 5);
+  for (size_t p = first; p != std::string::npos; p = x.find("<entry>", p + 1)) {
+    size_t e = x.find("</entry>", p);
+    if (e == std::string::npos) break;
+    std::tm tm{};
+    std::string issued = XmlTag(x, "issued", p, e);
+    if (std::sscanf(issued.c_str(), "%d-%d-%dT%d:%d:%d", &tm.tm_year, &tm.tm_mon, &tm.tm_mday, &tm.tm_hour, &tm.tm_min, &tm.tm_sec) != 6) continue;
+    tm.tm_year -= 1900, tm.tm_mon -= 1;
+    long long when = timegm(&tm);  // Gmail writes UTC ("...Z").
+    if (when < now - max_age || when > now + 60 || when <= out.at) continue;
+    // Entities only (&amp; &#39;): StripHtml decodes them; the feed has no tags in text.
+    std::string code = ExtractOtpCode(StripHtml(XmlTag(x, "title", p, e) + "\n" + XmlTag(x, "summary", p, e)));
+    if (!code.empty()) out.code = code, out.at = when;
+  }
+  return out;
 }
 
 }  // namespace roar
