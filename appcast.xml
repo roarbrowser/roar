@@ -22,5 +22,14 @@
 - Verification codes can now fill from Gmail as well as Apple Mail.]]></description>
       <enclosure url="https://github.com/roarbrowser/roar/releases/download/v1.3.1/Roar-1.3.1.dmg" type="application/octet-stream" sparkle:edSignature="apFNjZEcM4PTjoXLlt9hJzLuSD4HvflqoyH341Yk2UQ/2Iw89fzft6KNfmgU+mVYxvhuZAeHETSQ9xlcycWJCw==" length="207620624"/>
     </item>
+    <item>
+      <title>1.3.2</title>
+      <pubDate>Sun, 25 Oct 2026 13:29:30 +0000</pubDate>
+      <sparkle:version>10302</sparkle:version>
+      <sparkle:shortVersionString>1.3.2</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[Settings: API keys and local servers now sit in a collapsed section.]]></description>
+      <enclosure url="https://github.com/roarbrowser/roar/releases/download/v1.3.2/Roar-1.3.2.dmg" type="application/octet-stream" sparkle:edSignature="uWEGIsPgrPpVVRLSXFiT+Ta0Pvuf6ij+cH2PV1rcJti/V16KmnvFEra/9FKp91HqaHINxpwX3QsLzP/JaVy5Ag==" length="207620772"/>
+    </item>
   </channel>
 </rss>
