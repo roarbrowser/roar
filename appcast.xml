@@ -94,5 +94,14 @@
       <description><![CDATA[The agent view and the Ask tab have text size buttons (A− and A+, or Cmd+ and Cmd−) for the terminal and the chat; the size is shared across AI windows.]]></description>
       <enclosure url="https://github.com/roarbrowser/roar/releases/download/v1.5.5/Roar-1.5.5.dmg" type="application/octet-stream" sparkle:edSignature="MIRrDvQGIlyZABiKCh5HJ03rx1h+QZNDKDgeyibWajcIkL1hA+FuCUXNeuLCHZ27aNMrouI4JRKY40yIWSRoAg==" length="207616978"/>
     </item>
+    <item>
+      <title>1.5.6</title>
+      <pubDate>Mon, 26 Oct 2026 01:45:37 +0000</pubDate>
+      <sparkle:version>10506</sparkle:version>
+      <sparkle:shortVersionString>1.5.6</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[Claude Code's background spare processes no longer show up as stuck agent sessions. Ending a session removes it once the agent has fully stopped. The Outlook and Gmail buttons have different icons. Bigger text no longer lets the chat scroll below the message box.]]></description>
+      <enclosure url="https://github.com/roarbrowser/roar/releases/download/v1.5.6/Roar-1.5.6.dmg" type="application/octet-stream" sparkle:edSignature="ZqUzDxVUgLCM3QcoyFiK1xfR7R8STLEQWt1PMN/eXbQVaGh70jDk66ZeAPXFAwjIv6N8SBlHGeYM1DMdNSBtAQ==" length="207617755"/>
+    </item>
   </channel>
 </rss>
