@@ -195,16 +195,17 @@ export function summarize(calls) {
 const BOX = /^[\s│┃|╭╰╮╯─]+|[\s│┃|╭╰╮╯─]+$/g;
 export function approvalPrompt(screen) {
   const lines = String(screen || '').split('\n').map((l) => l.replace(BOX, '')).filter((l) => l.trim());
-  const recent = lines.slice(-14);
+  const recent = lines.slice(-30);
   const last = recent[recent.length - 1] || '';
   if (/[[(]y\/n[\])]/i.test(last)) return { question: last.replace(/\s*[[(]y\/n[\])].*$/i, '').trim() || 'Continue?', options: [{ label: 'Yes', key: 'y' }, { label: 'No', key: 'n' }] };
   const OPT = /^(?:([❯›▶>])\s*)?(\d)[.)]\s+(.+)$/;
   let end = -1;
   for (let i = recent.length - 1; i >= 0; i--) if (OPT.test(recent[i])) { end = i; break; }
   if (end < 0) return null;
-  let start = end;
-  while (start > 0 && OPT.test(recent[start - 1])) start--;
-  const opts = recent.slice(start, end + 1).map((l) => OPT.exec(l));
+  // Walk up to option 1. A question menu puts a description (up to 3 lines) under each option: skipped.
+  const optAt = [end];
+  for (let i = end - 1; i >= 0 && +OPT.exec(recent[optAt[0]])[2] > 1 && optAt[0] - i <= 4; i--) if (OPT.test(recent[i])) optAt.unshift(i);
+  const start = optAt[0], opts = optAt.map((i) => OPT.exec(recent[i]));
   if (opts.length < 2 || !opts.some((m) => m[1]) || opts.some((m, i) => +m[2] !== i + 1)) return null;
   const question = start > 0 ? recent[start - 1].trim() : '';
   return { question, options: opts.map((m) => ({ label: m[3].replace(/\s{2,}.*$/, '').trim(), key: m[2] })) };

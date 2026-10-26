@@ -16,7 +16,15 @@ pre { flex: 1; margin: 0 20px; padding: 14px 16px; overflow: auto; border-radius
 /* Short screens (a CLI's fullscreen UI is only as tall as its terminal) sit at the bottom, like a terminal;
    the spacer shrinks to nothing once the text overflows, so scrolling still works. */
 #screen { display: flex; flex-direction: column; }
-#screen:focus-visible { outline: 2px solid var(--mane); outline-offset: 2px; }
+/* The terminal is the input: keys go through #tin, a hidden textarea (paste, dictation and IME work), so the
+   CLI's own prompt is where typing shows; Roar's reply box and key buttons stay out of this view. */
+body.typing #screen { outline: 2px solid var(--mane); outline-offset: 2px; }
+#screen { cursor: text; }
+#tin { position: fixed; left: -9999px; top: 0; width: 1px; height: 1px; opacity: 0; }
+#reply, .keys { display: none !important; }
+#tbar { display: flex; align-items: center; gap: 8px; padding: 6px 20px 12px; font: 12px var(--ui); color: var(--ink-3); }
+#tbar #thint { flex: 1; }
+body.chat-mode #tbar { display: none; }
 #screen::before { content: ''; flex: 1 0 0; }
 .err { color: var(--ink-3); font: 13px var(--ui); white-space: normal; }
 form { display: flex; gap: 8px; padding: 10px 20px 4px; }
@@ -104,7 +112,9 @@ details.chip ul { margin: 6px 0 0; padding-left: 26px; font: 12px/1.5 var(--mono
 <body>
 <header><span class="dot" id="dot" aria-hidden="true"></span><span id="icon"></span><h1 id="name">Agent session</h1><span class="state" id="state" role="status"></span><span id="tsize"></span><span class="segmented" id="view" role="group" aria-label="View"><button type="button" data-view="chat" title="The conversation as a chat">Chat</button><button type="button" data-view="terminal" title="The live terminal, with every key">Terminal</button></span><span class="colorpick"><button class="chip-dot" id="color-chip" aria-label="Session colors" aria-haspopup="true"></button><span class="pop"><span class="segmented" id="color-on" role="group" aria-label="Color"><button data-on="w">Window</button><button data-on="t">Terminal</button></span><span class="swatches" id="colors" role="group" aria-label="Session color"></span></span></span><button class="btn" id="attach">Send tab</button><button class="btn" id="beside" title="Split this view beside the web page you used last">Side by side</button><button class="btn" id="focus" title="Bring its terminal window to the front">Terminal</button><button class="btn" id="end" title="End this session (closes its terminal)">End</button></header>
 <p class="status" id="chat-off" role="note" hidden></p>
-<pre id="screen" aria-live="off" tabindex="0" aria-label="Terminal (focus it to type arrows, Enter, Esc and Tab into the agent)"></pre>
+<pre id="screen" aria-live="off" aria-label="Terminal: click it and type to the agent"></pre>
+<textarea id="tin" aria-label="Type to the agent" autocomplete="off" autocapitalize="off" spellcheck="false"></textarea>
+<div id="tbar"><span id="thint">Click the terminal and type. Enter sends, ⌃C interrupts.</span><span id="tmic2"></span></div>
 <section id="chat" aria-label="Conversation"><p class="note" id="chat-note" hidden></p><div id="msgs" role="log" aria-live="polite" aria-relevant="additions"></div><div id="ask" role="group" aria-labelledby="ask-q" hidden></div><div id="running" role="status" hidden></div><div id="working" role="status" hidden>Working…</div></section>
 <form id="chatform"><textarea id="ctext" rows="1" placeholder="Message… (Enter sends, Shift+Enter for a new line)" aria-label="Message to the agent"></textarea><span id="cmic"></span><button>Send</button></form>
 <form id="reply"><input id="text" placeholder="Reply… (/ for commands; empty Enter accepts)" autocomplete="off" spellcheck="false" aria-label="Reply"><span id="tmic"></span><button>Send</button></form>
@@ -310,16 +320,6 @@ function ansiHtml(raw) {
   return out;
 }
 const plain = (l) => l.replace(/\x1b\[[\d;?]*[A-Za-z]/g, '');
-// The CLI's own input box (rule, ❯ line(s), rule) at the bottom duplicates the reply box below, so it's cut.
-function dropPromptBox(raw) {
-  const lines = raw.split('\n'), rule = (l) => /^\s*[─━]{10,}\s*$/.test(plain(l));
-  let b = -1, a = -1;
-  for (let i = lines.length - 1; i >= Math.max(0, lines.length - 40); i--) if (rule(lines[i])) { if (b < 0) b = i; else { a = i; break; } }
-  if (a < 0 || b - a > 15 || !lines.slice(a + 1, b).some((l) => /^\s*[❯>]/.test(plain(l)))) return raw;
-  lines.splice(a, b - a + 1);
-  if (a < lines.length) lines[a] = '\x1b[0m' + lines[a];  // The cut lines held resets; don't let their colors run on.
-  return lines.join('\n');
-}
 
 let lastRaw = '';
 async function screen() {
@@ -330,7 +330,7 @@ async function screen() {
     if (shownError(out)) return;
     const pre = $('screen'), atBottom = pre.scrollTop + pre.clientHeight >= pre.scrollHeight - 8;
     // One <span> so the text stays a single flex item in the #screen column.
-    if (lastRaw !== (out = dropPromptBox(out.replace(/\s+$/, '')))) { lastRaw = out; pre.innerHTML = `<span>${ansiHtml(out)}</span>`; fit(); if (atBottom) pre.scrollTop = pre.scrollHeight; }
+    if (lastRaw !== (out = out.replace(/\s+$/, ''))) { lastRaw = out; pre.innerHTML = `<span>${ansiHtml(out)}</span>`; fit(); if (atBottom) pre.scrollTop = pre.scrollHeight; }
   } finally { busy = false; }
 }
 
@@ -352,23 +352,42 @@ $('end').onclick = async () => {
   $('end').disabled = false; $('end').textContent = 'End';
   if (!failed) meta();
 };
-// Terminal view: with the reply box empty (or no field focused), Enter, arrows, Esc, Tab, Backspace and ⌃C go
-// straight to the session, so its menus and prompts work like a real terminal. Enter in the empty box already
-// accepts through the form; the / menu and Send tab's list take their keys first.
-const TERM_KEYS = { ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right', Escape: 'escape', Tab: 'tab', Backspace: 'backspace' };
-document.addEventListener('keydown', async (e) => {
-  if (view !== 'terminal' || $('reply').hidden || e.isComposing || e.metaKey || e.altKey || !$('tab-menu').hidden || !$('slash-menu').hidden) return;
-  const inField = e.target.closest?.('input, textarea, select, [contenteditable]');
-  if (inField && (e.target !== $('text') || $('text').value)) return;
-  // Letters and digits too while the terminal itself has focus (a menu's shortcut keys, y/n).
-  if (e.target === $('screen') && !e.ctrlKey && /^[0-9a-z]$/i.test(e.key)) { e.preventDefault(); if (!shownError(await clSession.ctl(id, 'send', e.key))) screen(); return; }
-  const k = e.ctrlKey ? (e.key === 'c' && !getSelection().toString() ? 'ctrl-c' : '') : e.shiftKey ? '' : TERM_KEYS[e.key] || (!inField && e.key === 'Enter' ? 'enter' : '');
+// Terminal view: the terminal is the input. Keys go through #tin (a hidden textarea, so paste, dictation and IME
+// work), in order, one claude-ctl call at a time: typed text as literal text, the rest as named keys.
+const TERM_KEYS = { Enter: 'enter', ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right', Escape: 'escape', Tab: 'tab', Backspace: 'backspace' };
+let termQ = Promise.resolve(), typed = '', typedTimer = 0;
+const termSend = (action, text) => (termQ = termQ.then(() => clSession.ctl(id, action, text)).then((out) => { if (!shownError(out)) screen(); }));
+// Letters typed fast go out together (one call per burst, not per key).
+const flushTyped = () => { clearTimeout(typedTimer); if (typed) { const t = typed; typed = ''; termSend('send', t); } };
+const termType = () => { if (view === 'terminal' && !$('reply').hidden) $('tin').focus({ preventScroll: true }); };
+$('screen').addEventListener('mouseup', () => { if (!getSelection().toString()) termType(); });  // A drag selects text to copy instead.
+$('tin').addEventListener('focus', () => document.body.classList.add('typing'));
+$('tin').addEventListener('blur', () => document.body.classList.remove('typing'));
+$('tin').addEventListener('keydown', (e) => {
+  if (e.isComposing || e.metaKey) return;  // ⌘C/⌘V/⌘+ stay the page's and Roar's.
+  // Shift+Enter: a new line in the prompt (as a pasted newline, which never submits). Shift+Tab: the CLI's mode cycle.
+  if (e.key === 'Enter' && e.shiftKey) { e.preventDefault(); flushTyped(); return void termSend('paste', '\n'); }
+  const k = e.ctrlKey ? (/^[a-z]$/.test(e.key) ? 'ctrl-' + e.key : '') : e.altKey ? '' : e.shiftKey ? (e.key === 'Tab' ? 'shift-tab' : '') : TERM_KEYS[e.key];
   if (!k) return;
   e.preventDefault();
-  if (!shownError(await clSession.ctl(id, 'send', 'key:' + k))) screen();
-}, true);  // Capture: ahead of the Escape that closes Send tab's list, so that Escape stays in the page.
+  flushTyped();
+  termSend('send', 'key:' + k);
+});
+$('tin').addEventListener('input', (e) => {
+  if (e.isComposing) return;
+  typed += $('tin').value; $('tin').value = '';
+  clearTimeout(typedTimer); typedTimer = setTimeout(flushTyped, 30);
+});
+$('tin').addEventListener('compositionend', () => { typed += $('tin').value; $('tin').value = ''; flushTyped(); });
+// Typing anywhere on the page (nothing else focused) lands in the terminal.
+document.addEventListener('keydown', (e) => {
+  if (view !== 'terminal' || $('reply').hidden || e.metaKey || document.activeElement === $('tin')) return;
+  if (e.target.closest?.('input, textarea, select, button, [contenteditable]') || !$('tab-menu').hidden) return;
+  termType();
+}, true);
 $('cmic').replaceWith(dictMic($('ctext')));
 $('tmic').replaceWith(dictMic($('text')));
+$('tmic2').replaceWith(dictMic($('tin')));
 
 // --- Chat view ---------------------------------------------------------------------------------------
 // The view each session last used (this page's own storage), else Settings > Agents' default.
@@ -380,7 +399,7 @@ function setView(v) {
   view = v;
   document.body.classList.toggle('chat-mode', v === 'chat');
   for (const b of $('view').children) b.setAttribute('aria-pressed', String(b.dataset.view === v));
-  v === 'chat' ? chat() : (screen(), sizePane());
+  v === 'chat' ? chat() : (screen(), sizePane(), termType());
 }
 $('view').onclick = (e) => {
   const b = e.target.closest('[data-view]');
@@ -515,6 +534,16 @@ for (const box of [$('text'), $('ctext')]) slashMark.field(box);
 // A pasted image is saved by Roar and goes in as an @path mention, which every hooked CLI reads as a file.
 // A paste anywhere else on the page (the terminal mirror, the transcript) goes into the current view's box.
 document.addEventListener('paste', (e) => {
+  // Terminal view: text as one bracketed paste, images saved and typed as @path mentions.
+  if (view === 'terminal' && !$('reply').hidden && (e.target === $('tin') || !e.target.closest?.('input, textarea, select, [contenteditable]'))) {
+    e.preventDefault();
+    flushTyped();
+    const files = [...(e.clipboardData?.files || [])].filter((f) => /^image\/(png|jpeg|gif|webp)$/.test(f.type));
+    if (files.length) return void savePasted(null, files);
+    const text = e.clipboardData?.getData('text/plain') || '';
+    if (text) termSend('paste', text);
+    return termType();
+  }
   if ($('reply').hidden || e.target.closest?.('input, textarea, select, [contenteditable]')) return;
   const box = $(view === 'chat' ? 'ctext' : 'text');
   box.focus();
@@ -534,6 +563,7 @@ async function savePasted(box, files) {
     const data = await new Promise((r) => { const fr = new FileReader(); fr.onload = () => r(String(fr.result).split(',')[1]); fr.readAsDataURL(f); });
     let path;
     try { path = await ask({ cmd: 'claude.saveImage', ext: f.type === 'image/jpeg' ? 'jpg' : f.type.slice(6), data }); } catch (err) { $('attach-why').hidden = false; $('attach-why').textContent = 'Couldn\'t paste the image: ' + (err?.message || err); continue; }
+    if (!box) { termSend('send', '@' + path + ' '); continue; }  // The typeable terminal: straight to the CLI.
     const at = box.selectionStart ?? box.value.length, ins = (at && !/\s$/.test(box.value.slice(0, at)) ? ' ' : '') + '@' + path + ' ';
     box.value = box.value.slice(0, at) + ins + box.value.slice(box.selectionEnd ?? at);
     box.selectionStart = box.selectionEnd = at + ins.length;

@@ -337,7 +337,7 @@ const CMUX_APP = 'com.cmuxterm.app';
 const WEZTERM = '/Applications/WezTerm.app/Contents/MacOS/wezterm', KITTEN = '/Applications/kitty.app/Contents/MacOS/kitten';
 // Each key as [tmux keys, cmux keys]; send-now is Claude Code's "ctrl+x ctrl+s to send now" for a queued message.
 const KEYS = { enter: [['Enter'], ['enter']], escape: [['Escape'], ['escape']], up: [['Up'], ['up']], down: [['Down'], ['down']], tab: [['Tab'], ['tab']],
-  left: [['Left'], ['left']], right: [['Right'], ['right']], backspace: [['BSpace'], ['backspace']],
+  left: [['Left'], ['left']], right: [['Right'], ['right']], backspace: [['BSpace'], ['backspace']], 'shift-tab': [['BTab'], ['shift+tab']],
   'ctrl-c': [['C-c'], ['ctrl+c']], 'send-now': [['C-x', 'C-s'], ['ctrl+x', 'ctrl+s']],
   // shortcut: cmux page key names unverified; check `cmux send-key` if wheel scrolling fails under cmux.
   pgup: [['PPage'], ['pageup']], pgdn: [['NPage'], ['pagedown']] };
@@ -421,6 +421,12 @@ function ctl(action, id, arg, arg2) {
     try { screen = tm || cx ? ctl('screen', id) : ''; } catch {}
     return JSON.stringify(chat(s, +arg || 0, screen, describe));
   }
+  if (action === 'paste') {
+    // Pasted text as one bracketed paste, so its newlines don't each press Enter (claude.html's typeable terminal).
+    if (tm) { execFileSync(tm.bin, [...tx, 'load-buffer', '-b', 'roar-paste', '-'], { input: String(arg || ''), timeout: 5000 }); return run1(tm.bin, [...tx, 'paste-buffer', '-p', '-d', '-b', 'roar-paste', '-t', tm.pane]); }
+    if (cx) return run1(cx.bin, ['send', '--workspace', cx.workspace, ...sf, '--', String(arg || '')]);
+    throw new Error('this terminal does not take input from Roar');
+  }
   if (action === 'running') {
     // Helpers and background commands still going (the Agents board); [] for a CLI without a readable transcript.
     if ((s.tool || 'claude') !== 'claude') return '[]';
@@ -466,7 +472,10 @@ function ctl(action, id, arg, arg2) {
     return 'ended';
   }
   if (action === 'send') {
-    const key = /^key:(.+)$/.exec(arg || '')?.[1];
+    let key = /^key:(.+)$/.exec(arg || '')?.[1];
+    // ctrl-<letter>, from the typeable terminal: tmux C-x, cmux ctrl+x.
+    const ctrl = /^ctrl-([a-z])$/.exec(key || '')?.[1];
+    if (ctrl && !KEYS[key]) KEYS[key] = [['C-' + ctrl], ['ctrl+' + ctrl]];
     if (key && !KEYS[key]) throw new Error('unknown key');
     if (tm) return run1(tm.bin, key ? [...tx, 'send-keys', '-t', tm.pane, ...KEYS[key][0]] : [...tx, 'send-keys', '-t', tm.pane, '-l', '--', arg]);
     if (cx && key) return KEYS[key][1].map((k) => run1(cx.bin, ['send-key', '--workspace', cx.workspace, ...sf, k])).join('');

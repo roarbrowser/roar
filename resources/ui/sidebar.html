@@ -197,6 +197,7 @@ body.drag-active .pinned:empty::before { content: 'Drop to pin'; color: var(--in
 .cl.tint { box-shadow: inset 3px 0 0 var(--cl-bg); }
 .cl.needs { background: var(--mane-soft); }
 .cl.needs .cl-name b { font-weight: 650; }
+.cl [data-clquit].armed { background: var(--danger); color: #fff; }
 /* Two lines per session: name and age, then what it's doing (wraps to two lines, never mid-word
    on one). Actions float over the right edge on hover, so they never take width from the text. */
 .cl.pr { height: auto; min-height: 34px; padding-block: 4px; align-items: flex-start; }
@@ -1591,8 +1592,15 @@ document.addEventListener('click', async (e) => {
   const q = e.target.closest('[data-clquit]');
   if (!q) return;
   e.stopPropagation();
-  const c = (state.claude?.items || []).find((x) => x.id === q.dataset.clquit);
-  if (!confirm(`End ${c?.project || 'this session'}? Its terminal closes and the agent stops.`)) return;
+  // Click twice: a confirm() from the sidebar's frameless view never showed, so End did nothing.
+  if (!q.classList.contains('armed')) {
+    const c = (state.claude?.items || []).find((x) => x.id === q.dataset.clquit), was = q.title;
+    q.classList.add('armed'); q.title = `Click again to end ${c?.project || 'this session'}`; q.setAttribute('aria-label', q.title);
+    clearTimeout(q._disarm);
+    q._disarm = setTimeout(() => { q.classList.remove('armed'); q.title = was; q.setAttribute('aria-label', was); }, 3000);
+    return;
+  }
+  clearTimeout(q._disarm);
   q.disabled = true; q.title = 'Ending…';  // The row goes once the agent's process has exited.
   const out = await clSession.ctl(q.dataset.clquit, 'quit');
   if (clSession.error(out)) showCtx(`<div class="head">${esc("Couldn't end it: " + clSession.error(out))}</div>`, { clientX: 8, clientY: 120 }, () => {});
@@ -1645,7 +1653,8 @@ document.addEventListener('click', (e) => {
     return t ? ask({ cmd: 'tab.activate', id: t.id }) : ask({ cmd: 'open', text: 'roar://ui/chat.html#' + ch.dataset.chatid, newTab: true });
   }
   const r = e.target.closest('[data-clid]');
-  if (!r) return;
+  // End has its own handler: opening the session too rebuilt the row and ate End's click.
+  if (!r || e.target.closest('[data-clquit]')) return;
   e.stopPropagation();
   for (const p of document.querySelectorAll('.feed-pop')) p.classList.remove('open');
   syncFeeds();

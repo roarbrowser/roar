@@ -124,6 +124,11 @@ check(p?.question === 'Do you want to proceed?' && p.options.length === 3 && p.o
 const boxed = '╭──────╮\n│ Allow edit to x.c? │\n│ ❯ 1. Yes │\n│   2. No │\n╰──────╯\n';
 check(approvalPrompt(boxed)?.options.map((o) => o.label).join() === 'Yes,No', 'boxed prompt: border characters stripped');
 check(approvalPrompt('Here is the plan:\n1. Read files\n2. Edit them\n3. Test\n> ') === null, 'numbered prose without a selection marker is not a prompt');
+{
+  const menu = ['☐ Terminal', '', "What should it change?", '', '❯ 1. Type in the terminal', '     Every key goes to the agent.', '  2. End button by the input', '     Move End next to the box.', '  3. Both', '     Do both.', '  4. Type something.', '', 'Enter to select · ↑/↓ to navigate · Esc to cancel'].join('\n');
+  const q = approvalPrompt(menu);
+  check(q?.question === 'What should it change?' && q.options.map((o) => o.label + '=' + o.key).join() === 'Type in the terminal=1,End button by the input=2,Both=3,Type something.=4', 'question menu with descriptions under each option');
+}
 check(approvalPrompt('Overwrite file? (y/n)')?.options.map((o) => o.key).join() === 'y,n', 'y/n prompt');
 check(approvalPrompt('Use 1 of these\n❯ 2. Skip\n  3. Go') === null, 'options must count from 1');
 check(approvalPrompt('') === null, 'empty screen');
