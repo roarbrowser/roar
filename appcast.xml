@@ -67,5 +67,14 @@
       <description><![CDATA[Ask has a refresh button beside the model picker, so newly started model servers and new keys show up without reopening the tab. Agent cards that need you now have a Reply button.]]></description>
       <enclosure url="https://github.com/roarbrowser/roar/releases/download/v1.5.2/Roar-1.5.2.dmg" type="application/octet-stream" sparkle:edSignature="XwvJzgiJn+F3NeT0upltw8sZZmtQv+Moz3DF8qggKHIe6tWmOs51KSVQssjGIFtyvbayNh2w9Ft/AWrRqUZ9Bg==" length="207618237"/>
     </item>
+    <item>
+      <title>1.5.3</title>
+      <pubDate>Mon, 26 Oct 2026 00:21:06 +0000</pubDate>
+      <sparkle:version>10503</sparkle:version>
+      <sparkle:shortVersionString>1.5.3</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[Agent rows in the sidebar now show their state in color: green working, orange needs you, a ring when done; a session's own color is a bar on its edge. Renaming an agent session in Roar now renames it in Claude Code too. The AI section can rename every session at once and has a refresh button, and live sessions have an End button.]]></description>
+      <enclosure url="https://github.com/roarbrowser/roar/releases/download/v1.5.3/Roar-1.5.3.dmg" type="application/octet-stream" sparkle:edSignature="FjjARuqUU/kH9bwfzlBfGgw7YdFxtJplhqDy3FG30w6UuCwny7+m4RsxwPGhvVVbqoqLxNoAKOmDcnSu3siPBw==" length="207619506"/>
+    </item>
   </channel>
 </rss>
