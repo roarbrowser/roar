@@ -151,6 +151,7 @@ async function meta() {
   $('reply').hidden = $('screen').hidden = keys.hidden = $('chatform').hidden = $('end').hidden = !c.live;
   session = c;
   setView(view || recalled() || (s.settings?.agentTerminal ? 'terminal' : 'chat'));
+  sizePane();
   // This page is the active tab, so "+ This tab" means the web tab used most recently before it.
   webTabs = s.tabs.filter((t) => !t.ghost && !t.active && /^https?:/.test(t.url || '')).sort((a, b) => a.idleSeconds - b.idleSeconds);
   const web = webTabs[0];
@@ -251,6 +252,18 @@ function fit() {
   if (w > 0) pre.style.fontSize = Math.max(8, Math.min(12.5, w / (cols * 0.6))) + 'px';
 }
 addEventListener('resize', fit);
+// The agent's tmux window follows this view's size (claude-ctl resize), so a fullscreen CLI gets every row we can show.
+let sentSize = '', sizeTimer = 0;
+function sizePane() {
+  const pre = $('screen');
+  if (pre.hidden || view === 'chat' || !session?.term?.tmux) return;
+  const cols = Math.floor((pre.clientWidth - 32) / (12.5 * 0.6)), rows = Math.floor((pre.clientHeight - 28) / (12.5 * 1.45));
+  const size = `${cols}x${rows}`;
+  if (cols < 20 || rows < 5 || size === sentSize) return;
+  sentSize = size;
+  clSession.ctl(id, 'resize', size);
+}
+addEventListener('resize', () => { clearTimeout(sizeTimer); sizeTimer = setTimeout(sizePane, 300); });
 
 // tmux's SGR colors (capture-pane -e) as spans, so the mirror reads like the real terminal.
 const ANSI16 = ['#2e2a27', '#e5484d', '#46a758', '#ffc53d', '#3b8cff', '#c56ad6', '#12a5a4', '#d8d0c6', '#8a8079', '#ff6b6b', '#6fd36f', '#ffe08a', '#7ab4ff', '#e09cf0', '#5fd8d6', '#ffffff'];
@@ -350,7 +363,7 @@ function setView(v) {
   view = v;
   document.body.classList.toggle('chat-mode', v === 'chat');
   for (const b of $('view').children) b.setAttribute('aria-pressed', String(b.dataset.view === v));
-  v === 'chat' ? chat() : screen();
+  v === 'chat' ? chat() : (screen(), sizePane());
 }
 $('view').onclick = (e) => {
   const b = e.target.closest('[data-view]');

@@ -5280,9 +5280,9 @@ bool Controller::HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> 
       return AgentStart(msg->GetString("id").ToString(), text, tabs, false, reply), true;
     }
     if (action == "tools") return platform::RoarMcp({"claude-ctl", "tools"}, [callback](const std::string& out) { callback->Success(out); }), true;
-    if (action != "focus" && action != "screen" && action != "send" && action != "chat" && action != "quit") return callback->Failure(0, "bad action"), true;
+    if (action != "focus" && action != "screen" && action != "send" && action != "chat" && action != "quit" && action != "resize") return callback->Failure(0, "bad action"), true;
     std::vector<std::string> args = {"claude-ctl", action, msg->GetString("id").ToString()};
-    if (action == "send" || action == "screen") args.push_back(msg->GetString("text").ToString());
+    if (action == "send" || action == "screen" || action == "resize") args.push_back(msg->GetString("text").ToString());
     if (action == "chat") {
       // The CLI's start time links the session to its transcript (mcp/agent-chat.mjs pickTranscript).
       long long born = 0;

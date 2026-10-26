@@ -14,7 +14,7 @@
 //                                              or types into it (tmux and cmux only)
 // Roar reads the folder every few seconds (Controller::ClaudeTick). Only the latest prompt,
 // the current tool and the session state are kept; never the conversation.
-import { readFileSync, writeFileSync, mkdirSync, rmSync, renameSync, existsSync, copyFileSync, readdirSync, statSync } from 'node:fs';
+import { readFileSync, writeFileSync, writeSync, mkdirSync, rmSync, renameSync, existsSync, copyFileSync, readdirSync, statSync } from 'node:fs';
 import { basename, delimiter, isAbsolute, join } from 'node:path';
 import { execFileSync, spawn } from 'node:child_process';
 import { homedir } from 'node:os';
@@ -403,6 +403,16 @@ function ctl(action, id, arg, arg2) {
     try { screen = tm || cx ? ctl('screen', id) : ''; } catch {}
     return JSON.stringify(chat(s, +arg || 0, screen, describe));
   }
+  if (action === 'resize') {
+    // "<cols>x<rows>": Roar's view size. A detached tmux window stays 80x24, and a fullscreen CLI then shows
+    // only its last ~20 lines. Never while a terminal is attached: that client's own size wins.
+    const m = /^(\d+)x(\d+)$/.exec(arg || '');
+    if (!tm || !m) return '';
+    if (run1(tm.bin, [...tx, 'display', '-p', '-t', tm.pane, '#{session_attached}']).trim() !== '0') return 'attached';
+    const clamp = (v, lo, hi) => String(Math.min(hi, Math.max(lo, +v)));
+    run1(tm.bin, [...tx, 'resize-window', '-t', tm.pane, '-x', clamp(m[1], 40, 400), '-y', clamp(m[2], 10, 200)]);
+    return 'ok';
+  }
   if (action === 'rename') {
     // A name given in Roar reaches Claude Code as /rename (its title and /resume list). Only into an idle
     // prompt: a working session would queue it as a message, one asking for approval would type into the menu.
@@ -500,8 +510,9 @@ function focus(s, f) {
 
 export function run(args, exe) {
   if (args[0] === 'claude-ctl') {
-    try { process.stdout.write(String(ctl(args[1], args[2], args[3], args[4]) ?? '')); }
-    catch (e) { process.stdout.write('error: ' + (e.stderr?.toString().trim() || e.message)); process.exitCode = 1; }
+    // writeSync: the compiled roar-mcp (bun) dropped the tail of a large async stdout write into Roar's pipe.
+    try { writeSync(1, String(ctl(args[1], args[2], args[3], args[4]) ?? '')); }
+    catch (e) { writeSync(1, 'error: ' + (e.stderr?.toString().trim() || e.message)); process.exitCode = 1; }
     return;
   }
   if (args[0] === 'claude-hook') return hook('claude');
