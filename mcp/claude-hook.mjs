@@ -403,6 +403,23 @@ function ctl(action, id, arg, arg2) {
     try { screen = tm || cx ? ctl('screen', id) : ''; } catch {}
     return JSON.stringify(chat(s, +arg || 0, screen, describe));
   }
+  if (action === 'rename') {
+    // A name given in Roar reaches Claude Code as /rename (its title and /resume list). Only into an idle
+    // prompt: a working session would queue it as a message, one asking for approval would type into the menu.
+    // Other CLIs have no rename command.
+    if ((s.tool || 'claude') !== 'claude' || s.state !== 'idle' || !(tm || cx)) return '';
+    ctl('send', id, '/rename ' + String(arg || '').replace(/\s+/g, ' ').trim().slice(0, 80));
+    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 400);  // Let the / menu filter before Enter (cl-session.js reply).
+    return ctl('send', id, 'key:enter');
+  }
+  if (action === 'quit') {
+    // Ends the session: closes its tmux pane or cmux surface, which ends the CLI, and drops its row now.
+    if (tm) run1(tm.bin, [...tx, 'kill-pane', '-t', tm.pane]);
+    else if (cx && cx.surface) run1(cx.bin, ['close-surface', '--workspace', cx.workspace, ...sf]);
+    else throw new Error('Roar can only end sessions it can type into (tmux or cmux)');
+    rmSync(join(DIR, id + '.json'), { force: true });
+    return 'ended';
+  }
   if (action === 'send') {
     const key = /^key:(.+)$/.exec(arg || '')?.[1];
     if (key && !KEYS[key]) throw new Error('unknown key');

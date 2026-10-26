@@ -186,7 +186,8 @@ check(JSON.stringify(core.parseNames('Sure!\n```json\n{"tab:3": " \\"Team  Docs\
   check(gk.every((k) => asked.includes(k + ':')), 'bulk group: one prompt asks for the group and every tab');
   check(Object.keys(core.parseNames('{"group:2":"G","tab:1":"A","tab:8":"B"}', gk)).join() === gk.join(), 'bulk group: a reply names the group and every tab');
   check(core.renameKeys('all:0', tabs).join() === 'tab:1,tab:2,tab:3,tab:5,tab:8,tab:10', 'bulk space: every tab, no groups, no ghosts, no hidden agent tabs');
-  check(core.renameKeys('ungrouped:0', tabs).join() === 'tab:2,tab:10', 'bulk ungrouped: every loose tab, no hidden agent tab'); }
+  check(core.renameKeys('ungrouped:0', tabs).join() === 'tab:2,tab:10', 'bulk ungrouped: every loose tab, no hidden agent tab');
+  check(core.renameKeys('sessions:0', tabs, [{ id: 'a-1' }, { id: 'b' }]).join() === 'session:a-1,session:b', 'bulk sessions: every listed session'); }
 check(JSON.stringify(core.parseNames('no json here', ['tab:1'])) === '{}', 'parse names: no JSON -> none');
 console.log(fail ? `${fail} failure(s)` : 'ok');
 process.exit(fail ? 1 : 0);

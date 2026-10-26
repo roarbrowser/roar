@@ -5220,6 +5220,8 @@ bool Controller::HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> 
       old = m->GetString(id).ToString();
       name.empty() ? (void)m->Remove(id) : (void)m->SetString(id, name);
       st.settings.agent_names = ToJson(Wrap(m));
+      // Tell the agent its new name too (claude-ctl types /rename when its prompt is idle).
+      if (!name.empty() && name != old) platform::RoarMcp({"claude-ctl", "rename", id, name}, [](const std::string&) {});
     } else {
       return callback->Failure(0, "kind must be tab, group, space or session"), true;
     }
@@ -5278,7 +5280,7 @@ bool Controller::HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> 
       return AgentStart(msg->GetString("id").ToString(), text, tabs, false, reply), true;
     }
     if (action == "tools") return platform::RoarMcp({"claude-ctl", "tools"}, [callback](const std::string& out) { callback->Success(out); }), true;
-    if (action != "focus" && action != "screen" && action != "send" && action != "chat") return callback->Failure(0, "bad action"), true;
+    if (action != "focus" && action != "screen" && action != "send" && action != "chat" && action != "quit") return callback->Failure(0, "bad action"), true;
     std::vector<std::string> args = {"claude-ctl", action, msg->GetString("id").ToString()};
     if (action == "send" || action == "screen") args.push_back(msg->GetString("text").ToString());
     if (action == "chat") {

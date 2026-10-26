@@ -312,7 +312,9 @@
   // The model's reply -> {key: name} for the asked keys only; names cut to 80 chars, empty dropped.
   // What one bulk rename covers: "group:3" (the group and its tabs), "all:<space>" (every tab, groups keep their
   // names) or "ungrouped:<space>". tabs: the active space's, as the sidebar gets them. Ghost tabs are never sent.
-  const renameKeys = (key, tabs) => {
+  // "sessions:" renames every agent session listed (sessions: [{id}]).
+  const renameKeys = (key, tabs, sessions = []) => {
+    if (key.startsWith('sessions:')) return sessions.map((c) => 'session:' + c.id);
     const [kind, id] = key.split(':'), real = tabs.filter((t) => !t.ghost && !/^roar:\/\/ui\/claude\.html/.test(t.url || ''));  // the sidebar hides these (agent full views)
     if (kind === 'group') return [key, ...real.filter((t) => t.group === +id).map((t) => 'tab:' + t.id)];
     return real.filter((t) => kind === 'all' || (!t.group && !t.pinned)).map((t) => 'tab:' + t.id);
