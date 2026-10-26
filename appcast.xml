@@ -76,5 +76,14 @@
       <description><![CDATA[Agent rows in the sidebar now show their state in color: green working, orange needs you, a ring when done; a session's own color is a bar on its edge. Renaming an agent session in Roar now renames it in Claude Code too. The AI section can rename every session at once and has a refresh button, and live sessions have an End button.]]></description>
       <enclosure url="https://github.com/roarbrowser/roar/releases/download/v1.5.3/Roar-1.5.3.dmg" type="application/octet-stream" sparkle:edSignature="FjjARuqUU/kH9bwfzlBfGgw7YdFxtJplhqDy3FG30w6UuCwny7+m4RsxwPGhvVVbqoqLxNoAKOmDcnSu3siPBw==" length="207619506"/>
     </item>
+    <item>
+      <title>1.5.4</title>
+      <pubDate>Mon, 26 Oct 2026 00:45:31 +0000</pubDate>
+      <sparkle:version>10504</sparkle:version>
+      <sparkle:shortVersionString>1.5.4</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[The agent terminal view now shows the whole screen: the agent's terminal takes the size of the view instead of a fixed 80 by 24, and long output is no longer cut off.]]></description>
+      <enclosure url="https://github.com/roarbrowser/roar/releases/download/v1.5.4/Roar-1.5.4.dmg" type="application/octet-stream" sparkle:edSignature="bN4p0KIX9Qht3yMeTxM4/co2fTsuyE2780x2Itw0YPZlJDxeJxjKsyMwW49RFZp7gRuEpenFFKt7oXSyoOixAQ==" length="207620398"/>
+    </item>
   </channel>
 </rss>
