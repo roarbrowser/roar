@@ -53,7 +53,7 @@ export function transcriptFor(s, born, home = process.env.HOME) {
   return '';
 }
 
-const tail = (path) => {
+export const tail = (path) => {
   const fd = openSync(path, 'r');
   try {
     const size = statSync(path).size, len = Math.min(size, TAIL), buf = Buffer.alloc(len);
@@ -101,6 +101,37 @@ export function parseClaude(raw) {
     }
   }
   return out.slice(-MAX_ITEMS);
+}
+
+// Work a Claude Code session started that hasn't finished: helper agents (Agent/Task) and background commands.
+// A foreground helper ends with its tool_result; background work (run_in_background, or a command moved to the
+// background after its timeout) ends with a <task-notification> naming its tool-use id. [{kind, label}], oldest first.
+export function runningWork(raw) {
+  const open = new Map(), bash = new Map();
+  const label = (t, n = 80) => String(t || '').replace(/\s+/g, ' ').trim().slice(0, n);
+  for (const line of String(raw).split('\n')) {
+    // Completions are logged as queue-operation / attachment lines too, not only as a user turn: match any line.
+    if (line.includes('task-notification')) for (const m of line.matchAll(/<tool-use-id>([\w-]+)<\/tool-use-id>/g)) open.delete(m[1]);
+    let d; try { d = JSON.parse(line); } catch { continue; }
+    if (d.isSidechain || !d.message) continue;
+    const c = d.message.content, blocks = typeof c === 'string' ? [{ type: 'text', text: c }] : Array.isArray(c) ? c : [];
+    for (const b of blocks) {
+      if (d.type === 'assistant' && b?.type === 'tool_use') {
+        const i = b.input || {};
+        if (b.name === 'Agent' || b.name === 'Task') open.set(b.id, { kind: 'helper', label: label(i.description || i.subagent_type) || 'A helper', bg: !!i.run_in_background });
+        else if (b.name === 'Bash') {
+          const it = { kind: 'command', label: label(i.description || i.command) || 'A command', bg: !!i.run_in_background };
+          if (it.bg) open.set(b.id, it); else bash.set(b.id, it);
+        }
+      } else if (d.type === 'user' && b?.type === 'tool_result') {
+        const text = typeof b.content === 'string' ? b.content : (Array.isArray(b.content) ? b.content.map((x) => x?.text || '').join(' ') : '');
+        if (/moved to the background/i.test(text) && bash.has(b.tool_use_id)) open.set(b.tool_use_id, { ...bash.get(b.tool_use_id), bg: true });
+        else if (open.has(b.tool_use_id) && !open.get(b.tool_use_id).bg) open.delete(b.tool_use_id);
+        bash.delete(b.tool_use_id);
+      }
+    }
+  }
+  return [...open.values()].slice(-10).map(({ kind, label }) => ({ kind, label }));
 }
 
 export function parseCodex(raw) {
@@ -189,7 +220,8 @@ export function chat(s, born, screen, describe = (t) => t) {
   if (tool !== 'claude' && tool !== 'codex') return { ...base, supported: false, items: [] };
   const path = transcriptFor(s, born);
   if (!path || !existsSync(path)) return { ...base, supported: true, items: [] };
-  const items = (tool === 'codex' ? parseCodex : parseClaude)(tail(path))
+  const raw = tail(path);
+  const items = (tool === 'codex' ? parseCodex : parseClaude)(raw)
     .map((x) => (x.kind === 'tools' ? { kind: 'tools', at: x.at, summary: summarize(x.calls), details: x.calls.map((c) => describe(c.tool, c.input)) } : x));
-  return { ...base, supported: true, items };
+  return { ...base, supported: true, items, running: tool === 'claude' ? runningWork(raw) : [] };
 }

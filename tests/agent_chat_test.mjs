@@ -3,7 +3,7 @@
 import { mkdtempSync, mkdirSync, writeFileSync, utimesSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { slug, pickTranscript, transcriptFor, parseClaude, parseCodex, summarize, approvalPrompt, busy, chat } from '../mcp/agent-chat.mjs';
+import { slug, pickTranscript, transcriptFor, parseClaude, parseCodex, runningWork, summarize, approvalPrompt, busy, chat } from '../mcp/agent-chat.mjs';
 
 let fail = 0;
 const check = (ok, what) => { if (!ok) fail++; console.log((ok ? 'ok   ' : 'FAIL ') + what); };
@@ -49,6 +49,20 @@ check(items[0].at === '2026-10-18T10:00:00Z', 'timestamp kept');
 
 const pasted = parseClaude(jl(user('\n\n<pasted_content id="ab12">\nfix the bug\nplease\n</pasted_content id="ab12">\n')));
 check(pasted.length === 1 && pasted[0].kind === 'user' && pasted[0].text === 'fix the bug\nplease', 'a pasted reply shows as the user\'s words');
+
+{
+  const use = (id, name, input) => asst([{ type: 'tool_use', id, name, input }]);
+  const res = (id, content) => user([{ type: 'tool_result', tool_use_id: id, content }]);
+  const r = runningWork(jl(
+    use('h1', 'Agent', { description: 'Review the diff' }), res('h1', 'done'),           // finished helper
+    use('h2', 'Agent', { description: 'Map the repo' }),                                  // still running
+    use('b1', 'Bash', { command: 'make', run_in_background: true }), res('b1', 'started'), // background, running
+    use('b2', 'Bash', { description: 'Long build', command: 'x' }), res('b2', 'Command did not complete... moved to the background (ID: z).'),
+    use('b3', 'Bash', { description: 'Release', command: 'y', run_in_background: true }), res('b3', 'started'),
+    user('<task-notification>\n<tool-use-id>b3</tool-use-id>\n<status>completed</status></task-notification>'),
+    use('b4', 'Bash', { command: 'ls' }), res('b4', 'a b')));                             // plain command, done
+  check(JSON.stringify(r) === JSON.stringify([{ kind: 'helper', label: 'Map the repo' }, { kind: 'command', label: 'make' }, { kind: 'command', label: 'Long build' }]), 'running work: open helpers and background commands only');
+}
 
 // Codex rollout: its injected context is dropped too; patches name their file.
 const cx = parseCodex(jl(

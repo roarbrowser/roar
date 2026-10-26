@@ -2771,6 +2771,18 @@ void Controller::ClaudeAlert(CefRefPtr<CefDictionaryValue> d) {
   auto [it, fresh] = claude_states_.try_emplace(id, state);
   if (fresh || it->second == state) return;
   it->second = state;
+  // An agent whose turn ended and stays idle 2 minutes gets its pages closed (the roar-mcp connection named in
+  // agent-mcp/<agent pid>.json); a new turn within the 2 minutes bumps the generation and keeps them.
+  int gen = ++claude_idle_gen_[id];
+  if (auto term = d->GetDictionary("term"); state == "idle" && term && term->GetType("pid") == VTYPE_INT && term->GetInt("pid") > 1)
+    CefPostDelayedTask(TID_UI, base::BindOnce([](std::string id, int pid, int gen) {
+      Controller* c = Controller::Get();
+      if (c->claude_idle_gen_[id] != gen) return;
+      std::ifstream in(std::filesystem::path(State::Get().Dir()) / "agent-mcp" / (std::to_string(pid) + ".json"));
+      auto v = CefParseJSON(std::string((std::istreambuf_iterator<char>(in)), {}), JSON_PARSER_RFC);
+      if (v && v->GetType() == VTYPE_DICTIONARY && v->GetDictionary()->GetType("owner") == VTYPE_STRING)
+        c->ReleaseAgentPages(v->GetDictionary()->GetString("owner").ToString());
+    }, id, term->GetInt("pid"), gen), 120000);
   claude_acked_.erase(id);
   claude_seen_.erase(id);
   platform::Unnotify("claude:" + id);
@@ -2868,6 +2880,8 @@ void Controller::ClaudeTick() {
       auto tv = CefParseJSON(std::string((std::istreambuf_iterator<char>(tin)), {}), JSON_PARSER_RFC);
       if (tv && tv->GetType() == VTYPE_DICTIONARY && tv->GetDictionary()->GetType("tools") == VTYPE_LIST)
         row->SetList("mcpTools", tv->GetDictionary()->GetList("tools")->Copy());
+      if (tv && tv->GetType() == VTYPE_DICTIONARY && tv->GetDictionary()->GetType("owner") == VTYPE_STRING)
+        row->SetString("mcpOwner", tv->GetDictionary()->GetString("owner"));
     }
     list->SetDictionary(list->GetSize(), row);
     seen.insert(d->GetString("id"));
@@ -3986,6 +4000,7 @@ std::string Controller::StateJson() {
     d->SetBool("muted", t.muted);
     d->SetBool("driven", t.driven);
     d->SetBool("agentMark", t.agent.marked);
+    if (!t.mcp_owner.empty()) d->SetString("mcpOwner", t.mcp_owner);  // Which agent holds it (the Agents board).
     if (!t.ask_llm.empty()) d->SetString("askLlm", t.ask_llm);
     d->SetBool("agentActive", t.agent_active);
     d->SetDouble("agentLast", t.agent.last);
@@ -5280,10 +5295,10 @@ bool Controller::HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> 
       return AgentStart(msg->GetString("id").ToString(), text, tabs, false, reply), true;
     }
     if (action == "tools") return platform::RoarMcp({"claude-ctl", "tools"}, [callback](const std::string& out) { callback->Success(out); }), true;
-    if (action != "focus" && action != "screen" && action != "send" && action != "chat" && action != "quit" && action != "resize") return callback->Failure(0, "bad action"), true;
+    if (action != "focus" && action != "screen" && action != "send" && action != "chat" && action != "quit" && action != "resize" && action != "running") return callback->Failure(0, "bad action"), true;
     std::vector<std::string> args = {"claude-ctl", action, msg->GetString("id").ToString()};
     if (action == "send" || action == "screen" || action == "resize") args.push_back(msg->GetString("text").ToString());
-    if (action == "chat") {
+    if (action == "chat" || action == "running") {
       // The CLI's start time links the session to its transcript (mcp/agent-chat.mjs pickTranscript).
       long long born = 0;
       for (size_t i = 0; i < claude_->GetSize(); ++i)

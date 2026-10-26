@@ -18,7 +18,7 @@ import { readFileSync, writeFileSync, writeSync, mkdirSync, rmSync, renameSync, 
 import { basename, delimiter, isAbsolute, join } from 'node:path';
 import { execFileSync, spawn } from 'node:child_process';
 import { homedir } from 'node:os';
-import { chat } from './agent-chat.mjs';
+import { chat, runningWork, transcriptFor, tail } from './agent-chat.mjs';
 
 const WIN = process.platform === 'win32';
 const HOME = process.env.HOME || homedir();
@@ -420,6 +420,12 @@ function ctl(action, id, arg, arg2) {
     let screen = '';
     try { screen = tm || cx ? ctl('screen', id) : ''; } catch {}
     return JSON.stringify(chat(s, +arg || 0, screen, describe));
+  }
+  if (action === 'running') {
+    // Helpers and background commands still going (the Agents board); [] for a CLI without a readable transcript.
+    if ((s.tool || 'claude') !== 'claude') return '[]';
+    const path = transcriptFor(s, +arg || 0);
+    return JSON.stringify(path && existsSync(path) ? runningWork(tail(path)) : []);
   }
   if (action === 'resize') {
     // "<cols>x<rows>": Roar's view size. A detached tmux window stays 80x24, and a fullscreen CLI then shows

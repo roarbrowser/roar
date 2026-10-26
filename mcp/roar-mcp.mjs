@@ -372,9 +372,10 @@ const child = spawn(process.execPath, [join(modules, 'chrome-devtools-mcp/build/
   { stdio: ['pipe', 'pipe', 'inherit'], env: { ...process.env, BUN_BE_BUN: '1' } });
 child.on('exit', (code) => shutdown(code ?? 0));
 
-// Tells Roar which of its own tools this session has, so Roar never asks an outdated session for a missing one.
+// Tells Roar which of its own tools this session has, so Roar never asks an outdated session for a missing one,
+// and which connection is this agent's, so Roar can close its pages once the agent's turn is over.
 const toolsFile = join(process.env.ROAR_DATA_DIR || join(process.env.HOME, 'Library/Application Support/Roar'), 'agent-mcp', PPID + '.json');
-try { mkdirSync(dirname(toolsFile), { recursive: true }); writeFileSync(toolsFile + '.tmp', JSON.stringify({ tools: TOOLS.map((t) => t.name) })); renameSync(toolsFile + '.tmp', toolsFile); } catch {}
+try { mkdirSync(dirname(toolsFile), { recursive: true }); writeFileSync(toolsFile + '.tmp', JSON.stringify({ tools: TOOLS.map((t) => t.name), owner: OWNER })); renameSync(toolsFile + '.tmp', toolsFile); } catch {}
 
 // A Roar update (Sparkle) swaps the bundle under a running session: hand the session to the new
 // roar-mcp (replayed initialize, proxied stdio) and tell the client to refetch its tools.

@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Agents</title>
+<link rel="stylesheet" href="roar.css">
+<style>
+/* Every agent session Roar knows, across tools: state, what it's doing, the helpers and background commands it
+   has running, and the tabs it holds. Opened from the sidebar's AI header. */
+body { background: var(--panel); margin: 0; min-height: 100vh; }
+header { display: flex; align-items: center; gap: 10px; padding: 14px 20px 10px; border-bottom: 1px solid var(--rule); }
+h1 { margin: 0; font: 800 22px/1.1 var(--round); flex: 1; }
+#summary { font-size: 12.5px; color: var(--ink-3); }
+main { padding: 14px 20px 24px; display: grid; gap: 10px; max-width: 980px; }
+.card { display: grid; grid-template-columns: auto 1fr auto; gap: 4px 12px; padding: 12px 14px; border-radius: 12px; background: var(--ground); box-shadow: inset 0 0 0 1px var(--rule); }
+.card.needs_you { box-shadow: inset 0 0 0 2px var(--mane); }
+.ic { position: relative; grid-row: span 2; align-self: start; padding-top: 2px; }
+.dot { position: absolute; right: -3px; bottom: -3px; width: 8px; height: 8px; border-radius: 50%; box-shadow: 0 0 0 2px var(--ground); }
+.dot.working, .dot.starting { background: var(--ok); } .dot.needs_you { background: var(--mane); }
+.dot.idle { background: var(--panel); box-shadow: inset 0 0 0 2px var(--ink-2), 0 0 0 2px var(--ground); }
+.name { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+.name b { font: 650 15px var(--ui); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.name span { font-size: 12px; color: var(--ink-3); white-space: nowrap; }
+.doing { grid-column: 2; font-size: 13px; color: var(--ink-2); overflow-wrap: anywhere; }
+.acts { grid-row: span 2; display: flex; gap: 6px; align-items: start; }
+.acts .btn { padding: 5px 10px; font-size: 12.5px; }
+.more { grid-column: 2 / -1; display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 12.5px; color: var(--ink-2); }
+.more:empty { display: none; }
+.more h3 { margin: 6px 0 2px; width: 100%; font: 600 11px var(--ui); color: var(--ink-3); text-transform: uppercase; letter-spacing: .04em; }
+.run { display: inline-flex; gap: 6px; align-items: center; }
+.run::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--ok); }
+.tab { max-width: 260px; padding: 2px 8px; border-radius: 6px; background: var(--panel); color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: left; }
+.tab:hover { background: var(--hover); }
+.empty { color: var(--ink-3); font-size: 13.5px; }
+</style>
+</head>
+<body>
+<header><h1>Agents</h1><span id="summary" role="status"></span><button class="btn" id="refresh" title="Read every agent again">Refresh</button></header>
+<main id="list" aria-live="polite"></main>
+<script src="bridge.js"></script>
+<script src="cl-session.js"></script>
+<script>
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+const STATES = { needs_you: 'Needs you', working: 'Working', idle: 'Done', starting: 'Starting' };
+const ORDER = { needs_you: 0, working: 1, starting: 2, idle: 3 };
+const ago = (ms) => { const m = Math.round((Date.now() - ms) / 60000); return !ms ? '' : m < 1 ? 'now' : m < 60 ? m + ' min ago' : m < 1440 ? Math.round(m / 60) + ' h ago' : Math.round(m / 1440) + ' d ago'; };
+let running = {}, busy = false;
+
+// Each Claude Code session's open helpers and background commands (claude-ctl running), one at a time.
+async function readRunning(items) {
+  for (const c of items) {
+    if (agentTool(c) !== 'claude') continue;
+    try { const r = await ask({ cmd: 'claude.ctl', action: 'running', id: c.id }); running[c.id] = typeof r === 'string' ? JSON.parse(r) : r; } catch {}
+  }
+}
+
+async function render() {
+  if (busy || document.hidden) return;
+  busy = true;
+  try {
+    const s = await ask({ cmd: 'state' }).then((x) => typeof x === 'string' ? JSON.parse(x) : x);
+    const names = agentNames(s), items = (s.claude?.items || []).filter((c) => !c.id.startsWith('new-'));
+    const state = (c) => c.state === 'needs_you' && c.acked ? 'working' : c.state || 'idle';
+    items.sort((a, b) => ORDER[state(a)] - ORDER[state(b)] || (b.updated || 0) - (a.updated || 0));
+    await readRunning(items);
+    const n = (k) => items.filter((c) => state(c) === k).length;
+    $('summary').textContent = items.length ? [`${items.length} agent${items.length > 1 ? 's' : ''}`, n('working') && `${n('working')} working`, n('needs_you') && `${n('needs_you')} need you`].filter(Boolean).join(' · ') : '';
+    if (!items.length) return void ($('list').innerHTML = '<p class="empty">No agents are running. Start one with Code in the sidebar, or run Claude Code, Codex, Gemini CLI or Qwen Code in a terminal.</p>');
+    $('list').innerHTML = items.map((c) => {
+      const st = state(c), run = running[c.id] || [];
+      // shortcut: only tabs in the active space are in state.tabs; tabs an agent holds in other spaces don't list here.
+      const tabs = c.mcpOwner ? s.tabs.filter((t) => t.mcpOwner === c.mcpOwner) : [];
+      const more = (run.length ? `<h3>Running now</h3>${run.map((r) => `<span class="run">${r.kind === 'helper' ? 'Helper' : 'Command'}: ${esc(r.label)}</span>`).join('')}` : '')
+        + (tabs.length ? `<h3>Tabs it holds</h3>${tabs.map((t) => `<button class="tab" data-tab="${t.id}" title="${esc(t.url)}">${esc(t.name || t.title || t.url)}</button>`).join('')}` : '');
+      return `<article class="card ${esc(st)}" aria-label="${esc(names[c.id] || c.project)}, ${STATES[st] || st}">`
+        + `<span class="ic">${agentIcon(c, 20)}<span class="dot ${esc(st)}" aria-hidden="true"></span></span>`
+        + `<span class="name"><b>${esc(names[c.id] || c.project)}</b><span>${esc(agentName(c))} · ${STATES[st] || st} · ${esc(ago(c.updated))}</span></span>`
+        + `<span class="acts"><button class="btn" data-open="${esc(c.id)}">Open</button>${c.live ? `<button class="btn" data-end="${esc(c.id)}">End</button>` : ''}</span>`
+        + `<span class="doing">${esc(st === 'needs_you' ? c.ask || c.doing : c.doing || (c.prompt || '').split('\n')[0]) || '&nbsp;'}<br><small style="color:var(--ink-3)">${esc(c.cwd || '')}</small></span>`
+        + `<div class="more">${more}</div></article>`;
+    }).join('');
+  } finally { busy = false; }
+}
+
+$('list').onclick = async (e) => {
+  const t = e.target.closest('[data-tab]'), o = e.target.closest('[data-open]'), x = e.target.closest('[data-end]');
+  if (t) return ask({ cmd: 'tab.activate', id: +t.dataset.tab });
+  if (o) return ask({ cmd: 'open', text: 'roar://ui/claude.html?id=' + encodeURIComponent(o.dataset.open), newTab: true });
+  if (x && confirm('End this session? Its terminal closes and the agent stops.')) {
+    x.disabled = true; x.textContent = 'Ending…';
+    const why = clSession.error(await clSession.ctl(x.dataset.end, 'quit'));
+    if (why) alert("Couldn't end it: " + why);
+    render();
+  }
+};
+$('refresh').onclick = () => { running = {}; render(); };
+render();
+setInterval(render, 4000);
+</script>
+</body>
+</html>

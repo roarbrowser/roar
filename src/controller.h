@@ -417,6 +417,7 @@ class Controller {
   bool sidebar_push_pending_ = false;
   std::map<std::string, std::pair<std::filesystem::file_time_type, CefRefPtr<CefDictionaryValue>>> claude_files_;  // ClaudeTick: session file -> mtime, parsed.
   std::map<std::string, std::string> mcp_tokens_;  // roar-mcp owner pid -> the token it got from agent.hello.
+  std::map<std::string, int> claude_idle_gen_;  // Per session, bumped on every state change: a stale close-pages timer does nothing.
   std::string cdp_token_;  // This launch's CDP token (<data>/cdp-token); agent.hello must present it.
   struct TargetClaim { std::string owner; int space = -1; double expires = 0; std::string group; } target_claim_;  // group: tab group name, made if missing.
   int AgentGroup(int space, const std::string& name);  // The space's group of that name, made unpinned if missing.
