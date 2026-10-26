@@ -211,6 +211,21 @@ export function where(env = process.env) {
   return t;
 }
 
+// Whether the CLI running this hook (the parent, past a shell) is a Claude Code bg-spare.
+function spare() {
+  try {
+    let pid = process.ppid;
+    for (let i = 0; i < 4 && pid > 1; i++) {
+      const m = /^\s*(\d+)\s+(.*)$/.exec(execFileSync('ps', ['-o', 'ppid=,command=', '-p', String(pid)], { encoding: 'utf8', timeout: 2000 }).trim());
+      if (!m) return false;
+      if (/(^|\s)(--)?bg-spare(\s|$)/.test(m[2])) return true;
+      if (!SHELLS.test(m[2].trim().split(/\s/)[0])) return false;
+      pid = +m[1];
+    }
+  } catch {}
+  return false;
+}
+
 function hook(tool, argEvent) {
   const now = Date.now();  // When the CLI fired this event, before stdin or locks can delay it.
   let ev;
@@ -226,6 +241,9 @@ function hook(tool, argEvent) {
     try { for (const f of readdirSync(DIR)) if (f.endsWith('.ended') && now - statSync(join(DIR, f)).mtimeMs > 7 * 86400000) rmSync(join(DIR, f), { force: true }); } catch {}
     return void rmSync(file, { force: true });
   }
+  // Claude Code's warm spares (`claude bg-spare`, kept ready for background agents) fire SessionStart
+  // before anyone uses one: no row until a real event (a prompt) shows it was picked up.
+  if (ev.hook_event_name === 'SessionStart' && !existsSync(file) && spare()) return;
   // A resumed session (same id) starts again.
   if (ev.hook_event_name === 'SessionStart') rmSync(ended, { force: true });
   else if (existsSync(ended)) return;
@@ -423,10 +441,21 @@ function ctl(action, id, arg, arg2) {
     return ctl('send', id, 'key:enter');
   }
   if (action === 'quit') {
-    // Ends the session: closes its tmux pane or cmux surface, which ends the CLI, and drops its row now.
+    // Ends the session: closes its tmux pane or cmux surface, which ends the CLI. The row goes only once the
+    // CLI's process is gone (SIGTERM after 3 s, SIGKILL after 5 s); .ended keeps a late hook from bringing it back.
     if (tm) run1(tm.bin, [...tx, 'kill-pane', '-t', tm.pane]);
     else if (cx && cx.surface) run1(cx.bin, ['close-surface', '--workspace', cx.workspace, ...sf]);
     else throw new Error('Roar can only end sessions it can type into (tmux or cmux)');
+    const pid = t.pid > 1 ? t.pid : 0;
+    const gone = () => { try { process.kill(pid, 0); return false; } catch (e) { return e.code === 'ESRCH'; } };
+    const nap = (ms) => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+    for (let i = 0; pid && !gone() && i < 60; i++) {
+      if (i === 30) try { process.kill(pid, 'SIGTERM'); } catch {}
+      if (i === 50) try { process.kill(pid, 'SIGKILL'); } catch {}
+      nap(100);
+    }
+    if (pid && !gone()) throw new Error(`its process (${pid}) didn't stop`);
+    try { writeFileSync(join(DIR, id + '.ended'), ''); } catch {}
     rmSync(join(DIR, id + '.json'), { force: true });
     return 'ended';
   }

@@ -49,6 +49,8 @@ body.tint-t pre { background: color-mix(in srgb, var(--cl-term) 22%, #15100c); }
 /* Chat view: the same session read from the CLI's transcript as bubbles; the terminal is one switch away. */
 body.chat-mode #screen, body.chat-mode #reply, body.chat-mode .keys, body:not(.chat-mode) #chat, body:not(.chat-mode) #chatform { display: none !important; }
 #chat { flex: 1; overflow: auto; margin: 0 20px; display: flex; flex-direction: column; gap: 10px; padding: 8px 0 12px; }
+/* Text size zooms what's inside the scroller, never the scroller: a zoomed scroller outgrew the window. */
+#msgs, #ask, #working, #chat-note { zoom: var(--ai-zoom, 1); }
 #msgs { display: flex; flex-direction: column; gap: 10px; }
 .msg { max-width: min(760px, 88%); padding: 10px 14px; border-radius: 14px; overflow-wrap: anywhere; font: 14px/1.55 var(--ui); }
 .msg.user { align-self: flex-end; background: var(--mane-soft); border-bottom-right-radius: 4px; white-space: pre-wrap; }
@@ -338,7 +340,13 @@ keys.onclick = async (e) => {
   if (b && !shownError(await clSession.key(id, b))) screen();
 };
 $('focus').onclick = async () => shownError(await clSession.ctl(id, 'focus'));
-$('end').onclick = async () => { if (confirm('End this session? Its terminal closes and the agent stops.') && !shownError(await clSession.ctl(id, 'quit'))) meta(); };
+$('end').onclick = async () => {
+  if (!confirm('End this session? Its terminal closes and the agent stops.')) return;
+  $('end').disabled = true; $('end').textContent = 'Ending…';
+  const failed = shownError(await clSession.ctl(id, 'quit'));
+  $('end').disabled = false; $('end').textContent = 'End';
+  if (!failed) meta();
+};
 // Keys straight into the agent: anywhere on the focused terminal, and the arrows in an empty reply box
 // (Enter there already accepts). The / menu takes its own arrows first (capture listener below).
 const TERM_KEYS = { ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right', Enter: 'enter', Escape: 'escape', Tab: 'tab', Backspace: 'backspace' };
@@ -530,7 +538,7 @@ $('slash-menu').addEventListener('mousedown', (e) => {
   if (d) slashPick(+d.dataset.i);
 });
 
-textSize($('tsize'), (s) => { termPx = 12.5 * s; $('chat').style.zoom = s; sentSize = ''; fit(); sizePane(); $('screen').scrollTop = $('screen').scrollHeight; });
+textSize($('tsize'), (s) => { termPx = 12.5 * s; document.body.style.setProperty('--ai-zoom', s); sentSize = ''; fit(); sizePane(); $('screen').scrollTop = $('screen').scrollHeight; });
 meta().then(() => (view === 'chat' ? chat() : screen()));
 setInterval(() => (view === 'chat' ? chat() : screen()), 1000);
 setInterval(meta, 3000);

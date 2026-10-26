@@ -462,7 +462,7 @@ body.drag-active .pinned:empty::before { content: 'Drop to pin'; color: var(--in
   <button class="dlbtn" id="dl-btn" title="Downloads (⇧⌘J)" aria-label="Downloads" hidden><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2.5v8M4.5 7.5 8 11l3.5-3.5M3 13.5h10"/></svg><span class="badge" id="dl-count"></span></button>
   <button class="feed" id="cl-btn" title="AI" aria-label="AI" aria-pressed="true" hidden><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="1.8" y="2.8" width="12.4" height="10.4" rx="2.2"/><path d="M4.8 6.4L6.8 8l-2 1.6M8.6 10h2.6"/></svg><span class="badge" id="cl-count"></span></button>
   <button class="feed" id="gh-btn" data-feed="gh-group" title="GitHub PRs" aria-label="GitHub PRs" hidden><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="4.5" cy="3.5" r="1.6"/><circle cx="4.5" cy="12.5" r="1.6"/><circle cx="11.5" cy="12.5" r="1.6"/><path d="M4.5 5.1v5.8M11.5 10.9V6.5c0-1.1-.9-2-2-2H7.5"/><path d="M9 3l-1.5 1.5L9 6"/></svg><span class="badge" id="gh-count"></span></button>
-  <button class="feed" id="ol-btn" title="Outlook" aria-label="Outlook" hidden><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="1.8" y="3.3" width="12.4" height="9.4" rx="1.6"/><path d="M2.4 4.4L8 8.6l5.6-4.2"/></svg><span class="badge" id="ol-count"></span></button>
+  <button class="feed" id="ol-btn" title="Outlook" aria-label="Outlook" hidden><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><!-- An inbox tray, so it never looks like the Gmail envelope beside it. --><rect x="1.8" y="2.8" width="12.4" height="10.4" rx="1.6"/><path d="M1.8 9h3.3l1 1.8h3.8l1-1.8h3.3"/></svg><span class="badge" id="ol-count"></span></button>
   <button class="feed" id="gm-btn" data-feed="gm-group" title="Unread mail" aria-label="Unread mail" hidden><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="1.8" y="3.3" width="12.4" height="9.4" rx="1.6"/><path d="M2.4 4.4L8 8.6l5.6-4.2"/></svg><span class="badge" id="gm-count"></span></button>
 </div>
 <div class="ctx" id="ctx" hidden></div>
@@ -1584,6 +1584,7 @@ document.addEventListener('click', async (e) => {
   e.stopPropagation();
   const c = (state.claude?.items || []).find((x) => x.id === q.dataset.clquit);
   if (!confirm(`End ${c?.project || 'this session'}? Its terminal closes and the agent stops.`)) return;
+  q.disabled = true; q.title = 'Ending…';  // The row goes once the agent's process has exited.
   const out = await clSession.ctl(q.dataset.clquit, 'quit');
   if (clSession.error(out)) showCtx(`<div class="head">${esc("Couldn't end it: " + clSession.error(out))}</div>`, { clientX: 8, clientY: 120 }, () => {});
   ask({ cmd: 'state' }).then(roar.render);
