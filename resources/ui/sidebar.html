@@ -189,11 +189,13 @@ body.drag-active .pinned:empty::before { content: 'Drop to pin'; color: var(--in
 /* Agent sessions: the dot says working (pulsing), needs you (orange, the row pulses) or idle;
    the same state is in the row's text for screen readers. */
 .vh { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
-.cl .dot.idle { background: var(--ink-3); } .cl .dot.needs_you { background: var(--mane, #d9822b); }
+.cl .dot.idle { background: var(--panel); box-shadow: inset 0 0 0 2px var(--ink-2), 0 0 0 2px var(--ground); } .cl .dot.needs_you { background: var(--mane, #d9822b); }
 /* Still, never blinking: a tinted row and an orange dot say a session needs you. */
 .cl .dot.working, .cl .dot.starting { background: var(--ok); }
-/* A session's own color (set in its full view) tints its row; needing you only bolds the name. */
-.cl.tint { background: color-mix(in srgb, var(--cl-bg) 20%, transparent); }
+/* The state owns the row's color (needing you fills it soft orange); a session's own color (set in its
+   full view) is only a bar on the left edge, so it never reads as a state. */
+.cl.tint { box-shadow: inset 3px 0 0 var(--cl-bg); }
+.cl.needs { background: var(--mane-soft); }
 .cl.needs .cl-name b { font-weight: 650; }
 /* Two lines per session: name and age, then what it's doing (wraps to two lines, never mid-word
    on one). Actions float over the right edge on hover, so they never take width from the text. */
