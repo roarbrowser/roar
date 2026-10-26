@@ -14,6 +14,8 @@ const clSession = {
   error: (out) => (out.startsWith('error: ') ? out.slice(7) : ''),
   // Types |text| then Enter; empty text just presses Enter (accepts the highlighted choice).
   async reply(id, text) {
+    // A trailing @path leaves the CLI's file suggestions open, and they take the Enter (a pasted image never sent).
+    if (/(^|\s)@\S+$/.test(text)) text += ' ';
     const out = text ? await this.ctl(id, 'send', text) : '';
     // A / command opens the CLI's command menu; Enter sent at once can land before it filters to the typed command.
     if (text.startsWith('/')) await new Promise((r) => setTimeout(r, 400));

@@ -3609,6 +3609,9 @@ void Controller::ZoomStep(int direction) {
   Tab* tab = ActiveTab();
   auto browser = tab && tab->view ? tab->view->GetBrowser() : nullptr;
   std::string host = tab ? HttpHost(tab->url) : "";
+  // The AI windows size their own text (text-size.js roarZoom): the menu takes ⌘+ before the page sees it.
+  if (browser && (StartsWith(tab->url, kClaudeUrl) || StartsWith(tab->url, "roar://ui/chat.html")))
+    return browser->GetMainFrame()->ExecuteJavaScript("window.roarZoom && roarZoom(" + std::to_string(direction) + ")", "", 0);
   if (!browser || host.empty()) return ShowHint("Zoom works on web pages");
   constexpr int n = sizeof(kZoomFactors) / sizeof(kZoomFactors[0]);
   double factor = std::pow(1.2, browser->GetHost()->GetZoomLevel());

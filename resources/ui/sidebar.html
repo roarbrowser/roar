@@ -531,10 +531,13 @@ window.roar = {
     for (const t of s.tabs) { const m = /^roar:\/\/ui\/claude\.html\?id=([\w-]+)/.exec(t.url || ''); if (m) clFull[m[1]] = t; }
     // Split pairs (any tab, agent views too) show together in Split; unsplit, each is back where it was.
     const byId = Object.fromEntries(state.tabs.map((t) => [t.id, t]));
-    const pairs = state.tabs.filter((t) => t.split && t.splitFirst && byId[t.splitWith]).map((t) => [t, byId[t.splitWith]]);
+    // A pair with a ghost tab in it stays under Ghost, still shown as a pair.
+    const allPairs = state.tabs.filter((t) => t.split && t.splitFirst && byId[t.splitWith]).map((t) => [t, byId[t.splitWith]]);
+    const pairs = allPairs.filter(([a, b]) => !a.ghost && !b.ghost), ghostPairs = allPairs.filter(([a, b]) => a.ghost || b.ghost);
+    const pairHtml = ([a, b]) => `<div class="split-pair${a.stacked ? ' stacked' : ''}">${tabRow(a, 0, true)}${tabRow(b, 0, true)}<button class="unsplit-pair" data-unsplit="${a.id}" title="Separate" aria-label="Separate split tabs">${x}</button></div>`;
     $('split-group').hidden = !pairs.length;
     $('split-count').textContent = pairs.length || '';
-    setHtml($('split-tabs'), pairs.map(([a, b]) => `<div class="split-pair${a.stacked ? ' stacked' : ''}">${tabRow(a, 0, true)}${tabRow(b, 0, true)}<button class="unsplit-pair" data-unsplit="${a.id}" title="Separate" aria-label="Separate split tabs">${x}</button></div>`).join(''));
+    setHtml($('split-tabs'), pairs.map(pairHtml).join(''));
     // Ask chats always list under AI (opening one turns AI back on), never as tabs.
     s = { ...s, tabs: s.tabs.filter((t) => !t.ghost && !t.split && !/^roar:\/\/ui\/claude\.html/.test(t.url || '') && !askTab(t)) };
     const pinned = s.tabs.filter((t) => t.pinned);
@@ -544,9 +547,9 @@ window.roar = {
     $('art-count').textContent = arts.length || '';
     setHtml($('art-tabs'), arts.map((t) => tabRow(t, limit)).join(''));
     const open = s.tabs.filter((t) => !t.pinned && !t.group && !arts.includes(t));  // Mail/PR tabs too: everything opened is a real tab.
-    $('ghost-group').hidden = !ghosts.length;
-    setHtml($('ghost-tabs'), ghosts.map((t) => tabRow(t, 0)).join(''));
-    $('ghost-count').textContent = ghosts.length || '';
+    $('ghost-group').hidden = !ghosts.length && !ghostPairs.length;
+    setHtml($('ghost-tabs'), ghosts.map((t) => tabRow(t, 0)).join('') + ghostPairs.map(pairHtml).join(''));
+    $('ghost-count').textContent = (ghosts.length + ghostPairs.flat().filter((t) => t.ghost).length) || '';
     const folderTab = (f) => s.tabs.find((t) => t.folder === f && !t.pinned && !t.group);
     // The folder's tab stands in for the link it opened; elsewhere it leads the list.
     const folderRows = (f, items, row) => {

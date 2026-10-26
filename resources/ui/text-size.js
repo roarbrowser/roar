@@ -12,6 +12,8 @@ function textSize(box, apply) {
     try { localStorage.setItem('aiTextScale', String(scale)); } catch {}
     apply(scale);
   };
+  // Roar's menu takes ⌘+ / ⌘− / ⌘0 before the page sees them and calls this (Controller::ZoomStep); 0 resets.
+  window.roarZoom = (d) => (d ? step(d) : (scale = 1.1, step(-1)));
   box.onclick = (e) => { const b = e.target.closest('[data-z]'); if (b) step(+b.dataset.z); };
   addEventListener('keydown', (e) => {
     if (!(e.metaKey || e.ctrlKey) || e.altKey) return;

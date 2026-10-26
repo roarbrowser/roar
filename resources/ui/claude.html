@@ -58,9 +58,9 @@ body.chat-mode #screen, body.chat-mode #reply, body.chat-mode .keys, body:not(.c
 .msg > :first-child { margin-top: 0; } .msg > :last-child { margin-bottom: 0; }
 .msg p { margin: 0 0 8px; } .msg ul, .msg ol { margin: 0 0 8px; padding-left: 22px; }
 .msg blockquote { margin: 0 0 8px; padding-left: 10px; border-left: 3px solid var(--rule); color: var(--ink-2); }
-.msg .table { overflow-x: auto; margin: 0 0 8px; }
+.msg .table { overflow-x: auto; max-width: 100%; margin: 0 0 8px; }
 .msg table { border-collapse: collapse; font-size: 0.95em; }
-.msg th, .msg td { border: 1px solid var(--rule); padding: 4px 8px; text-align: left; vertical-align: top; }
+.msg th, .msg td { border: 1px solid var(--rule); padding: 4px 8px; text-align: left; vertical-align: top; min-width: 8ch; overflow-wrap: anywhere; }
 .msg th { background: var(--rule); }
 .msg code { font: 12px var(--mono); background: var(--panel); padding: 1px 4px; border-radius: 4px; }
 .msg a { color: var(--mane-ink); }
@@ -352,20 +352,21 @@ $('end').onclick = async () => {
   $('end').disabled = false; $('end').textContent = 'End';
   if (!failed) meta();
 };
-// Keys straight into the agent: anywhere on the focused terminal, and the arrows in an empty reply box
-// (Enter there already accepts). The / menu takes its own arrows first (capture listener below).
-const TERM_KEYS = { ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right', Enter: 'enter', Escape: 'escape', Tab: 'tab', Backspace: 'backspace' };
-async function termKey(e, keys) {
-  const k = keys[e.key];
-  if (!k || e.metaKey || e.ctrlKey || e.altKey || e.shiftKey || e.isComposing) return;
+// Terminal view: with the reply box empty (or no field focused), Enter, arrows, Esc, Tab, Backspace and ⌃C go
+// straight to the session, so its menus and prompts work like a real terminal. Enter in the empty box already
+// accepts through the form; the / menu and Send tab's list take their keys first.
+const TERM_KEYS = { ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right', Escape: 'escape', Tab: 'tab', Backspace: 'backspace' };
+document.addEventListener('keydown', async (e) => {
+  if (view !== 'terminal' || $('reply').hidden || e.isComposing || e.metaKey || e.altKey || !$('tab-menu').hidden || !$('slash-menu').hidden) return;
+  const inField = e.target.closest?.('input, textarea, select, [contenteditable]');
+  if (inField && (e.target !== $('text') || $('text').value)) return;
+  // Letters and digits too while the terminal itself has focus (a menu's shortcut keys, y/n).
+  if (e.target === $('screen') && !e.ctrlKey && /^[0-9a-z]$/i.test(e.key)) { e.preventDefault(); if (!shownError(await clSession.ctl(id, 'send', e.key))) screen(); return; }
+  const k = e.ctrlKey ? (e.key === 'c' && !getSelection().toString() ? 'ctrl-c' : '') : e.shiftKey ? '' : TERM_KEYS[e.key] || (!inField && e.key === 'Enter' ? 'enter' : '');
+  if (!k) return;
   e.preventDefault();
   if (!shownError(await clSession.ctl(id, 'send', 'key:' + k))) screen();
-}
-$('screen').addEventListener('keydown', async (e) => {
-  if (/^[0-9a-z]$/i.test(e.key) && !e.metaKey && !e.ctrlKey && !e.altKey) { e.preventDefault(); if (!shownError(await clSession.ctl(id, 'send', e.key))) screen(); return; }
-  termKey(e, TERM_KEYS);
-});
-$('text').addEventListener('keydown', (e) => { if (!$('text').value) termKey(e, { ArrowUp: 'up', ArrowDown: 'down' }); });
+}, true);  // Capture: ahead of the Escape that closes Send tab's list, so that Escape stays in the page.
 $('cmic').replaceWith(dictMic($('ctext')));
 $('tmic').replaceWith(dictMic($('text')));
 
@@ -512,10 +513,23 @@ function slashPick(i) {
 }
 for (const box of [$('text'), $('ctext')]) slashMark.field(box);
 // A pasted image is saved by Roar and goes in as an @path mention, which every hooked CLI reads as a file.
-for (const box of [$('text'), $('ctext')]) box.addEventListener('paste', async (e) => {
+// A paste anywhere else on the page (the terminal mirror, the transcript) goes into the current view's box.
+document.addEventListener('paste', (e) => {
+  if ($('reply').hidden || e.target.closest?.('input, textarea, select, [contenteditable]')) return;
+  const box = $(view === 'chat' ? 'ctext' : 'text');
+  box.focus();
+  if (!pasteImages(box, e)) { e.preventDefault(); box.setRangeText(e.clipboardData?.getData('text/plain') || '', box.selectionStart, box.selectionEnd, 'end'); box.dispatchEvent(new Event('input')); }
+});
+for (const box of [$('text'), $('ctext')]) box.addEventListener('paste', (e) => pasteImages(box, e));
+// True when |e| carried images, which then go into |box| as @path mentions.
+function pasteImages(box, e) {
   const files = [...(e.clipboardData?.files || [])].filter((f) => /^image\/(png|jpeg|gif|webp)$/.test(f.type));
-  if (!files.length) return;
+  if (!files.length) return false;
   e.preventDefault();
+  savePasted(box, files);
+  return true;
+}
+async function savePasted(box, files) {
   for (const f of files) {
     const data = await new Promise((r) => { const fr = new FileReader(); fr.onload = () => r(String(fr.result).split(',')[1]); fr.readAsDataURL(f); });
     let path;
@@ -525,7 +539,7 @@ for (const box of [$('text'), $('ctext')]) box.addEventListener('paste', async (
     box.selectionStart = box.selectionEnd = at + ins.length;
     box.dispatchEvent(new Event('input'));
   }
-});
+}
 for (const box of [$('text'), $('ctext')]) {
   box.addEventListener('input', () => slashUpdate(box));
   box.addEventListener('blur', () => setTimeout(() => { if (slashBox === box && document.activeElement !== box) slashHide(); }, 150));
