@@ -101,3 +101,4 @@ pre .slash { color: var(--mane); }
 .dict-mic.busy { color: var(--mane-ink); }
 .dict-mic[aria-pressed="true"] { background: var(--mane); color: #fff; }
 .dict-mic:focus-visible { outline: 2px solid var(--mane); outline-offset: 1px; }
+.text-size button { font-weight: 600; min-width: 30px; }

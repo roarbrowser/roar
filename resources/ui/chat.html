@@ -63,6 +63,7 @@ textarea { flex: 1; resize: none; border: 0; background: none; color: var(--ink)
     <button class="btn" id="new" type="button">New</button>
     <select id="model" aria-label="Model"></select>
     <button class="btn" id="refresh-models" type="button" title="Look for models again" aria-label="Refresh models">↻</button>
+    <span id="tsize"></span>
     <button class="btn" id="settings" type="button" title="Providers, API keys and the default model">Providers</button>
   </header>
   <div id="log" role="log" aria-live="polite" aria-label="Conversation"></div>
@@ -84,9 +85,11 @@ textarea { flex: 1; resize: none; border: 0; background: none; color: var(--ink)
 <script src="agent-setup.js"></script>
 <script src="slash-mark.js"></script>
 <script src="dict-mic.js"></script>
+<script src="text-size.js"></script>
 <script>
 const $ = (id) => document.getElementById(id);
 $('mic').replaceWith(dictMic($('text')));
+textSize($('tsize'), (s) => { $('log').style.zoom = s; $('text').style.zoom = s; });
 const { defaultModel, SEARCH_SYSTEM, searchMode, openRequest, addSources, CLI_PROVIDERS, signedOutError, pageRefusal, cliPrompt, cliParser, parseProviders, sseParser, streamDelta, requestBody, detectProviders, renderMarkdown } = chatCore;
 let providers = [], chats = [], chat = null, streaming = null, webTab = null, page = null, searchDefault = false;
 

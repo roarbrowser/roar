@@ -95,7 +95,7 @@ details.chip ul { margin: 6px 0 0; padding-left: 26px; font: 12px/1.5 var(--mono
 </style>
 </head>
 <body>
-<header><span class="dot" id="dot" aria-hidden="true"></span><span id="icon"></span><h1 id="name">Agent session</h1><span class="state" id="state" role="status"></span><span class="segmented" id="view" role="group" aria-label="View"><button type="button" data-view="chat" title="The conversation as a chat">Chat</button><button type="button" data-view="terminal" title="The live terminal, with every key">Terminal</button></span><span class="colorpick"><button class="chip-dot" id="color-chip" aria-label="Session colors" aria-haspopup="true"></button><span class="pop"><span class="segmented" id="color-on" role="group" aria-label="Color"><button data-on="w">Window</button><button data-on="t">Terminal</button></span><span class="swatches" id="colors" role="group" aria-label="Session color"></span></span></span><button class="btn" id="attach">Send tab</button><button class="btn" id="beside" title="Split this view beside the web page you used last">Side by side</button><button class="btn" id="focus" title="Bring its terminal window to the front">Terminal</button><button class="btn" id="end" title="End this session (closes its terminal)">End</button></header>
+<header><span class="dot" id="dot" aria-hidden="true"></span><span id="icon"></span><h1 id="name">Agent session</h1><span class="state" id="state" role="status"></span><span id="tsize"></span><span class="segmented" id="view" role="group" aria-label="View"><button type="button" data-view="chat" title="The conversation as a chat">Chat</button><button type="button" data-view="terminal" title="The live terminal, with every key">Terminal</button></span><span class="colorpick"><button class="chip-dot" id="color-chip" aria-label="Session colors" aria-haspopup="true"></button><span class="pop"><span class="segmented" id="color-on" role="group" aria-label="Color"><button data-on="w">Window</button><button data-on="t">Terminal</button></span><span class="swatches" id="colors" role="group" aria-label="Session color"></span></span></span><button class="btn" id="attach">Send tab</button><button class="btn" id="beside" title="Split this view beside the web page you used last">Side by side</button><button class="btn" id="focus" title="Bring its terminal window to the front">Terminal</button><button class="btn" id="end" title="End this session (closes its terminal)">End</button></header>
 <p class="status" id="chat-off" role="note" hidden></p>
 <pre id="screen" aria-live="off" tabindex="0" aria-label="Terminal (focus it to type arrows, Enter, Esc and Tab into the agent)"></pre>
 <section id="chat" aria-label="Conversation"><p class="note" id="chat-note" hidden></p><div id="msgs" role="log" aria-live="polite" aria-relevant="additions"></div><div id="ask" role="group" aria-labelledby="ask-q" hidden></div><div id="working" role="status" hidden>Working…</div></section>
@@ -110,6 +110,7 @@ details.chip ul { margin: 6px 0 0; padding-left: 26px; font: 12px/1.5 var(--mono
 <script src="chat-core.js"></script>
 <script src="slash-mark.js"></script>
 <script src="dict-mic.js"></script>
+<script src="text-size.js"></script>
 <script>
 const $ = (id) => document.getElementById(id);
 const params = new URLSearchParams(location.search), cwd = params.get('cwd') || '';
@@ -249,15 +250,17 @@ let busy = false;
 function fit() {
   const pre = $('screen'), cols = Math.max(40, ...pre.textContent.split('\n').map((l) => l.length));
   const w = pre.clientWidth - 32;  // padding
-  if (w > 0) pre.style.fontSize = Math.max(8, Math.min(12.5, w / (cols * 0.6))) + 'px';
+  if (w > 0) pre.style.fontSize = Math.max(8, Math.min(termPx, w / (cols * 0.6))) + 'px';
 }
 addEventListener('resize', fit);
+// Text size (text-size.js): the terminal's font, and the whole conversation zoomed to match.
+let termPx = 12.5;
 // The agent's tmux window follows this view's size (claude-ctl resize), so a fullscreen CLI gets every row we can show.
 let sentSize = '', sizeTimer = 0;
 function sizePane() {
   const pre = $('screen');
   if (pre.hidden || view === 'chat' || !session?.term?.tmux) return;
-  const cols = Math.floor((pre.clientWidth - 32) / (12.5 * 0.6)), rows = Math.floor((pre.clientHeight - 28) / (12.5 * 1.45));
+  const cols = Math.floor((pre.clientWidth - 32) / (termPx * 0.6)), rows = Math.floor((pre.clientHeight - 28) / (termPx * 1.45));
   const size = `${cols}x${rows}`;
   if (cols < 20 || rows < 5 || size === sentSize) return;
   sentSize = size;
@@ -527,6 +530,7 @@ $('slash-menu').addEventListener('mousedown', (e) => {
   if (d) slashPick(+d.dataset.i);
 });
 
+textSize($('tsize'), (s) => { termPx = 12.5 * s; $('chat').style.zoom = s; sentSize = ''; fit(); sizePane(); $('screen').scrollTop = $('screen').scrollHeight; });
 meta().then(() => (view === 'chat' ? chat() : screen()));
 setInterval(() => (view === 'chat' ? chat() : screen()), 1000);
 setInterval(meta, 3000);
