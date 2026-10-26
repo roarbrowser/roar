@@ -85,5 +85,14 @@
       <description><![CDATA[The agent terminal view now shows the whole screen: the agent's terminal takes the size of the view instead of a fixed 80 by 24, and long output is no longer cut off.]]></description>
       <enclosure url="https://github.com/roarbrowser/roar/releases/download/v1.5.4/Roar-1.5.4.dmg" type="application/octet-stream" sparkle:edSignature="bN4p0KIX9Qht3yMeTxM4/co2fTsuyE2780x2Itw0YPZlJDxeJxjKsyMwW49RFZp7gRuEpenFFKt7oXSyoOixAQ==" length="207620398"/>
     </item>
+    <item>
+      <title>1.5.5</title>
+      <pubDate>Mon, 26 Oct 2026 01:14:02 +0000</pubDate>
+      <sparkle:version>10505</sparkle:version>
+      <sparkle:shortVersionString>1.5.5</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[The agent view and the Ask tab have text size buttons (A− and A+, or Cmd+ and Cmd−) for the terminal and the chat; the size is shared across AI windows.]]></description>
+      <enclosure url="https://github.com/roarbrowser/roar/releases/download/v1.5.5/Roar-1.5.5.dmg" type="application/octet-stream" sparkle:edSignature="MIRrDvQGIlyZABiKCh5HJ03rx1h+QZNDKDgeyibWajcIkL1hA+FuCUXNeuLCHZ27aNMrouI4JRKY40yIWSRoAg==" length="207616978"/>
+    </item>
   </channel>
 </rss>
