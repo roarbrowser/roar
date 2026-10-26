@@ -111,5 +111,14 @@
       <description><![CDATA[New Agents board (from the AI header) shows every agent, what it's doing, the helpers and commands it has running, and the tabs it holds. The agent chat shows running helpers. Agents' tabs now close two minutes after the agent finishes its turn, unless it starts again.]]></description>
       <enclosure url="https://github.com/roarbrowser/roar/releases/download/v1.6.0/Roar-1.6.0-intel.dmg" type="application/octet-stream" sparkle:edSignature="J7XAhGqS1CP98fzlOcpsPIxy967MWZzb029/Ya0t876lRe/6KcwwbSY9ofhxx40CELR6Sn9zamOmbATQ/CjjCQ==" length="228819127"/>
     </item>
+    <item>
+      <title>1.6.1</title>
+      <pubDate>Mon, 26 Oct 2026 02:45:13 +0000</pubDate>
+      <sparkle:version>10601</sparkle:version>
+      <sparkle:shortVersionString>1.6.1</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[Pasting an image into an agent now sends it. Cmd+ and Cmd- change text size in the AI windows. In the terminal view, arrow keys, Enter, Esc, Tab and Ctrl-C reach the agent without clicking the terminal first. Wide tables wrap. Split ghost tabs stay under Ghost.]]></description>
+      <enclosure url="https://github.com/roarbrowser/roar/releases/download/v1.6.1/Roar-1.6.1-intel.dmg" type="application/octet-stream" sparkle:edSignature="4SIEDUsPlxPjOJD1DZD448uLq+cbJzncMc/dzqwvMNI/8MfMz30VvSTL7xQmPzrZ19ouDHtQvNXaKNpuWu+RCg==" length="228821543"/>
+    </item>
   </channel>
 </rss>

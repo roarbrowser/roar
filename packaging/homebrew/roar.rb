@@ -1,8 +1,8 @@
 # Homebrew cask for Roar. Lives in the roarbrowser/homebrew-tap tap as Casks/roar.rb;
 # scripts/release.sh updates version and sha256 here on each release.
 cask "roar" do
-  version "1.6.0"
-  sha256 "0dd9ae0ceb793709b439ad21cf489672374e09bf2ae5d93eaacea54529b91b01"
+  version "1.6.1"
+  sha256 "da55a4a451ef60654f6fa09bc5774ed50618fe316c060670a34178be25bf981e"
 
   url "https://github.com/roarbrowser/roar/releases/download/v#{version}/Roar-#{version}.dmg"
   name "Roar"
