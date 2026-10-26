@@ -102,5 +102,14 @@
       <description><![CDATA[Claude Code's background spare processes no longer show up as stuck agent sessions. Ending a session removes it once the agent has fully stopped. The Outlook and Gmail buttons have different icons. Bigger text no longer lets the chat scroll below the message box.]]></description>
       <enclosure url="https://github.com/roarbrowser/roar/releases/download/v1.5.6/Roar-1.5.6-intel.dmg" type="application/octet-stream" sparkle:edSignature="yVVcKrDKRhsjbD727w+U0zDQFG20UiY7vsDps0Bi+U6CdtIY1mvOrKdTLzCXLPhyD7l8wSW7ijrkest8XitzBg==" length="228818525"/>
     </item>
+    <item>
+      <title>1.6.0</title>
+      <pubDate>Mon, 26 Oct 2026 02:11:42 +0000</pubDate>
+      <sparkle:version>10600</sparkle:version>
+      <sparkle:shortVersionString>1.6.0</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[New Agents board (from the AI header) shows every agent, what it's doing, the helpers and commands it has running, and the tabs it holds. The agent chat shows running helpers. Agents' tabs now close two minutes after the agent finishes its turn, unless it starts again.]]></description>
+      <enclosure url="https://github.com/roarbrowser/roar/releases/download/v1.6.0/Roar-1.6.0-intel.dmg" type="application/octet-stream" sparkle:edSignature="J7XAhGqS1CP98fzlOcpsPIxy967MWZzb029/Ya0t876lRe/6KcwwbSY9ofhxx40CELR6Sn9zamOmbATQ/CjjCQ==" length="228819127"/>
+    </item>
   </channel>
 </rss>
