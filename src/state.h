@@ -24,6 +24,7 @@ struct SavedTab {
   double agent_last = 0;
   std::string name;  // Given in Roar (rename): shown instead of the page title.
   std::string ask_llm;  // An Ask-about-this-page tab's AI, so it lists under AI after a restore too.
+  int win = 0;  // Its window's place in the session (0: the first, and every tab saved before windows were).
 };
 
 // A named, colored set of tabs in one space. A pinned group's tabs come back

@@ -199,7 +199,8 @@ void State::Load() {
     for (size_t i = 0; i < list->GetSize(); ++i) {
       auto t = list->GetDictionary(i);
       tabs.push_back({Str(t, "url"), Str(t, "title"), Bool(t, "pinned"), Num(t, "lastActive"),
-                      static_cast<int>(Num(t, "space")), static_cast<int>(Num(t, "group")), Str(t, "icon"), Str(t, "favicon"), Bool(t, "agent"), Num(t, "agentLast"), Str(t, "name"), Str(t, "askLlm")});
+                      static_cast<int>(Num(t, "space")), static_cast<int>(Num(t, "group")), Str(t, "icon"), Str(t, "favicon"), Bool(t, "agent"), Num(t, "agentLast"), Str(t, "name"), Str(t, "askLlm"),
+                      static_cast<int>(Num(t, "window"))});
     }
   }
   active_index = static_cast<int>(Num(d, "activeIndex"));
@@ -342,6 +343,7 @@ void State::Save() {
     if (!tabs[i].favicon.empty()) t->SetString("favicon", tabs[i].favicon);
     if (!tabs[i].name.empty()) t->SetString("name", tabs[i].name);
     if (!tabs[i].ask_llm.empty()) t->SetString("askLlm", tabs[i].ask_llm);
+    if (tabs[i].win) t->SetInt("window", tabs[i].win);
     if (tabs[i].agent) t->SetBool("agent", true), t->SetDouble("agentLast", tabs[i].agent_last);
     tl->SetDictionary(i, t);
   }
