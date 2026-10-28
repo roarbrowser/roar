@@ -1599,6 +1599,7 @@ int Controller::NewTab(const std::string& url, bool activate, bool pinned, doubl
   if (from && from->space != tab.space) from = nullptr;
   if (from) {
     tab.opener = from->id;
+    tab.win = from->win;  // A link opens in its opener's window, focused or not.
     tab.agent = InheritAgentMark(from->agent, from->driven, NowSeconds());
     if (from->group && !ghost) tab.group = from->group;
     pos = std::find_if(tabs_.begin(), tabs_.end(), [&](const Tab& t) { return t.id == from->id; }) + 1;
@@ -6514,6 +6515,7 @@ void Controller::CloseWinTabs(Win* w) {
   Win* other = nullptr;
   for (auto& o : wins_)
     if (o.get() != w && !o->closing) other = other ? other : o.get();
+  if (win_ == w) HideCommandBar(), HideFind(false);  // They hang off this shell.
   w->closing = true;
   std::vector<int> doomed;
   for (auto& t : tabs_) {
@@ -6534,7 +6536,9 @@ void Controller::CloseWinTabs(Win* w) {
 bool Controller::CanCloseShell(CefRefPtr<CefWindow> shell) {
   if (closing_) return true;
   // One of several windows closes alone; the last one, or Quit, quits.
-  if (Win* w = WinOfShell(shell); w && wins_.size() > 1 && !quitting_) {
+  // Windows already closing don't count: closing two quickly must not archive the last one's pinned tabs.
+  size_t open = std::count_if(wins_.begin(), wins_.end(), [](const std::unique_ptr<Win>& o) { return !o->closing; });
+  if (Win* w = WinOfShell(shell); w && !w->closing && open > 1 && !quitting_) {
     CloseWinTabs(w);
     return true;
   }
