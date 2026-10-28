@@ -72,7 +72,7 @@ static bool g_stay_behind = false;
   return NO;
 }
 - (void)newWindow:(id)sender {
-  roar::platform::LaunchInstance();
+  roar::Controller::Get()->NewWindow();  // In this process: another instance would add a second Dock icon.
 }
 - (NSMenu*)applicationDockMenu:(NSApplication*)sender {
   NSMenu* menu = [[NSMenu alloc] init];

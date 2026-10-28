@@ -55,6 +55,7 @@ struct Tab {
   bool can_forward = false;
   double last_active = 0;
   int space = 0;
+  int win = 0;  // The Win (shell window) that owns it; kept tabs list in every window's sidebar.
   std::string folder;  // "mail" or "github": the space's one tab for that sidebar group's links.
   std::string folder_item;  // The folder link it opened; the sidebar shows the tab in its place.
   int group = 0;
@@ -72,6 +73,22 @@ struct Tab {
   std::string reader_origin;  // The article's address while the tab shows Reader mode.
   std::string reader_markdown;
   std::string reader_title;
+};
+
+// One shell window: its sidebar and the tab it shows. Each window has its own active tab and
+// space; spaces' profiles (CefRequestContext) are shared, so cookies are live across windows.
+// The command bar, find bar, hint and extension popup are single and follow the focused window.
+struct Win {
+  int id = 0;
+  CefRefPtr<CefWindow> shell;
+  CefRefPtr<CefBoxLayout> layout;
+  CefRefPtr<CefPanel> sidebar_panel;
+  CefRefPtr<CefView> sidebar_button;  // Windows only: shows a collapsed sidebar.
+  CefRefPtr<CefBrowserView> sidebar;
+  int active_id = 0;
+  int space = 0;  // Its active space while another window is focused (State::active_space is the focused one's).
+  bool sidebar_visible = true;
+  bool closing = false;  // Its shell is closing: its tabs go without picking a successor.
 };
 
 // One file saved from a page, listed on roar://ui/downloads.html.
@@ -100,6 +117,11 @@ class Controller {
 
   void Start();
   void Focus();
+  // ⌘N: another shell window in this process, in the focused window's space.
+  void NewWindow();
+  void OnShellActivated(CefRefPtr<CefWindow> shell);
+  void OnShellResized(CefRefPtr<CefWindow> shell);
+  size_t window_count() const { return wins_.size(); }
   // Roar went to the background: paint the visible tabs onto the shell window,
   // so window previews that capture only it (Vorssaint) show the page.
   void PaintPreview();
@@ -143,7 +165,7 @@ class Controller {
   // AppleScript `execute javascript`: refuses Roar pages, ghost tabs and spaces with agents off.
   bool ExecuteScriptFromApp(int id, const std::string& code);
   const std::vector<Tab>& tabs() const { return tabs_; }
-  int active_id() const { return active_id_; }
+  int active_id() const { return win_->active_id; }
 
   // Commands.
   void ShowCommandBar(bool new_tab, bool ghost = false);
@@ -258,8 +280,8 @@ class Controller {
                    const std::string& request, CefRefPtr<Callback> callback);
   // Settings > Backup's backup.* commands (controller_backup.cc).
   bool HandleBackup(CefRefPtr<CefBrowser> browser, CefRefPtr<CefDictionaryValue> msg, CefRefPtr<Callback> callback);
-  bool CanCloseShell();
-  void OnShellDestroyed();
+  bool CanCloseShell(CefRefPtr<CefWindow> shell);
+  void OnShellDestroyed(CefRefPtr<CefWindow> shell);
   bool CanCloseTabWindow(CefRefPtr<CefWindow> window);
   void OnTabWindowCreated(CefRefPtr<CefWindow> window);
   void OnTabWindowActivated(CefRefPtr<CefWindow> window);
@@ -280,7 +302,33 @@ class Controller {
   Tab* FindTab(int id);
   Tab* FindTabByBrowser(CefRefPtr<CefBrowser> browser);
   Tab* FindTabByWindow(CefRefPtr<CefWindow> window);
-  Tab* ActiveTab() { return FindTab(active_id_); }
+  Tab* ActiveTab() { return FindTab(win_->active_id); }
+  // Windows. win_ is the focused one; every per-window member (shell, sidebar, active tab) is read
+  // through it, so code that acts for another window switches win_ with a WinScope.
+  Win* FindWin(int id);
+  Win* WinOfShell(CefRefPtr<CefWindow> shell);
+  Win* WinOfSidebar(CefRefPtr<CefBrowser> browser);
+  Win* WinOf(const Tab& tab);  // Its owner, or the focused window when that's gone.
+  void UseWin(Win* w);  // Makes |w| the focused window (swaps State::active_space).
+  void Focused(Win* w);  // UseWin, and records |w| as the window the person is in.
+  // Acts as |w| for its lifetime, then returns to the window before, or to the one the person
+  // focused meanwhile. A null |w| does nothing.
+  struct WinScope {
+    WinScope(Controller* c, Win* w) : c(c), prev(c->win_->id), focus(c->focused_win_), set(w) { if (w) c->UseWin(w); }
+    ~WinScope() {
+      if (!set) return;
+      Win* to = c->FindWin(c->focused_win_ != focus ? c->focused_win_ : prev);
+      if (!to) to = c->FindWin(c->focused_win_);
+      if (to) c->UseWin(to);
+    }
+    Controller* c;
+    int prev, focus;
+    Win* set;
+  };
+  Win* MakeWin(int space);  // Builds and shows a shell window.
+  void ApplySidebarWidthHere();  // ApplySidebarWidth for win_ alone.
+  void CloseWinTabs(Win* w);  // Its kept tabs move to another window; the rest are archived.
+  std::vector<int> VisibleIdsOf(Win* w);
   bool IsUiBrowser(CefRefPtr<CefBrowser> browser) const;
   CefRect ContentRect();
   std::vector<int> VisibleIds();
@@ -334,11 +382,12 @@ class Controller {
   void MaybeQuit();
 
   CefRefPtr<Client> client_;
-  CefRefPtr<CefWindow> shell_;
-  CefRefPtr<CefBoxLayout> layout_;
-  CefRefPtr<CefPanel> sidebar_panel_;
-  CefRefPtr<CefView> sidebar_button_;  // Windows only: shows a collapsed sidebar.
-  CefRefPtr<CefBrowserView> sidebar_;
+  std::vector<std::unique_ptr<Win>> wins_;
+  Win none_;  // win_ before the first window and after the last one closes: a null shell.
+  Win* win_ = &none_;
+  int next_win_ = 1;
+  int focused_win_ = 0;  // The window the person last activated.
+  bool quitting_ = false;  // Quit: closing a shell quits instead of closing one window.
   CefRefPtr<CefWindow> command_window_;
   CefRefPtr<CefBrowserView> command_bar_;
   CefRefPtr<CefWindow> hint_window_;
@@ -365,7 +414,6 @@ class Controller {
   std::vector<Tab> tabs_;
   int next_id_ = 1;
   int ghost_session_ = 0;  // Names the Ghost-<n> profile of the current ghost session.
-  int active_id_ = 0;
   std::set<int> stray_seen_;  // Browsers outside Roar whose first address was seen.
   std::vector<CefRefPtr<CefBrowser>> strays_held_;  // Strays a CDP client was attached to; PollDriven retries them.
   // Alerts agents sent through the MCP server (notify_user / ask_user), this session only.
@@ -438,7 +486,6 @@ class Controller {
   bool command_ghost_ = false;  // The command bar opens a ghost tab.
   bool command_visible_ = false;
   bool sidebar_drag_poll_ = false;
-  bool sidebar_visible_ = true;
   bool save_pending_ = false;
   bool pages_save_pending_ = false;
   bool closing_ = false;

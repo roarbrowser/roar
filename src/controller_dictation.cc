@@ -52,11 +52,11 @@ void Controller::DictationSet(const std::string& state, const std::string& detai
   if (state == "error" && !detail.empty() && (dictation_state_ != "error" || dictation_detail_ != detail)) Notice("dictation", "Dictation stopped", detail);
   dictation_state_ = state;
   dictation_detail_ = detail;
-  auto sidebar = sidebar_ ? sidebar_->GetBrowser() : nullptr;
-  if (!sidebar) return;
   auto v = CefValue::Create();
   v->SetDictionary(DictationJson());
-  sidebar->GetMainFrame()->ExecuteJavaScript(
+  for (auto& w : wins_)
+    if (auto sidebar = w->sidebar ? w->sidebar->GetBrowser() : nullptr)
+      sidebar->GetMainFrame()->ExecuteJavaScript(
       "window.roar && roar.dictation && roar.dictation(" + CefWriteJSON(v, JSON_WRITER_DEFAULT).ToString() + ")", "", 0);
 }
 

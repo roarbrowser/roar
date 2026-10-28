@@ -2,6 +2,7 @@
 
 #include "action_watch.h"
 #include "arc_import.h"
+#include "window_tabs.h"
 #include "agent_connect.h"
 #include "agent_files.h"
 
@@ -459,17 +460,21 @@ class SidebarButtonDelegate : public CefButtonDelegate {
 
 class ShellDelegate : public CefWindowDelegate {
  public:
+  explicit ShellDelegate(CefRect bounds = CefRect()) : bounds_(bounds) {}
   void OnWindowDestroyed(CefRefPtr<CefWindow> window) override {
-    Controller::Get()->OnShellDestroyed();
+    Controller::Get()->OnShellDestroyed(window);
   }
   bool CanClose(CefRefPtr<CefWindow> window) override {
-    return Controller::Get()->CanCloseShell();
+    return Controller::Get()->CanCloseShell(window);
   }
   void OnWindowBoundsChanged(CefRefPtr<CefWindow> window, const CefRect& bounds) override {
-    Controller::Get()->Relayout();
+    Controller::Get()->OnShellResized(window);
+  }
+  void OnWindowActivationChanged(CefRefPtr<CefWindow> window, bool active) override {
+    if (active) Controller::Get()->OnShellActivated(window);
   }
   CefRect GetInitialBounds(CefRefPtr<CefWindow> window) override {
-    return CefDisplay::GetPrimaryDisplay()->GetWorkArea();
+    return bounds_.width > 0 ? bounds_ : CefDisplay::GetPrimaryDisplay()->GetWorkArea();
   }
   CefSize GetMinimumSize(CefRefPtr<CefView> view) override { return CefSize(720, 480); }
 #ifdef _WIN32
@@ -485,6 +490,7 @@ class ShellDelegate : public CefWindowDelegate {
   cef_runtime_style_t GetWindowRuntimeStyle() override { return CEF_RUNTIME_STYLE_ALLOY; }
 
  private:
+  CefRect bounds_;  // Empty: the display's work area (the first window).
   IMPLEMENT_REFCOUNTING(ShellDelegate);
 };
 
@@ -1226,35 +1232,8 @@ void Controller::Start() {
   if (platform::Headless()) platform::InstallStatusItem();
   DisablePasswordManager(CefRequestContext::GetGlobalContext());
 
-  shell_ = CefWindow::CreateTopLevelWindow(new ShellDelegate());
-  shell_->SetTitle("Roar");
-  CefBoxLayoutSettings box;
-  box.horizontal = true;
-  layout_ = shell_->SetToBoxLayout(box);
-  sidebar_panel_ = CefPanel::CreatePanel(new SidebarPanelDelegate());
-  sidebar_panel_->SetToFillLayout();
-  sidebar_ = CreateUiView(client_, "sidebar.html");
-  sidebar_panel_->AddChildView(sidebar_);
-  shell_->AddChildView(sidebar_panel_);
-  layout_->SetFlexForView(sidebar_panel_, 0);
-  // The rest of the shell is the backdrop the tab windows sit on.
-  auto backdrop = CefPanel::CreatePanel(nullptr);
-  shell_->AddChildView(backdrop);
-  layout_->SetFlexForView(backdrop, 1);
-#ifdef _WIN32
-  // In the strip ContentRect leaves above the pages while the sidebar is collapsed.
-  auto show = CefLabelButton::CreateLabelButton(new SidebarButtonDelegate(), "\u2630  Show sidebar");
-  show->SetTooltipText("Show sidebar (Ctrl+Alt+B)");
-  show->SetVisible(!sidebar_visible_);
-  backdrop->AddChildView(show);
-  show->SetBounds(CefRect(4, 6, 120, 28));
-  sidebar_button_ = show;
-#endif
-  shell_->Show();
-#ifdef _WIN32
-  platform::SetSidebarButton(shell_->GetWindowHandle(), !sidebar_visible_);  // Also sets the window icon.
-#endif
-  ApplySidebarWidth();
+  UseWin(MakeWin(state.active_space));
+  focused_win_ = win_->id;
 
   command_bar_ = CreateUiView(client_, "command.html");
   command_window_ = CefWindow::CreateTopLevelWindow(new PopupDelegate(command_bar_));
@@ -1285,6 +1264,10 @@ void Controller::Start() {
       int id = NewTab(saved.url, false, false, saved.last_active, saved.space);
       FindTab(id)->favicon = saved.favicon;
       FindTab(id)->agent = {saved.agent, saved.agent_last};
+      // An update restore brings back every window; the windows past the first are built here.
+      int slot = RestoreSlot(saved.win);
+      while (static_cast<int>(wins_.size()) <= slot) MakeWin(saved.space), Focused(wins_.front().get());
+      FindTab(id)->win = wins_[slot]->id;
       if (static_cast<int>(i) == state.active_index && saved.space == state.active_space) restored_active = id;
       continue;
     }
@@ -1300,6 +1283,15 @@ void Controller::Start() {
     FindTab(id)->name = saved.name;
     FindTab(id)->favicon = saved.favicon;
     FindTab(id)->agent = {saved.agent, saved.agent_last};
+  }
+  for (size_t i = 1; i < wins_.size(); ++i) {  // Restored windows show their most recent tab.
+    Win* w = wins_[i].get();
+    Tab* best = nullptr;
+    for (auto& t : tabs_)
+      if (t.win == w->id && (!best || t.last_active > best->last_active)) best = &t;
+    WinScope scope(this, w);
+    State::Get().active_space = best ? best->space : State::Get().active_space;
+    ActivateTab(best ? best->id : NewTab(kNewTabUrl, false));
   }
   if (restored_active) {
     ActivateTab(restored_active);
@@ -1334,6 +1326,116 @@ void Controller::Start() {
       platform::RoarMcp({"agent-hooks", "status"}, [this](const std::string& out) { SetAgentHooks(out); });
     });
   });
+}
+
+Win* Controller::MakeWin(int space) {
+  wins_.push_back(std::make_unique<Win>());
+  Win* w = wins_.back().get();
+  w->id = next_win_++;
+  w->space = space;
+  // A later window cascades from the focused one, at its size.
+  CefRect at;
+  if (win_->shell) at = win_->shell->GetBounds(), at.x += 28, at.y += 28;
+  w->shell = CefWindow::CreateTopLevelWindow(new ShellDelegate(at));
+  w->shell->SetTitle("Roar");
+  CefBoxLayoutSettings box;
+  box.horizontal = true;
+  w->layout = w->shell->SetToBoxLayout(box);
+  w->sidebar_panel = CefPanel::CreatePanel(new SidebarPanelDelegate());
+  w->sidebar_panel->SetToFillLayout();
+  w->sidebar = CreateUiView(client_, "sidebar.html");
+  w->sidebar_panel->AddChildView(w->sidebar);
+  w->shell->AddChildView(w->sidebar_panel);
+  w->layout->SetFlexForView(w->sidebar_panel, 0);
+  // The rest of the shell is the backdrop the tab windows sit on.
+  auto backdrop = CefPanel::CreatePanel(nullptr);
+  w->shell->AddChildView(backdrop);
+  w->layout->SetFlexForView(backdrop, 1);
+#ifdef _WIN32
+  // In the strip ContentRect leaves above the pages while the sidebar is collapsed.
+  auto show = CefLabelButton::CreateLabelButton(new SidebarButtonDelegate(), "\u2630  Show sidebar");
+  show->SetTooltipText("Show sidebar (Ctrl+Alt+B)");
+  show->SetVisible(!w->sidebar_visible);
+  backdrop->AddChildView(show);
+  show->SetBounds(CefRect(4, 6, 120, 28));
+  w->sidebar_button = show;
+#endif
+  w->shell->Show();
+  if (platform::Headless()) platform::HideApp();  // Showing a window must not unhide a headless Roar.
+#ifdef _WIN32
+  platform::SetSidebarButton(w->shell->GetWindowHandle(), !w->sidebar_visible);  // Also sets the window icon.
+#endif
+  {
+    WinScope scope(this, w);
+    ApplySidebarWidthHere();
+  }
+  return w;
+}
+
+Win* Controller::FindWin(int id) {
+  for (auto& w : wins_)
+    if (w->id == id) return w.get();
+  return nullptr;
+}
+
+Win* Controller::WinOfShell(CefRefPtr<CefWindow> shell) {
+  for (auto& w : wins_)
+    if (w->shell && shell && w->shell->IsSame(shell)) return w.get();
+  return nullptr;
+}
+
+Win* Controller::WinOfSidebar(CefRefPtr<CefBrowser> browser) {
+  for (auto& w : wins_)
+    if (auto b = w->sidebar ? w->sidebar->GetBrowser() : nullptr; b && browser && b->IsSame(browser)) return w.get();
+  return nullptr;
+}
+
+Win* Controller::WinOf(const Tab& tab) {
+  Win* w = FindWin(tab.win);
+  return w ? w : win_;
+}
+
+void Controller::UseWin(Win* w) {
+  if (!w || w == win_) return;
+  State& st = State::Get();
+  if (win_ != &none_) win_->space = st.active_space;
+  win_ = w;
+  // A space removed while this window was in the background: fall back to the first.
+  if (!st.FindSpace(w->space) && !st.spaces.empty()) w->space = st.spaces.front().id;
+  st.active_space = w->space;
+}
+
+void Controller::Focused(Win* w) {
+  if (!w) return;
+  UseWin(w);
+  focused_win_ = w->id;
+}
+
+void Controller::OnShellActivated(CefRefPtr<CefWindow> shell) {
+  if (Win* w = WinOfShell(shell); w && w != win_) {
+    // The command bar belongs to the window it opened over; no refocus, which would pull that one back.
+    if (command_visible_) command_visible_ = false, platform::DetachChild(win_->shell->GetWindowHandle(), command_window_->GetWindowHandle());
+    Focused(w);
+    PushSidebar();
+  } else if (w) {
+    focused_win_ = w->id;
+  }
+}
+
+void Controller::OnShellResized(CefRefPtr<CefWindow> shell) {
+  WinScope scope(this, WinOfShell(shell));
+  if (scope.set) Relayout();
+}
+
+void Controller::NewWindow() {
+  if (!win_->shell || closing_) return;
+  int space = State::Get().active_space;
+  HideCommandBar();
+  if (find_visible_) HideFind(false);
+  Win* w = MakeWin(space);
+  Focused(w);
+  ActivateTab(NewTab(kNewTabUrl, false, false, 0, space));
+  ShowCommandBar(false);
 }
 
 void Controller::SetAgentHooks(const std::string& out) {
@@ -1419,8 +1521,8 @@ void Controller::CheckAgentHooks() {
 }
 
 void Controller::PaintPreview() {
-  if (!shell_ || platform::Headless()) return;
-  platform::ClearBackdrop(shell_->GetWindowHandle());
+  if (!win_->shell || platform::Headless()) return;
+  for (auto& w : wins_) platform::ClearBackdrop(w->shell->GetWindowHandle());
   for (const Tab& tab : tabs_)
     if (tab.view && tab.window && !tab.floating && tab.window->IsVisible())
       if (auto browser = tab.view->GetBrowser())
@@ -1429,18 +1531,18 @@ void Controller::PaintPreview() {
 
 void Controller::OnPreviewShot(int tab_id, const std::string& jpeg) {
   Tab* tab = FindTab(tab_id);
-  if (shell_ && tab && tab->window && tab->window->IsVisible())
-    platform::AddBackdrop(shell_->GetWindowHandle(), tab->window->GetWindowHandle(), jpeg);
+  if (Win* w = tab ? WinOf(*tab) : nullptr; w && w->shell && tab->window && tab->window->IsVisible())
+    platform::AddBackdrop(w->shell->GetWindowHandle(), tab->window->GetWindowHandle(), jpeg);
 }
 
 void Controller::ClearPreview() {
-  if (shell_) platform::ClearBackdrop(shell_->GetWindowHandle());
+  for (auto& w : wins_) platform::ClearBackdrop(w->shell->GetWindowHandle());
 }
 
 void Controller::Focus() {
-  if (!shell_) return;
-  shell_->Show();
-  shell_->Activate();
+  if (!win_->shell) return;
+  win_->shell->Show();
+  win_->shell->Activate();
   FocusTab(ActiveTab(), true);
 }
 
@@ -1463,7 +1565,8 @@ void Controller::PrepareUpdateRestore(const std::string& build) {
 
 void Controller::Quit() {
   // A second Quit while one is under way (or with no shell) quits outright.
-  if (shell_ && !closing_) shell_->Close();
+  quitting_ = true;
+  if (win_->shell && !closing_) win_->shell->Close();
   else CefQuitMessageLoop();
 }
 
@@ -1479,6 +1582,7 @@ int Controller::NewTab(const std::string& url, bool activate, bool pinned, doubl
   tab.url = url.empty() ? kNewTabUrl : url;
   tab.title = tab.url;
   tab.ghost = ghost;
+  tab.win = win_->id;
   tab.ask_llm = std::move(next_ask_llm_), next_ask_llm_.clear();  // Set before the first push, so it never lists as a tab.
   tab.pinned = pinned && !ghost;
   if (tab.pinned) tab.home_url = tab.url;
@@ -1526,7 +1630,7 @@ int Controller::OpenTargetTab(const std::string& url) {
   // Schemes are case-insensitive: ROAR:// must not slip past.
   bool roar = url.size() >= 5 && std::equal(url.begin(), url.begin() + 5, "roar:",
                                             [](char a, char b) { return std::tolower((unsigned char)a) == b; });
-  if (!shell_ || space < 0 || roar) return -1;
+  if (!win_->shell || space < 0 || roar) return -1;
   // Agents' tabs open in the background; roar-mcp asks for agent.front when the agent wants it shown.
   int id = NewTab(url, false, false, 0, space);
   // The tab's browser exists once its window does; it gets its window now, unshown
@@ -1648,24 +1752,28 @@ int Controller::NewTabFrom(CefRefPtr<CefBrowser> opener, const std::string& url,
 
 CefRect Controller::ContentRect() {
 #ifdef _WIN32
-  CefRect r = shell_ ? shell_->GetClientAreaBoundsInScreen() : CefRect();  // Below the native caption.
+  CefRect r = win_->shell ? win_->shell->GetClientAreaBoundsInScreen() : CefRect();  // Below the native caption.
 #else
-  CefRect r = shell_ ? shell_->GetBounds() : CefRect();
+  CefRect r = win_->shell ? win_->shell->GetBounds() : CefRect();
 #endif
-  int left = sidebar_visible_ ? SidebarWidth() : kGutter;
-  int top = sidebar_visible_ ? kGutter : 40;  // Clear the traffic lights.
+  int left = win_->sidebar_visible ? SidebarWidth() : kGutter;
+  int top = win_->sidebar_visible ? kGutter : 40;  // Clear the traffic lights.
   return CefRect(r.x + left, r.y + top, std::max(0, r.width - left - kGutter),
                  std::max(0, r.height - top - kGutter));
 }
 
-std::vector<int> Controller::VisibleIds() {
-  if (SplitPair* p = SplitOf(active_id_)) return {p->a, p->b};
-  if (active_id_) return {active_id_};
+std::vector<int> Controller::VisibleIds() { return VisibleIdsOf(win_); }
+
+std::vector<int> Controller::VisibleIdsOf(Win* w) {
+  if (SplitPair* p = SplitOf(w->active_id)) return {p->a, p->b};
+  if (w->active_id) return {w->active_id};
   return {};
 }
 
+// On screen in its own window, whichever window is focused.
 bool Controller::IsVisible(int id) {
-  auto v = VisibleIds();
+  Tab* t = FindTab(id);
+  auto v = VisibleIdsOf(t ? WinOf(*t) : win_);
   return std::find(v.begin(), v.end(), id) != v.end();
 }
 
@@ -1687,9 +1795,9 @@ CefRect Controller::RectFor(int id) {
 
 // Shows the visible tabs' windows over the shell and hides every other one.
 void Controller::SyncWindows() {
-  if (!shell_) return;
+  if (!win_->shell) return;
   for (auto& t : tabs_) {
-    if (t.floating) continue;
+    if (t.floating || WinOf(t) != win_) continue;  // Other windows keep what they show.
     if (IsVisible(t.id)) ShowTabWindow(&t);
     else HideTabWindow(&t);
     SyncPaneNav(&t);
@@ -1728,7 +1836,7 @@ bool Controller::Pair(int a, int b, bool stacked) {
 }
 
 void Controller::Unsplit(int id) {
-  int key = id ? id : active_id_;
+  int key = id ? id : win_->active_id;
   std::erase_if(splits_, [&](const SplitPair& p) { return p.a == key || p.b == key; });
   SyncWindows();
   PushSidebar();
@@ -1736,26 +1844,26 @@ void Controller::Unsplit(int id) {
 
 // The draggable divider in the gap between the panes; hidden unless a split is on screen.
 void Controller::SyncDivider() {
-  if (!shell_) return;
+  if (!win_->shell) return;
   auto v = VisibleIds();
-  if (v.size() < 2) return platform::SetSplitDivider(shell_->GetWindowHandle(), 0, 0, 0, 0, false, nullptr, nullptr, nullptr);
+  if (v.size() < 2) return platform::SetSplitDivider(win_->shell->GetWindowHandle(), 0, 0, 0, 0, false, nullptr, nullptr, nullptr);
   CefRect a = RectFor(v[0]), r = ContentRect();
   bool stacked = SplitOf(v[0])->stacked;
   CefRect gap = stacked ? CefRect(r.x, a.y + a.height, r.width, kGutter) : CefRect(a.x + a.width, r.y, kGutter, r.height);
-  platform::SetSplitDivider(shell_->GetWindowHandle(), gap.x, gap.y, gap.width, gap.height, stacked,
+  platform::SetSplitDivider(win_->shell->GetWindowHandle(), gap.x, gap.y, gap.width, gap.height, stacked,
       [this](int sx, int sy) {
-        SplitPair* p = SplitOf(active_id_);
+        SplitPair* p = SplitOf(win_->active_id);
         if (!p) return;
         CefRect c = ContentRect();
         SetSplitRatio(p->stacked ? double(sy - c.y) / std::max(1, c.height) : double(sx - c.x) / std::max(1, c.width));
       },
       [this] { SetSplitRatio(0.5); },
-      [this](int step) { if (SplitPair* p = SplitOf(active_id_)) SetSplitRatio(p->ratio + step * 0.02); });
+      [this](int step) { if (SplitPair* p = SplitOf(win_->active_id)) SetSplitRatio(p->ratio + step * 0.02); });
 }
 
 // The on-screen pair's first-pane share, kept on the pair so it survives switching away and back.
 void Controller::SetSplitRatio(double ratio) {
-  SplitPair* p = SplitOf(active_id_);
+  SplitPair* p = SplitOf(win_->active_id);
   if (!p) return;
   p->ratio = std::clamp(ratio, kMinPane, 1 - kMinPane);
   SyncWindows();
@@ -1827,47 +1935,53 @@ void Controller::ShowTabWindow(Tab* tab) {
     return;
   }
   tab->window->SetBounds(RectFor(tab->id));
-  platform::AttachChild(shell_->GetWindowHandle(), tab->window->GetWindowHandle());
+  platform::AttachChild(win_->shell->GetWindowHandle(), tab->window->GetWindowHandle());
 }
 
 void Controller::HideTabWindow(Tab* tab) {
   if (tab && tab->window && !tab->floating)
-    platform::DetachChild(shell_->GetWindowHandle(), tab->window->GetWindowHandle());
+    platform::DetachChild(win_->shell->GetWindowHandle(), tab->window->GetWindowHandle());
 }
 
 void Controller::OnTabWindowCreated(CefRefPtr<CefWindow> window) {
   platform::StyleWindow(window->GetWindowHandle(), 10, false);
   Tab* tab = FindTabByWindow(window);
   if (!tab || tab->floating || !IsVisible(tab->id)) return;
+  WinScope scope(this, WinOf(*tab));
   window->SetBounds(RectFor(tab->id));
   window->Show();
-  platform::AttachChild(shell_->GetWindowHandle(), window->GetWindowHandle());
+  platform::AttachChild(win_->shell->GetWindowHandle(), window->GetWindowHandle());
   SyncPaneNav(tab);
-  if (tab->id == active_id_) FocusTab(tab);
+  if (tab->id == win_->active_id) FocusTab(tab);
 }
 
 // A page may move or resize a popup it opened (window.moveTo/resizeTo; Outlook's
 // pop-out compose does); a docked tab snaps back to its slot.
 void Controller::OnTabWindowMoved(CefRefPtr<CefWindow> window, const CefRect& bounds) {
   Tab* tab = FindTabByWindow(window);
-  if (!tab || tab->floating || !IsVisible(tab->id) || !shell_) return;
+  if (!tab || tab->floating || !IsVisible(tab->id) || !win_->shell) return;
+  WinScope scope(this, WinOf(*tab));
   CefRect want = RectFor(tab->id);
   if (bounds == want) return;
   CefPostTask(TID_UI, base::BindOnce([](int id) { Controller::Get()->SnapTabWindow(id); }, tab->id));
 }
 
 void Controller::SnapTabWindow(int id) {
-  if (Tab* t = FindTab(id); t && t->window && !t->floating && IsVisible(id)) t->window->SetBounds(RectFor(id));
+  Tab* t = FindTab(id);
+  if (!t || !t->window || t->floating || !IsVisible(id)) return;
+  WinScope scope(this, WinOf(*t));
+  t->window->SetBounds(RectFor(id));
 }
 
 // Clicking into the other split pane makes that tab the active one.
 void Controller::OnTabWindowActivated(CefRefPtr<CefWindow> window) {
   Tab* tab = FindTabByWindow(window);
-  if (!tab || tab->floating || tab->id == active_id_ || !IsVisible(tab->id)) return;
+  if (tab && !tab->floating) Focused(WinOf(*tab));
+  if (!tab || tab->floating || tab->id == win_->active_id || !IsVisible(tab->id)) return;
   if (Tab* old = ActiveTab()) old->last_active = NowSeconds();
-  active_id_ = tab->id;
+  win_->active_id = tab->id;
   tab->last_active = NowSeconds();
-  shell_->SetTitle(tab->title.empty() ? "Roar" : tab->title);
+  win_->shell->SetTitle(tab->title.empty() ? "Roar" : tab->title);
   PushSidebar();
   SaveSoon();
 }
@@ -1876,6 +1990,8 @@ void Controller::FocusTab(Tab* tab, bool force) {
   if (!tab || !tab->window || !tab->view) return;
   // Window activation would pull Roar in front of the app the person is using (an agent's tab, a link it opened).
   if (!force && !platform::AppActive()) return;
+  // Nor raise a window behind the one the person is in (a tab closing or loading there).
+  if (!force && !tab->floating && WinOf(*tab)->id != focused_win_) return;
   tab->window->Activate();
   tab->view->RequestFocus();
   if (auto browser = (tab->view ? tab->view->GetBrowser() : nullptr)) browser->GetHost()->SetFocus(true);
@@ -1883,23 +1999,39 @@ void Controller::FocusTab(Tab* tab, bool force) {
 
 void Controller::ActivateTab(int id) {
   Tab* tab = FindTab(id);
-  if (!tab || !shell_) return;
+  if (!tab || !win_->shell) return;
   if (tab->floating) return DockTab(id);
+  if (Win* owner = WinOf(*tab); owner != win_) {
+    auto v = VisibleIdsOf(owner);
+    if (std::find(v.begin(), v.end(), id) != v.end()) {
+      // On screen in its own window: go to that window.
+      HideCommandBar();
+      Focused(owner);
+      if (platform::AppActive()) win_->shell->Activate();
+    } else {
+      // A kept tab listed in every sidebar, or one opened elsewhere: it moves to this window, with its split partner.
+      HideTabWindow(tab);
+      tab->win = win_->id;
+      if (SplitPair* p = SplitOf(id))
+        for (int pid : {p->a, p->b})
+          if (Tab* t = FindTab(pid)) HideTabWindow(t), t->win = win_->id;
+    }
+  }
   if (find_visible_ && find_tab_ != id) HideFind(false);
   if (Tab* old = ActiveTab()) old->last_active = NowSeconds();
   // Another tab shows alone; the split stays and comes back with either of its tabs (drag a tab onto one to change a pane).
-  active_id_ = id;
+  win_->active_id = id;
   State::Get().active_space = tab->space;
   tab->last_active = NowSeconds();
   SyncWindows();
   FocusTab(tab);
-  shell_->SetTitle(tab->title.empty() ? "Roar" : tab->title);
+  win_->shell->SetTitle(tab->title.empty() ? "Roar" : tab->title);
   PushSidebar();
   SaveSoon();
 }
 
 void Controller::Relayout() {
-  if (!shell_) return;
+  if (!win_->shell) return;
   CefRect area = ContentRect();
   for (int id : VisibleIds())
     if (Tab* t = FindTab(id); t && t->window && !t->floating) t->window->SetBounds(RectFor(id));
@@ -1923,6 +2055,8 @@ void Controller::CloseTab(int id) {
   if (it == tabs_.end()) return;
   Tab tab = *it;
   size_t index = it - tabs_.begin();
+  Win* owner = WinOf(tab);
+  WinScope scope(this, owner);
   tabs_.erase(it);
   if (find_visible_ && find_tab_ == id) HideFind(false);
   std::erase_if(splits_, [&](const SplitPair& p) { return p.a == id || p.b == id; });
@@ -1939,15 +2073,17 @@ void Controller::CloseTab(int id) {
   }
   // Removed from tabs_ first, so CanCloseTabWindow lets the window go.
   if (tab.window) {
-    platform::DetachChild(shell_->GetWindowHandle(), tab.window->GetWindowHandle());
+    platform::DetachChild(win_->shell->GetWindowHandle(), tab.window->GetWindowHandle());
     // Force: a page's "Leave site?" prompt would show on the detached window and orphan it.
     if (auto b = tab.view ? tab.view->GetBrowser() : nullptr) b->GetHost()->CloseBrowser(true);
     tab.window->Close();
   }
-  if (active_id_ == id) {
-    active_id_ = 0;
-    // Prefer the next tab in the same space, then the previous one.
-    auto usable = [&](const Tab& t) { return t.space == tab.space && !t.floating; };
+  if (win_->active_id == id && owner->closing) {
+    win_->active_id = 0;
+  } else if (win_->active_id == id) {
+    win_->active_id = 0;
+    // Prefer the next tab in the same space and window, then the previous one.
+    auto usable = [&](const Tab& t) { return t.space == tab.space && !t.floating && WinOf(t) == owner; };
     Tab* next = nullptr;
     for (size_t i = index; i < tabs_.size() && !next; ++i)
       if (usable(tabs_[i])) next = &tabs_[i];
@@ -2123,10 +2259,12 @@ Tab* Controller::FindTabByWindow(CefRefPtr<CefWindow> window) {
 }
 
 bool Controller::IsUiBrowser(CefRefPtr<CefBrowser> browser) const {
-  for (const auto& view : {sidebar_, command_bar_, hint_, find_}) {
+  for (const auto& view : {command_bar_, hint_, find_}) {
     auto b = view ? view->GetBrowser() : nullptr;
     if (b && b->IsSame(browser)) return true;
   }
+  for (const auto& w : wins_)
+    if (auto b = w->sidebar ? w->sidebar->GetBrowser() : nullptr; b && b->IsSame(browser)) return true;
   return false;
 }
 
@@ -2143,7 +2281,7 @@ void Controller::ShowCommandBar(bool new_tab, bool ghost) {
   std::string url;
   if (Tab* tab = ActiveTab(); tab && !new_tab && !StartsWith(tab->url, "roar://")) url = tab->url;
   command_window_->Show();
-  platform::AttachChild(shell_->GetWindowHandle(), command_window_->GetWindowHandle());
+  platform::AttachChild(win_->shell->GetWindowHandle(), command_window_->GetWindowHandle());
   command_window_->Activate();
   if (auto browser = command_bar_->GetBrowser()) {
     browser->GetMainFrame()->ExecuteJavaScript(
@@ -2169,7 +2307,7 @@ void Controller::ShowCommandBar(bool new_tab, bool ghost) {
 void Controller::HideCommandBar() {
   if (!command_window_ || !command_visible_) return;
   command_visible_ = false;
-  platform::DetachChild(shell_->GetWindowHandle(), command_window_->GetWindowHandle());
+  platform::DetachChild(win_->shell->GetWindowHandle(), command_window_->GetWindowHandle());
   FocusTab(ActiveTab());
 }
 
@@ -2179,12 +2317,12 @@ void Controller::ShowHint(const std::string& text) {
   if (auto browser = hint_->GetBrowser())
     browser->GetMainFrame()->ExecuteJavaScript("window.roar && roar.show(" + JsString(text) + ")",
                                                "", 0);
-  platform::AttachChild(shell_->GetWindowHandle(), hint_window_->GetWindowHandle());
+  platform::AttachChild(win_->shell->GetWindowHandle(), hint_window_->GetWindowHandle());
   int generation = ++hint_generation_;
   CefPostDelayedTask(TID_UI, base::BindOnce([](int gen) {
                        auto* c = Controller::Get();
-                       if (c->hint_generation_ == gen && c->hint_window_ && c->shell_)
-                         platform::DetachChild(c->shell_->GetWindowHandle(),
+                       if (c->hint_generation_ == gen && c->hint_window_ && c->win_->shell)
+                         platform::DetachChild(c->win_->shell->GetWindowHandle(),
                                                c->hint_window_->GetWindowHandle());
                      }, generation),
                      2200);
@@ -2352,10 +2490,10 @@ void Controller::FloatActiveTab() {
   });
   int space = tab->space;
   int id = tab->id;
-  platform::DetachChild(shell_->GetWindowHandle(), tab->window->GetWindowHandle());
+  platform::DetachChild(win_->shell->GetWindowHandle(), tab->window->GetWindowHandle());
   tab->floating = true;
   std::erase_if(splits_, [&](const SplitPair& p) { return p.a == id || p.b == id; });
-  CefRect work = CefDisplay::GetDisplayMatchingBounds(shell_->GetBounds(), false)->GetWorkArea();
+  CefRect work = CefDisplay::GetDisplayMatchingBounds(win_->shell->GetBounds(), false)->GetWorkArea();
   tab->window->SetBounds(CefRect(work.x + work.width - 504, work.y + work.height - 344, 480, 320));
   platform::SetFloating(tab->window->GetWindowHandle(), true, tab->title);
   tab->window->Show();
@@ -2486,7 +2624,7 @@ void Controller::Reload(bool ignore_cache) {
 // opener, keeping window.opener, instead of a bare Chrome window with no sidebar.
 bool Controller::AdoptPopup(CefRefPtr<CefBrowser> opener, CefRefPtr<CefBrowserView> popup) {
   Tab* from = opener ? FindTabByBrowser(opener) : nullptr;
-  if (!from || !shell_) return false;
+  if (!from || !win_->shell) return false;
   int id = NewTab("about:blank", false, false, 0, from->space, from->ghost, from->id);
   Tab* tab = FindTab(id);
   if (!tab) return false;
@@ -2514,16 +2652,24 @@ void Controller::OpenSettings() {
 // The box layout caches the panel's preferred size, so invalidate the whole
 // shell; the sidebar page then needs a nudge to pick up its new width.
 void Controller::ApplySidebarWidth() {
-  sidebar_panel_->InvalidateLayout();
-  shell_->InvalidateLayout();
-  shell_->Layout();
+  for (auto& w : wins_) {
+    WinScope scope(this, w.get());
+    ApplySidebarWidthHere();
+  }
+}
+
+void Controller::ApplySidebarWidthHere() {
+  if (!win_->sidebar_panel) return;
+  win_->sidebar_panel->InvalidateLayout();
+  win_->shell->InvalidateLayout();
+  win_->shell->Layout();
   // The box layout can still keep the cached width (as after a mouse drag), so
   // size the panel directly.
-  if (sidebar_visible_) {
-    CefRect r = sidebar_panel_->GetBounds();
-    if (r.width != SidebarWidth()) sidebar_panel_->SetBounds(CefRect(r.x, r.y, SidebarWidth(), r.height));
+  if (win_->sidebar_visible) {
+    CefRect r = win_->sidebar_panel->GetBounds();
+    if (r.width != SidebarWidth()) win_->sidebar_panel->SetBounds(CefRect(r.x, r.y, SidebarWidth(), r.height));
   }
-  if (auto b = sidebar_->GetBrowser()) b->GetHost()->WasResized();
+  if (auto b = win_->sidebar->GetBrowser()) b->GetHost()->WasResized();
   Relayout();
 }
 
@@ -2538,11 +2684,11 @@ void Controller::PollSidebarDragEnd() {
 }
 
 void Controller::ToggleSidebar() {
-  sidebar_visible_ = !sidebar_visible_;
-  sidebar_panel_->SetVisible(sidebar_visible_);
-  platform::SetSidebarButton(shell_->GetWindowHandle(), !sidebar_visible_);
-  if (sidebar_button_) sidebar_button_->SetVisible(!sidebar_visible_);
-  shell_->Layout();
+  win_->sidebar_visible = !win_->sidebar_visible;
+  win_->sidebar_panel->SetVisible(win_->sidebar_visible);
+  platform::SetSidebarButton(win_->shell->GetWindowHandle(), !win_->sidebar_visible);
+  if (win_->sidebar_button) win_->sidebar_button->SetVisible(!win_->sidebar_visible);
+  win_->shell->Layout();
   Relayout();
 }
 
@@ -2931,7 +3077,7 @@ void Controller::SwitchSpace(int id) {
   HideCommandBar();
   Tab* best = nullptr;
   for (auto& t : tabs_)
-    if (t.space == id && !t.floating && (!best || t.last_active > best->last_active)) best = &t;
+    if (t.space == id && !t.floating && WinOf(t) == win_ && (!best || t.last_active > best->last_active)) best = &t;
   state.active_space = id;
   if (best) ActivateTab(best->id);
   else ActivateTab(NewTab(kNewTabUrl, false, false, 0, id));
@@ -3291,7 +3437,7 @@ void Controller::RunCommand(const std::string& id) {
   else if (id == "copyMarkdown") ExtractActive("copy");
   else if (id == "saveMarkdown") ExtractActive("save");
   else if (StartsWith(id, "askLlm:")) ExtractActive(id.substr(7));
-  else if (id == "agentChat") AgentScratch("", {active_id_}, true);
+  else if (id == "agentChat") AgentScratch("", {win_->active_id}, true);
   else if (id == "modelChat") NewTab(kChatUrl, true);
   else if (StartsWith(id, "agentSend:") && id.find_first_not_of(kSessionIdChars, 10) == std::string::npos && id.size() > 10)
     ExtractActive("claude:" + id.substr(10));  // claude: refuses ghost tabs.
@@ -3301,7 +3447,7 @@ void Controller::RunCommand(const std::string& id) {
   else if (id == "zoomReset") ZoomStep(0);
   else if (id == "print") Print();
   else if (id == "reader") ToggleReader();
-  else if (id == "mute") ToggleMute(active_id_);
+  else if (id == "mute") ToggleMute(win_->active_id);
   else if (id == "downloads") OpenUiPage(kDownloadsUrl);
   else if (id == "history") OpenUiPage(kHistoryUrl);
   else if (id == "agentmd") OpenUiPage(kAgentMdUrl);
@@ -3322,7 +3468,9 @@ void Controller::RunCommand(const std::string& id) {
   else if (id == "reload") Reload();
   else if (id == "settings") OpenSettings();
   else if (id == "newInstance") platform::LaunchInstance();
-  else if (id == "updateChromium") platform::UpdateChromium(shell_ ? shell_->GetWindowHandle() : nullptr);
+  else if (id == "newWindow") NewWindow();
+  else if (id == "closeWindow") { if (win_->shell) win_->shell->Close(); }
+  else if (id == "updateChromium") platform::UpdateChromium(win_->shell ? win_->shell->GetWindowHandle() : nullptr);
   else if (id == "checkUpdates") platform::CheckForUpdates();
   else if (id == "diagnostics") platform::SendDiagnostics();
   else if (id == "sidebar") ToggleSidebar();
@@ -3394,8 +3542,8 @@ void Controller::RunCommand(const std::string& id) {
   else if (id == "nextSpace") CycleSpace(1);
   else if (id == "prevSpace") CycleSpace(-1);
   else if (id == "clearHistory" || id == "clearCookies") {
-    if (!shell_) return;
-    platform::ChooseLookback(shell_->GetWindowHandle(), id == "clearHistory" ? "history" : "cookies",
+    if (!win_->shell) return;
+    platform::ChooseLookback(win_->shell->GetWindowHandle(), id == "clearHistory" ? "history" : "cookies",
                              [id](double since) {
                                Controller::Get()->RunCommand(id + ":" + std::to_string(static_cast<long long>(since)));
                              });
@@ -3555,7 +3703,7 @@ void Controller::ShowFind() {
   find_visible_ = true;
   Relayout();
   find_window_->Show();
-  platform::AttachChild(shell_->GetWindowHandle(), find_window_->GetWindowHandle());
+  platform::AttachChild(win_->shell->GetWindowHandle(), find_window_->GetWindowHandle());
   find_window_->Activate();
   if (auto browser = find_->GetBrowser()) {
     browser->GetMainFrame()->ExecuteJavaScript("window.roar && roar.open(" + JsString(find_text_) + ")",
@@ -3571,7 +3719,7 @@ void Controller::HideFind(bool refocus) {
   if (Tab* t = FindTab(find_tab_); t && t->view && t->view->GetBrowser())
     t->view->GetBrowser()->GetHost()->StopFinding(true);
   find_count_ = find_active_ = 0;
-  if (shell_) platform::DetachChild(shell_->GetWindowHandle(), find_window_->GetWindowHandle());
+  if (win_->shell) platform::DetachChild(win_->shell->GetWindowHandle(), find_window_->GetWindowHandle());
   if (refocus) FocusTab(ActiveTab());
 }
 
@@ -3689,7 +3837,7 @@ void Controller::CycleTabs(int step) {
   if (cycle_order_.empty() || now - cycle_at_ > 1.2) {
     std::vector<const Tab*> list;
     for (const auto& t : tabs_)
-      if ((t.space == State::Get().active_space || t.ghost) && !t.floating) list.push_back(&t);
+      if ((t.space == State::Get().active_space || t.ghost) && !t.floating && t.win == win_->id) list.push_back(&t);
     std::stable_sort(list.begin(), list.end(),
                      [&](const Tab* a, const Tab* b) {
                        if (a->id == current->id || b->id == current->id) return a->id == current->id && b->id != current->id;
@@ -3767,7 +3915,7 @@ bool Controller::OnBeforeDownload(CefRefPtr<CefBrowser> browser, CefRefPtr<CefDo
   std::string host;
   if (CefParseURL(url, parts)) host = CefString(&parts.host).ToString();
   // The shell, not the tab: a sheet on the frameless tab child window never shows.
-  void* window = shell_ ? shell_->GetWindowHandle() : nullptr;
+  void* window = win_->shell ? win_->shell->GetWindowHandle() : nullptr;
   platform::ConfirmDownload(window, name, host, [this, start, item_id, url](bool allow) {
     if (allow) start();
     else denied_downloads_.insert({item_id, url});
@@ -3983,6 +4131,7 @@ std::string Controller::StateJson() {
   for (size_t i = 0; i < tabs_.size(); ++i) {
     const Tab& t = tabs_[i];
     if (t.space != state.active_space && !t.ghost) continue;
+    if (!ListedIn(t.win, IsKept(t), win_->id)) continue;
     auto d = CefDictionaryValue::Create();
     d->SetInt("id", t.id);
     d->SetBool("ghost", t.ghost);
@@ -3992,7 +4141,7 @@ std::string Controller::StateJson() {
     d->SetString("icon", t.icon);
     d->SetString("name", t.name);
     d->SetBool("pinned", t.pinned);
-    d->SetBool("active", t.id == active_id_);
+    d->SetBool("active", t.id == win_->active_id);
     d->SetBool("loading", t.loading);
     d->SetBool("floating", t.floating);
     d->SetString("folder", t.folder);
@@ -4015,7 +4164,7 @@ std::string Controller::StateJson() {
     } else {
       d->SetBool("split", false);
     }
-    d->SetDouble("idleSeconds", t.id == active_id_ ? 0 : std::max(0.0, now - t.last_active));
+    d->SetDouble("idleSeconds", t.id == win_->active_id ? 0 : std::max(0.0, now - t.last_active));
     tabs->SetDictionary(shown++, d);
   }
   root->SetList("tabs", tabs);
@@ -4072,7 +4221,7 @@ std::string Controller::StateJson() {
   root->SetList("groups", groups);
   root->SetInt("activeSpace", state.active_space);
   root->SetBool("split", VisibleIds().size() == 2);
-  if (SplitPair* p = SplitOf(active_id_)) root->SetDouble("splitRatio", p->ratio);
+  if (SplitPair* p = SplitOf(win_->active_id)) root->SetDouble("splitRatio", p->ratio);
   root->SetBool("appActive", platform::AppActive());
   auto archive = CefListValue::Create();
   size_t archived = 0, archive_count = 0;
@@ -4223,16 +4372,19 @@ void Controller::PushSidebar() {
 
 void Controller::PushSidebarNow() {
   sidebar_push_pending_ = false;
-  auto browser = sidebar_ ? sidebar_->GetBrowser() : nullptr;
-  if (!browser) return;
-  browser->GetMainFrame()->ExecuteJavaScript("window.roar && roar.render(" + StateJson() + ")", "", 0);
+  for (auto& w : wins_) {
+    WinScope scope(this, w.get());
+    if (auto browser = win_->sidebar ? win_->sidebar->GetBrowser() : nullptr)
+      browser->GetMainFrame()->ExecuteJavaScript("window.roar && roar.render(" + StateJson() + ")", "", 0);
+  }
   Tab* tab = ActiveTab();
   action_watch::SetActiveUrl(tab ? tab->url : "");
 }
 
 void Controller::PushActions(const std::string& json) {
-  auto browser = sidebar_ ? sidebar_->GetBrowser() : nullptr;
-  if (browser) browser->GetMainFrame()->ExecuteJavaScript("window.roar && roar.actions && roar.actions(" + json + ")", "", 0);
+  for (auto& w : wins_)
+    if (auto browser = w->sidebar ? w->sidebar->GetBrowser() : nullptr)
+      browser->GetMainFrame()->ExecuteJavaScript("window.roar && roar.actions && roar.actions(" + json + ")", "", 0);
 }
 
 std::string Controller::Suggest(const std::string& raw) {
@@ -4265,7 +4417,7 @@ std::string Controller::Suggest(const std::string& raw) {
   // Only this space's tabs: nothing from one space surfaces in another.
   for (const auto& t : tabs_) {
     if (n >= 4) break;
-    if (t.space == State::Get().active_space && t.id != active_id_ &&
+    if (t.space == State::Get().active_space && t.id != win_->active_id &&
         !StartsWith(t.url, "roar://") && matches(t.title, t.url))
       add("tab", t.id, t.title, t.url);
   }
@@ -4413,6 +4565,8 @@ bool Controller::HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> 
                              const std::string& request, CefRefPtr<Callback> callback) {
   auto parsed = CefParseJSON(request, JSON_PARSER_RFC);
   if (!parsed || parsed->GetType() != VTYPE_DICTIONARY) return false;
+  Tab* from_tab = FindTabByBrowser(browser);
+  WinScope scope(this, from_tab ? WinOf(*from_tab) : WinOfSidebar(browser));  // The window the page is in.
   auto msg = parsed->GetDictionary();
   std::string cmd = msg->GetString("cmd");
   auto int_arg = [&](const char* key) {
@@ -4657,12 +4811,12 @@ bool Controller::HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> 
       if (id) {
         // A background tab throttles its timers, so Gmail would show the change but not
         // sync it. Show the tab while it works; move keeps it, its picker is Gmail's menu.
-        int previous = active_id_;
+        int previous = win_->active_id;
         ActivateTab(id);
         if (loaded && action != "move" && previous && previous != id)
           CefPostDelayedTask(TID_UI, base::BindOnce([](int id, int previous) {
             Controller* c = Controller::Get();
-            if (c->active_id_ == id && c->FindTab(previous)) c->ActivateTab(previous);
+            if (c->win_->active_id == id && c->FindTab(previous)) c->ActivateTab(previous);
           }, id, previous), 9 * 1000);
         // Whatever the page does, the feed changes: refetch once it settles.
         for (int secs : {8, 70})
@@ -4812,14 +4966,14 @@ bool Controller::HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> 
     // there, on the side it landed. Off the window: a split tab leaves its split.
     Tab* t = FindTab(int_arg("id"));
     int x = int_arg("x"), y = int_arg("y");
-    CefRect shell = shell_ ? shell_->GetBounds() : CefRect(), c = ContentRect();
+    CefRect shell = win_->shell ? win_->shell->GetBounds() : CefRect(), c = ContentRect();
     bool on_page = x >= c.x && x < c.x + c.width && y >= c.y && y < c.y + c.height;
     bool off_window = !(x >= shell.x && x < shell.x + shell.width && y >= shell.y && y < shell.y + shell.height);
     if (t && off_window && SplitOf(t->id)) {
       Unsplit(t->id);
     } else if (t && on_page && !t->floating) {
       // The pane under the drop, or the active tab when there's no split on screen.
-      int under = active_id_;
+      int under = win_->active_id;
       for (int id : VisibleIds()) {
         CefRect r = RectFor(id);
         if (x >= r.x && x < r.x + r.width && y >= r.y && y < r.y + r.height) under = id;
@@ -4911,7 +5065,7 @@ bool Controller::HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> 
     // The page starts the drag; native tracking follows it over the tab windows.
     // Native tracking follows the drag over the tab windows, which the page
     // cannot see; lay out once more after the release, found by polling.
-    platform::TrackHorizontalDrag(shell_->GetWindowHandle(), [this](int x) {
+    platform::TrackHorizontalDrag(win_->shell->GetWindowHandle(), [this](int x) {
       State::Get().settings.sidebar_width = std::clamp(x, kSidebarMin, kSidebarMax);
       ApplySidebarWidth();
       if (!sidebar_drag_poll_) {
@@ -5799,7 +5953,7 @@ void Controller::OnTitle(CefRefPtr<CefBrowser> browser, const std::string& title
   if (auto it = State::Get().history.find(SpaceKey(tab->space, tab->url));
       it != State::Get().history.end())
     it->second.title = title;
-  if (tab->id == active_id_ && shell_) shell_->SetTitle(title);
+  if (Win* w = WinOf(*tab); tab->id == w->active_id && w->shell) w->shell->SetTitle(title);
   if (tab->floating && tab->window) platform::SetFloating(tab->window->GetWindowHandle(), true, title);
   PushSidebar();
 }
@@ -6011,7 +6165,7 @@ void Controller::OnOtp(CefRefPtr<CefBrowser> browser, const std::string& line) {
   Tab* tab = FindTabByBrowser(browser);
   // Only the active tab's own run, on an http(s) page, while the setting is on.
   const Settings& set = State::Get().settings;
-  if (!(set.messages_codes || set.mail_codes) || it == g_otp_nonces.end() || !tab || tab->id != active_id_ ||
+  if (!(set.messages_codes || set.mail_codes) || it == g_otp_nonces.end() || !tab || tab->id != win_->active_id ||
       HttpHost(browser->GetMainFrame()->GetURL()).empty())
     return;
   bool ask = line == it->second + " ask";
@@ -6048,7 +6202,7 @@ void Controller::OnOtp(CefRefPtr<CefBrowser> browser, const std::string& line) {
   platform::PopupMenu({"Fill " + code + (from_gmail ? " from Gmail" : from_mail ? " from Mail" : " from Messages")}, [this, id, url, code](int) {
     Tab* t = FindTab(id);
     auto b = t && t->view ? t->view->GetBrowser() : nullptr;
-    if (b && id == active_id_ && b->GetMainFrame()->GetURL().ToString() == url)
+    if (b && id == win_->active_id && b->GetMainFrame()->GetURL().ToString() == url)
       b->GetMainFrame()->ExecuteJavaScript("window.__roarOtpFill&&window.__roarOtpFill(" + JsString(code) + ");", url, 0);
   });
 }
@@ -6089,8 +6243,7 @@ void Controller::OnMailClick(CefRefPtr<CefBrowser> browser, double x, double y) 
 void Controller::OnLoading(CefRefPtr<CefBrowser> browser, bool loading, bool can_back,
                            bool can_forward) {
   if (IsUiBrowser(browser)) {
-    if (!loading && sidebar_ && sidebar_->GetBrowser() && sidebar_->GetBrowser()->IsSame(browser))
-      PushSidebar();
+    if (!loading && WinOfSidebar(browser)) PushSidebar();
     return;
   }
   Tab* tab = FindTabByBrowser(browser);
@@ -6125,12 +6278,13 @@ void Controller::OnLoading(CefRefPtr<CefBrowser> browser, bool loading, bool can
 
 void Controller::OnDraggableRegions(CefRefPtr<CefBrowser> browser,
                                     const std::vector<CefDraggableRegion>& regions) {
-  if (shell_ && sidebar_ && sidebar_->GetBrowser() && sidebar_->GetBrowser()->IsSame(browser))
-    shell_->SetDraggableRegions(regions);
+  if (Win* w = WinOfSidebar(browser); w && w->shell) w->shell->SetDraggableRegions(regions);
 }
 
 bool Controller::OnKey(CefRefPtr<CefBrowser> browser, const CefKeyEvent& event) {
   if (event.type != KEYEVENT_RAWKEYDOWN) return false;
+  Tab* key_tab = FindTabByBrowser(browser);
+  WinScope scope(this, key_tab && !key_tab->floating ? WinOf(*key_tab) : WinOfSidebar(browser));
 #ifdef _WIN32
   // No Command key on Windows: Ctrl takes the ⌘ shortcuts (Ctrl+T, Ctrl+L, Ctrl+Alt+B…).
   bool cmd = event.modifiers & EVENTFLAG_CONTROL_DOWN;
@@ -6202,7 +6356,7 @@ bool Controller::OnKey(CefRefPtr<CefBrowser> browser, const CefKeyEvent& event) 
   if (!shift && !alt) {
     switch (key) {
       case 'T': ShowCommandBar(true); return true;
-      case 'N': RunCommand("newInstance"); return true;
+      case 'N': RunCommand("newWindow"); return true;
       case 'L': ShowCommandBar(false); return true;
       case 'W': CloseActiveUnlessKept(); return true;
       case 'R': Reload(); return true;
@@ -6241,6 +6395,7 @@ bool Controller::OnKey(CefRefPtr<CefBrowser> browser, const CefKeyEvent& event) 
       case 0xBB: ZoomStep(1); return true;  // ⇧= is +
       case 'T': RunCommand("reopen"); return true;
       case 'N': RunCommand("newGhostTab"); return true;
+      case 'W': RunCommand("closeWindow"); return true;
       case 0xDB: CycleSpace(-1); return true;  // {
       case 0xDD: CycleSpace(1); return true;   // }
     }
@@ -6291,20 +6446,23 @@ void Controller::SaveNow() {
   state.active_index = 0;
   for (const auto& t : tabs_) {
     if (t.ghost) continue;
-    if (t.id == active_id_) state.active_index = static_cast<int>(state.tabs.size());
+    if (t.id == win_->active_id) state.active_index = static_cast<int>(state.tabs.size());
+    int slot = 0;  // The window's place in wins_, so a restore rebuilds the same windows.
+    for (size_t i = 0; i < wins_.size(); ++i)
+      if (wins_[i]->id == t.win) slot = static_cast<int>(i);
     // Large data: favicons would bloat state.json; the page supplies them again on load.
     state.tabs.push_back({!t.reader_origin.empty() ? t.reader_origin : t.pinned && !t.home_url.empty() ? t.home_url : t.url, t.title, t.pinned, t.last_active, t.space, t.group, t.icon,
-                          t.favicon.size() <= 16 * 1024 ? t.favicon : "", t.agent.marked, t.agent.last, t.name, t.ask_llm});
+                          t.favicon.size() <= 16 * 1024 ? t.favicon : "", t.agent.marked, t.agent.last, t.name, t.ask_llm, slot});
   }
   state.Save();
 }
 
 void Controller::ShowExtensionPopup(const std::string& url, int x, int y) {
   CloseExtensionPopup();
-  if (!shell_ || !StartsWith(url, "chrome-extension://")) return;
+  if (!win_->shell || !StartsWith(url, "chrome-extension://")) return;
   // Anchor beside the clicked button; |x|,|y| are sidebar coordinates.
   CefPoint at(x, y);
-  sidebar_->ConvertPointToScreen(at);
+  win_->sidebar->ConvertPointToScreen(at);
   ext_popup_anchor_ = at;
   int space = State::Get().active_space;
   if (space != 0 && !ready_spaces_.count(space)) return;
@@ -6318,7 +6476,7 @@ void Controller::ShowExtensionPopup(const std::string& url, int x, int y) {
   // A tab window re-shown or focused while the popup is open would cover it.
   platform::KeepAbove(ext_popup_->GetWindowHandle());
   ext_popup_->Show();
-  platform::AttachChild(shell_->GetWindowHandle(), ext_popup_->GetWindowHandle());
+  platform::AttachChild(win_->shell->GetWindowHandle(), ext_popup_->GetWindowHandle());
   ext_popup_->Activate();
   view->RequestFocus();
 }
@@ -6327,7 +6485,7 @@ void Controller::CloseExtensionPopup() {
   if (!ext_popup_) return;
   auto window = ext_popup_;
   ext_popup_ = nullptr;
-  if (shell_) platform::DetachChild(shell_->GetWindowHandle(), window->GetWindowHandle());
+  if (win_->shell) platform::DetachChild(win_->shell->GetWindowHandle(), window->GetWindowHandle());
   window->Close();
 }
 
@@ -6352,8 +6510,34 @@ bool Controller::OnExtensionPopupResize(CefRefPtr<CefBrowser> browser, const Cef
   return true;
 }
 
-bool Controller::CanCloseShell() {
+void Controller::CloseWinTabs(Win* w) {
+  Win* other = nullptr;
+  for (auto& o : wins_)
+    if (o.get() != w && !o->closing) other = other ? other : o.get();
+  w->closing = true;
+  std::vector<int> doomed;
+  for (auto& t : tabs_) {
+    if (t.win != w->id) continue;
+    if (MovesOnClose(IsKept(t), t.floating, other)) {
+      HideTabWindow(&t);
+      t.win = other->id;
+    } else {
+      doomed.push_back(t.id);
+    }
+  }
+  // Archived, not dropped: ⇧⌘T and the archive bring a closed window's tabs back.
+  for (int id : doomed) ArchiveTab(id);
+  PushSidebar();
+  SaveSoon();
+}
+
+bool Controller::CanCloseShell(CefRefPtr<CefWindow> shell) {
   if (closing_) return true;
+  // One of several windows closes alone; the last one, or Quit, quits.
+  if (Win* w = WinOfShell(shell); w && wins_.size() > 1 && !quitting_) {
+    CloseWinTabs(w);
+    return true;
+  }
   closing_ = true;
   SaveNow();
   State::Get().SavePages();
@@ -6369,6 +6553,8 @@ bool Controller::CanCloseShell() {
   if (hint_window_) hint_window_->Close();
   if (find_window_) find_window_->Close();
   CloseExtensionPopup();
+  for (auto& w : wins_)
+    if (w->shell && !w->shell->IsSame(shell)) w->shell->Close();
   // Windows Chrome opened outside Roar (a CDP client's Target.createTarget)
   // otherwise keep the process alive after the shell closes.
   auto strays = browsers_;
@@ -6383,12 +6569,22 @@ bool Controller::CanCloseShell() {
   return true;
 }
 
-void Controller::OnShellDestroyed() {
-  shell_ = nullptr;
-  layout_ = nullptr;
-  sidebar_ = nullptr;
-  sidebar_panel_ = nullptr;
-  sidebar_button_ = nullptr;
+void Controller::OnShellDestroyed(CefRefPtr<CefWindow> shell) {
+  Win* gone = WinOfShell(shell);
+  if (gone && wins_.size() > 1) {
+    Win* next = nullptr;
+    for (auto& o : wins_)
+      if (o.get() != gone && (!next || o->id == focused_win_)) next = o.get();
+    for (auto& t : tabs_)
+      if (t.win == gone->id) t.win = next->id;  // Tabs that missed CloseWinTabs (a shell closed without CanClose).
+    if (win_ == gone) Focused(next);
+    if (focused_win_ == gone->id) focused_win_ = win_->id;
+    std::erase_if(wins_, [&](const std::unique_ptr<Win>& w) { return w.get() == gone; });
+    if (!closing_) SyncWindows(), PushSidebar(), SaveSoon();
+    return;
+  }
+  wins_.clear();
+  win_ = &none_;
   command_bar_ = nullptr;
   command_window_ = nullptr;
   hint_ = nullptr;
@@ -6405,12 +6601,12 @@ void Controller::OnShellDestroyed() {
 }
 
 void Controller::MaybeQuit() {
-  if (closing_ && !shell_ && live_browsers_ <= 0) CefQuitMessageLoop();
+  if (closing_ && wins_.empty() && live_browsers_ <= 0) CefQuitMessageLoop();
 }
 
 void Controller::OpenExternal(const std::string& url) {
   // The shell, not the tab: a sheet on the frameless tab child window never shows.
-  if (!platform::OpenInApp(shell_ ? shell_->GetWindowHandle() : nullptr, url))
+  if (!platform::OpenInApp(win_->shell ? win_->shell->GetWindowHandle() : nullptr, url))
     ShowHint("No app can open this link");
 }
 

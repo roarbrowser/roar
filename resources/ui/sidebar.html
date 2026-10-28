@@ -1103,7 +1103,7 @@ function sidebarMenu(e) {
   const others = state.spaces.filter((sp) => sp.id !== state.activeSpace);
   showCtx(`<button data-act="newTab">New tab</button>
     <button data-act="newGhostTab">New ghost tab</button>
-    <button data-act="newInstance">New window</button>
+    <button data-act="newWindow">New window</button>
     ${others.length ? `<hr><div class="head">Switch to space</div>${others.map((sp) => `<button data-act="space" data-s="${sp.id}">${dot(sp.color)}${esc(sp.name)}</button>`).join('')}` : '<hr>'}
     <button data-act="newSpace">New space</button>`, e, (act, d) => {
     if (act === 'space') ask({ cmd: 'space.switch', id: +d.s });

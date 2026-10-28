@@ -734,10 +734,11 @@ void InstallMenu() {
 
   NSMenu* file = addMenu(@"File");
   addCommand(file, @"New Tab", @"newTab", @"⌘T");
-  addCommand(file, @"New Window", @"newInstance", @"⌘N");
+  addCommand(file, @"New Window", @"newWindow", @"⌘N");
   addCommand(file, @"New Ghost Tab", @"newGhostTab", @"⇧⌘N");
   addCommand(file, @"Reopen Archived Tab", @"reopen", @"⇧⌘T");
   addCommand(file, @"Close Tab", @"closeTab", @"⌘W");
+  addCommand(file, @"Close Window", @"closeWindow", @"⇧⌘W");
   addCommand(file, @"Print…", @"print", @"⌘P");
   [file addItem:[NSMenuItem separatorItem]];
   addCommand(file, @"Copy Page as Markdown", @"copyMarkdown", @"⇧⌘C");
@@ -833,7 +834,7 @@ void AttachChild(void* parent, void* child) {
   NSWindow* c = Win(child);
   if (!p || !c) return;
   // Re-adding moves it to the top of the parent's children.
-  if (c.parentWindow == p) [p removeChildWindow:c];
+  if (c.parentWindow) [c.parentWindow removeChildWindow:c];  // Also moves it off another shell window.
   [p addChildWindow:c ordered:NSWindowAbove];
   // orderFront: would lift the whole window group over the app the person is using.
   if (NSApp.isActive) [c orderFront:nil];
@@ -841,10 +842,10 @@ void AttachChild(void* parent, void* child) {
 }
 
 void DetachChild(void* parent, void* child) {
-  NSWindow* p = Win(parent);
   NSWindow* c = Win(child);
   if (!c) return;
-  if (p && c.parentWindow == p) [p removeChildWindow:c];
+  // Its actual parent: with several shell windows, a popup may since have moved to another one.
+  if (c.parentWindow) [c.parentWindow removeChildWindow:c];
   [c orderOut:nil];
 }
 
