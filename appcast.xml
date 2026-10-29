@@ -130,5 +130,14 @@
       <description><![CDATA[In the agent's terminal view you now type straight into the terminal, like a real one: every key, paste and pasted images go to the agent. The sidebar's End button works (click it twice). Questions an agent asks now show up in the agent view.]]></description>
       <enclosure url="https://github.com/roarbrowser/roar/releases/download/v1.6.2/Roar-1.6.2.dmg" type="application/octet-stream" sparkle:edSignature="DsrwNF1e4mqW81jzXuM52jkI4ICDjfa6RkqESStnIeKckd7r5CE0P2R06tiH09EqHmtrIF3+EQdAVdadMWi/DQ==" length="207647247"/>
     </item>
+    <item>
+      <title>1.6.3</title>
+      <pubDate>Thu, 29 Oct 2026 00:18:47 +0000</pubDate>
+      <sparkle:version>10603</sparkle:version>
+      <sparkle:shortVersionString>1.6.3</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[⌘N opens a new window in the same Roar, so it shares your sign-ins live. ⇧⌘W closes just that window, and each tab's window is remembered across restarts.]]></description>
+      <enclosure url="https://github.com/roarbrowser/roar/releases/download/v1.6.3/Roar-1.6.3.dmg" type="application/octet-stream" sparkle:edSignature="XKZ4vkaFafntIvjzxDCh67tgLOa0TCPG3Lt+3auZVf6N9JdJCqjAlhmBMlkrbwdKyV4xSuoDxPARcTpm4Ru9Aw==" length="207640986"/>
+    </item>
   </channel>
 </rss>
