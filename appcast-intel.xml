@@ -138,5 +138,14 @@
       <description><![CDATA[⌘N opens a new window in the same Roar, so it shares your sign-ins live. ⇧⌘W closes just that window, and each tab's window is remembered across restarts.]]></description>
       <enclosure url="https://github.com/roarbrowser/roar/releases/download/v1.6.3/Roar-1.6.3-intel.dmg" type="application/octet-stream" sparkle:edSignature="4nDlz9hJkjDnB+hJmtTA+vLP2sVu3AD3UQvfY6DzYxtPARDMTAmFjzFxlvDrDJsI2qe3FO7Q46FkzoeftNEkCw==" length="228815706"/>
     </item>
+    <item>
+      <title>1.7.0</title>
+      <pubDate>Fri, 30 Oct 2026 23:18:40 +0000</pubDate>
+      <sparkle:version>10700</sparkle:version>
+      <sparkle:shortVersionString>1.7.0</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[Nested tab groups, Rename… for tabs that keeps the name across navigation, an emoji icon for each space, air traffic control (links from other apps open in the space you choose), and a one-click Copy URL button in the address bar.]]></description>
+      <enclosure url="https://github.com/roarbrowser/roar/releases/download/v1.7.0/Roar-1.7.0-intel.dmg" type="application/octet-stream" sparkle:edSignature="Wc3jxEF2hcNmoJYYLt0nJhMjDlZL7tk15kjneu7+5cctnXMYA2rgmJ4LRBhvF/8v7rHp5hW3xiJSJcs8wc9FAQ==" length="228816830"/>
+    </item>
   </channel>
 </rss>
