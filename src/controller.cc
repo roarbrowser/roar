@@ -10,6 +10,7 @@
 #include "atomic_write.h"
 #include "ext_paths.h"
 #include "link_clean.h"
+#include "space_rules.h"
 #include "model_chat.h"
 
 #include <algorithm>
@@ -1618,6 +1619,18 @@ int Controller::NewTab(const std::string& url, bool activate, bool pinned, doubl
   PushSidebar();
   SaveSoon();
   return tab.id;
+}
+
+void Controller::OpenLink(const std::string& url) {
+  int space = -1;
+  if (std::string name = MatchSpaceRule(State::Get().settings.space_rules, url); !name.empty())
+    for (const auto& s : State::Get().spaces)
+      if (std::equal(s.name.begin(), s.name.end(), name.begin(), name.end(),
+                     [](char a, char b) { return std::tolower((unsigned char)a) == std::tolower((unsigned char)b); })) {
+        space = s.id;
+        break;
+      }
+  NewTab(url, true, false, 0, space);
 }
 
 int Controller::OpenTargetTab(const std::string& url) {

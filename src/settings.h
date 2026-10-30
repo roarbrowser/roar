@@ -79,6 +79,7 @@ struct Settings {
   // ParseHotkey format. Not ⌥Space (Claude, Alfred, Raycast, ChatGPT) or ⌃/⌘ Space (input sources, Spotlight).
   std::string dictation_key = "Alt+Shift+Space";
 #endif
+  std::string space_rules;  // Air traffic control (space_rules.h): "<pattern> <space name>" per line.
   std::string ask_llms = "chatgpt";  // The AI "Ask <AI> about this page" opens (a kLlms id; older saves list several, the first wins).  // Unwraps Safe Links and strips .mcas.ms from copied links (CleanLink).
 };
 
@@ -154,6 +155,7 @@ inline const std::vector<SettingField>& SettingFields() {
       {"mailCodes", &Settings::mail_codes, true},
       {"dictation", &Settings::dictation, true},
       {"dictationKey", &Settings::dictation_key, true},
+      {"spaceRules", &Settings::space_rules, true},
   };
   return fields;
 }

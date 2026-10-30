@@ -31,6 +31,7 @@ h3 { margin: 14px 0 6px; font: 600 12.5px var(--ui); color: var(--ink-3); }
 .row .end { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 select, input[type=text], input[type=password] { font: 13px var(--ui); padding: 5px 9px; border-radius: 7px; border: 1px solid var(--rule); background: var(--ground); color: var(--ink); }
 input.query { font: 12.5px var(--mono); width: 300px; max-width: 100%; }
+textarea.query { font: 12.5px var(--mono); width: 300px; max-width: 100%; padding: 5px 9px; border-radius: 7px; border: 1px solid var(--rule); background: var(--ground); color: var(--ink); resize: vertical; }
 .module { border: 1px solid var(--rule); border-radius: 10px; padding: 4px 14px; margin-bottom: 10px; }
 .module > .row:last-child, .module fieldset > .row:last-child { border-bottom: 0; }
 .module .head .name { font-weight: 600; display: grid; grid-template-columns: 24px 1fr; align-items: center; }
@@ -137,6 +138,7 @@ p.reason a { color: inherit; }
       <div class="row"><label class="name" for="pin-center">Center a short last row</label><input type="checkbox" class="switch" id="pin-center" data-set="pinnedCentered"></div>
       <h3>Spaces</h3>
       <div class="row"><span class="name"><span id="spaces"></span><small>Rename, remove and agent access are in each space's sidebar menu.</small></span><span class="end"><button class="btn" id="space-add">Add space</button></span></div>
+      <div class="row"><label class="name" for="space-rules">Open links from other apps in<small>One rule per line: a site, then a space name. <code>github.com/acme Work</code> sends that path, <code>figma.com Design</code> the site and its subdomains, <code>*.atlassian.net Work</code> a pattern. The first match wins; other links open in the current space.</small></label><textarea class="query" id="space-rules" data-set="spaceRules" rows="4" spellcheck="false" placeholder="github.com/acme Work"></textarea></div>
     </section>
 
     <section id="modules"><h2>Sidebar modules</h2>

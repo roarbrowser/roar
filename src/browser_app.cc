@@ -139,7 +139,7 @@ bool BrowserApp::OnAlreadyRunningAppRelaunch(CefRefPtr<CefCommandLine> command_l
                                              const CefString& current_directory) {
   CefCommandLine::ArgumentList args;
   command_line->GetArguments(args);
-  for (const auto& a : args) Controller::Get()->NewTab(a, true);
+  for (const auto& a : args) Controller::Get()->OpenLink(a);
   if (args.empty()) Controller::Get()->Focus();
   return true;
 }

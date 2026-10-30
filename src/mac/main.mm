@@ -58,7 +58,7 @@ static bool g_stay_behind = false;
 }
 - (void)handleGetURL:(NSAppleEventDescriptor*)event withReplyEvent:(NSAppleEventDescriptor*)reply {
   NSString* url = [[event paramDescriptorForKeyword:keyDirectObject] stringValue];
-  if (url) roar::Controller::Get()->NewTab(url.UTF8String, true);
+  if (url) roar::Controller::Get()->OpenLink(url.UTF8String);
 }
 - (void)applicationDidResignActive:(NSNotification*)notification {
   roar::Controller::Get()->PaintPreview();

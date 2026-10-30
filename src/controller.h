@@ -137,6 +137,8 @@ class Controller {
   // space < 0 means the active space.
   int NewTab(const std::string& url, bool activate, bool pinned = false, double last_active = 0,
              int space = -1, bool ghost = false, int opener = 0);
+  // A link from another app: a new, active tab in the space its Settings > Spaces rule names (space_rules.h).
+  void OpenLink(const std::string& url);
   // Opens a CDP Target.createTarget page as a tab; returns its browser id, or 0.
   int OpenTargetTab(const std::string& url);
   int last_target_tab_ = 0;
