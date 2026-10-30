@@ -1251,10 +1251,12 @@ void Controller::Start() {
   // fresh, and unpinned groups go with their tabs. A relaunch to install an
   // update the user chose to restore across brings everything back, once.
   bool restore = TakeUpdateRestore(state.Dir(), platform::BundleBuild(), NowSeconds());
-  if (!restore)
-    state.groups.erase(std::remove_if(state.groups.begin(), state.groups.end(),
-                                      [](const TabGroup& g) { return !g.pinned; }),
-                       state.groups.end());
+  if (!restore) {
+    std::vector<int> drop;
+    for (const auto& g : state.groups)
+      if (!state.GroupPinned(g.id)) drop.push_back(g.id);
+    std::erase_if(state.groups, [&](const TabGroup& g) { return std::count(drop.begin(), drop.end(), g.id); });
+  }
   int restored_active = 0;
   for (size_t i = 0; i < state.tabs.size(); ++i) {
     const auto& saved = state.tabs[i];
@@ -2213,11 +2215,15 @@ void Controller::SetGroup(int id, int group) {
 void Controller::DropGroupIfEmpty(int group) {
   State& state = State::Get();
   TabGroup* g = state.FindGroup(group);
-  if (!g || g->pinned) return;
+  if (!g || state.GroupPinned(group)) return;
   if (std::any_of(tabs_.begin(), tabs_.end(), [&](const Tab& t) { return t.group == group; })) return;
+  // A group holding another group is not empty.
+  if (std::any_of(state.groups.begin(), state.groups.end(), [&](const TabGroup& x) { return x.parent == group; })) return;
+  int parent = g->parent;
   state.groups.erase(std::remove_if(state.groups.begin(), state.groups.end(),
                                     [&](const TabGroup& x) { return x.id == group; }),
                      state.groups.end());
+  if (parent) DropGroupIfEmpty(parent);
 }
 
 bool Controller::ExecuteScript(int id, const std::string& code) {
@@ -4239,6 +4245,7 @@ std::string Controller::StateJson() {
     d->SetString("color", g.color);
     d->SetBool("pinned", g.pinned);
     d->SetBool("collapsed", g.collapsed);
+    d->SetInt("parent", g.parent);
     groups->SetDictionary(groups->GetSize(), d);
   }
   root->SetList("groups", groups);
@@ -4876,6 +4883,7 @@ bool Controller::HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> 
     if (g.name.empty()) g.name = "Group";
     g.color = msg->GetString("color").ToString();
     g.space = state.active_space;
+    if (TabGroup* p = state.FindGroup(int_arg("parent")); p && p->space == g.space) g.parent = p->id;
     state.groups.push_back(g);
     if (msg->HasKey("tab")) SetGroup(int_arg("tab"), g.id);
     PushSidebar();
@@ -4887,7 +4895,17 @@ bool Controller::HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> 
       if (msg->HasKey("color")) g->color = msg->GetString("color");
       if (msg->HasKey("pinned")) g->pinned = msg->GetBool("pinned");
       if (msg->HasKey("collapsed")) g->collapsed = msg->GetBool("collapsed");
-      if (!g->pinned) DropGroupIfEmpty(g->id);
+      if (msg->HasKey("parent")) {
+        // Into another group of its space (not itself or one inside it), or 0 for the top level.
+        int to = int_arg("parent"), old = g->parent;
+        TabGroup* p = State::Get().FindGroup(to);
+        bool loop = false;
+        for (TabGroup* a = p; a && !loop; a = State::Get().FindGroup(a->parent)) loop = a->id == g->id;
+        if (!to || (p && p->space == g->space && !loop)) g->parent = to;
+        if (old && old != g->parent) DropGroupIfEmpty(old);
+        g = State::Get().FindGroup(int_arg("id"));  // DropGroupIfEmpty can move the vector.
+      }
+      if (g && !State::Get().GroupPinned(g->id)) DropGroupIfEmpty(g->id);
       PushSidebar();
       SaveSoon();
     }
@@ -4904,6 +4922,11 @@ bool Controller::HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> 
       else if (Tab* t = FindTab(tab_id)) t->group = 0;
     }
     auto& groups = State::Get().groups;
+    // Groups inside it move up a level.
+    int parent = 0;
+    if (TabGroup* g = State::Get().FindGroup(id)) parent = g->parent;
+    for (auto& g : groups)
+      if (g.parent == id) g.parent = parent;
     groups.erase(std::remove_if(groups.begin(), groups.end(),
                                 [&](const TabGroup& g) { return g.id == id; }),
                  groups.end());

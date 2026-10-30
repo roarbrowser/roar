@@ -568,16 +568,18 @@ window.roar = {
       const at = ft ? items.findIndex((i) => i.url === ft.folderItem) : -1;
       return (ft && at < 0 ? tabRow(ft, 0) : '') + items.map((i, n) => n === at ? tabRow(ft, 0) : row(i)).join('');
     };
+    const groups = s.groups || [];
+    // Groups nest (a folder in a folder): each lists the groups inside it, then its tabs.
     const groupHtml = (g) => {
-      const tabs = s.tabs.filter((t) => t.group === g.id);
+      const tabs = s.tabs.filter((t) => t.group === g.id), inner = groups.filter((c) => c.parent === g.id);
       return `<section class="tgroup${g.collapsed ? ' collapsed' : ''}" data-group="${g.id}" style="${g.color ? '--gc:' + g.color : ''}">
-        <div class="group-head" data-group-head="${g.id}"><button class="toggle" data-group-toggle="${g.id}" aria-label="${g.collapsed ? 'Expand' : 'Collapse'} group ${esc(g.name)}" aria-expanded="${!g.collapsed}"><svg class="chev" viewBox="0 0 10 10" fill="currentColor"><path d="M1 3h8L5 8z"/></svg></button><span class="gdot"></span><span class="gname">${esc(g.name)}</span><span class="count">${tabs.length || ''}</span>${aiRn('group', g.id, g.name)}${g.pinned ? '<svg class="gpin" viewBox="0 0 16 16" fill="currentColor"><path d="M9.8 1.5 14.5 6.2l-1.4.4-3 3 .1 3-1.2 1.2-2.6-2.6L3 14.6 1.4 13l3.4-3.4-2.6-2.6L3.4 5.8l3 .1 3-3z"/></svg>' : ''}</div>
-        <div class="rows">${tabs.map((t) => tabRow(t, g.pinned ? 0 : limit)).join('') || '<div class="empty">Drag tabs here</div>'}</div>
+        <div class="group-head" data-group-head="${g.id}" draggable="true"><button class="toggle" data-group-toggle="${g.id}" aria-label="${g.collapsed ? 'Expand' : 'Collapse'} group ${esc(g.name)}" aria-expanded="${!g.collapsed}"><svg class="chev" viewBox="0 0 10 10" fill="currentColor"><path d="M1 3h8L5 8z"/></svg></button><span class="gdot"></span><span class="gname">${esc(g.name)}</span><span class="count">${tabs.length || ''}</span>${aiRn('group', g.id, g.name)}${g.pinned ? '<svg class="gpin" viewBox="0 0 16 16" fill="currentColor"><path d="M9.8 1.5 14.5 6.2l-1.4.4-3 3 .1 3-1.2 1.2-2.6-2.6L3 14.6 1.4 13l3.4-3.4-2.6-2.6L3.4 5.8l3 .1 3-3z"/></svg>' : ''}</div>
+        <div class="rows">${inner.map(groupHtml).join('')}${tabs.map((t) => tabRow(t, g.pinned ? 0 : limit)).join('') || (inner.length ? '' : '<div class="empty">Drag tabs here</div>')}</div>
       </section>`;
     };
-    const groups = s.groups || [];
-    setHtml($('pinned-groups'), groups.filter((g) => g.pinned).map(groupHtml).join(''));
-    setHtml($('groups'), groups.filter((g) => !g.pinned).map(groupHtml).join(''));
+    const top = groups.filter((g) => !groups.some((p) => p.id === g.parent));
+    setHtml($('pinned-groups'), top.filter((g) => g.pinned).map(groupHtml).join(''));
+    setHtml($('groups'), top.filter((g) => !g.pinned).map(groupHtml).join(''));
     // Spaces stay out of the way: only a name and dots in the footer, and
     // nothing at all until a second space exists.
     const multi = s.spaces.length > 1;
@@ -1152,12 +1154,15 @@ function groupMenu(id, e) {
   showCtx(`<button data-act="rename">Rename…</button><button data-act="airename" title="Shift-click: choose the agent">Rename all with AI</button>
     <div class="swatches">${COLORS.slice(1).map((c) => `<button data-act="color" data-c="${c}" aria-pressed="${g.color === c}" style="background:${c}" title="${c}" aria-label="${COLOR_NAMES[c]}"></button>`).join('')}</div>
     <button data-act="pin">${g.pinned ? 'Unpin group' : 'Pin group'}</button>
+    <button data-act="sub">New group inside…</button>${g.parent ? '<button data-act="outdent">Move out of its group</button>' : ''}
     <hr><button data-act="ungroup">Ungroup tabs</button>
     <button data-act="close">Close group</button>`, e, (act, d) => {
     if (act === 'rename') return nameMenu(g.name, e, (name) => ask({ cmd: 'group.update', id, name }));
     if (act === 'airename') return hideCtx(), aiRename('group:' + id, { shiftKey: lastShift, target: e.target, clientX: e.clientX, clientY: e.clientY }, true);
     if (act === 'color') ask({ cmd: 'group.update', id, color: d.c });
     else if (act === 'pin') ask({ cmd: 'group.update', id, pinned: !g.pinned });
+    else if (act === 'sub') return nameMenu('', e, (name) => ask({ cmd: 'group.create', name, color: g.color, parent: id }));
+    else if (act === 'outdent') ask({ cmd: 'group.update', id, parent: state.groups.find((p) => p.id === g.parent)?.parent || 0 });
     else if (act === 'ungroup') ask({ cmd: 'group.remove', id });
     else if (act === 'close') ask({ cmd: 'group.remove', id, closeTabs: true });
     hideCtx();
@@ -1169,6 +1174,36 @@ document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { hideCtx(
 // Clicking into a tab never reaches the sidebar's document; close menus when it loses focus.
 window.addEventListener('blur', () => { hideCtx(); hideSpaceMenu(); });
 
+// Drag a group by its header into another group, or onto Tabs for the top level.
+let dragGroup = 0;
+const groupZone = (e) => {
+  const zone = e.target.closest?.('.tgroup, #tabs-group');
+  const src = document.querySelector(`.tgroup[data-group="${dragGroup}"]`);
+  return zone && src && !src.contains(zone) ? zone : null;  // Never into itself or a group inside it.
+};
+document.addEventListener('dragstart', (e) => {
+  const head = e.target.closest?.('[data-group-head]');
+  if (!head) return;
+  dragGroup = +head.dataset.groupHead;
+  e.dataTransfer.effectAllowed = 'move';
+  e.dataTransfer.setData('application/x-roar-group', String(dragGroup));
+});
+document.addEventListener('dragover', (e) => {
+  if (!dragGroup) return;
+  const zone = groupZone(e);
+  document.querySelectorAll('.drop-target').forEach((el) => el !== zone && el.classList.remove('drop-target'));
+  if (zone) e.preventDefault(), zone.classList.add('drop-target');
+});
+document.addEventListener('drop', (e) => {
+  if (!dragGroup) return;
+  const zone = groupZone(e);
+  if (zone) e.preventDefault(), ask({ cmd: 'group.update', id: dragGroup, parent: +zone.dataset.group || 0 });
+});
+document.addEventListener('dragend', () => {
+  if (!dragGroup) return;
+  dragGroup = 0;
+  document.querySelectorAll('.drop-target').forEach((el) => el.classList.remove('drop-target'));
+});
 // Drag a tab onto a group, back into Tabs, or onto the pinned strip.
 let dragId = 0;
 document.addEventListener('dragstart', (e) => {
@@ -1228,6 +1263,7 @@ const clearSplitMarks = () => document.querySelectorAll('.split-drop').forEach((
 const clearPinMarks = () => document.querySelectorAll('#pinned .drop-before, #pinned .drop-after')
   .forEach((el) => el.classList.remove('drop-before', 'drop-after'));
 document.addEventListener('dragover', (e) => {
+  if (dragGroup) return;  // A group drag marks its own target (groupZone).
   clearSplitMarks();
   clearRowMarks();
   const at = dragId && rowSpot(e);

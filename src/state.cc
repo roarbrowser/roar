@@ -292,12 +292,26 @@ void State::Load() {
     for (size_t i = 0; i < list->GetSize(); ++i) {
       auto g = list->GetDictionary(i);
       groups.push_back({static_cast<int>(Num(g, "id")), Str(g, "name", "Group"), Str(g, "color"),
-                        static_cast<int>(Num(g, "space")), Bool(g, "pinned"), Bool(g, "collapsed")});
+                        static_cast<int>(Num(g, "space")), Bool(g, "pinned"), Bool(g, "collapsed"),
+                        static_cast<int>(Num(g, "parent"))});
     }
   }
   next_group_id = static_cast<int>(Num(d, "nextGroupId", 1));
+  // A parent that is gone, in another space, or a loop puts the group back at the top level.
+  for (auto& g : groups) {
+    TabGroup* p = FindGroup(g.parent);
+    if (!p || p->space != g.space) g.parent = 0;
+  }
+  for (auto& g : groups) {
+    int at = g.parent;
+    for (size_t n = 0; at && n <= groups.size(); ++n) at = FindGroup(at)->parent;
+    if (at) g.parent = 0;
+  }
   if (seed) {  // Keep only spaces, pinned tabs and their groups.
-    std::erase_if(groups, [](const TabGroup& g) { return !g.pinned; });
+    std::vector<int> drop;
+    for (const auto& g : groups)
+      if (!GroupPinned(g.id)) drop.push_back(g.id);
+    std::erase_if(groups, [&](const TabGroup& g) { return std::count(drop.begin(), drop.end(), g.id); });
     std::erase_if(tabs, [&](const SavedTab& t) { return !t.pinned && !FindGroup(t.group); });
     archive.clear();
     history.clear();
@@ -315,6 +329,17 @@ void State::Load() {
                groups.end());
   for (auto& t : tabs)
     if (!FindGroup(t.group)) t.group = 0;
+}
+
+bool State::GroupPinned(int id) {
+  // Bounded: a loop (never saved, see Load) cannot hang.
+  for (size_t n = 0; n <= groups.size(); ++n) {
+    TabGroup* g = FindGroup(id);
+    if (!g) return false;
+    if (g->pinned) return true;
+    id = g->parent;
+  }
+  return false;
 }
 
 TabGroup* State::FindGroup(int id) {
@@ -409,6 +434,7 @@ void State::Save() {
     g->SetInt("space", groups[i].space);
     g->SetBool("pinned", groups[i].pinned);
     g->SetBool("collapsed", groups[i].collapsed);
+    g->SetInt("parent", groups[i].parent);
     gl->SetDictionary(i, g);
   }
   d->SetList("groups", gl);

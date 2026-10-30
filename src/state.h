@@ -37,6 +37,7 @@ struct TabGroup {
   int space = 0;
   bool pinned = false;
   bool collapsed = false;
+  int parent = 0;  // The group it is nested in (a folder in a folder); 0 is top level, same space.
 };
 
 // History, the archive and page text are kept per space, so one space's
@@ -135,6 +136,8 @@ class State {
   int next_space_id = 1;
   std::vector<TabGroup> groups;
   int next_group_id = 1;
+  // True when the group or a group it is nested in is pinned: nested groups follow their top group.
+  bool GroupPinned(int id);
   TabGroup* FindGroup(int id);  // Never reused, so a new space never inherits an old profile.
   std::map<std::string, PageText> pages;
   // Zoom level (Chromium's logarithmic scale, 0 = 100%) per host; hosts at 100% are absent.
