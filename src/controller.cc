@@ -3436,6 +3436,14 @@ void Controller::RunCommand(const std::string& id) {
   }
   else if (id == "clean") CleanTabs();
   else if (id == "copyMarkdown") ExtractActive("copy");
+  else if (id == "copyUrl") {
+    // The address bar's copy button: the active tab's URL, cleaned like a copied link.
+    if (Tab* t = ActiveTab(); t && !t->url.empty()) {
+      const auto& set = State::Get().settings;
+      platform::CopyText(set.clean_links ? CleanLink(t->url, {set.clean_safelinks, set.clean_mcas, set.clean_tracking, SplitParams(set.clean_params)}) : t->url);
+      ShowHint("Copied link");
+    }
+  }
   else if (id == "saveMarkdown") ExtractActive("save");
   else if (StartsWith(id, "askLlm:")) ExtractActive(id.substr(7));
   else if (id == "agentChat") AgentScratch("", {win_->active_id}, true);

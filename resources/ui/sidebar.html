@@ -21,6 +21,10 @@ body { background: var(--ground); display: flex; flex-direction: column; overflo
 .addr-wrap .site:hover, .addr-wrap .site[aria-expanded="true"] { background: var(--hover); }
 .addr-wrap .site img, .addr-wrap .site span { width: 14px; height: 14px; }
 .address.has-site > svg { visibility: hidden; }
+.address.has-copy { padding-right: 34px; }
+.addr-wrap .copy-url { position: absolute; right: 14px; top: 6px; width: 26px; height: 26px; border-radius: 6px; display: grid; place-items: center; color: var(--ink-3); }
+.addr-wrap .copy-url:hover { background: var(--hover); color: var(--ink); }
+.addr-wrap .copy-url svg { width: 14px; height: 14px; }
 
 .spaces { display: flex; align-items: center; gap: 2px; }
 .spaces:empty { display: none; }
@@ -404,7 +408,7 @@ body.drag-active .pinned:empty::before { content: 'Drop to pin'; color: var(--in
 <div class="addr-wrap"><button class="address" id="address" title="Change address (⌘L)">
   <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="7" cy="7" r="4.5"/><path d="m10.5 10.5 3 3"/></svg>
   <span class="host" id="host">Search or enter address</span>
-</button><button class="site" id="site" hidden aria-haspopup="menu" aria-expanded="false" title="Site settings" aria-label="Site settings"></button></div>
+</button><button class="site" id="site" hidden aria-haspopup="menu" aria-expanded="false" title="Site settings" aria-label="Site settings"></button><button class="copy-url" id="copy-url" hidden title="Copy URL" aria-label="Copy URL"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><rect x="5.5" y="5.5" width="8" height="8" rx="1.5"/><path d="M10.5 5.5v-2a1 1 0 0 0-1-1h-6a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2"/></svg></button></div>
 <div class="resize" id="resize" title="Drag to resize"></div>
 <div class="scroll">
   <div class="pinned" id="pinned"></div>
@@ -598,6 +602,9 @@ window.roar = {
     const siteOk = /^https?:/.test(url) && !!askAct && !askAct.ghost;
     $('site').hidden = !siteOk;
     $('address').classList.toggle('has-site', siteOk);
+    const copyOk = !!url && !url.startsWith('roar:');
+    $('copy-url').hidden = !copyOk;
+    $('address').classList.toggle('has-copy', copyOk);
     setHtml($('site'), siteOk ? iconHtml(askAct.favicon, url) : '');
     const alerts = s.alerts || [];
     const ago = (t) => { const m = Math.round((Date.now() / 1000 - t) / 60); return m < 1 ? 'now' : m < 60 ? m + ' min ago' : Math.round(m / 60) + ' h ago'; };
@@ -1098,6 +1105,8 @@ async function siteMenu() {
   btn.setAttribute('aria-expanded', 'true');
 }
 $('site').onclick = (e) => { e.stopPropagation(); siteMenu(); };
+// One click copies the current URL; Roar shows the "Copied link" toast.
+$('copy-url').onclick = (e) => { e.stopPropagation(); ask({ cmd: 'run', id: 'copyUrl' }); };
 // Right-click on empty sidebar space.
 function sidebarMenu(e) {
   const others = state.spaces.filter((sp) => sp.id !== state.activeSpace);
