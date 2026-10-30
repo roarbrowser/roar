@@ -1065,7 +1065,8 @@ async function tabMenu(t, e) {
     ${groups.filter((g) => g.id !== t.group).map((g) => `<button data-act="move" data-g="${g.id}">${dot(g.color)}${esc(g.name)}</button>`).join('')}
     ${t.group ? '<button data-act="ungroup">Remove from group</button>' : ''}
     ${!t.ghost && state.spaces.length > 1 ? `<hr><div class="head">Move to space</div>${state.spaces.filter((sp) => sp.id !== state.activeSpace).map((sp) => `<button data-act="space" data-s="${sp.id}">${dot(sp.color)}${esc(sp.name)}</button>`).join('')}` : ''}
-    <hr>${t.agentMark ? '<button data-act="clearAgent">Clear agent mark</button>' : ''}${t.split ? '<button data-act="unsplit">Separate tabs</button>' : ''}${t.floating ? '' : '<button data-act="float">Open in floating window</button>'}
+    <hr>${t.ghost ? '' : `<button data-act="rename">Rename…</button>${t.name ? '<button data-act="unname">Reset name</button>' : ''}`}
+    ${t.agentMark ? '<button data-act="clearAgent">Clear agent mark</button>' : ''}${t.split ? '<button data-act="unsplit">Separate tabs</button>' : ''}${t.floating ? '' : '<button data-act="float">Open in floating window</button>'}
     ${ab ? `<button data-act="adblock" role="menuitemcheckbox" aria-checked="${ab.excluded}" title="${esc(ab.site)}">${ab.excluded ? '✓ ' : ''}Don't block ads on this site</button>` : ''}
     <button data-act="close">Close tab</button>`, e, (act, d) => {
     if (act === 'space') ask({ cmd: 'tab.space', id: t.id, space: +d.s });
@@ -1075,6 +1076,8 @@ async function tabMenu(t, e) {
     else if (act === 'unsplit') ask({ cmd: 'tab.unsplit', id: t.id });
     else if (act === 'pin' || act === 'unpin') ask({ cmd: 'tab.pin', id: t.id, pinned: act === 'pin' });
     else if (act === 'icon') return iconMenu(t, e);
+    else if (act === 'rename') return nameMenu(t.name || t.title || '', e, (name) => ask({ cmd: 'agent.rename', kind: 'tab', id: t.id, name }), 'Tab name');
+    else if (act === 'unname') ask({ cmd: 'agent.rename', kind: 'tab', id: t.id, name: '' });
     else if (act === 'move') ask({ cmd: 'tab.group', id: t.id, group: +d.g });
     else if (act === 'ungroup') ask({ cmd: 'tab.group', id: t.id, group: 0 });
     else if (act === 'close') ask({ cmd: 'tab.close', id: t.id });
@@ -1120,8 +1123,8 @@ function sidebarMenu(e) {
     hideCtx();
   });
 }
-function nameMenu(value, e, done) {
-  showCtx(`<input id="ctx-name" maxlength="40" placeholder="Group name" spellcheck="false">`, e, () => {});
+function nameMenu(value, e, done, placeholder = 'Group name') {
+  showCtx(`<input id="ctx-name" maxlength="40" placeholder="${placeholder}" spellcheck="false">`, e, () => {});
   const input = $('ctx-name');
   input.value = value;
   input.focus();

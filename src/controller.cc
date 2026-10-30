@@ -6014,9 +6014,7 @@ void Controller::OnAddress(CefRefPtr<CefBrowser> browser, const std::string& url
   // session marks the page attached, which would keep a stray (no tab) from ever being adopted.
   if (!IsUiBrowser(browser) && !browser->IsPopup() && !IsExtensionPopup(browser) && !media_watchers_.count(browser->GetIdentifier()))
     MediaWatcher::Attach(browser, &media_watchers_[browser->GetIdentifier()]);
-  // A tab's own name belongs to the page it was given on: another page (not just a #hash) drops it.
-  auto page = [](const std::string& u) { return u.substr(0, u.find('#')); };
-  if (!tab->name.empty() && !tab->url.empty() && page(tab->url) != page(url)) tab->name.clear();
+  // A tab's own name (rename) stays across navigation until it is renamed or reset.
   tab->url = url;
   if (!tab->reader_origin.empty() && !StartsWith(url, kReaderUrl)) {
     tab->reader_origin.clear();
