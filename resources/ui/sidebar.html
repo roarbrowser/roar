@@ -32,6 +32,11 @@ body { background: var(--ground); display: flex; flex-direction: column; overflo
 .spaces button::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--ink-3); opacity: .5; }
 .spaces button:hover::before { opacity: 1; }
 .spaces button::before { background: var(--dot, var(--ink-3)); }
+/* A space with its own icon: an emoji button, a 28px target instead of the dot. */
+.spaces button.icon { width: 28px; height: 28px; border-radius: 8px; font-size: 17px; line-height: 1; opacity: .6; }
+.spaces button.icon::before { display: none; }
+.spaces button.icon:hover, .spaces button.icon[aria-current="true"] { opacity: 1; background: var(--hover); }
+.spaces button.icon.agents { box-shadow: inset 0 0 0 1.5px #7aa898; }
 .spaces button.dragging { opacity: .3; }
 .spaces button.drop-before { box-shadow: -2px 0 0 var(--mane); }
 .spaces button.drop-after { box-shadow: 2px 0 0 var(--mane); }
@@ -58,6 +63,7 @@ body { box-shadow: inset 3px 0 0 var(--space-color, transparent); }
 .space-menu[hidden] { display: none; }
 .space-menu input:focus-visible, .ctx input:focus-visible { outline: 2px solid var(--mane); outline-offset: 1px; }
 .space-menu input { width: 100%; min-width: 0; box-sizing: border-box; border: 0; padding: 4px 8px; border-radius: 6px; background: var(--panel); color: var(--ink); font: 500 12.5px var(--ui); }
+.space-menu #space-icon { grid-column: 1 / -1; }
 .space-menu .swatches { grid-column: 1 / -1; display: flex; gap: 6px; padding: 2px 2px 0; }
 .foot .space-menu .swatches button { width: 18px; height: 18px; padding: 0; border-radius: 50%; box-shadow: inset 0 0 0 1px rgba(255,255,255,.12); }
 .foot .space-menu .swatches button[aria-pressed="true"] { box-shadow: 0 0 0 2px var(--ink); }
@@ -476,7 +482,7 @@ body.drag-active .pinned:empty::before { content: 'Drop to pin'; color: var(--in
   <span class="brand"><span class="lion" style="width:22px;height:22px" aria-hidden="true"></span><span class="wordmark">Roar</span>
   <span class="space-name" id="space-name"></span></span>
   <span class="spaces" id="spaces" role="group" aria-label="Spaces"></span>
-  <div class="space-menu" id="space-menu" hidden><input id="space-rename" maxlength="40" aria-label="Space name" spellcheck="false"><button id="space-ai" title="Ask your agent to name this space (Shift-click: choose the agent)">Name with AI</button><button id="space-ai-all" title="Rename every tab in this space with AI; groups keep their names (Shift-click: choose the agent)">Rename all tabs with AI</button><button id="space-ai-loose" title="Rename the tabs not in a group or pinned (Shift-click: choose the agent)">Rename ungrouped tabs with AI</button><button id="space-remove" title="Archive its tabs and remove the space">Remove</button><button id="space-close" title="Close this space's tabs (pinned stay) and switch to the next space">Close all tabs</button><button id="space-agents" role="menuitemcheckbox" aria-checked="true" title="Let AI agents (CDP clients) see and open this space's tabs. A ring around the space's dot means they can.">Allow agents <span class="ring-key" aria-hidden="true"></span></button><div class="swatches" id="swatches" role="group" aria-label="Space color"></div></div>
+  <div class="space-menu" id="space-menu" hidden><input id="space-rename" maxlength="40" aria-label="Space name" spellcheck="false"><input id="space-icon" maxlength="8" placeholder="Icon (emoji), Enter" aria-label="Space icon" spellcheck="false"><button id="space-ai" title="Ask your agent to name this space (Shift-click: choose the agent)">Name with AI</button><button id="space-ai-all" title="Rename every tab in this space with AI; groups keep their names (Shift-click: choose the agent)">Rename all tabs with AI</button><button id="space-ai-loose" title="Rename the tabs not in a group or pinned (Shift-click: choose the agent)">Rename ungrouped tabs with AI</button><button id="space-remove" title="Archive its tabs and remove the space">Remove</button><button id="space-close" title="Close this space's tabs (pinned stay) and switch to the next space">Close all tabs</button><button id="space-agents" role="menuitemcheckbox" aria-checked="true" title="Let AI agents (CDP clients) see and open this space's tabs. A ring around the space's dot means they can.">Allow agents <span class="ring-key" aria-hidden="true"></span></button><div class="swatches" id="swatches" role="group" aria-label="Space color"></div></div>
   <span class="spacer"></span>
   <button id="mic" aria-pressed="false" hidden><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><rect x="5.5" y="1.8" width="5" height="8" rx="2.5"/><path d="M3.2 7.6a4.8 4.8 0 0 0 9.6 0M8 12.4v2"/></svg></button>
   <span class="tools">
@@ -581,7 +587,7 @@ window.roar = {
     $('space-name').textContent = multi ? (s.spaces.find((sp) => sp.id === s.activeSpace)?.name || '') : '';
     // One dot shows even with a single space: clicking it is how agent access is switched (space-dots.js).
     $('spaces').innerHTML = s.spaces.map((sp, i) => { const d = spaceDot(sp, s, i);
-      return `<button data-space="${sp.id}" draggable="true"${d.ring ? ` class="agents${d.busy ? ' busy' : ''}"` : ''} aria-current="${d.active}" style="${sp.color ? '--dot:' + sp.color : ''}" title="${esc(d.title)}" aria-label="${esc(d.label)}"></button>`; }).join('');
+      return `<button data-space="${sp.id}" draggable="true" class="${[d.ring && 'agents', d.ring && d.busy && 'busy', sp.icon && 'icon'].filter(Boolean).join(' ')}" aria-current="${d.active}" style="${sp.color ? '--dot:' + sp.color : ''}" title="${esc(d.title)}" aria-label="${esc(d.label)}">${sp.icon ? esc(sp.icon) : ''}</button>`; }).join('');
     layoutPins(s.settings);
     setHtml($('pinned'), pinned.map((t) =>
       `<button class="pin${t.active ? ' active' : ''}" data-id="${t.id}" draggable="true" title="${esc(t.title)}" aria-label="${esc(t.title)}">${pinIcon(t)}${sndButton(t, '')}</button>`).join(''));
@@ -910,6 +916,11 @@ $('space-rename').onkeydown = (e) => {
   if (e.key === 'Enter' && name) ask({ cmd: 'space.rename', id: menuSpace, name }).then(() => ask({ cmd: 'state' })).then(roar.render).finally(hideSpaceMenu);
   else if (e.key === 'Escape') hideSpaceMenu();
 };
+$('space-icon').onkeydown = (e) => {
+  if (e.key === 'Enter') ask({ cmd: 'space.icon', id: menuSpace, icon: e.target.value.trim() }).then(() => ask({ cmd: 'state' })).then(roar.render).finally(hideSpaceMenu);
+  else if (e.key === 'Escape') hideSpaceMenu();
+};
+$('space-icon').onblur = () => setTimeout(() => { if (!$('space-menu').contains(document.activeElement)) hideSpaceMenu(); }, 150);
 $('space-rename').onblur = () => setTimeout(() => { if (!$('space-menu').contains(document.activeElement)) hideSpaceMenu(); }, 150);
 $('space-remove').onmousedown = (e) => e.preventDefault();
 $('space-close').onmousedown = (e) => e.preventDefault();
@@ -953,6 +964,7 @@ document.addEventListener('contextmenu', (e) => {
     e.preventDefault();
     menuSpace = +dot.dataset.space;
     $('space-rename').value = state.spaces.find((sp) => sp.id === menuSpace)?.name || '';
+    $('space-icon').value = state.spaces.find((sp) => sp.id === menuSpace)?.icon || '';
     $('space-remove').hidden = menuSpace === 0;
     $('space-ai-all').hidden = $('space-ai-loose').hidden = menuSpace !== state.activeSpace;  // the sidebar only has the active space's tabs
     $('space-agents').setAttribute('aria-checked', state.spaces.find((sp) => sp.id === menuSpace)?.agents !== false);

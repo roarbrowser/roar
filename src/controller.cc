@@ -4211,6 +4211,7 @@ std::string Controller::StateJson() {
     d->SetString("name", state.spaces[i].name);
     d->SetString("color", state.spaces[i].color);
     d->SetBool("agents", state.spaces[i].agents);
+    d->SetString("icon", state.spaces[i].icon);
     d->SetInt("tabCount", static_cast<int>(std::count_if(
         tabs_.begin(), tabs_.end(), [&](const Tab& t) { return t.space == state.spaces[i].id; })));
     spaces->SetDictionary(i, d);
@@ -5146,6 +5147,15 @@ bool Controller::HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> 
     callback->Success("");
   } else if (cmd == "space.rename") {
     RenameSpace(int_arg("id"), msg->GetString("name"));
+    callback->Success(StateJson());
+  } else if (cmd == "space.icon") {
+    // An emoji (or a few characters) for the space's footer button; empty goes back to the dot.
+    std::string icon = msg->GetString("icon").ToString();
+    if (Space* sp = State::Get().FindSpace(int_arg("id")); sp && icon.size() <= 32) {
+      sp->icon = icon;
+      PushSidebar();
+      SaveSoon();
+    }
     callback->Success(StateJson());
   } else if (cmd == "space.color") {
     if (Space* sp = State::Get().FindSpace(int_arg("id"))) {

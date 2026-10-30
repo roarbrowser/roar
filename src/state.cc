@@ -279,6 +279,7 @@ void State::Load() {
       if (auto pins = sp->GetList("pinnedExtensions"))
         for (size_t j = 0; j < pins->GetSize(); ++j) spaces.back().pinned_extensions.push_back(pins->GetString(j));
       spaces.back().agents = Bool(sp, "agents", true);
+      spaces.back().icon = Str(sp, "icon", "");
     }
     // Space 0 (the global profile) must always exist.
     if (!FindSpace(0)) spaces.insert(spaces.begin(), {0, "Personal"});
@@ -389,6 +390,7 @@ void State::Save() {
     sp->SetString("name", spaces[i].name);
     sp->SetString("color", spaces[i].color);
     sp->SetBool("agents", spaces[i].agents);
+    sp->SetString("icon", spaces[i].icon);
     auto pins = CefListValue::Create();
     for (size_t j = 0; j < spaces[i].pinned_extensions.size(); ++j) pins->SetString(j, spaces[i].pinned_extensions[j]);
     sp->SetList("pinnedExtensions", pins);
