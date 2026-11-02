@@ -42,6 +42,9 @@ static bool g_stay_behind = false;
 - (void)terminate:(id)sender {
   roar::Controller::Get()->Quit();
 }
+// Chromium's "Leave site?" sheet sends this when the person picks Stay; without it that click crashed Roar.
+- (void)cancelTerminate:(id)sender {
+}
 @end
 
 @interface RoarAppDelegate : NSObject <NSApplicationDelegate>
