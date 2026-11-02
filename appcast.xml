@@ -166,5 +166,14 @@
       <description><![CDATA[Headless mode for agents now stays fully in the background: no Roar window appears at launch or when agents open pages, popups or windows. Pick Show Roar in the menu bar icon to see it.]]></description>
       <enclosure url="https://github.com/roarbrowser/roar/releases/download/v1.7.2/Roar-1.7.2.dmg" type="application/octet-stream" sparkle:edSignature="vzkLl+0p5E1EtRE87SU9F8zk7SgFJdlmopvt1zRNUvZKx0pilcY8IoHBHJhpWY0BPP98TMMqmaiyuaeupzmRBg==" length="207661149"/>
     </item>
+    <item>
+      <title>1.7.3</title>
+      <pubDate>Mon, 02 Nov 2026 13:58:15 +0000</pubDate>
+      <sparkle:version>10703</sparkle:version>
+      <sparkle:shortVersionString>1.7.3</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[Fixes a crash when you chose Stay on a page's "Leave site?" dialog, such as when leaving an unsent email.]]></description>
+      <enclosure url="https://github.com/roarbrowser/roar/releases/download/v1.7.3/Roar-1.7.3.dmg" type="application/octet-stream" sparkle:edSignature="USlr5c48/9sX0SjlJ1K/wOM5FcI0g37jepMBXYvVJ+4leNADP88au2vIL9FrQKoxII0hiL2EgspRYltpGJMZDw==" length="207664619"/>
+    </item>
   </channel>
 </rss>

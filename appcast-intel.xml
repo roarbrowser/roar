@@ -147,5 +147,14 @@
       <description><![CDATA[Nested tab groups, Rename… for tabs that keeps the name across navigation, an emoji icon for each space, air traffic control (links from other apps open in the space you choose), and a one-click Copy URL button in the address bar.]]></description>
       <enclosure url="https://github.com/roarbrowser/roar/releases/download/v1.7.0/Roar-1.7.0-intel.dmg" type="application/octet-stream" sparkle:edSignature="Wc3jxEF2hcNmoJYYLt0nJhMjDlZL7tk15kjneu7+5cctnXMYA2rgmJ4LRBhvF/8v7rHp5hW3xiJSJcs8wc9FAQ==" length="228816830"/>
     </item>
+    <item>
+      <title>1.7.3</title>
+      <pubDate>Mon, 02 Nov 2026 14:02:30 +0000</pubDate>
+      <sparkle:version>10703</sparkle:version>
+      <sparkle:shortVersionString>1.7.3</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[Fixes a crash when you chose Stay on a page's "Leave site?" dialog, such as when leaving an unsent email.]]></description>
+      <enclosure url="https://github.com/roarbrowser/roar/releases/download/v1.7.3/Roar-1.7.3-intel.dmg" type="application/octet-stream" sparkle:edSignature="7lWZdBIy5LAnfndZETeFLaq/9+2tzweqryLoT/YNS8lZxr0NZWyxvZMpN8y4yX9NSN2/KizBPRgKWO/9rWC5AQ==" length="228812144"/>
+    </item>
   </channel>
 </rss>
