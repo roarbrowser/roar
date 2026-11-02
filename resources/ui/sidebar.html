@@ -42,6 +42,9 @@ body { background: var(--ground); display: flex; flex-direction: column; overflo
 .pin.drop-before { box-shadow: -2px 0 0 var(--mane); }
 .pin.drop-after { box-shadow: 2px 0 0 var(--mane); }
 .spaces button[aria-current="true"]::before { background: var(--dot, var(--mane)); opacity: 1; width: 8px; height: 8px; }
+/* The current dot space sits on the same lit tile as a current icon space. */
+.spaces button[aria-current="true"]:not(.icon) { width: 24px; height: 24px; border-radius: 7px; background: var(--hover); }
+.spaces button[aria-current="true"]:not(.icon).agents::after { top: 3px; right: 3px; box-shadow: 0 0 0 1.5px var(--hover); }
 /* Agents (CDP clients) can reach this space: a small mint light in the corner. Never a ring or outline, which read as
    "the space you're on"; that is only the big opaque dot (or the lit icon) above. */
 .spaces button.agents::after { content: ""; position: absolute; top: 1px; right: 1px; width: 5px; height: 5px; border-radius: 50%; background: #7aa898; box-shadow: 0 0 0 1.5px var(--ground); }
