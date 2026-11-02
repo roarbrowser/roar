@@ -107,6 +107,8 @@ details.chip ul { margin: 6px 0 0; padding-left: 26px; font: 12px/1.5 var(--mono
 #slash-menu div[aria-selected="true"] { background: var(--hover); }
 #slash-menu div b { color: var(--mane-ink); font-weight: 600; }
 #chat-off { margin: 0 20px 8px; }
+#elsewhere { margin: 0 20px 14px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; } #elsewhere[hidden] { display: none; }
+#beside[aria-pressed="true"] { background: var(--mane); color: #2a1604; }
 </style>
 </head>
 <body>
@@ -118,6 +120,7 @@ details.chip ul { margin: 6px 0 0; padding-left: 26px; font: 12px/1.5 var(--mono
 <section id="chat" aria-label="Conversation"><p class="note" id="chat-note" hidden></p><div id="msgs" role="log" aria-live="polite" aria-relevant="additions"></div><div id="ask" role="group" aria-labelledby="ask-q" hidden></div><div id="running" role="status" hidden></div><div id="working" role="status" hidden>Working…</div></section>
 <form id="chatform"><textarea id="ctext" rows="1" placeholder="Message… (Enter sends, Shift+Enter for a new line)" aria-label="Message to the agent"></textarea><span id="cmic"></span><button>Send</button></form>
 <form id="reply"><input id="text" placeholder="Reply… (/ for commands; empty Enter accepts)" autocomplete="off" spellcheck="false" aria-label="Reply"><span id="tmic"></span><button>Send</button></form>
+<p class="status" id="elsewhere" role="note" hidden><span id="elsewhere-why"></span> <button type="button" class="btn" id="elsewhere-go">Open it</button></p>
 <p class="status" id="attach-why" hidden></p>
 <div class="ctx" id="tab-menu" role="menu" hidden></div>
 <div class="ctx" id="slash-menu" role="listbox" aria-label="Commands" hidden></div>
@@ -136,6 +139,8 @@ const keys = document.querySelector('.keys');
 keys.innerHTML = clSession.keysHtml();
 const STATES = { needs_you: 'Needs you', working: 'Working', idle: 'Idle', starting: 'Starting' };
 
+const APP_NAMES = { 'com.anthropic.claudefordesktop': 'the Claude app', 'com.apple.Terminal': 'Terminal', 'com.googlecode.iterm2': 'iTerm', 'com.microsoft.VSCode': 'VS Code', 'com.mitchellh.ghostty': 'Ghostty', 'com.github.wez.wezterm': 'WezTerm', 'net.kovidgoyal.kitty': 'kitty' };
+let myTab = null;  // This view's own tab, for the Side by side switch.
 async function meta() {
   const s = await ask({ cmd: 'state' }).then((x) => typeof x === 'string' ? JSON.parse(x) : x);
   const items = s.claude?.items || [];
@@ -146,7 +151,7 @@ async function meta() {
     if (c) { history.replaceState(null, '', `?id=${encodeURIComponent(id = c.id)}`); if (view) remember(view); }
     else return void ($('state').textContent = 'Starting…');
   }
-  if (!c) { $('state').textContent = 'This session has ended.'; $('dot').className = 'dot'; $('reply').hidden = $('screen').hidden = keys.hidden = $('focus').hidden = $('end').hidden = $('chat').hidden = $('chatform').hidden = $('view').hidden = true; return; }
+  if (!c) { $('state').textContent = 'This session has ended.'; $('dot').className = 'dot'; $('reply').hidden = $('screen').hidden = keys.hidden = $('focus').hidden = $('end').hidden = $('chat').hidden = $('chatform').hidden = $('view').hidden = $('elsewhere').hidden = true; return; }
   document.title = `${c.project} · ${agentName(c)}`;
   $('icon').innerHTML = agentIcon(c, 18);
   $('icon').title = agentName(c);
@@ -167,6 +172,15 @@ async function meta() {
   $('state').textContent = [STATES[st] || st, c.doing || (c.prompt || '').split('\n')[0]].filter(Boolean).join(' · ');
   $('dot').className = 'dot ' + st;
   $('reply').hidden = $('screen').hidden = keys.hidden = $('chatform').hidden = $('end').hidden = !c.live;
+  // Not in tmux or cmux (the Claude app, a plain terminal, any Windows session): Roar can't type into it, so say where to reply.
+  const app = APP_NAMES[c.term?.app] || '';
+  $('elsewhere').hidden = c.live;
+  $('elsewhere-why').textContent = `Roar can't type into this session. Reply in ${app || 'the window it runs in'}.`;
+  $('elsewhere-go').hidden = !c.term?.app;
+  // Side by side is a switch: pressed while this view shares the screen, and pressing it again goes back to one page.
+  myTab = s.tabs.find((t) => (/^roar:\/\/ui\/claude\.html\?id=([\w-]+)/.exec(t.url || '') || [])[1] === id);
+  $('beside').setAttribute('aria-pressed', String(!!myTab?.split));
+  $('beside').title = myTab?.split ? 'Back to one page' : 'Split this view beside the web page you used last';
   session = c;
   setView(view || recalled() || (s.settings?.agentTerminal ? 'terminal' : 'chat'));
   sizePane();
@@ -213,7 +227,8 @@ $('colors').onclick = (e) => {
   if (!b || !colorState) return;
   saveColor(b.dataset.color);
 };
-$('beside').onclick = () => ask({ cmd: 'claude.beside', id });
+$('beside').onclick = () => ask(myTab?.split ? { cmd: 'tab.unsplit', id: myTab.id } : { cmd: 'claude.beside', id }).then(meta);
+$('elsewhere-go').onclick = async () => shownError(await clSession.ctl(id, 'focus'));
 // Claude Code's fullscreen UI runs on the terminal's alternate screen, which has no tmux scrollback,
 // so a wheel past the mirror's own scroll range pages the session itself.
 let wheel = 0, paging = false;
@@ -445,7 +460,7 @@ async function chat() {
       chatSig = sig;
       $('msgs').replaceChildren(...d.items.map((x, i) => { const el = item(x); el.dataset.i = i; if (open.has(String(i))) el.open = true; return el; }));
     }
-    note(d.items.length ? '' : 'No messages yet. Say something below to start.');
+    note(d.items.length ? '' : session?.live ? 'No messages yet. Say something below to start.' : 'No messages yet.');
     const st = session.acked && session.state === 'needs_you' ? 'working' : session.state;
     const run = d.running || [];
     $('running').hidden = !run.length;

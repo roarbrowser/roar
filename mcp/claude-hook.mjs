@@ -255,6 +255,7 @@ function hook(tool, argEvent) {
   const next = update(prev, ev, now, tool);
   if (!next.term || ev.hook_event_name === 'SessionStart') next.term = where();
   next.live = !!(next.term.tmux?.pane || next.term.cmux);
+  if (!next.live && next.doing === 'Done, waiting for you') next.doing = 'Done';  // Its reply goes in its own app.
   const tmp = `${file}.${process.pid}.tmp`;  // One per hook process, so concurrent hooks never share it.
   try {
     writeFileSync(tmp, JSON.stringify(next));
