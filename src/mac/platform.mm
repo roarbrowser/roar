@@ -33,6 +33,42 @@
 #include "state.h"
 #include "update_restore.h"
 
+// Headless: nothing of Roar shows until Show Roar (platform::KeepHidden). Hiding the app isn't
+// enough: a window ordered in after the hide still shows. Ordering windows out stops Chromium
+// painting them (agent screenshots hang), so every window is veiled instead: ordered in as usual
+// but transparent and click-through. Show Roar lifts the veils; Hide Roar puts them back.
+static bool g_keep_hidden = false;
+static NSHashTable<NSWindow*>* g_veiled = nil;
+static char kVeilAlpha, kVeilMouse;  // What the window would have without its veil.
+static IMP g_order_window = nullptr, g_set_alpha = nullptr;
+static void SetAlpha(NSWindow* w, SEL sel, CGFloat alpha) {
+  if ([g_veiled containsObject:w]) return objc_setAssociatedObject(w, &kVeilAlpha, @(alpha), OBJC_ASSOCIATION_RETAIN);
+  reinterpret_cast<void (*)(id, SEL, CGFloat)>(g_set_alpha)(w, sel, alpha);
+}
+static void Veil(NSWindow* w) {
+  // Menus stay (the menu bar icon's Show Roar is one).
+  if (w.level >= NSStatusWindowLevel || [g_veiled containsObject:w]) return;
+  objc_setAssociatedObject(w, &kVeilAlpha, @(w.alphaValue), OBJC_ASSOCIATION_RETAIN);
+  objc_setAssociatedObject(w, &kVeilMouse, @(w.ignoresMouseEvents), OBJC_ASSOCIATION_RETAIN);
+  w.alphaValue = 0;
+  w.ignoresMouseEvents = YES;
+  [g_veiled addObject:w];
+}
+static void OrderWindow(NSWindow* w, SEL sel, NSWindowOrderingMode place, NSInteger other) {
+  if (g_keep_hidden && place != NSWindowOut) Veil(w);
+  reinterpret_cast<void (*)(id, SEL, NSWindowOrderingMode, NSInteger)>(g_order_window)(w, sel, place, other);
+}
+static const bool g_veil_windows = [] {
+  if (!roar::platform::Headless()) return false;
+  g_keep_hidden = true;
+  g_veiled = [[NSHashTable weakObjectsHashTable] retain];  // No ARC here.
+  g_order_window = method_setImplementation(class_getInstanceMethod(NSWindow.class, @selector(orderWindow:relativeTo:)),
+                                            reinterpret_cast<IMP>(OrderWindow));
+  g_set_alpha = method_setImplementation(class_getInstanceMethod(NSWindow.class, @selector(setAlphaValue:)),
+                                         reinterpret_cast<IMP>(SetAlpha));
+  return true;
+}();
+
 @interface RoarMenuTarget : NSObject <NSMenuDelegate, SPUUpdaterDelegate>
 @property(nonatomic, strong) NSArray<NSString*>* commands;
 - (void)run:(NSMenuItem*)sender;
@@ -94,11 +130,18 @@
   roar::Controller::Get()->RunCommand([sender.representedObject UTF8String]);
 }
 - (void)showRoar:(id)sender {
+  g_keep_hidden = false;
+  NSArray<NSWindow*>* veiled = g_veiled.allObjects;
+  [g_veiled removeAllObjects];
+  for (NSWindow* w in veiled) {
+    w.alphaValue = [objc_getAssociatedObject(w, &kVeilAlpha) doubleValue];
+    w.ignoresMouseEvents = [objc_getAssociatedObject(w, &kVeilMouse) boolValue];
+  }
   [NSApp activateIgnoringOtherApps:YES];
   roar::Controller::Get()->Focus();
 }
 - (void)hideRoar:(id)sender {
-  [NSApp hide:nil];
+  roar::platform::HideApp();
 }
 - (void)quitRoar:(id)sender {
   roar::Controller::Get()->Quit();
@@ -665,7 +708,14 @@ void InstallStatusItem() {
   item.menu = menu;
 }
 
-void HideApp() { [NSApp hide:nil]; }
+void HideApp() {
+  g_keep_hidden = true;
+  [NSApp deactivate];  // Keys must not go on to a veiled window.
+  for (NSWindow* w in NSApp.windows)
+    if (w.isVisible) Veil(w);
+}
+
+bool KeepHidden() { return g_keep_hidden; }
 
 void InstallMenu() {
   g_menu_target = [[RoarMenuTarget alloc] init];

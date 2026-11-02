@@ -44,7 +44,11 @@ void InstallMenu();
 // Dock icon. Chrome's own headless mode has no window to bring forward later.
 bool Headless();
 void InstallStatusItem();
+// Mac: veils every window (transparent, click-through, still painting) until Show Roar.
 void HideApp();
+// Mac, headless: true until the menu bar icon's Show Roar (Hide Roar sets it again).
+// While true, Roar ignores activation and veils each window it shows.
+bool KeepHidden();
 // Safari's Bookmarks.plist as {"bookmarks": [node...], "readingList": [{title, url}]},
 // or "" when it can't be read (Roar lacks Full Disk Access).
 std::string SafariBookmarksJson();

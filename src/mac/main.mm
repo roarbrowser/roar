@@ -24,10 +24,10 @@ static bool g_stay_behind = false;
 
 @implementation RoarApplication
 - (void)activateIgnoringOtherApps:(BOOL)flag {
-  if (!g_stay_behind) [super activateIgnoringOtherApps:flag];
+  if (!g_stay_behind && !roar::platform::KeepHidden()) [super activateIgnoringOtherApps:flag];
 }
 - (void)activate {
-  if (!g_stay_behind) [super activate];
+  if (!g_stay_behind && !roar::platform::KeepHidden()) [super activate];
 }
 - (BOOL)isHandlingSendEvent {
   return handlingSendEvent_;
