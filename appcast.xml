@@ -157,5 +157,14 @@
       <description><![CDATA[Agent headless launches no longer open a stray about:blank tab.]]></description>
       <enclosure url="https://github.com/roarbrowser/roar/releases/download/v1.7.1/Roar-1.7.1.dmg" type="application/octet-stream" sparkle:edSignature="i2QIaA2j0LWi+Q6norHEjjF5zL6iOYnMXihBFqGvM7txi5Bk0Hx5+IHuRyP3AElS0Bo+6yuxt2REIci9kbSyCg==" length="207656594"/>
     </item>
+    <item>
+      <title>1.7.2</title>
+      <pubDate>Mon, 02 Nov 2026 13:16:48 +0000</pubDate>
+      <sparkle:version>10702</sparkle:version>
+      <sparkle:shortVersionString>1.7.2</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[Headless mode for agents now stays fully in the background: no Roar window appears at launch or when agents open pages, popups or windows. Pick Show Roar in the menu bar icon to see it.]]></description>
+      <enclosure url="https://github.com/roarbrowser/roar/releases/download/v1.7.2/Roar-1.7.2.dmg" type="application/octet-stream" sparkle:edSignature="vzkLl+0p5E1EtRE87SU9F8zk7SgFJdlmopvt1zRNUvZKx0pilcY8IoHBHJhpWY0BPP98TMMqmaiyuaeupzmRBg==" length="207661149"/>
+    </item>
   </channel>
 </rss>
