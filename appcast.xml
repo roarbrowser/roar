@@ -175,5 +175,14 @@
       <description><![CDATA[Fixes a crash when you chose Stay on a page's "Leave site?" dialog, such as when leaving an unsent email.]]></description>
       <enclosure url="https://github.com/roarbrowser/roar/releases/download/v1.7.3/Roar-1.7.3.dmg" type="application/octet-stream" sparkle:edSignature="USlr5c48/9sX0SjlJ1K/wOM5FcI0g37jepMBXYvVJ+4leNADP88au2vIL9FrQKoxII0hiL2EgspRYltpGJMZDw==" length="207664619"/>
     </item>
+    <item>
+      <title>1.7.4</title>
+      <pubDate>Mon, 02 Nov 2026 14:36:14 +0000</pubDate>
+      <sparkle:version>10704</sparkle:version>
+      <sparkle:shortVersionString>1.7.4</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[Roar writes about 10 times less to disk: history now has its own file, and history and saved page text are written every few minutes instead of on every page change.]]></description>
+      <enclosure url="https://github.com/roarbrowser/roar/releases/download/v1.7.4/Roar-1.7.4.dmg" type="application/octet-stream" sparkle:edSignature="6zqSpmRLSvqKZ+lWpoXqTqjhOkt4ISatIIyXOd0Z7NvSm1K2oa6otVMdY9sknX1yCAZq6BXqtbIFVqKF9SorDA==" length="207665060"/>
+    </item>
   </channel>
 </rss>
