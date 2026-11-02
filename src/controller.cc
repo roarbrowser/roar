@@ -3430,14 +3430,17 @@ void Controller::IndexPage(Tab* tab) {
                          "}catch(e){}},1500);})(" + JsString(nonce) + ");");
 }
 
-void Controller::SavePagesSoon() {
-  if (pages_save_pending_ || closing_) return;
-  pages_save_pending_ = true;
+// History and page text are megabytes: rewriting them on every navigation wrote GBs a day
+// (macOS flagged 2.1 GB in 9 h, 1.7.1), so they go at most every 5 minutes, and on quit.
+void Controller::SaveSlowSoon() {
+  if (slow_save_pending_ || closing_) return;
+  slow_save_pending_ = true;
   CefPostDelayedTask(TID_UI, base::BindOnce([] {
-                       Controller::Get()->pages_save_pending_ = false;
+                       Controller::Get()->slow_save_pending_ = false;
+                       State::Get().SaveHistory();
                        State::Get().SavePages();
                      }),
-                     10 * 1000);
+                     5 * 60 * 1000);
 }
 
 void Controller::RunCommand(const std::string& id) {
@@ -3589,6 +3592,7 @@ void Controller::RunCommand(const std::string& id) {
     std::erase_if(state.history, [&](const auto& kv) { return in_space(kv.first) && kv.second.last_visit >= since; });
     std::erase_if(state.pages, [&](const auto& kv) { return in_space(kv.first) && kv.second.indexed_at >= since; });
     state.Save();
+    state.SaveHistory();
     state.SavePages();
     ReloadSpace(space);
     PushSidebar();
@@ -4648,7 +4652,7 @@ bool Controller::HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> 
                        frame->GetURL().ToString() == pending.url;
       if (same_page && State::Get().settings.index_pages) {
         State::Get().SetPageText(tab->space, pending.url, msg->GetString("title"), msg->GetString("text"));
-        SavePagesSoon();
+        SaveSlowSoon();
       }
       callback->Success("");
       return true;
@@ -6323,6 +6327,7 @@ void Controller::OnLoading(CefRefPtr<CefBrowser> browser, bool loading, bool can
     }
     if (!tab->ghost) {
       State::Get().RecordVisit(tab->space, tab->url, tab->title);
+      SaveSlowSoon();
       IndexPage(tab);
     }
   }
@@ -6596,6 +6601,7 @@ bool Controller::CanCloseShell(CefRefPtr<CefWindow> shell) {
   }
   closing_ = true;
   SaveNow();
+  State::Get().SaveHistory();
   State::Get().SavePages();
   std::error_code ec;
   std::filesystem::remove_all(ClaudePagesDir(), ec);

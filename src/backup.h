@@ -138,7 +138,7 @@ inline Cat Classify(const std::string& rel) {
   if (slash == std::string::npos) {
     if (name == "state.json" || name == "library.json") return kSettings;
     // Local State holds the cookie encryption key on Windows, so it travels with the cookies.
-    if (name == "pages.json" || name == "chats.json" || name == "chats" || name == "Local State") return kBrowsing;
+    if (name == "pages.json" || name == "history.json" || name == "chats.json" || name == "chats" || name == "Local State") return kBrowsing;
     return kNone;  // Caches, locks, runtime files, the staged uBOL copy, earlier backups.
   }
   if (rel.find("/IndexedDB/") != std::string::npos)

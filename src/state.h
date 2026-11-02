@@ -143,6 +143,7 @@ class State {
   // Zoom level (Chromium's logarithmic scale, 0 = 100%) per host; hosts at 100% are absent.
   std::map<std::string, double> zoom;
 
+  void SaveHistory();
   void SavePages();
   void SetPageText(int space, const std::string& url, const std::string& title, const std::string& text);
   Space* FindSpace(int id);

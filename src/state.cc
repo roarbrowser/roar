@@ -161,6 +161,19 @@ void State::Load() {
       pages[k.ToString()] = {Str(e, "title"), Str(e, "text"), Num(e, "indexedAt"), space, url};
     }
   }
+  // History is megabytes, so it lives in history.json and is written rarely (Controller::SaveSlowSoon).
+  auto load_history = [this](CefRefPtr<CefDictionaryValue> h) {
+    CefDictionaryValue::KeyList keys;
+    h->GetKeys(keys);
+    for (const auto& k : keys) {
+      auto e = h->GetDictionary(k);
+      history[k.ToString()] = {Str(e, "title"), static_cast<int>(Num(e, "visits")),
+                               Num(e, "lastVisit"), SplitKey(k.ToString()).first};
+    }
+  };
+  if (auto root = CefParseJSON(ReadFile(Dir() + "/history.json"), JSON_PARSER_RFC);
+      root && root->GetType() == VTYPE_DICTIONARY)
+    load_history(root->GetDictionary());
   std::string text = ReadFile(Dir() + "/state.json");
   // A new window (an extra instance) starts with the main window's spaces and pins.
   const char* instance = std::getenv("ROAR_INSTANCE");
@@ -211,14 +224,11 @@ void State::Load() {
                          static_cast<int>(Num(t, "space"))});
     }
   }
+  // A state.json that still holds history (before 1.7.4, or a restored backup) wins and moves it to history.json.
   if (auto h = d->GetDictionary("history")) {
-    CefDictionaryValue::KeyList keys;
-    h->GetKeys(keys);
-    for (const auto& k : keys) {
-      auto e = h->GetDictionary(k);
-      history[k.ToString()] = {Str(e, "title"), static_cast<int>(Num(e, "visits")),
-                               Num(e, "lastVisit"), SplitKey(k.ToString()).first};
-    }
+    history.clear();
+    load_history(h);
+    SaveHistory();
   }
   if (auto s = d->GetDictionary("settings")) {
     settings.search_migrated = false;  // A file without the key predates the picker.
@@ -385,15 +395,6 @@ void State::Save() {
     al->SetDictionary(i, t);
   }
   d->SetList("archive", al);
-  auto h = CefDictionaryValue::Create();
-  for (const auto& [key, e] : history) {
-    auto v = CefDictionaryValue::Create();
-    v->SetString("title", e.title);
-    v->SetInt("visits", e.visits);
-    v->SetDouble("lastVisit", e.last_visit);
-    h->SetDictionary(key, v);
-  }
-  d->SetDictionary("history", h);
   auto s = CefDictionaryValue::Create();
   for (const auto& f : SettingFields())
     std::visit([&](auto m) {
@@ -451,6 +452,18 @@ void State::Save() {
     }
   }
   WriteJson(Dir(), "state.json", d);
+}
+
+void State::SaveHistory() {
+  auto h = CefDictionaryValue::Create();
+  for (const auto& [key, e] : history) {
+    auto v = CefDictionaryValue::Create();
+    v->SetString("title", e.title);
+    v->SetInt("visits", e.visits);
+    v->SetDouble("lastVisit", e.last_visit);
+    h->SetDictionary(key, v);
+  }
+  WriteJson(Dir(), "history.json", h);
 }
 
 void State::SavePages() {

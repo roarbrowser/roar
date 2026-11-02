@@ -340,7 +340,7 @@ class Controller {
   CefRefPtr<CefBrowserView> CreateTabView(const std::string& url, int space, bool ghost = false);
   void EndGhostSession();
   void IndexPage(Tab* tab);
-  void SavePagesSoon();
+  void SaveSlowSoon();
   void ShowTabWindow(Tab* tab);
   void HideTabWindow(Tab* tab);
   // Keys the tab only while Roar is the active app, unless |force| (the person asked to show Roar).
@@ -489,7 +489,7 @@ class Controller {
   bool command_visible_ = false;
   bool sidebar_drag_poll_ = false;
   bool save_pending_ = false;
-  bool pages_save_pending_ = false;
+  bool slow_save_pending_ = false;
   bool closing_ = false;
   int hint_generation_ = 0;
   int live_browsers_ = 0;
