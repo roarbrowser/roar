@@ -184,5 +184,14 @@
       <description><![CDATA[Roar writes about 10 times less to disk: history now has its own file, and history and saved page text are written every few minutes instead of on every page change.]]></description>
       <enclosure url="https://github.com/roarbrowser/roar/releases/download/v1.7.4/Roar-1.7.4.dmg" type="application/octet-stream" sparkle:edSignature="6zqSpmRLSvqKZ+lWpoXqTqjhOkt4ISatIIyXOd0Z7NvSm1K2oa6otVMdY9sknX1yCAZq6BXqtbIFVqKF9SorDA==" length="207665060"/>
     </item>
+    <item>
+      <title>1.7.5</title>
+      <pubDate>Mon, 02 Nov 2026 16:53:21 +0000</pubDate>
+      <sparkle:version>10705</sparkle:version>
+      <sparkle:shortVersionString>1.7.5</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[Side by side is now a switch: press it again to go back to one page. Agent sessions Roar can't type into, such as ones from the Claude app, now say where to reply and offer to open that app, and no longer show "waiting for you".]]></description>
+      <enclosure url="https://github.com/roarbrowser/roar/releases/download/v1.7.5/Roar-1.7.5.dmg" type="application/octet-stream" sparkle:edSignature="5Nt2jfCue+kGm5PFOr7/Q7F6fa3TLGTJkvfO/16ECKmZlJT8fWChm4yl90lfbnNeSjyxqksh8xPpDKdm1KpMCg==" length="207658499"/>
+    </item>
   </channel>
 </rss>
