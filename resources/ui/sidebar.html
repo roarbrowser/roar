@@ -683,9 +683,7 @@ window.roar = {
         `</span></button>` +
         `<span class="cl-acts">` +
         aiRn('session', c.id, c.project) +
-        (clFull[c.id]?.split
-          ? `<button data-clbeside="${esc(c.id)}" aria-pressed="true" aria-label="Stop showing ${esc(c.project)} side by side" title="Back to one page">${ico.beside}</button>`
-          : `<button data-clbeside="${esc(c.id)}" aria-label="Show ${esc(c.project)} side by side with the page you're on" title="Side by side with this page">${ico.beside}</button>`) +
+        `<button data-clbeside="${esc(c.id)}" aria-pressed="${!!clFull[c.id]?.split}" aria-label="${clFull[c.id]?.split ? `Stop showing ${esc(c.project)} side by side` : `Show ${esc(c.project)} side by side with the page you're on`}" title="${clFull[c.id]?.split ? 'Back to one page' : 'Side by side with this page'}">${ico.beside}</button>` +
         `${c.live ? `<button data-clfocus="${esc(c.id)}" aria-label="Show ${esc(c.project)}'s terminal" title="Bring its terminal window to the front">${ico.term}</button>` : ''}` +
         (c.live ? `<button data-clquit="${esc(c.id)}" aria-label="End ${esc(c.project)}" title="End this session (closes its terminal)">${ico.quit}</button>` : '') +
         (c.live ? `<button data-clhide="${esc(c.id)}" title="${clIsHidden(c.id) ? 'Show this session again' : 'Hide (Show hidden brings it back)'}" aria-label="${clIsHidden(c.id) ? 'Unhide' : 'Hide'} ${esc(c.project)}">${ico.hide}</button></span></div>`

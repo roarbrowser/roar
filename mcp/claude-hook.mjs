@@ -146,6 +146,7 @@ export function chatLabel(env = process.env, home = homedir()) {
   return title || [folder, sid.slice(0, 8)].filter(Boolean).join(' · ');
 }
 
+const WAITING = 'Done, waiting for you';  // An idle session Roar can type into (tmux/cmux).
 export function update(prev, ev, now, tool = 'claude') {
   const s = { ...prev, id: keyOf(tool, ev.session_id), sid: ev.session_id, tool, cwd: ev.cwd || prev.cwd || '', updated: now };
   if (ev.hook_event_name === 'UserPromptSubmit') s.first ||= short(userText(ev.prompt), 60);
@@ -173,7 +174,7 @@ export function update(prev, ev, now, tool = 'claude') {
       // The done card shows the start of the final reply: Claude/Codex send last_assistant_message, Gemini prompt_response.
       const said = ev.last_assistant_message || ev.prompt_response;
       const reply = short(said ? plain(said) : tool === 'claude' && ev.transcript_path ? lastSaid(ev.transcript_path, false) : '', 140);
-      return { ...s, state: 'idle', reply, doing: 'Done, waiting for you', pending: '' };
+      return { ...s, state: 'idle', reply, doing: WAITING, pending: '' };
     }
     default: return s;
   }
@@ -255,7 +256,7 @@ function hook(tool, argEvent) {
   const next = update(prev, ev, now, tool);
   if (!next.term || ev.hook_event_name === 'SessionStart') next.term = where();
   next.live = !!(next.term.tmux?.pane || next.term.cmux);
-  if (!next.live && next.doing === 'Done, waiting for you') next.doing = 'Done';  // Its reply goes in its own app.
+  if (!next.live && next.doing === WAITING) next.doing = 'Done';  // Roar can't type its reply; that goes in its own app.
   const tmp = `${file}.${process.pid}.tmp`;  // One per hook process, so concurrent hooks never share it.
   try {
     writeFileSync(tmp, JSON.stringify(next));

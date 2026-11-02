@@ -139,7 +139,7 @@ const keys = document.querySelector('.keys');
 keys.innerHTML = clSession.keysHtml();
 const STATES = { needs_you: 'Needs you', working: 'Working', idle: 'Idle', starting: 'Starting' };
 
-const APP_NAMES = { 'com.anthropic.claudefordesktop': 'the Claude app', 'com.apple.Terminal': 'Terminal', 'com.googlecode.iterm2': 'iTerm', 'com.microsoft.VSCode': 'VS Code', 'com.mitchellh.ghostty': 'Ghostty', 'com.github.wez.wezterm': 'WezTerm', 'net.kovidgoyal.kitty': 'kitty' };
+const APP_NAMES = { 'com.anthropic.claudefordesktop': 'the Claude app', 'com.apple.Terminal': 'Terminal', 'com.googlecode.iterm2': 'iTerm', 'com.microsoft.VSCode': 'VS Code', 'com.todesktop.230313mzl4w4u92': 'Cursor', 'com.exafunction.windsurf': 'Windsurf', 'com.mitchellh.ghostty': 'Ghostty', 'com.github.wez.wezterm': 'WezTerm', 'net.kovidgoyal.kitty': 'kitty' };
 let myTab = null;  // This view's own tab, for the Side by side switch.
 async function meta() {
   const s = await ask({ cmd: 'state' }).then((x) => typeof x === 'string' ? JSON.parse(x) : x);
@@ -176,7 +176,9 @@ async function meta() {
   const app = APP_NAMES[c.term?.app] || '';
   $('elsewhere').hidden = c.live;
   $('elsewhere-why').textContent = `Roar can't type into this session. Reply in ${app || 'the window it runs in'}.`;
-  $('elsewhere-go').hidden = !c.term?.app;
+  // Open it replaces the header's Terminal button here; bringing a window forward doesn't work on Windows.
+  $('elsewhere-go').hidden = !c.term?.app || /Win/.test(navigator.platform);
+  $('focus').hidden = !c.live;
   // Side by side is a switch: pressed while this view shares the screen, and pressing it again goes back to one page.
   myTab = s.tabs.find((t) => (/^roar:\/\/ui\/claude\.html\?id=([\w-]+)/.exec(t.url || '') || [])[1] === id);
   $('beside').setAttribute('aria-pressed', String(!!myTab?.split));
@@ -227,7 +229,12 @@ $('colors').onclick = (e) => {
   if (!b || !colorState) return;
   saveColor(b.dataset.color);
 };
-$('beside').onclick = () => ask(myTab?.split ? { cmd: 'tab.unsplit', id: myTab.id } : { cmd: 'claude.beside', id }).then(meta);
+// Reads the split state fresh first: the 3 s poll may predate a split or unsplit made elsewhere.
+$('beside').onclick = async () => {
+  await meta();
+  try { await ask(myTab?.split ? { cmd: 'tab.unsplit', id: myTab.id } : { cmd: 'claude.beside', id }); } catch {}
+  meta();
+};
 $('elsewhere-go').onclick = async () => shownError(await clSession.ctl(id, 'focus'));
 // Claude Code's fullscreen UI runs on the terminal's alternate screen, which has no tmux scrollback,
 // so a wheel past the mirror's own scroll range pages the session itself.
