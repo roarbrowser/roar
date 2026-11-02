@@ -156,14 +156,5 @@
       <description><![CDATA[Fixes a crash when you chose Stay on a page's "Leave site?" dialog, such as when leaving an unsent email.]]></description>
       <enclosure url="https://github.com/roarbrowser/roar/releases/download/v1.7.3/Roar-1.7.3-intel.dmg" type="application/octet-stream" sparkle:edSignature="7lWZdBIy5LAnfndZETeFLaq/9+2tzweqryLoT/YNS8lZxr0NZWyxvZMpN8y4yX9NSN2/KizBPRgKWO/9rWC5AQ==" length="228812144"/>
     </item>
-    <item>
-      <title>1.7.7</title>
-      <pubDate>Mon, 02 Nov 2026 21:59:37 +0000</pubDate>
-      <sparkle:version>10707</sparkle:version>
-      <sparkle:shortVersionString>1.7.7</sparkle:shortVersionString>
-      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
-      <description><![CDATA[The space you're on now sits on a lit tile in the sidebar, so it's easy to spot.]]></description>
-      <enclosure url="https://github.com/roarbrowser/roar/releases/download/v1.7.7/Roar-1.7.7-intel.dmg" type="application/octet-stream" sparkle:edSignature="lF6habd8dvn9VPI3Ym00mdZ7IXz0mO2zBIIZlDN/eY5Umf6j0Cxlj2lW1ndkWL6em7q9wJcu5FrBFZqwCiOxBQ==" length="228823704"/>
-    </item>
   </channel>
 </rss>
