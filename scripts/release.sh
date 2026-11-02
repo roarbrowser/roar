@@ -38,10 +38,12 @@ sed -i '' -E "s|(<key>CFBundleVersion</key><string>)[^<]*|\1$BUILD|" "$PLIST"
 # an Apple Development identity embeds the developer's real name.
 DEVID="$(security find-identity -v -p codesigning | awk -F'"' '/Developer ID Application/{print $2; exit}')"
 # One DMG per Mac, never universal: Roar-<v>.dmg (Apple Silicon; the name Sparkle and Homebrew
-# have always used) and, once third_party/cef-x64 exists, Roar-<v>-intel.dmg with its own feed.
-ARCHES=(arm64); [[ -d third_party/cef-x64 ]] && ARCHES+=(x64)
+# have always used) and, with ROAR_INTEL=1 and third_party/cef-x64, Roar-<v>-intel.dmg with its own feed.
+# Intel is opt-in: the staged x64 CEF alone shipped Intel builds while Intel was frozen (1.7.7).
+INTEL=; [[ ${ROAR_INTEL:-} == 1 ]] && { [[ -d third_party/cef-x64 ]] || { echo "release.sh: ROAR_INTEL=1 needs third_party/cef-x64" >&2; exit 1; }; INTEL=1; }
+ARCHES=(arm64); [[ -n $INTEL ]] && ARCHES+=(x64)
 # x64 notices need their own committed copy (build.sh diffs against it); refuse until it exists.
-[[ ! -d third_party/cef-x64 ]] || git ls-files --error-unmatch THIRD_PARTY_NOTICES-x64.txt >/dev/null 2>&1 || { echo "release.sh: third_party/cef-x64 exists but THIRD_PARTY_NOTICES-x64.txt is not committed (scripts/gen-notices.sh third_party/cef-x64)" >&2; exit 1; }
+[[ -z $INTEL ]] || git ls-files --error-unmatch THIRD_PARTY_NOTICES-x64.txt >/dev/null 2>&1 || { echo "release.sh: third_party/cef-x64 exists but THIRD_PARTY_NOTICES-x64.txt is not committed (scripts/gen-notices.sh third_party/cef-x64)" >&2; exit 1; }
 # ALLOW_HEVC=1 is for local builds only; shipping HEVC needs clearance, not an env override.
 [[ -z ${ALLOW_HEVC:-} ]] || { echo "release.sh: unset ALLOW_HEVC; releases never bypass the HEVC gate" >&2; exit 1; }
 # Never delete old releases or tags: shipped notices and 3-year written offers point at their source assets.
@@ -119,7 +121,7 @@ echo "$(sed -n "s/^SHA256='\(.*\)'/\1/p" scripts/fetch-ubol.sh)  $UBOL_ZIP" | sh
 cp "$(scripts/cef-args-gn.sh third_party/cef || [[ $? == 2 ]])" "$STAGE/gn-args.txt"
 GN_FILES=(gn-args.txt)
 # The Intel notices name gn-args-x64.txt (gen-notices.sh), so stage the x64 CEF's args under that name.
-if [[ -d third_party/cef-x64 ]]; then
+if [[ -n $INTEL ]]; then
   cp "$(scripts/cef-args-gn.sh third_party/cef-x64 || [[ $? == 2 ]])" "$STAGE/gn-args-x64.txt"
   GN_FILES+=(gn-args-x64.txt)
   # One FFmpeg/Chromium source set serves both arches only while both CEFs are the same version.
