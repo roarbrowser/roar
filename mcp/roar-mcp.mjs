@@ -67,7 +67,6 @@ async function pickPort() {
     await waitFor(() => up(port));
     // CDP answers before Roar's UI exists; an agent attaching then sees no pages.
     await waitFor(async () => (await get(port, '/json/list'))?.includes('roar://ui/hint'));
-    await fetch(`http://127.0.0.1:${port}/json/new?about:blank`, { method: 'PUT', headers: cdpHeaders() }).catch(() => {});
   } else if (!(await up(port))) {
     // Anchored: a headless Roar runs the same binary, with arguments.
     let running = true;
