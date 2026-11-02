@@ -61,7 +61,7 @@ p { margin: 0; color: var(--ink-2); line-height: 1.55; font-size: 14px; max-widt
 @keyframes roar-dive { to { transform: scale(7); opacity: 0; } }
 .ring-opt { display: flex; gap: 10px; align-items: flex-start; margin-top: 14px; padding: 10px 12px; border: 1px solid var(--rule); border-radius: 10px; cursor: pointer; }
 .ring-opt small { display: block; color: var(--ink-3); margin-top: 2px; }
-.ring-opt .ring-key { flex: none; width: 8px; height: 8px; margin-top: 5px; border-radius: 50%; background: var(--mane); box-shadow: 0 0 0 1.5px var(--panel), 0 0 0 2.5px #7aa898; }
+.ring-opt .ring-key { flex: none; width: 7px; height: 7px; margin-top: 6px; border-radius: 50%; background: #7aa898; }
 </style>
 </head>
 <body>
@@ -93,7 +93,7 @@ p { margin: 0; color: var(--ink-2); line-height: 1.55; font-size: 14px; max-widt
     <p>Pick your AI and connect the tools you use, so they can see your pages and browse with Roar.</p>
     <p>Connecting a coding agent like Claude Code also lists its sessions in the sidebar and tells you when one needs you or finishes. No agent tools here? Skip this step.</p>
     <div id="agent-setup"></div>
-    <label class="ring-opt"><input type="checkbox" id="ring-on"> <span class="ring-key" aria-hidden="true"></span><span><b>Let agents use this space</b><small>Agents can see and open this space's tabs. A ring around the space's dot at the bottom of the sidebar shows it's on; click the dot to turn it off any time.</small></span></label>
+    <label class="ring-opt"><input type="checkbox" id="ring-on"> <span class="ring-key" aria-hidden="true"></span><span><b>Let agents use this space</b><small>Agents can see and open this space's tabs. A small green light on the space's dot at the bottom of the sidebar shows it's on; click the dot to turn it off any time.</small></span></label>
   </section>
 
   <section class="step" data-step="4" aria-labelledby="h5s" hidden>
@@ -105,7 +105,7 @@ p { margin: 0; color: var(--ink-2); line-height: 1.55; font-size: 14px; max-widt
 
   <section class="step" data-step="5" aria-labelledby="h4s" hidden>
     <h2 id="h4s">Pick your sidebar modules</h2>
-    <p>Each one sits as an icon at the bottom of the sidebar. Turn any of them on or off later in Settings (the highlighted sliders). A ring on your space's dot means agents can use it; click the dot to turn that off.</p>
+    <p>Each one sits as an icon at the bottom of the sidebar. Turn any of them on or off later in Settings (the highlighted sliders). A small green light on your space's dot means agents can use it; click the dot to turn that off.</p>
     <div class="tiles" id="tiles">
       <button class="tile" data-mod="claude"><i data-icon="claude"></i><span>AI<small>Coding agents that need you, and your Ask chats</small></span></button>
       <button class="tile" data-mod="agentFiles"><i data-icon="agentFiles"></i><span>Agent files<small>CLAUDE.md, AGENTS.md, rules</small></span></button>

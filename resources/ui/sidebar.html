@@ -28,7 +28,7 @@ body { background: var(--ground); display: flex; flex-direction: column; overflo
 
 .spaces { display: flex; align-items: center; gap: 2px; }
 .spaces:empty { display: none; }
-.spaces button { width: 16px; height: 16px; border-radius: 50%; display: grid; place-items: center; }
+.spaces button { position: relative; width: 16px; height: 16px; border-radius: 50%; display: grid; place-items: center; }
 .spaces button::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--ink-3); opacity: .5; }
 .spaces button:hover::before { opacity: 1; }
 .spaces button::before { background: var(--dot, var(--ink-3)); }
@@ -36,19 +36,20 @@ body { background: var(--ground); display: flex; flex-direction: column; overflo
 .spaces button.icon { width: 28px; height: 28px; border-radius: 8px; font-size: 17px; line-height: 1; opacity: .6; }
 .spaces button.icon::before { display: none; }
 .spaces button.icon:hover, .spaces button.icon[aria-current="true"] { opacity: 1; background: var(--hover); }
-.spaces button.icon.agents { box-shadow: inset 0 0 0 1.5px #7aa898; }
 .spaces button.dragging { opacity: .3; }
 .spaces button.drop-before { box-shadow: -2px 0 0 var(--mane); }
 .spaces button.drop-after { box-shadow: 2px 0 0 var(--mane); }
 .pin.drop-before { box-shadow: -2px 0 0 var(--mane); }
 .pin.drop-after { box-shadow: 2px 0 0 var(--mane); }
 .spaces button[aria-current="true"]::before { background: var(--dot, var(--mane)); opacity: 1; width: 8px; height: 8px; }
-/* Agents (CDP clients) can reach this space: a thin mint ring. The current space is the big opaque dot above, not the ring. */
-.spaces button.agents::before { box-shadow: 0 0 0 1.5px var(--ground), 0 0 0 2.5px #7aa898; }
-/* An agent is using one of this space's tabs right now: the ring breathes. */
-.spaces button.agents.busy::before { animation: ring-busy 1.6s ease-in-out infinite; }
-@keyframes ring-busy { 50% { box-shadow: 0 0 0 1.5px var(--ground), 0 0 0 4px rgba(122,168,152,.55); } }
-@media (prefers-reduced-motion: reduce) { .spaces button.agents.busy::before { animation: none; box-shadow: 0 0 0 1.5px var(--ground), 0 0 0 3px #7aa898; } }
+/* Agents (CDP clients) can reach this space: a small mint light in the corner. Never a ring or outline, which read as
+   "the space you're on"; that is only the big opaque dot (or the lit icon) above. */
+.spaces button.agents::after { content: ""; position: absolute; top: 1px; right: 1px; width: 5px; height: 5px; border-radius: 50%; background: #7aa898; box-shadow: 0 0 0 1.5px var(--ground); }
+.spaces button.icon.agents::after { top: 2px; right: 2px; width: 7px; height: 7px; }
+/* An agent is using one of this space's tabs right now: the light breathes. */
+.spaces button.agents.busy::after { animation: ring-busy 1.6s ease-in-out infinite; }
+@keyframes ring-busy { 50% { box-shadow: 0 0 0 1.5px var(--ground), 0 0 0 3.5px rgba(122,168,152,.55); } }
+@media (prefers-reduced-motion: reduce) { .spaces button.agents.busy::after { animation: none; box-shadow: 0 0 0 1.5px var(--ground), 0 0 0 3px #7aa898; } }
 #settings.tour, #spaces .tour { outline: 2px solid var(--mane); outline-offset: 2px; border-radius: 6px; animation: tour 1.6s ease-in-out infinite; }
 @keyframes tour { 50% { outline-color: transparent; } }
 @media (prefers-reduced-motion: reduce) { #settings.tour, #spaces .tour { animation: none; } }
@@ -56,7 +57,7 @@ body { background: var(--ground); display: flex; flex-direction: column; overflo
 .ring-coach span { flex: 1; }
 .ring-coach button { flex: none; width: 18px; height: 18px; border-radius: 5px; display: grid; place-items: center; color: var(--ink-3); }
 .ring-coach button:hover { background: var(--hover); color: var(--ink); }
-.space-menu .ring-key { width: 8px; height: 8px; border-radius: 50%; background: var(--ink-3); box-shadow: 0 0 0 1.5px var(--ground), 0 0 0 2.5px #7aa898; margin-left: 4px; }
+.space-menu .ring-key { width: 6px; height: 6px; border-radius: 50%; background: #7aa898; margin-left: 4px; }
 body { box-shadow: inset 3px 0 0 var(--space-color, transparent); }
 .resize { position: fixed; top: 0; right: 0; bottom: 0; width: 5px; cursor: col-resize; z-index: 10; }
 .space-menu { position: fixed; left: 8px; right: 8px; bottom: 44px; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px; box-sizing: border-box; padding: 6px; border-radius: 10px; background: var(--ground); box-shadow: 0 0 0 1px var(--rule), 0 8px 24px rgba(0,0,0,.35); z-index: 10; }
@@ -482,7 +483,7 @@ body.drag-active .pinned:empty::before { content: 'Drop to pin'; color: var(--in
   <span class="brand"><span class="lion" style="width:22px;height:22px" aria-hidden="true"></span><span class="wordmark">Roar</span>
   <span class="space-name" id="space-name"></span></span>
   <span class="spaces" id="spaces" role="group" aria-label="Spaces"></span>
-  <div class="space-menu" id="space-menu" hidden><input id="space-rename" maxlength="40" aria-label="Space name" spellcheck="false"><input id="space-icon" maxlength="8" placeholder="Icon (emoji), Enter" aria-label="Space icon" spellcheck="false"><button id="space-ai" title="Ask your agent to name this space (Shift-click: choose the agent)">Name with AI</button><button id="space-ai-all" title="Rename every tab in this space with AI; groups keep their names (Shift-click: choose the agent)">Rename all tabs with AI</button><button id="space-ai-loose" title="Rename the tabs not in a group or pinned (Shift-click: choose the agent)">Rename ungrouped tabs with AI</button><button id="space-remove" title="Archive its tabs and remove the space">Remove</button><button id="space-close" title="Close this space's tabs (pinned stay) and switch to the next space">Close all tabs</button><button id="space-agents" role="menuitemcheckbox" aria-checked="true" title="Let AI agents (CDP clients) see and open this space's tabs. A ring around the space's dot means they can.">Allow agents <span class="ring-key" aria-hidden="true"></span></button><div class="swatches" id="swatches" role="group" aria-label="Space color"></div></div>
+  <div class="space-menu" id="space-menu" hidden><input id="space-rename" maxlength="40" aria-label="Space name" spellcheck="false"><input id="space-icon" maxlength="8" placeholder="Icon (emoji), Enter" aria-label="Space icon" spellcheck="false"><button id="space-ai" title="Ask your agent to name this space (Shift-click: choose the agent)">Name with AI</button><button id="space-ai-all" title="Rename every tab in this space with AI; groups keep their names (Shift-click: choose the agent)">Rename all tabs with AI</button><button id="space-ai-loose" title="Rename the tabs not in a group or pinned (Shift-click: choose the agent)">Rename ungrouped tabs with AI</button><button id="space-remove" title="Archive its tabs and remove the space">Remove</button><button id="space-close" title="Close this space's tabs (pinned stay) and switch to the next space">Close all tabs</button><button id="space-agents" role="menuitemcheckbox" aria-checked="true" title="Let AI agents (CDP clients) see and open this space's tabs. A small green light on the space's dot means they can.">Allow agents <span class="ring-key" aria-hidden="true"></span></button><div class="swatches" id="swatches" role="group" aria-label="Space color"></div></div>
   <span class="spacer"></span>
   <button id="mic" aria-pressed="false" hidden><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><rect x="5.5" y="1.8" width="5" height="8" rx="2.5"/><path d="M3.2 7.6a4.8 4.8 0 0 0 9.6 0M8 12.4v2"/></svg></button>
   <span class="tools">

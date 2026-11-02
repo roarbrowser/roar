@@ -1,4 +1,4 @@
-// The sidebar's space dots. A ring means agents (CDP clients) can reach that space now: CDP is open and the space
+// The sidebar's space dots. A corner light means agents (CDP clients) can reach that space now: CDP is open and the space
 // allows agents (the same per-space flag mcp use_profile checks). Clicking the space you are on toggles that;
 // clicking another space switches to it. The active space is the larger, fully opaque dot.
 const spaceDot = (sp, s, i) => {
