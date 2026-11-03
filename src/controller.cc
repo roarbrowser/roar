@@ -101,6 +101,7 @@ constexpr char kNewTabUrl[] = "roar://ui/newtab.html";
 constexpr char kWelcomeUrl[] = "roar://ui/welcome.html";
 constexpr char kSettingsUrl[] = "roar://ui/settings.html";
 constexpr char kBookmarksUrl[] = "roar://ui/bookmarks.html";
+constexpr char kBoardsUrl[] = "roar://ui/board.html";
 constexpr char kHistoryUrl[] = "roar://ui/history.html";
 constexpr char kDownloadsUrl[] = "roar://ui/downloads.html";
 constexpr char kAgentMdUrl[] = "roar://ui/agentmd.html";
@@ -3513,6 +3514,7 @@ void Controller::RunCommand(const std::string& id) {
   else if (id == "bookmarkAdd") SaveToLibrary(false);
   else if (id == "readLaterAdd") SaveToLibrary(true);
   else if (id == "bookmarks") OpenUiPage(kBookmarksUrl);
+  else if (id == "boards") OpenUiPage(kBoardsUrl);
   else if (StartsWith(id, "open:")) NewTab(id.substr(5), true);
   else if (id == "extensions") NewTab("chrome://extensions", true);
   else if (id == "extensionStore") NewTab("https://chromewebstore.google.com/category/extensions", true);
@@ -6023,6 +6025,8 @@ bool Controller::HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> 
     platform::GitHubAuthStatus([callback](std::string status) { callback->Success(status); });
   } else if (StartsWith(cmd, "backup.")) {
     return HandleBackup(browser, msg, callback);
+  } else if (StartsWith(cmd, "board.")) {
+    return HandleBoards(browser, msg, callback);
   } else {
     return false;
   }

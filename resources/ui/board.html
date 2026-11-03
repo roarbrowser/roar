@@ -1,0 +1,593 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Boards</title>
+<link rel="stylesheet" href="roar.css">
+<style>
+:root { --pen-ink: var(--ink); --pen-mane: var(--mane); --pen-blue: #2f6fd6; --pen-green: #23794a; --pen-red: #c8372d; }
+@media (prefers-color-scheme: dark) { :root { --pen-blue: #6aa5ff; --pen-green: #5cc488; --pen-red: #ef7a70; } }
+body { background: var(--ground); display: flex; flex-direction: column; overflow: hidden; }
+.top { flex: none; display: flex; align-items: center; gap: 8px; height: 52px; padding: 0 14px; background: var(--panel); border-bottom: 1px solid var(--rule); position: relative; z-index: 5; }
+.top .sep { width: 1px; height: 22px; background: var(--rule); margin: 0 4px; }
+.top .grow { flex: 1; }
+#name { min-width: 80px; width: 240px; font: 700 17px var(--round); letter-spacing: -.01em; color: var(--ink); background: transparent; border: 0; border-radius: 7px; padding: 5px 8px; }
+#name:hover, #name:focus { background: var(--ground); outline: 0; }
+.tb { display: inline-flex; align-items: center; gap: 6px; padding: 6px 10px; border-radius: 8px; color: var(--ink-2); font-weight: 500; }
+.tb:hover:not(:disabled) { background: var(--hover); color: var(--ink); }
+.tb:disabled { opacity: .4; }
+.tb svg { width: 16px; height: 16px; flex: none; }
+.tb.danger.armed { background: var(--danger); color: #fff; }
+.segmented button { display: inline-flex; align-items: center; gap: 5px; }
+.segmented svg { width: 15px; height: 15px; }
+.swatches { display: flex; gap: 5px; padding: 0 2px; }
+.swatches button { width: 18px; height: 18px; border-radius: 50%; box-shadow: inset 0 0 0 1px rgba(0,0,0,.15); }
+.swatches button[aria-pressed="true"] { box-shadow: 0 0 0 2px var(--panel), 0 0 0 4px var(--ink-3); }
+#wrap { flex: 1; overflow: auto; position: relative; }
+#stage { position: relative; min-width: 100%; min-height: 100%;
+  background: radial-gradient(circle, var(--rule) 1.1px, transparent 1.4px) 0 0 / 22px 22px; }
+#ink { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 2; overflow: visible; }
+#stage.pen #ink, #stage.erase #ink { pointer-events: all; }
+#stage.pen #ink { cursor: crosshair; }
+#stage.erase #ink { cursor: cell; }
+#ink path { fill: none; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
+.hint { position: absolute; left: 50%; top: 38%; transform: translate(-50%, -50%); text-align: center; color: var(--ink-3); pointer-events: none; }
+.hint b { display: block; font: 700 20px var(--round); color: var(--ink-2); margin-bottom: 6px; }
+.item { position: absolute; z-index: 1; border-radius: 10px; background: var(--panel); box-shadow: 0 1px 2px rgba(0,0,0,.08), 0 6px 18px rgba(0,0,0,.08); }
+.item.sel { box-shadow: 0 0 0 2px var(--mane), 0 6px 18px rgba(0,0,0,.1); }
+.item.shot { padding: 6px 6px 0; }
+.item.shot .clip { position: relative; overflow: hidden; border-radius: 6px; background: var(--ground); }
+.item.shot img { position: absolute; display: block; user-select: none; -webkit-user-drag: none; }
+.item .cap { display: flex; align-items: center; gap: 6px; height: 28px; font-size: 12px; color: var(--ink-2); overflow: hidden; white-space: nowrap; }
+.item .cap span { overflow: hidden; text-overflow: ellipsis; }
+.item.link { display: flex; align-items: center; gap: 10px; padding: 10px 12px; }
+.item.link .lt { display: flex; flex-direction: column; min-width: 0; }
+.item.link b { font-weight: 600; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.item.link small { color: var(--ink-3); font-size: 11.5px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.item .fav { width: 16px; height: 16px; flex: none; display: grid; place-items: center; border-radius: 4px; overflow: hidden; }
+.item .fav.letter { background: var(--rule); color: var(--ink-2); font: 700 10px var(--round); }
+.item.link .fav { width: 28px; height: 28px; border-radius: 7px; font-size: 13px; }
+.item.note { background: var(--mane-soft); display: flex; flex-direction: column; }
+.item.note .handle { flex: none; height: 14px; cursor: grab; }
+.item.note .text { flex: 1; overflow: auto; padding: 0 12px 12px; font: 14px/1.45 var(--round); color: var(--ink); white-space: pre-wrap; outline: 0; }
+.item .del { position: absolute; top: -9px; right: -9px; width: 22px; height: 22px; border-radius: 50%; background: var(--panel); color: var(--ink-2);
+  box-shadow: 0 0 0 1px var(--rule), 0 2px 6px rgba(0,0,0,.15); display: none; place-items: center; font-size: 14px; line-height: 1; }
+.item .del:hover { color: var(--danger); }
+.item .grip { position: absolute; right: 2px; bottom: 2px; width: 14px; height: 14px; cursor: nwse-resize; display: none;
+  background: linear-gradient(135deg, transparent 50%, var(--ink-3) 50%, var(--ink-3) 58%, transparent 58%, transparent 70%, var(--ink-3) 70%, var(--ink-3) 78%, transparent 78%); }
+#stage.move .item:hover .del, #stage.move .item.sel .del { display: grid; }
+#stage.move .item:hover .grip, #stage.move .item.sel .grip { display: block; }
+#stage.move .item.shot, #stage.move .item.link { cursor: pointer; }
+.pop { position: fixed; z-index: 20; background: var(--panel); border-radius: 12px; box-shadow: var(--shadow); padding: 6px; min-width: 300px; max-width: 420px; max-height: 60vh; overflow-y: auto; }
+.pop .row { display: flex; align-items: center; gap: 9px; width: 100%; height: 34px; padding: 0 9px; border-radius: 7px; text-align: left; }
+.pop .row:hover, .pop .row:focus-visible { background: var(--hover); }
+.pop .row span { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.pop .row small { color: var(--ink-3); max-width: 40%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.pop .empty, .pop .label { color: var(--ink-3); font-size: 12px; padding: 8px 9px; }
+.pop form { display: flex; gap: 6px; padding: 4px; }
+.pop input, .new input { flex: 1; min-width: 0; font: 13px var(--ui); padding: 7px 10px; border-radius: 8px; border: 1px solid var(--rule); background: var(--ground); color: var(--ink); }
+.modal { position: fixed; inset: 0; z-index: 30; background: rgba(0,0,0,.45); display: grid; place-items: center; }
+.modal .box { background: var(--panel); border-radius: 14px; box-shadow: var(--shadow); padding: 16px; display: grid; gap: 12px; max-width: 90vw; }
+.modal .box p { margin: 0; color: var(--ink-2); }
+.modal .frame { position: relative; user-select: none; cursor: crosshair; justify-self: center; }
+.modal .frame img { display: block; max-width: 80vw; max-height: 66vh; border-radius: 6px; -webkit-user-drag: none; }
+.modal .sel { position: absolute; border: 2px solid var(--mane); box-shadow: 0 0 0 9999px rgba(0,0,0,.35); border-radius: 2px; pointer-events: none; }
+.modal .acts { display: flex; gap: 8px; justify-content: flex-end; }
+#list { flex: 1; overflow-y: auto; }
+#list main { max-width: 860px; margin: 0 auto; padding: 48px 28px 96px; display: grid; gap: 18px; }
+#list h1 { margin: 0; font: 800 34px/1 var(--round); letter-spacing: -.02em; }
+#list .bar { display: flex; align-items: center; gap: 8px; }
+.cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; }
+.card { text-align: left; background: var(--panel); border-radius: 12px; padding: 16px; min-height: 96px; display: flex; flex-direction: column; justify-content: space-between; gap: 10px;
+  box-shadow: 0 1px 2px rgba(0,0,0,.06); background-image: radial-gradient(circle, var(--rule) 1px, transparent 1.3px); background-size: 14px 14px; }
+.card:hover { box-shadow: 0 0 0 2px var(--mane-soft), 0 1px 2px rgba(0,0,0,.06); }
+.card b { font: 700 16px var(--round); background: var(--panel); align-self: flex-start; border-radius: 5px; padding: 0 4px; margin: 0 -4px; overflow-wrap: anywhere; }
+.card small { color: var(--ink-3); background: var(--panel); align-self: flex-start; border-radius: 4px; padding: 0 4px; margin: 0 -4px; }
+.status { padding: 0 2px; }
+</style>
+</head>
+<body>
+<div class="top" id="top" hidden>
+  <button class="tb" id="back" title="All boards" aria-label="All boards"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M10 3 5 8l5 5"/></svg>Boards</button>
+  <input id="name" aria-label="Board name" maxlength="200" spellcheck="false">
+  <span class="grow"></span>
+  <div class="segmented" role="group" aria-label="Tool">
+    <button data-tool="move" aria-pressed="true" title="Move and resize (V)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path d="M3.5 2.5 12 7l-3.8 1.2L6.8 12z"/></svg>Move</button>
+    <button data-tool="pen" aria-pressed="false" title="Draw (P)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M10.5 2.5l3 3L6 13l-3.5.5L3 10z"/></svg>Pen</button>
+    <button data-tool="erase" aria-pressed="false" title="Erase strokes (E)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 13.5h7.5M9.5 2.8l3.7 3.7-6.7 6.7H4.3L2.8 11.7z"/></svg>Eraser</button>
+  </div>
+  <div class="swatches" id="swatches" role="group" aria-label="Pen color"></div>
+  <span class="sep"></span>
+  <button class="tb" id="add-note" title="Add a note (N)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path d="M3 2.5h10v7l-4 4H3z"/><path d="M9 13.5v-4h4"/></svg>Note</button>
+  <button class="tb" id="add-link" title="Add a link (L), or paste one"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M7 9a3 3 0 0 0 4.2 0l2-2a3 3 0 0 0-4.2-4.2l-.8.8M9 7a3 3 0 0 0-4.2 0l-2 2A3 3 0 0 0 7 13.2l.8-.8"/></svg>Link</button>
+  <button class="tb" id="add-shot" title="Add a screenshot of a tab (S)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><rect x="2" y="3.5" width="12" height="9.5" rx="2"/><circle cx="8" cy="8.3" r="2.3"/></svg>Screenshot</button>
+  <span class="sep"></span>
+  <button class="tb" id="undo" title="Undo (⌘Z)" aria-label="Undo" disabled><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5.5 3 2.5 6l3 3"/><path d="M2.5 6H10a3.5 3.5 0 0 1 0 7H7"/></svg></button>
+  <button class="tb danger" id="del-board" title="Delete this board">Delete</button>
+</div>
+<div id="wrap" hidden>
+  <div id="stage" class="move">
+    <div class="hint" id="hint" hidden><b>An empty board</b>Paste a link or some text, add a screenshot of a tab, or pick the pen and draw.</div>
+    <div id="items"></div>
+    <svg id="ink" aria-hidden="true"></svg>
+  </div>
+</div>
+<div id="list" hidden>
+  <main>
+    <h1>Boards</h1>
+    <div class="bar"><button class="btn primary" id="new-board">New board</button><span class="status" id="list-status" aria-live="polite"></span></div>
+    <div class="cards" id="cards"></div>
+  </main>
+</div>
+<div class="pop" id="pop" hidden></div>
+<script src="bridge.js"></script>
+<script>
+const $ = (id) => document.getElementById(id);
+const COLORS = ['ink', 'mane', 'blue', 'green', 'red'];
+let boardId = '', board = null, images = {}, tool = 'move', pen = 'ink', undo = [], selected = null, saveTimer = 0;
+const isUrl = (s) => /^https?:\/\/[^\s]+$/i.test(s);
+const uid = () => Math.random().toString(36).slice(2, 10);
+const byId = (id) => board.items.find((i) => i.id === id);
+
+// ---- Routing: #<id> shows a board, #new makes one, nothing lists them.
+async function route() {
+  flush();
+  const h = location.hash.slice(1);
+  if (h === 'new') {
+    try {
+      const r = await ask({ cmd: 'board.create', name: 'Untitled board', now: Date.now() });
+      history.replaceState(null, '', '#' + r.id);
+      return openBoard(r.id, true);
+    } catch (e) { return showList(e.message); }
+  }
+  if (h) return openBoard(h);
+  showList();
+}
+window.addEventListener('hashchange', route);
+
+async function showList(status = '') {
+  board = null, boardId = '';
+  document.title = 'Boards';
+  $('top').hidden = $('wrap').hidden = true;
+  $('list').hidden = false;
+  $('list-status').textContent = status;
+  let list = [];
+  try { list = await ask({ cmd: 'board.list' }); } catch (e) { $('list-status').textContent = e.message; }
+  list.sort((a, b) => (b.updated || 0) - (a.updated || 0));
+  $('cards').innerHTML = list.length ? list.map((b) => `<button class="card" data-id="${esc(b.id)}"><b>${esc(b.name || 'Untitled board')}</b><small>${b.count} item${b.count === 1 ? '' : 's'}${b.updated ? ' · ' + new Date(b.updated).toLocaleDateString() : ''}</small></button>`).join('')
+    : '<p class="status">No boards in this space yet. A board keeps screenshots, links, notes and drawings together.</p>';
+}
+$('cards').addEventListener('click', (e) => { const c = e.target.closest('.card'); if (c) location.hash = c.dataset.id; });
+$('new-board').addEventListener('click', () => { location.hash = 'new'; });
+$('back').addEventListener('click', () => { flush(); history.pushState(null, '', location.pathname); route(); });
+
+async function openBoard(id, fresh = false) {
+  let b;
+  try { b = await ask({ cmd: 'board.load', id }); } catch (e) { history.replaceState(null, '', location.pathname); return showList(e.message === 'No such board' ? 'That board was deleted.' : e.message); }
+  boardId = id;
+  images = b.images || {};
+  board = { name: b.name || 'Untitled board', items: Array.isArray(b.items) ? b.items : [], updated: b.updated || 0 };
+  undo = [];
+  selected = null;
+  $('list').hidden = true;
+  $('top').hidden = $('wrap').hidden = false;
+  $('name').value = board.name;
+  document.title = board.name;
+  $('undo').disabled = true;
+  render();
+  if (fresh) $('name').select();
+}
+
+// ---- Saving: the whole board, shortly after each change.
+let saving = Promise.resolve();
+function save() { clearTimeout(saveTimer); saveTimer = setTimeout(flush, 250); }
+function flush() {
+  if (!saveTimer || !board) return saving;
+  clearTimeout(saveTimer);
+  saveTimer = 0;
+  board.updated = Date.now();
+  saving = ask({ cmd: 'board.save', id: boardId, board: { name: board.name, items: board.items, updated: board.updated } }).catch((e) => console.error(e));
+  return saving;
+}
+window.addEventListener('pagehide', flush);
+
+function pushUndo(snap = JSON.stringify(board.items)) {
+  undo.push(snap);
+  if (undo.length > 100) undo.shift();
+  $('undo').disabled = false;
+}
+function doUndo() {
+  if (!undo.length) return;
+  board.items = JSON.parse(undo.pop());
+  $('undo').disabled = !undo.length;
+  selected = null;
+  render();
+  save();
+}
+$('undo').addEventListener('click', doUndo);
+
+$('name').addEventListener('change', () => {
+  board.name = $('name').value.trim() || 'Untitled board';
+  $('name').value = document.title = board.name;
+  save();
+});
+$('name').addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === 'Escape') $('name').blur(); });
+
+let armTimer = 0;
+$('del-board').addEventListener('click', async () => {
+  const b = $('del-board');
+  if (!b.classList.contains('armed')) {
+    b.classList.add('armed');
+    b.textContent = 'Delete board?';
+    armTimer = setTimeout(() => { b.classList.remove('armed'); b.textContent = 'Delete'; }, 3000);
+    return;
+  }
+  clearTimeout(armTimer);
+  b.classList.remove('armed');
+  b.textContent = 'Delete';
+  clearTimeout(saveTimer);
+  saveTimer = 0;
+  try { await ask({ cmd: 'board.delete', id: boardId }); } catch (e) { return showList(e.message); }
+  history.replaceState(null, '', location.pathname);
+  showList(`Deleted “${board.name}”.`);
+});
+
+// ---- Tools
+function setTool(t) {
+  tool = t;
+  $('stage').className = t;
+  for (const b of document.querySelectorAll('[data-tool]')) b.setAttribute('aria-pressed', b.dataset.tool === t);
+  if (t !== 'move') select(null);
+}
+for (const b of document.querySelectorAll('[data-tool]')) b.addEventListener('click', () => setTool(b.dataset.tool));
+$('swatches').innerHTML = COLORS.map((c) => `<button data-color="${c}" aria-pressed="${c === pen}" aria-label="${c === 'mane' ? 'orange' : c === 'ink' ? 'dark' : c} pen" style="background:var(--pen-${c})"></button>`).join('');
+$('swatches').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-color]');
+  if (!b) return;
+  pen = b.dataset.color;
+  for (const s of $('swatches').children) s.setAttribute('aria-pressed', s === b);
+  setTool('pen');
+});
+
+// ---- Drawing items
+function render() {
+  const box = $('items');
+  box.innerHTML = '';
+  for (const it of board.items) if (it.type !== 'ink') box.append(itemEl(it));
+  $('ink').innerHTML = board.items.filter((it) => it.type === 'ink').map(inkPath).join('');
+  $('hint').hidden = board.items.length > 0;
+  size();
+}
+
+function itemEl(it) {
+  const el = document.createElement('div');
+  el.className = 'item ' + it.type + (selected === it.id ? ' sel' : '');
+  el.dataset.id = it.id;
+  if (it.type === 'shot') {
+    el.innerHTML = `<div class="clip"><img alt="" draggable="false"></div><div class="cap">${iconHtml('', it.url)}<span>${esc(it.title || hostOf(it.url))}</span></div>`;
+    const img = el.querySelector('img');
+    img.src = images[it.img] || '';
+    const [cx, cy, cw, ch] = it.crop || [0, 0, 1, 1];
+    Object.assign(img.style, { width: 100 / cw + '%', height: 100 / ch + '%', left: -100 * cx / cw + '%', top: -100 * cy / ch + '%' });
+  } else if (it.type === 'link') {
+    el.innerHTML = `${iconHtml('', it.url)}<span class="lt"><b>${esc(it.title || hostOf(it.url))}</b><small>${esc(it.url)}</small></span>`;
+  } else if (it.type === 'note') {
+    el.innerHTML = '<div class="handle"></div><div class="text" contenteditable="plaintext-only" spellcheck="true" aria-label="Note"></div>';
+    el.querySelector('.text').textContent = it.text || '';
+  }
+  el.insertAdjacentHTML('beforeend', '<button class="del" title="Delete" aria-label="Delete">×</button>' + (it.type === 'link' ? '' : '<span class="grip"></span>'));
+  place(el, it);
+  return el;
+}
+
+function place(el, it) {
+  el.style.left = it.x + 'px';
+  el.style.top = it.y + 'px';
+  el.style.width = it.w + 'px';
+  if (it.type === 'shot') el.querySelector('.clip').style.height = it.h + 'px';
+  if (it.type === 'note') el.style.height = it.h + 'px';
+}
+
+function inkPath(it) {
+  const p = it.pts;
+  let d = `M${p[0][0]} ${p[0][1]}`;
+  if (p.length === 1) d += 'l0.01 0';
+  for (let i = 1; i < p.length - 1; i++) d += `Q${p[i][0]} ${p[i][1]} ${(p[i][0] + p[i + 1][0]) / 2} ${(p[i][1] + p[i + 1][1]) / 2}`;
+  if (p.length > 1) d += `L${p[p.length - 1][0]} ${p[p.length - 1][1]}`;
+  return `<path data-id="${esc(it.id)}" d="${d}" style="stroke:var(--pen-${COLORS.includes(it.color) ? it.color : 'ink'})"/>`;
+}
+
+// The stage grows to hold everything, with room to keep going right and down.
+function size() {
+  let w = 0, h = 0;
+  for (const it of board.items) {
+    if (it.type === 'ink') for (const [x, y] of it.pts) w = Math.max(w, x), h = Math.max(h, y);
+    else w = Math.max(w, it.x + it.w), h = Math.max(h, it.y + (it.h || 60) + 40);
+  }
+  $('stage').style.width = Math.max($('wrap').clientWidth, w + 400) + 'px';
+  $('stage').style.height = Math.max($('wrap').clientHeight, h + 400) + 'px';
+}
+window.addEventListener('resize', () => board && size());
+
+function select(id) {
+  selected = id;
+  for (const el of $('items').children) el.classList.toggle('sel', el.dataset.id === id);
+}
+
+function remove(id) {
+  pushUndo();
+  board.items = board.items.filter((i) => i.id !== id);
+  if (selected === id) selected = null;
+  render();
+  save();
+}
+
+// Where a new item goes: the middle of what's on screen, nudged so a run of adds doesn't stack exactly.
+let nudge = 0;
+function spot(w, h) {
+  const wrap = $('wrap'), n = (nudge++ % 6) * 24;
+  return { x: Math.max(20, Math.round(wrap.scrollLeft + wrap.clientWidth / 2 - w / 2 + n)), y: Math.max(20, Math.round(wrap.scrollTop + wrap.clientHeight / 2 - h / 2 + n)) };
+}
+function add(it) {
+  pushUndo();
+  board.items.push(it);
+  selected = it.type === 'ink' ? selected : it.id;
+  render();
+  save();
+  return it;
+}
+function addNote(text = '', at) {
+  const it = add({ id: uid(), type: 'note', ...(at || spot(220, 160)), w: 220, h: 160, text });
+  if (!text) $('items').querySelector(`[data-id="${it.id}"] .text`).focus();
+  return it;
+}
+function addLink(url, title = '', at) {
+  if (!isUrl(url)) return null;
+  return add({ id: uid(), type: 'link', ...(at || spot(280, 60)), w: 280, url, title });
+}
+async function addShotItem(shot, crop) {
+  images[shot.img] = shot.data;
+  const im = new Image();
+  await new Promise((ok) => { im.onload = im.onerror = ok; im.src = shot.data; });
+  const [, , cw, ch] = crop || [0, 0, 1, 1];
+  const nw = (im.naturalWidth || 800) * cw, nh = (im.naturalHeight || 500) * ch;
+  const w = Math.round(Math.max(120, Math.min(480, nw / devicePixelRatio))), h = Math.round(w * nh / nw);
+  return add({ id: uid(), type: 'shot', ...spot(w, h), w, h, img: shot.img, url: shot.url, title: shot.title, ...(crop ? { crop } : {}) });
+}
+function openUrl(url) { ask({ cmd: 'open', text: url, newTab: true }).catch(() => {}); }
+
+// ---- Moving, resizing, opening (Move tool)
+$('items').addEventListener('pointerdown', (e) => {
+  const el = e.target.closest('.item');
+  if (!el || e.button !== 0) return;
+  const it = byId(el.dataset.id);
+  if (e.target.closest('.del')) return remove(it.id), e.preventDefault();
+  select(it.id);
+  if (e.target.closest('.text')) return;  // Typing or selecting text in a note.
+  e.preventDefault();
+  const grip = !!e.target.closest('.grip'), sx = e.clientX, sy = e.clientY, o = { ...it }, snap = JSON.stringify(board.items);
+  let moved = false;
+  el.setPointerCapture(e.pointerId);
+  const move = (ev) => {
+    const dx = ev.clientX - sx, dy = ev.clientY - sy;
+    if (!moved && Math.hypot(dx, dy) < 4) return;
+    moved = true;
+    if (grip) {
+      it.w = Math.round(Math.max(it.type === 'note' ? 120 : 80, o.w + dx));
+      it.h = Math.round(it.type === 'shot' ? it.w * o.h / o.w : Math.max(80, o.h + dy));
+    } else {
+      it.x = Math.max(0, Math.round(o.x + dx));
+      it.y = Math.max(0, Math.round(o.y + dy));
+    }
+    place(el, it);
+  };
+  const up = () => {
+    el.removeEventListener('pointermove', move);
+    el.removeEventListener('pointerup', up);
+    el.removeEventListener('pointercancel', up);
+    if (moved) { pushUndo(snap); size(); save(); }
+    else if (!grip && it.url) openUrl(it.url);  // A click on a screenshot or link opens its page.
+  };
+  el.addEventListener('pointermove', move);
+  el.addEventListener('pointerup', up);
+  el.addEventListener('pointercancel', up);
+});
+$('items').addEventListener('focusin', (e) => { if (e.target.closest('.text')) pushUndo(); });
+$('items').addEventListener('input', (e) => {
+  const t = e.target.closest('.text');
+  if (!t) return;
+  byId(t.parentNode.dataset.id).text = t.textContent;
+  save();
+});
+$('wrap').addEventListener('pointerdown', (e) => { if (!e.target.closest('.item')) select(null); });
+
+// ---- Pen and eraser
+function stagePoint(e) {
+  const r = $('stage').getBoundingClientRect();
+  return [Math.round(e.clientX - r.left), Math.round(e.clientY - r.top)];
+}
+$('ink').addEventListener('pointerdown', (e) => {
+  if (e.button !== 0 || (tool !== 'pen' && tool !== 'erase')) return;
+  e.preventDefault();
+  $('ink').setPointerCapture(e.pointerId);
+  let stroke = null, erased = false;
+  const snap = JSON.stringify(board.items);
+  const eraseAt = ([x, y]) => {
+    const hit = board.items.filter((it) => it.type === 'ink' && it.pts.some(([px, py]) => Math.hypot(px - x, py - y) < 10));
+    if (!hit.length) return;
+    if (!erased) pushUndo(snap), erased = true;
+    board.items = board.items.filter((it) => !hit.includes(it));
+    render();
+  };
+  if (tool === 'pen') {
+    stroke = { id: uid(), type: 'ink', color: pen, pts: [stagePoint(e)] };
+    pushUndo(snap);
+    board.items.push(stroke);
+    $('ink').insertAdjacentHTML('beforeend', inkPath(stroke));
+    $('hint').hidden = true;
+  } else eraseAt(stagePoint(e));
+  const path = stroke && $('ink').lastElementChild;
+  const move = (ev) => {
+    const p = stagePoint(ev);
+    if (!stroke) return eraseAt(p);
+    const last = stroke.pts[stroke.pts.length - 1];
+    if (Math.hypot(p[0] - last[0], p[1] - last[1]) < 2) return;
+    stroke.pts.push(p);
+    path.outerHTML = inkPath(stroke);
+  };
+  const up = () => {
+    $('ink').removeEventListener('pointermove', move);
+    $('ink').removeEventListener('pointerup', up);
+    $('ink').removeEventListener('pointercancel', up);
+    if (stroke || erased) { render(); save(); }
+  };
+  $('ink').addEventListener('pointermove', move);
+  $('ink').addEventListener('pointerup', up);
+  $('ink').addEventListener('pointercancel', up);
+});
+
+// ---- Adding things
+$('add-note').addEventListener('click', () => { setTool('move'); addNote(); });
+
+function popover(anchor, html) {
+  const p = $('pop');
+  p.innerHTML = html;
+  p.hidden = false;
+  const r = anchor.getBoundingClientRect();
+  p.style.top = r.bottom + 6 + 'px';
+  p.style.left = Math.max(8, Math.min(innerWidth - p.offsetWidth - 8, r.left)) + 'px';
+  return p;
+}
+const closePop = () => { $('pop').hidden = true; };
+document.addEventListener('pointerdown', (e) => { if (!$('pop').hidden && !e.target.closest('#pop, #add-link, #add-shot')) closePop(); });
+
+$('add-link').addEventListener('click', () => {
+  const p = popover($('add-link'), '<form id="link-form"><input id="link-url" placeholder="Paste or type a link" aria-label="Link address" autocomplete="off" spellcheck="false"><button class="btn primary">Add</button></form>');
+  $('link-url').focus();
+  $('link-form').addEventListener('submit', (e) => {
+    e.preventDefault();
+    let url = $('link-url').value.trim();
+    if (!isUrl(url) && /^[\w-]+(\.[\w-]+)+(:\d+)?([/?#]\S*)?$/.test(url)) url = 'https://' + url;
+    if (!isUrl(url)) return $('link-url').setCustomValidity('Enter a web address'), $('link-url').reportValidity();
+    closePop();
+    setTool('move');
+    addLink(url);
+  });
+  p.addEventListener('input', () => $('link-url').setCustomValidity(''));
+});
+
+$('add-shot').addEventListener('click', async () => {
+  let st = {};
+  try { st = await ask({ cmd: 'state' }); } catch {}
+  // Ghost tabs never land on a board; nor does a board.
+  const tabs = (st.tabs || []).filter((t) => !t.ghost && !t.url.startsWith('roar://ui/board.html'));
+  const p = popover($('add-shot'), '<div class="label">Capture a tab</div>' + (tabs.length
+    ? tabs.map((t) => `<button class="row" data-tab="${t.id}">${iconHtml(t.favicon, t.url)}<span>${esc(t.name || t.title || hostOf(t.url))}</span><small>${esc(hostOf(t.url))}</small></button>`).join('')
+    : '<div class="empty">No other tabs in this space.</div>'));
+  p.onclick = (e) => { const b = e.target.closest('[data-tab]'); if (b) closePop(), shoot(+b.dataset.tab); };
+});
+
+// Captures a tab, then lets the user keep the whole page or drag out a region.
+async function shoot(tabId) {
+  let shot;
+  try {
+    shot = await Promise.race([ask({ cmd: 'board.capture', id: boardId, tab: tabId }), new Promise((_, no) => setTimeout(() => no(new Error('That tab took too long to capture')), 12000))]);
+  } catch (e) { return alertBox(e.message); }
+  const crop = await cropBox(shot.data);
+  if (crop !== false) { setTool('move'); return addShotItem(shot, crop); }
+}
+
+function alertBox(text) {
+  const m = document.createElement('div');
+  m.className = 'modal';
+  m.innerHTML = `<div class="box" role="alertdialog" aria-label="${esc(text)}"><p>${esc(text)}</p><div class="acts"><button class="btn primary">OK</button></div></div>`;
+  document.body.append(m);
+  m.querySelector('button').onclick = () => m.remove();
+  m.querySelector('button').focus();
+}
+
+// Resolves [x, y, w, h] as fractions of the image, null for the whole page, false when cancelled.
+function cropBox(data) {
+  return new Promise((done) => {
+    const m = document.createElement('div');
+    m.className = 'modal';
+    m.id = 'crop';
+    m.innerHTML = `<div class="box" role="dialog" aria-label="Add screenshot"><p>Drag over the part you want, or add the whole page.</p>
+      <div class="frame"><img alt="Screenshot" draggable="false"><div class="sel" hidden></div></div>
+      <div class="acts"><button class="btn" id="crop-cancel">Cancel</button><button class="btn" id="crop-all">Add whole page</button><button class="btn primary" id="crop-sel" disabled>Add selection</button></div></div>`;
+    document.body.append(m);
+    const frame = m.querySelector('.frame'), sel = m.querySelector('.sel');
+    m.querySelector('img').src = data;
+    let rect = null;
+    const finish = (v) => { m.remove(); document.removeEventListener('keydown', key, true); done(v); };
+    const key = (e) => { if (e.key === 'Escape') finish(false), e.stopPropagation(); };
+    document.addEventListener('keydown', key, true);
+    frame.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      frame.setPointerCapture(e.pointerId);
+      const r = frame.getBoundingClientRect(), clamp = (v, max) => Math.max(0, Math.min(max, v));
+      const x0 = clamp(e.clientX - r.left, r.width), y0 = clamp(e.clientY - r.top, r.height);
+      frame.onpointermove = (ev) => {
+        const x1 = clamp(ev.clientX - r.left, r.width), y1 = clamp(ev.clientY - r.top, r.height);
+        rect = [Math.min(x0, x1) / r.width, Math.min(y0, y1) / r.height, Math.abs(x1 - x0) / r.width, Math.abs(y1 - y0) / r.height];
+        Object.assign(sel.style, { left: rect[0] * 100 + '%', top: rect[1] * 100 + '%', width: rect[2] * 100 + '%', height: rect[3] * 100 + '%' });
+        sel.hidden = false;
+      };
+      frame.onpointerup = () => {
+        frame.onpointermove = frame.onpointerup = null;
+        if (rect && (rect[2] < 0.02 || rect[3] < 0.02)) rect = null, sel.hidden = true;
+        m.querySelector('#crop-sel').disabled = !rect;
+      };
+    });
+    m.querySelector('#crop-cancel').onclick = () => finish(false);
+    m.querySelector('#crop-all').onclick = () => finish(null);
+    m.querySelector('#crop-sel').onclick = () => finish(rect && rect.map((v) => Math.round(v * 10000) / 10000));
+    m.querySelector('#crop-all').focus();
+  });
+}
+
+// ---- Paste, drop, keys
+const typing = (t) => t.closest?.('input, textarea, [contenteditable]');
+document.addEventListener('paste', (e) => {
+  if (!board || typing(e.target) || document.querySelector('.modal')) return;
+  const text = e.clipboardData.getData('text/plain').trim();
+  if (!text) return;
+  e.preventDefault();
+  setTool('move');
+  if (isUrl(text)) addLink(text); else addNote(text);
+});
+$('wrap').addEventListener('dragover', (e) => { if (board) e.preventDefault(); });
+$('wrap').addEventListener('drop', async (e) => {
+  if (!board) return;
+  e.preventDefault();
+  const [x, y] = stagePoint(e), at = { x: Math.max(0, x - 140), y: Math.max(0, y - 30) };
+  const tab = e.dataTransfer.getData('application/x-roar-tab');  // A tab dragged from the sidebar.
+  if (tab) {
+    let st = {};
+    try { st = await ask({ cmd: 'state' }); } catch {}
+    const t = (st.tabs || []).find((t) => String(t.id) === tab && !t.ghost);
+    if (t) addLink(t.url, t.name || t.title, at);
+    return;
+  }
+  const url = (e.dataTransfer.getData('text/uri-list').split(/\r?\n/).find((l) => l && !l.startsWith('#')) || e.dataTransfer.getData('text/plain') || '').trim();
+  if (isUrl(url)) addLink(url, '', at);
+});
+document.addEventListener('keydown', (e) => {
+  if (!board || document.querySelector('.modal')) return;
+  if (e.key === 'Escape') { closePop(); select(null); if (typing(e.target)) e.target.blur(); return; }
+  if (typing(e.target)) return;
+  const mod = e.metaKey || e.ctrlKey;
+  if (mod && e.key.toLowerCase() === 'z' && !e.shiftKey) doUndo();
+  else if ((e.key === 'Delete' || e.key === 'Backspace') && selected) remove(selected);
+  else if (!mod && !e.altKey && { v: 1, p: 1, e: 1 }[e.key]) setTool({ v: 'move', p: 'pen', e: 'erase' }[e.key]);
+  else if (!mod && !e.altKey && e.key === 'n') { setTool('move'); addNote(); }
+  else if (!mod && !e.altKey && e.key === 'l') $('add-link').click();
+  else if (!mod && !e.altKey && e.key === 's') $('add-shot').click();
+  else return;
+  e.preventDefault();
+});
+
+route();
+</script>
+</body>
+</html>

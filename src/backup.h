@@ -136,7 +136,7 @@ inline Cat Classify(const std::string& rel) {
       name.resize(name.size() - std::strlen(sfx));
   if (name == "LOCK") return kNone;
   if (slash == std::string::npos) {
-    if (name == "state.json" || name == "library.json") return kSettings;
+    if (name == "state.json" || name == "library.json" || name == "Boards") return kSettings;
     // Local State holds the cookie encryption key on Windows, so it travels with the cookies.
     if (name == "pages.json" || name == "history.json" || name == "chats.json" || name == "chats" || name == "Local State") return kBrowsing;
     return kNone;  // Caches, locks, runtime files, the staged uBOL copy, earlier backups.

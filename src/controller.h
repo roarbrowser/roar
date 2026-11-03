@@ -283,6 +283,8 @@ class Controller {
                    const std::string& request, CefRefPtr<Callback> callback);
   // Settings > Backup's backup.* commands (controller_backup.cc).
   bool HandleBackup(CefRefPtr<CefBrowser> browser, CefRefPtr<CefDictionaryValue> msg, CefRefPtr<Callback> callback);
+  // Boards' board.* commands (controller_boards.cc).
+  bool HandleBoards(CefRefPtr<CefBrowser> browser, CefRefPtr<CefDictionaryValue> msg, CefRefPtr<Callback> callback);
   bool CanCloseShell(CefRefPtr<CefWindow> shell);
   void OnShellDestroyed(CefRefPtr<CefWindow> shell);
   bool CanCloseTabWindow(CefRefPtr<CefWindow> window);

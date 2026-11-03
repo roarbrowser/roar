@@ -33,6 +33,8 @@ int main(int argc, char** argv) {
   b.Update(abc.data(), abc.size());
   Check(b.Hex() == "41edece42d63e8d9bf515a9ba6932e1c20cbc9f5a5d134645adb5db1b9737ea3", "sha256 of 1000 a's");
 
+  Check(Classify("Boards") == kSettings, "boards travel with the settings");
+
   fs::path root = fs::temp_directory_path() / ("roar-backup-test-" + std::to_string(std::rand()));
   fs::path src = root / "src", dst = root / "dst", out = argc > 1 ? fs::path(argv[1]) : root / "t.roarbackup";
   Put(src / "state.json", "{\"settings\":{\"archiveAfterHours\":3}}");

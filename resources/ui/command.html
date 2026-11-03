@@ -99,6 +99,9 @@ const COMMANDS = [
   { id: 'bookmarkAdd', title: 'Bookmark this page', keys: '', words: 'bookmark save favorite star' },
   { id: 'readLaterAdd', title: 'Add to Read Later', keys: '', words: 'read later reading list save' },
   { id: 'bookmarks', title: 'Organize bookmarks', keys: '', words: 'bookmarks organizer read later manage' },
+  { id: 'open:roar://ui/board.html#new', title: 'New board', keys: '', words: 'boards canvas create screenshot notes drawing collect' },
+  { id: 'openBoard', title: 'Open board…', keys: '', words: 'boards canvas screenshot notes drawing', children: [] },
+  { id: 'boards', title: 'All boards', keys: '', words: 'boards canvas list screenshot notes drawing' },
   { id: 'settings', title: 'Settings', keys: '⌘,', words: 'preferences options onboarding' },
 ];
 const ICON = {
@@ -131,8 +134,20 @@ const syncLlms = () => ask({ cmd: 'state' }).then((st) => {
   if (at >= 0) COMMANDS.splice(at, 1);
   if (pick) COMMANDS.unshift(Object.assign(ASK, { id: pick.id, title: `Ask ${pick.title} about this page`, words: ASK.words + ' ' + pick.words }));
 }).catch(() => {});
+// Open board… lists this space's boards, and only shows up once there is one.
+const BOARD = COMMANDS.find((c) => c.id === 'openBoard');
+const syncBoards = () => ask({ cmd: 'board.list' }).then((list) => {
+  BOARD.children = list.sort((a, b) => (b.updated || 0) - (a.updated || 0))
+    .map((b) => ({ id: 'open:roar://ui/board.html#' + b.id, title: b.name || 'Untitled board', keys: '', words: 'board' }));
+}).catch(() => { BOARD.children = []; }).then(() => {
+  const at = COMMANDS.indexOf(BOARD), want = BOARD.children.length > 0;
+  if (!want && at >= 0) COMMANDS.splice(at, 1);
+  else if (want && at < 0) COMMANDS.splice(COMMANDS.findIndex((c) => c.id === 'boards'), 0, BOARD);
+});
 syncLlms();
+syncBoards();
 window.addEventListener('focus', syncLlms);  // The bar is one page shown again and again.
+window.addEventListener('focus', syncBoards);
 
 let submenu = null;  // A command whose children are listed instead of COMMANDS.
 
