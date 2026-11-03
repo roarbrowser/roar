@@ -282,7 +282,6 @@ body.drag-active .pinned:empty::before { content: 'Drop to pin'; color: var(--in
 #ghost-dlg p { margin: 0; } #ghost-dlg ul { margin: 0; padding: 0; list-style: none; }
 #ghost-dlg li { padding: 6px 8px; border-radius: 6px; box-shadow: inset 0 0 0 1px var(--rule); overflow-wrap: anywhere; }
 #ghost-dlg li small { display: block; color: var(--ink-3); font-size: 11px; }
-#ghost-dlg label:not([hidden]) { display: flex; gap: 6px; align-items: center; color: var(--ink-2, var(--ink)); }
 .cld .acts { display: flex; gap: 6px; justify-content: flex-end; align-items: center; }
 .cld .acts span { flex: 1; color: var(--ink-3); }
 .cld .acts button { padding: 5px 12px; border-radius: 6px; } .cld .acts button:hover { background: var(--hover); }
@@ -480,7 +479,6 @@ body.drag-active .pinned:empty::before { content: 'Drop to pin'; color: var(--in
     <p id="ghost-dlg-to"></p>
     <ul class="where" id="ghost-dlg-list"></ul>
     <p>These titles and addresses leave the ghost session.</p>
-    <label id="ghost-dlg-skip-row"><input type="checkbox" id="ghost-dlg-skip">Don't ask again until ghost tabs close</label>
     <div class="acts"><button value="cancel" autofocus>Cancel</button><button class="go" value="send">Send</button></div>
   </form>
 </dialog>
@@ -1569,28 +1567,18 @@ function aiItem(key) {
   return { key, title: `${{ group: 'a tab group', space: 'a browser profile', session: 'a coding agent session' }[kind]} now called "${c.name}". ${c.about.replace(/\n/g, ' ')}` };
 }
 // Ghost tabs leave the ghost session only after the person sees exactly what goes (renamePrompt's title and
-// URL cuts) and to which model, and presses Send. auto: naming new tabs, where "Don't ask again" holds until
-// the last ghost tab closes (autoName resets it). Resolves the keys to send: ghost ones dropped on Cancel.
-var ghostSkipAsk = false, ghostAsking = Promise.resolve();
-function ghostConfirm(who, keys, auto = false) {
+// URL cuts) and to which model, and presses Send, every time. Resolves the keys to send: ghost ones dropped on Cancel.
+function ghostConfirm(who, keys) {
   const ghosts = keys.filter((k) => state.tabs.find((t) => 'tab:' + t.id === k)?.ghost), rest = keys.filter((k) => !ghosts.includes(k));
-  if (!ghosts.length || (auto && ghostSkipAsk)) return Promise.resolve(keys);
-  const ask1 = () => new Promise((done) => {
+  if (!ghosts.length) return Promise.resolve(keys);
+  return new Promise((done) => {
     const dlg = $('ghost-dlg');
     $('ghost-dlg-to').textContent = `To ${who.p.name} · ${who.model}:`;
     setHtml($('ghost-dlg-list'), ghosts.map(aiItem).map((i) => `<li>${esc(String(i.title || '').slice(0, 200))}<small>${esc(String(i.url || '').slice(0, 300))}</small></li>`).join(''));
-    $('ghost-dlg-skip-row').hidden = !auto;
-    $('ghost-dlg-skip').checked = false;
     dlg.returnValue = '';
-    dlg.onclose = () => {
-      const send = dlg.returnValue === 'send';
-      if (send && auto && $('ghost-dlg-skip').checked) ghostSkipAsk = true;
-      done(send ? keys : rest);
-    };
+    dlg.onclose = () => done(dlg.returnValue === 'send' ? keys : rest);
     dlg.showModal();
   });
-  // One question at a time; a batch that waited may be covered by "Don't ask again" by then.
-  return (ghostAsking = ghostAsking.then(() => (auto && ghostSkipAsk ? keys : ask1())));
 }
 // bulk: "group:id" sends the group and its tabs, "all:space" / "ungrouped:space" just those tabs, in one request.
 async function aiRename(key, e, bulk = false) {
@@ -1660,13 +1648,12 @@ var AI_RENAME_MS = 30000, AI_RENAME_WAIT_MS = 120000;
 // the default chat model in one request (the Rename with AI prompt). No model connected: nothing happens.
 var autoSeen = { ids: {}, spaces: {} }, autoQueue = [], autoTimer = 0, AUTO_NAME_MS = 2000;
 function autoName(s) {
-  if (!s.tabs.some((t) => t.ghost)) ghostSkipAsk = false;
   autoQueue.push(...chatCore.autoNameKeys(s.tabs, autoSeen, s.activeSpace, !!s.settings.autoNameTabs));
   if (autoQueue.length && !autoTimer) autoTimer = setTimeout(autoNameRun, AUTO_NAME_MS);
 }
 async function autoNameRun() {
   // Still open, in this space and unnamed (the person may have renamed or pinned it meanwhile).
-  const open = (k) => state.tabs.find((t) => 'tab:' + t.id === k && !t.name && (!t.pinned || t.group));
+  const open = (k) => state.tabs.find((t) => 'tab:' + t.id === k && !t.name && !t.ghost && (!t.pinned || t.group));
   const keys = autoQueue.splice(0).filter(open);
   autoTimer = 0;
   if (!keys.length || !state.settings.autoNameTabs) return;
@@ -1674,9 +1661,7 @@ async function autoNameRun() {
     const chats = await aiChatList(), pick = chatCore.defaultModel(chats, state.settings.chatModel || '');
     const p = chats.find((c) => pick.startsWith(c.id + '|'));
     if (!p) return;
-    const model = pick.slice(p.id.length + 1), sent = (await ghostConfirm({ p, model }, keys, true)).filter(open);
-    if (!sent.length) return;
-    const names = chatCore.parseNames(await chatCore.oneShot(p, model, chatCore.renamePrompt(sent.map(aiItem)), window.roarQuery), sent);
+    const names = chatCore.parseNames(await chatCore.oneShot(p, pick.slice(p.id.length + 1), chatCore.renamePrompt(keys.map(aiItem)), window.roarQuery), keys);
     for (const k in names) if (open(k)) await ask({ cmd: 'agent.rename', kind: 'tab', id: +k.slice(4), name: names[k] });
   } catch {}  // A model that fails or is offline just leaves the titles.
 }

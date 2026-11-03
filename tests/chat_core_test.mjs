@@ -203,11 +203,13 @@ check(JSON.stringify(core.parseNames('no json here', ['tab:1'])) === '{}', 'pars
     page(8, '', { loading: true }), { id: 9, title: 'about:blank', url: 'about:blank' }, { id: 10, title: 'New tab', url: 'roar://ui/newtab.html' }, page(11, 'site.test/11'), { id: 12, title: 'www.x.test', url: 'https://www.x.test/' },
     page(14, 'In pinned group', { group: 3, kept: true }), page(15, 'Split half', { split: true, splitWith: 16 }), page(16, 'Other half', { split: true, splitWith: 15 })];
   const all = [page(1, 'Old'), page(2, 'Opened while off'), ...fresh];
-  check(core.autoNameKeys(all, seen, 0, true).join() === 'tab:3,tab:4,tab:7,tab:14,tab:15,tab:16', 'auto name: new titled tabs (ghost, split, pinned group too) in one batch; named, pinned and not-yet-titled skipped');
+  check(core.autoNameKeys(all, seen, 0, true).join() === 'tab:3,tab:4,tab:14,tab:15,tab:16', 'auto name: new titled tabs (split, pinned group too) in one batch; named, pinned, ghost and not-yet-titled skipped');
   check(core.autoNameKeys(all, seen, 0, true).length === 0, 'auto name: a tab is never queued twice');
   all[7] = page(8, 'Loaded'); all.push(page(13, 'GitHub', { url: 'https://github.com/' }));
   check(core.autoNameKeys(all, seen, 0, true).join() === 'tab:8,tab:13', 'auto name: a tab waits for its first real title');
   check(core.autoNameKeys([page(17, 'Pinned in group', { pinned: true, group: 3 })], seen, 0, true).join() === 'tab:17', 'auto name: a pinned tab inside a group is named');
+  check(core.autoNameKeys([page(18, 'Half', { split: true, splitWith: 19 }), page(19, 'Ghost half', { ghost: true, split: true, splitWith: 18 })], seen, 0, true).length === 0, 'auto name: never a ghost tab, nor a pair holding one');
+  check(core.autoNameKeys([page(7, 'Ghost, later'), page(18, 'Half'), page(19, 'Ghost half', { ghost: true })], seen, 0, true).length === 0, 'auto name: a skipped ghost tab stays skipped');
   check(core.autoNameKeys([page(5, 'Mine'), page(6, 'Pinned')], seen, 0, true).length === 0, 'auto name: tabs skipped once stay skipped (unnamed or unpinned later)');
   check(core.autoNameKeys([page(20, 'Other space')], seen, 1, true).length === 0, "auto name: another space's tabs on its first visit are not named"); }
 console.log(fail ? `${fail} failure(s)` : 'ok');

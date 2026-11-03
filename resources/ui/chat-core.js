@@ -326,15 +326,16 @@
   };
   // Naming new tabs (settings.autoNameTabs): the "tab:<id>" keys to name now. seen ({ids: {}, spaces: {}}) is kept
   // by the caller: tabs there before (restored tabs, a space's tabs on its first visit, any tab while off) and
-  // tabs already handled are never named, so each tab is named at most once. Named tabs and pinned tabs outside a
-  // group are skipped (ghost, split and grouped tabs are named); others wait for a real title (not loading, not a
-  // roar:// or about: page, not the URL shown as title).
+  // tabs already handled are never named, so each tab is named at most once. Named tabs, pinned tabs outside a
+  // group and ghost tabs (and pairs holding one: their titles never leave without a click) are skipped; others
+  // wait for a real title (not loading, not a roar:// or about: page, not the URL shown as title).
   const autoNameKeys = (tabs, seen, space, on) => {
     const first = !seen.spaces[space], out = [];
     seen.spaces[space] = true;
     for (const t of tabs) {
       if (seen.ids[t.id]) continue;
-      if (!on || first || (t.pinned && !t.group) || t.name) { seen.ids[t.id] = true; continue; }
+      const ghostly = t.ghost || (t.split && tabs.some((o) => o.id === t.splitWith && o.ghost));
+      if (!on || first || (t.pinned && !t.group) || t.name || ghostly) { seen.ids[t.id] = true; continue; }
       const title = String(t.title || '').trim().toLowerCase(), url = String(t.url || '').toLowerCase();
       const bare = (u) => u.replace(/^[\w-]+:\/\//, '').replace(/^www\./, '').replace(/\/$/, '');
       if (t.loading || !title || /^(roar|about|chrome|devtools):/.test(url) || title.includes('://') || url.startsWith(title) || bare(url) === bare(title)) continue;
