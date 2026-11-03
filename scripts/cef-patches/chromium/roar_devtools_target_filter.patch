@@ -36,7 +36,7 @@ diff --git content/browser/devtools/devtools_agent_host_impl.cc content/browser/
  #include "content/public/common/content_switches.h"
  #include "net/base/ip_endpoint.h"
  #include "services/network/public/mojom/network_context.mojom.h"
-@@ -135,7 +136,67 @@
+@@ -135,7 +136,84 @@
  }
  #endif
  
@@ -53,8 +53,10 @@ diff --git content/browser/devtools/devtools_agent_host_impl.cc content/browser/
 +}
 +
 +// Roar: false hides |host| from Target.* and the HTTP endpoints. Hosts
-+// without a WebContents (service workers, the browser target) always pass;
-+// dedicated workers follow the page that started them.
++// without a WebContents pass (service workers, so Roar's pipe reaches
++// extension workers, and the browser target), except page workers: a
++// dedicated worker follows the page that started it, and one with no known
++// page, a shared worker or a worklet follows its profile.
 +bool RoarDevToolsTargetAllowed(DevToolsAgentHost* host) {
 +  WebContents* contents = host ? host->GetWebContents() : nullptr;
 +  if (!contents && host && g_roar_target_filter) {
@@ -63,6 +65,13 @@ diff --git content/browser/devtools/devtools_agent_host_impl.cc content/browser/
 +        parent_id.empty() ? nullptr : DevToolsAgentHost::GetForId(parent_id);
 +    if (parent && parent.get() != host) {
 +      return RoarDevToolsTargetAllowed(parent.get());
++    }
++    const std::string type = host->GetType();
++    if (type == DevToolsAgentHost::kTypeDedicatedWorker ||
++        type == DevToolsAgentHost::kTypeSharedWorker ||
++        type == DevToolsAgentHost::kTypeWorklet) {
++      BrowserContext* context = host->GetBrowserContext();
++      return context && g_roar_target_filter(nullptr, context);
 +    }
 +  }
 +  return !g_roar_target_filter || !contents ||
@@ -79,14 +88,22 @@ diff --git content/browser/devtools/devtools_agent_host_impl.cc content/browser/
 +      continue;
 +    }
 +    auto* impl = static_cast<DevToolsAgentHostImpl*>(host.get());
-+    std::vector<DevToolsSession*> remote;
-+    for (DevToolsSession* session : impl->sessions()) {
-+      if (session->GetRootSession()->GetClient()->GetTypeForMetrics() ==
-+          "RemoteDebugger") {
-+        remote.push_back(session);
++    // One at a time: a detach can free other sessions on this host (an
++    // agent's nested Target sessions), so no pointer outlives a detach.
++    for (size_t left = impl->sessions().size(); left; --left) {
++      DevToolsSession* remote = nullptr;
++      for (DevToolsSession* session : impl->sessions()) {
++        if (session->GetRootSession()->GetClient()->GetTypeForMetrics() ==
++            "RemoteDebugger") {
++          remote = session;
++          break;
++        }
 +      }
++      if (!remote) {
++        break;
++      }
++      impl->ForceDetachRestrictedSessions({remote});
 +    }
-+    impl->ForceDetachRestrictedSessions(remote);
 +  }
 +}
 +

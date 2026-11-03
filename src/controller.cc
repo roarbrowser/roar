@@ -1306,6 +1306,7 @@ void Controller::Start() {
       set([](const char* url) { return Controller::Get()->OpenTargetTab(url); });
     cdp_http_ = reinterpret_cast<void (*)(int)>(sym("roar_devtools_http"));
     cdp_detach_hidden_ = reinterpret_cast<void (*)()>(sym("roar_devtools_detach_hidden"));
+    if (!cdp_detach_hidden_) LOG(WARNING) << "CEF lacks roar_devtools_detach_hidden: agents off won't cut off attached agents";
     // Hides ghost tabs and spaces with agents off from CDP clients (scripts/cef-patches).
     using Filter = bool (*)(int, const char*);
     if (auto filter = reinterpret_cast<void (*)(Filter)>(sym("roar_set_devtools_target_filter")))
@@ -2230,6 +2231,8 @@ void Controller::Navigate(int id, const std::string& url) {
   Tab* tab = FindTab(id);
   if (!tab || url.empty()) return;
   tab->url = url;
+  // A Roar page (reader mode) is privileged and hidden from agents: cut off any agent on this tab first.
+  if (StartsWith(url, "roar://") && cdp_detach_hidden_) cdp_detach_hidden_();
   if (auto browser = (tab->view ? tab->view->GetBrowser() : nullptr)) {
     browser->GetMainFrame()->LoadURL(url);
   } else if (!tab->window) {
@@ -3484,6 +3487,7 @@ void Controller::RemoveSpace(int id) {
   state.groups.erase(std::remove_if(state.groups.begin(), state.groups.end(),
                                     [&](const TabGroup& g) { return g.space == id; }),
                      state.groups.end());
+  if (cdp_detach_hidden_) cdp_detach_hidden_();  // Popups of the space have no tab to archive; their profile now matches no space.
   PushSidebar();
   SaveSoon();
 }
@@ -6229,6 +6233,7 @@ void Controller::OnAddress(CefRefPtr<CefBrowser> browser, const std::string& url
     MediaWatcher::Attach(browser, &media_watchers_[browser->GetIdentifier()]);
   // A tab's own name (rename) stays across navigation until it is renamed or reset.
   tab->url = url;
+  if (StartsWith(url, "roar://") && cdp_detach_hidden_) cdp_detach_hidden_();  // Now privileged and hidden (Navigate).
   if (!tab->reader_origin.empty() && !StartsWith(url, kReaderUrl)) {
     tab->reader_origin.clear();
     tab->reader_markdown.clear();

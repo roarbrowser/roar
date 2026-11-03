@@ -74,19 +74,32 @@ try {
   const a2 = await cdp(w1.webSocketDebuggerUrl);
   check((await a2.send('Runtime.evaluate', { expression: '1+1', returnByValue: true }))?.result?.value === 2, 'agent 2 drives the Work tab directly');
 
+  // A nested session on the same tab, owned by agent 1's session there: detaching the outer one frees it.
+  const nested = (await a1.send('Target.attachToTarget', { targetId: w1.id, flatten: true }, sw))?.sessionId;
+
   await ask(`ask({cmd:'space.agents',id:${work},on:false})`);
   await sleep(500);
   check(a1.events.some((e) => e.method === 'Target.detachedFromTarget' && e.params?.sessionId === sw), 'agent 1 is told it was detached from the Work tab');
-  check(!!(await ev(sw))?.error, 'agent 1 can no longer drive the Work tab');
+  const gone = (s) => /not found/i.test(s?.error?.message || '');
+  check(gone(await ev(sw)), 'agent 1 can no longer drive the Work tab (session not found)');
+  if (nested) check(gone(await ev(nested)), 'its nested session on the tab is gone too, and Roar survived');
   check((await ev(sh))?.result?.value === '/h1', 'agent 1 still drives the tab in the space that allows agents');
   check(!a1.closed, "agent 1's connection stays open");
-  check(a2.closed || !!(await a2.send('Runtime.evaluate', { expression: '1+1' }))?.error, "agent 2's direct socket to the Work tab is cut");
+  await sleep(300);
+  check(a2.closed, "agent 2's direct socket to the Work tab is closed");
   check(!!(await a1.send('Target.attachToTarget', { targetId: w1.id, flatten: true }))?.error, 'agent 1 cannot reattach to the Work tab');
   check(!(await list()).some((x) => x.id === w1.id), 'the Work tab is no longer listed');
 
   await ask(`ask({cmd:'space.agents',id:${work},on:true})`);
   const back = (await a1.send('Target.attachToTarget', { targetId: w1.id, flatten: true }))?.sessionId;
   check(!!back && (await ev(back))?.result?.value === '/w1', 'switching agents back on lets an agent attach again');
+
+  // Reader mode turns a tab into a privileged Roar page in place: an attached agent is cut off first.
+  const sh2 = (await a1.send('Target.attachToTarget', { targetId: h1.id, flatten: true }))?.sessionId;
+  await ask(`(async () => { const t = (await ask({cmd:'state'})).tabs.find((t) => t.url.endsWith('/h1')); await ask({cmd:'tab.activate', id: t.id}); return true; })()`);
+  await ask(`ask({cmd:'run',id:'reader'})`);
+  for (let i = 0; i < 20 && !a1.events.some((e) => e.method === 'Target.detachedFromTarget' && e.params?.sessionId === sh2); i++) await sleep(250);
+  check(a1.events.some((e) => e.method === 'Target.detachedFromTarget' && e.params?.sessionId === sh2), 'reader mode cuts off the agent on that tab');
 } catch (e) {
   check(false, 'threw: ' + (e?.stack || e));
 } finally {
