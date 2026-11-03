@@ -1,0 +1,7 @@
+[
+  {"settings": {"openEditInWindow": false}},
+  {"name": "Dark example", "enabled": true, "updateUrl": "https://styles.example/dark.user.css",
+   "sections": [{"code": "body { background: #000 }", "urls": [], "urlPrefixes": ["https://example.com/"], "domains": ["example.net"], "regexps": ["https?://(www\\.)?example\\.org/.*"]}, {"code": "a { color: red }"}]},
+  {"name": "Accent", "enabled": false, "sourceCode": "/* ==UserStyle==\n@name Accent\n@namespace fixtures\n@version 1.0.0\n@var color accent \"Accent\" #ff0000\n==/UserStyle== */\n@-moz-document domain(\"example.com\") { a { color: var(--accent) } }\n",
+   "usercssData": {"name": "Accent", "vars": {"accent": {"type": "color", "label": "Accent", "default": "#ff0000", "value": "#00ff00"}}}, "sections": [{"code": "a { color: var(--accent) }", "domains": ["example.com"]}]}
+]

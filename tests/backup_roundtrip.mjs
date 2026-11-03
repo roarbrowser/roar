@@ -75,7 +75,7 @@ const ask = async (msg) => evalIn(await sidebar(), `ask(${JSON.stringify(msg)}).
 // Each extension's chrome.storage.local (and the test extension's IndexedDB), by extension name.
 async function storage(mark) {
   const out = {};
-  await until(async () => (await targets()).filter((t) => t.type === 'service_worker' && t.url.startsWith('chrome-extension://')).length >= 2, 'extension workers');
+  await until(async () => (await targets()).filter((t) => t.type === 'service_worker' && t.url.startsWith('chrome-extension://')).length >= 3, 'extension workers');
   for (const t of (await targets()).filter((t) => t.type === 'service_worker' && t.url.startsWith('chrome-extension://'))) {
     const name = await until(() => evalIn(t, 'chrome.runtime.getManifest().name'), 'extension worker ready');  // A worker can be listed before its context starts.
     if (mark && name !== 'Roar backup test') await evalIn(t, `chrome.storage.local.set({ roarBackupTest: 'filter list kept' })`);
@@ -105,7 +105,7 @@ try {
   const tab = await until(async () => (await ask({ cmd: 'state' })).tabs?.find((t) => t.url.includes('example.com/pinned')), 'test tab');
   await ask({ cmd: 'tab.pin', id: tab.id, pinned: true });
   const before = await storage(true);
-  check(before['Roar backup test']?.includes('hello.user.js') && before['uBlock Origin Lite']?.includes('filter list kept'), 'A: test extension and uBOL wrote their storage');
+  check(before['Roar backup test']?.includes('hello.user.js') && before['uBlock Origin Lite']?.includes('filter list kept') && before['Site tweaks']?.includes('filter list kept'), 'A: test extension, uBOL and Site tweaks wrote their storage');
   const ex = await ask({ cmd: 'backup.export', path: FILE, categories: ['settings', 'extensions'] });
   check(!ex.error && ex.files > 0 && existsSync(FILE), `A: exported ${ex.files} files` + (ex.error ? ' ' + ex.error : ''));
   await quit(roar);
@@ -143,7 +143,7 @@ try {
     for (const o of [x, y]) if (o.rulesetConfig) delete o.rulesetConfig.userScripts;
     for (const k of Object.keys(x)) if (!k.startsWith('css.') && !isDeepStrictEqual(x[k], y[k])) diffs++, console.log(`     ${n}: ${k} differs`);
   }
-  check(Object.keys(before).length === 2 && diffs === 0, 'B: extension storage (chrome.storage and IndexedDB) matches A, uBOL included');
+  check(Object.keys(before).length === 3 && diffs === 0, 'B: extension storage (chrome.storage and IndexedDB) matches A, uBOL and Site tweaks included');
   await quit(roar);
   const stateB = json(join(B, 'state.json'));
   check(isDeepStrictEqual(stateB.settings, stateA.settings), 'B: settings match A');

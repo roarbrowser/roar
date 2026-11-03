@@ -56,8 +56,8 @@ async function open(url) {
   await sidebar(`ask({cmd:'run',id:'open:${url}'})`);
   for (let i = 0; i < 20; i++) { const t = (await tabs()).find((t) => t.url === url); if (t) return t.id; await sleep(250); }
 }
-// The site menu's items as "act:checked:disabled".
-const menu = () => sidebar(`(async () => { await siteMenu(); const r = [...document.querySelectorAll('#ctx [data-act]')].map((b) => b.dataset.act + ':' + b.getAttribute('aria-checked') + ':' + b.disabled + ':' + b.getAttribute('role')).join(' '); return r; })()`);
+// The site menu's pop-up and ad-block items as "act:checked:disabled" (site_tweaks_test covers its Site tweaks part).
+const menu = () => sidebar(`(async () => { await siteMenu(); const r = [...document.querySelectorAll('#ctx [data-act=popups], #ctx [data-act=adblock]')].map((b) => b.dataset.act + ':' + b.getAttribute('aria-checked') + ':' + b.disabled + ':' + b.getAttribute('role')).join(' '); return r; })()`);
 // Opens page A in |mode| and waits for a site-Y tab; returns [opener title, popup title].
 let runs = 0;
 async function popupRun(mode) {
