@@ -54,6 +54,7 @@ Copy-Item -Recurse "$Root\resources\ui" "$Out\ui"
 if (Test-Path "$Out\extensions") { Remove-Item -Recurse -Force "$Out\extensions" }
 New-Item -ItemType Directory "$Out\extensions" | Out-Null
 Copy-Item -Recurse $Ubol "$Out\extensions\ubol"
+Copy-Item -Recurse "$Root\resources\extensions\tweaks" "$Out\extensions\tweaks"
 
 if (-not (Get-Command bun -ErrorAction SilentlyContinue)) { throw 'build.ps1: bun is needed to build roar-mcp (https://bun.sh)' }
 Push-Location "$Root\mcp"
@@ -90,6 +91,7 @@ $WebkitCommit = ((Get-Content "$Root\scripts\gen-notices.sh" | Select-String '^W
 $BunDeps = Get-Content "$Root\licenses\bun-deps.tsv" | Where-Object { $_ -and -not $_.StartsWith('#') } | ForEach-Object { , ($_ -split "`t") }
 $TinyccCommit = ($BunDeps | Where-Object { $_[0] -eq 'tinycc' } | Select-Object -First 1)[2]
 if (-not $BunVersion -or -not $WebkitCommit -or -not $TinyccCommit) { throw 'build.ps1: cannot read Bun/WebKit/TinyCC pins' }
+$Tw = "$Root\resources\extensions\tweaks\vendor"  # Site tweaks' vendored preprocessors (VERSIONS.txt there).
 $Dl = "$Root\licenses\dictate-win"  # Licenses of roar-dictate.exe's sherpa-onnx build (scripts/build-dictate.ps1).
 $Notices = @(
   'Roar third-party notices'
@@ -144,6 +146,11 @@ $Notices = @(
   Notice 'sherpa-onnx component: hclust-cpp (fastcluster)' "$Dl\hclust-cpp-LICENSE"
   Notice 'ONNX Runtime 1.28.2 (MIT License; https://github.com/microsoft/onnxruntime)' "$Dl\onnxruntime-LICENSE"
   Notice 'ONNX Runtime 1.28.2: third-party notices' "$Dl\onnxruntime-ThirdPartyNotices.txt"
+  Notice 'Site tweaks component: less 4.9.1 (Apache License 2.0; https://github.com/less/less.js)' "$Tw\less-LICENSE"
+  Notice 'Site tweaks component: stylus-lang-bundle 0.64.0, a browser build of Stylus 0.64.0 (MIT License; https://github.com/openstyles/stylus-lang-bundle)' "$Tw\stylus-lang-bundle-LICENSE"
+  Notice 'Site tweaks component: path-browserify 1.0.1, inside stylus-lang-bundle (MIT License)' "$Tw\path-browserify-LICENSE"
+  Notice 'Site tweaks component: event-lite 0.1.3, inside stylus-lang-bundle (MIT License)' "$Tw\event-lite-LICENSE"
+  Notice 'Site tweaks component: tiny-sha1 0.2.1, inside stylus-lang-bundle (MIT License)' "$Tw\tiny-sha1-LICENSE"
   foreach ($f in $UbolLicenses) { Notice "uBO Lite component: $($f.FullName.Substring($Ubol.Length + 1).Replace('\', '/'))" $f.FullName }
   Notice 'uBO Lite component: lib/regexanalyzer (RegexAnalyzer 1.2.0 by Nikos M., The Unlicense; https://github.com/foo123/RegexAnalyzer)' "$Root\licenses\regexanalyzer-UNLICENSE"
   "`n$Rule`nuBO Lite (GNU General Public License v3.0)`n$Rule`n"

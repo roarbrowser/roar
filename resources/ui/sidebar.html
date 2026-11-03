@@ -1118,23 +1118,39 @@ async function tabMenu(t, e) {
     hideCtx();
   });
 }
+// Site tweaks (the bundled userscript and userstyle manager) for the site: each tweak that
+// runs here with its switch, the scripts' menu commands, the global switch and the manager.
+function tweaksItems(tw) {
+  const check = (on) => `<span style="width:10px">${on ? '✓' : ''}</span>`;
+  return `<hr><div class="head">Site tweaks</div>
+    ${tw.items.map((i) => `<button data-act="tweak" data-id="${esc(i.id)}" data-kind="${esc(i.kind)}" role="menuitemcheckbox" aria-checked="${!!i.enabled}"${tw.enabled ? '' : ' aria-disabled="true" disabled'} title="${esc(i.kind === 'style' ? 'Userstyle' : 'Userscript; reloads the page')}">${check(i.enabled)}${esc(i.name)}</button>`).join('')}
+    ${tw.commands.map((c) => `<button data-act="tweakcmd" data-k="${esc(c.key)}" title="${esc(c.script)}"><span style="width:10px"></span>${esc(c.caption)}</button>`).join('')}
+    <button data-act="tweaksoff" role="menuitemcheckbox" aria-checked="${!tw.enabled}" title="Stops every userscript and userstyle until you turn them back on. Reloads the page">${check(!tw.enabled)}Turn off all site tweaks</button>
+    <button data-act="tweaksmanage"><span style="width:10px"></span>Manage site tweaks…</button>`;
+}
 // The address bar's site icon: per-site switches for the active tab's site.
 async function siteMenu() {
   const t = state?.tabs?.find((x) => x.active), btn = $('site');
   if (!t || t.ghost || !/^https?:/.test(t.url || '')) return;
   const seq = ctxSeq;
   // uBOL can take up to 5 s: past 300 ms its item shows disabled instead of missing (undefined = no answer yet).
-  const [pop, ab] = await Promise.all([ask({ cmd: 'tab.popups', id: t.id }).catch(() => null),
-    Promise.race([ask({ cmd: 'tab.adblock', id: t.id }), new Promise((r) => setTimeout(r, 300))]).catch(() => null)]);
+  const soon = (p) => Promise.race([p, new Promise((r) => setTimeout(r, 300))]).catch(() => null);
+  const [pop, ab, tw] = await Promise.all([ask({ cmd: 'tab.popups', id: t.id }).catch(() => null),
+    soon(ask({ cmd: 'tab.adblock', id: t.id })), soon(ask({ cmd: 'tab.tweaks', id: t.id }))]);
   if (seq !== ctxSeq) return;
   const host = pop?.host || hostOf(t.url), r = btn.getBoundingClientRect();
   const item = (act, on, label, tip, off) => `<button data-act="${act}" role="menuitemcheckbox" aria-checked="${!!on}"${off ? ' aria-disabled="true" disabled' : ''} title="${esc(tip)}"><span style="width:10px">${on ? '✓' : ''}</span>${label}</button>`;
   showCtx(`<div class="head">${esc(host)}</div>
     ${item('popups', pop?.allowed, 'Allow pop-ups', `Pop-ups from ${host} open without being blocked`, !pop)}
-    ${item('adblock', ab?.excluded, 'Turn off blocking for this site', ab ? `Ads and trackers won't be blocked on ${ab.site || host}. Reloads the page` : ab === undefined ? 'Still checking the ad blocker; try again in a moment' : 'The ad blocker isn\'t running', !ab)}`,
-    { clientX: r.left, clientY: r.bottom + 4 }, (act) => {
+    ${item('adblock', ab?.excluded, 'Turn off blocking for this site', ab ? `Ads and trackers won't be blocked on ${ab.site || host}. Reloads the page` : ab === undefined ? 'Still checking the ad blocker; try again in a moment' : 'The ad blocker isn\'t running', !ab)}
+    ${tw ? tweaksItems(tw) : ''}`,
+    { clientX: r.left, clientY: r.bottom + 4 }, (act, d) => {
       if (act === 'popups') ask({ cmd: 'tab.popups', id: t.id, what: 'toggle' });
       else if (act === 'adblock') ask({ cmd: 'tab.adblock', id: t.id, what: 'toggle' });
+      else if (act === 'tweak') ask({ cmd: 'tab.tweaks', id: t.id, what: 'toggle', arg: d.id, reload: d.kind === 'script' });
+      else if (act === 'tweaksoff') ask({ cmd: 'tab.tweaks', id: t.id, what: 'global' });
+      else if (act === 'tweakcmd') ask({ cmd: 'tab.tweaks', id: t.id, what: 'run', arg: d.k });
+      else if (act === 'tweaksmanage') ask({ cmd: 'run', id: 'open:' + tw.manage });
       hideCtx();
       btn.focus();
     });

@@ -388,6 +388,28 @@ void UbolSite(const std::string& what, const std::string& url, const std::string
   }
 }
 
+void CallWorker(const std::string& ext, const std::string& context, const std::string& expression,
+                std::function<void(std::string)> cb) {
+  std::string session;
+  for (const auto& w : g_workers)
+    if (w.second.ext == ext && !w.second.session.empty() && !context.empty() && w.second.context == context)
+      session = w.second.session;
+  if (session.empty()) return cb("null");
+  auto once = std::make_shared<std::function<void(std::string)>>(std::move(cb));
+  auto finish = [once](std::string r) { if (*once) { auto f = std::move(*once); *once = nullptr; f(std::move(r)); } };
+  // Send never calls back when the pipe is closed or the worker stalls; answer anyway.
+  CefPostDelayedTask(TID_UI, base::BindOnce([](std::function<void(std::string)> f) { f("null"); }, std::function<void(std::string)>(finish)), 5000);
+  auto e = CefDictionaryValue::Create();
+  e->SetString("expression", expression);
+  e->SetBool("awaitPromise", true);
+  e->SetBool("returnByValue", true);
+  Send("Runtime.evaluate", e, session, [finish](CefRefPtr<CefDictionaryValue> res) {
+    auto r = res && !res->HasKey("exceptionDetails") ? res->GetDictionary("result") : nullptr;
+    auto v = r ? r->GetValue("value") : nullptr;
+    finish(v ? CefWriteJSON(v, JSON_WRITER_DEFAULT).ToString() : "null");
+  });
+}
+
 std::string StateJson() {
   auto out = CefDictionaryValue::Create();
   for (const auto& [target, value] : g_state) {

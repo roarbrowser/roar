@@ -204,6 +204,95 @@ class MailPageClient : public CefClient, public CefRenderHandler, public CefDisp
 };
 
 
+// Site tweaks (resources/extensions/tweaks) runs userscripts through chrome.userScripts,
+// which Chromium 138+ only allows after the per-extension "Allow User Scripts" switch
+// (extensions.settings.<id>.user_scripts_enabled) is on. That pref sits in Secure
+// Preferences and is read once when the extension loads, so it can only be flipped the
+// way chrome://extensions does it. Ghost profiles get the extension switched off instead:
+// their scripts would vanish with the session anyway.
+constexpr char kTweaksId[] = "mfbgmphllcfijgajblnepjfgopbgmnok";
+
+// chrome.developerPrivate exists only in a Chrome-style chrome://extensions page, so this
+// one lives in a window that is never shown and closes itself once the call is done.
+class ExtensionsPageClient : public CefClient, public CefDisplayHandler, public CefLoadHandler {
+ public:
+  explicit ExtensionsPageClient(std::string js) : js_(std::move(js)) {}
+  CefRefPtr<CefDisplayHandler> GetDisplayHandler() override { return this; }
+  CefRefPtr<CefLoadHandler> GetLoadHandler() override { return this; }
+  void OnLoadEnd(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> frame, int) override {
+    if (!frame->IsMain() || ran_ || !StartsWith(frame->GetURL().ToString(), "chrome://extensions")) return;
+    ran_ = true;
+    frame->ExecuteJavaScript(js_, frame->GetURL(), 0);
+    // Closes even if the page never reports back.
+    CefPostDelayedTask(TID_UI, base::BindOnce(&ExtensionsPageClient::Done, CefRefPtr<ExtensionsPageClient>(this)), 15000);
+  }
+  bool OnConsoleMessage(CefRefPtr<CefBrowser>, cef_log_severity_t, const CefString& message,
+                        const CefString&, int) override {
+    std::string m = message.ToString();
+    if (m.rfind("__roar_tweaks__", 0) != 0) return false;
+    if (m != "__roar_tweaks__ done") LOG(WARNING) << "Site tweaks setup: " << m;
+    Done();
+    return true;
+  }
+  void Done() {
+    if (window_) window_->Close();
+    window_ = nullptr;
+  }
+  CefRefPtr<CefWindow> window_;
+
+ private:
+  std::string js_;
+  bool ran_ = false;
+  IMPLEMENT_REFCOUNTING(ExtensionsPageClient);
+};
+
+class HiddenChromeViewDelegate : public CefBrowserViewDelegate {
+ public:
+  cef_runtime_style_t GetBrowserRuntimeStyle() override { return CEF_RUNTIME_STYLE_CHROME; }
+
+ private:
+  IMPLEMENT_REFCOUNTING(HiddenChromeViewDelegate);
+};
+
+class HiddenWindowDelegate : public CefWindowDelegate {
+ public:
+  explicit HiddenWindowDelegate(CefRefPtr<CefBrowserView> view) : view_(view) {}
+  void OnWindowCreated(CefRefPtr<CefWindow> window) override {
+    window->SetToFillLayout();
+    window->AddChildView(view_);
+    view_ = nullptr;
+  }
+  bool CanClose(CefRefPtr<CefWindow>) override { return true; }
+  CefRect GetInitialBounds(CefRefPtr<CefWindow>) override { return CefRect(0, 0, 800, 600); }
+  bool IsFrameless(CefRefPtr<CefWindow>) override { return true; }
+  cef_runtime_style_t GetWindowRuntimeStyle() override { return CEF_RUNTIME_STYLE_CHROME; }
+
+ private:
+  CefRefPtr<CefBrowserView> view_;
+  IMPLEMENT_REFCOUNTING(HiddenWindowDelegate);
+};
+
+void SetUpSiteTweaks(CefRefPtr<CefRequestContext> ctx, bool ghost) {
+  if (!ctx) return;
+  auto all = ctx->GetPreference("extensions.settings");
+  auto settings = all && all->GetType() == VTYPE_DICTIONARY ? all->GetDictionary() : nullptr;
+  auto mine = settings ? settings->GetDictionary(kTweaksId) : nullptr;
+  if (!ghost && mine && mine->GetBool("user_scripts_enabled")) return;
+  std::string id = std::string("'") + kTweaksId + "'";
+  // Chromium hands the running worker chrome.userScripts as soon as the switch flips. Never reload
+  // the extension here: a reload turns a --load-extension one into a plain unpacked one, which
+  // Chromium then disables for want of developer mode.
+  std::string act = ghost ? "await chrome.management.setEnabled(" + id + ", false);"
+                          : "await chrome.developerPrivate.updateExtensionConfiguration({extensionId: " + id +
+                                ", userScriptsAccess: true});";
+  std::string js = "(async () => { try { " + act + " console.log('__roar_tweaks__ done'); } catch (e) {"
+                   " console.log('__roar_tweaks__ ' + e); } })();";
+  CefRefPtr<ExtensionsPageClient> client = new ExtensionsPageClient(js);
+  auto view = CefBrowserView::CreateBrowserView(client, "chrome://extensions/", CefBrowserSettings(), nullptr, ctx,
+                                                new HiddenChromeViewDelegate());
+  client->window_ = CefWindow::CreateTopLevelWindow(new HiddenWindowDelegate(view));  // Never shown.
+}
+
 // Delegate for the sidebar, command bar and hint views (Alloy style).
 class UiViewDelegate : public CefBrowserViewDelegate {
  public:
@@ -1234,6 +1323,7 @@ void Controller::Start() {
   platform::InstallMenu();
   if (platform::Headless()) platform::InstallStatusItem();
   DisablePasswordManager(CefRequestContext::GetGlobalContext());
+  SetUpSiteTweaks(CefRequestContext::GetGlobalContext(), false);
 
   UseWin(MakeWin(state.active_space));
   focused_win_ = win_->id;
@@ -1728,6 +1818,9 @@ bool Controller::AgentMayReach(int browser_id, const std::string& profile_path) 
     Tab* t = FindTabByBrowser(it->second);
     if ((t && StartsWith(t->url, "roar://")) || StartsWith(it->second->GetMainFrame()->GetURL().ToString(), "roar://"))
       return false;
+    // Site tweaks' pages show script code and stored values, which stay away from agents.
+    if (StartsWith(it->second->GetMainFrame()->GetURL().ToString(), std::string("chrome-extension://") + kTweaksId + "/"))
+      return false;
   }
   // Decide by profile, which covers popups and pages Roar has not seen yet.
   // Ghost-<n> and anything unknown match no space and stay hidden.
@@ -1908,6 +2001,7 @@ CefRefPtr<CefRequestContext> Controller::ContextFor(int space) {
 
 void Controller::OnSpaceReady(int space) {
   ready_spaces_.insert(space);
+  SetUpSiteTweaks(contexts_[space], space == kGhostContext);
   for (auto& t : tabs_)
     if ((t.ghost ? kGhostContext : t.space) == space && !t.view) t.view = CreateTabView(t.url, t.space, t.ghost);
   SyncWindows();
@@ -3360,6 +3454,7 @@ std::string Controller::ExtensionsJson() {
     if (!newest.empty()) add(e.path().filename().string(), newest);
   }
   add("", fs::path(state.Dir()) / "ubol");
+  add(kTweaksId, fs::path(state.Dir()) / "tweaks");  // Its manifest key fixes the id.
   auto v = CefValue::Create();
   v->SetList(list);
   return CefWriteJSON(v, JSON_WRITER_DEFAULT).ToString();
@@ -5988,6 +6083,26 @@ bool Controller::HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> 
       action_watch::UbolSite(what, url, context, [this, callback, what, id](std::string json) {
         Tab* t = FindTab(id);
         if (what == "toggle" && json != "null" && t && t->view && t->view->GetBrowser()) t->view->GetBrowser()->Reload();
+        callback->Success(json);
+      });
+    });
+  } else if (cmd == "tab.tweaks") {
+    // Site tweaks for the tab's site, from the extension's worker in the tab's own profile:
+    // what = get | toggle (arg: item id) | global | run (arg: menu command key).
+    Tab* tab = FindTab(int_arg("id"));
+    auto tab_browser = tab && !tab->ghost && tab->view ? tab->view->GetBrowser() : nullptr;
+    if (!tab_browser || !(StartsWith(tab->url, "http://") || StartsWith(tab->url, "https://") || StartsWith(tab->url, "file://")))
+      return callback->Success("null"), true;
+    std::string what = msg->GetString("what").ToString();
+    if (what != "toggle" && what != "global" && what != "run") what = "get";
+    std::string expr = "roarSite(" + JsString(what) + "," + JsString(tab->url) + "," + JsString(msg->GetString("arg").ToString()) + ")";
+    int id = tab->id;
+    // Scripts only take effect on the next load; styles follow without one.
+    bool reload = what == "global" || (what == "toggle" && msg->GetBool("reload"));
+    ContextIdQuery::Run(tab_browser, [this, callback, expr, id, reload](std::string context) {
+      action_watch::CallWorker(kTweaksId, context, expr, [this, callback, id, reload](std::string json) {
+        Tab* t = FindTab(id);
+        if (reload && json != "null" && t && t->view && t->view->GetBrowser()) t->view->GetBrowser()->Reload();
         callback->Success(json);
       });
     });

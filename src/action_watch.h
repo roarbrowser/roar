@@ -30,6 +30,10 @@ void AttachedPageUrls(std::function<void(std::set<std::string>)> cb);
 // Only the uBOL worker in `context` (the tab's CDP browserContextId) is asked.
 void UbolSite(const std::string& what, const std::string& url, const std::string& context,
               std::function<void(std::string)> cb);
+// Evaluates expression (it may return a promise) in extension ext's worker in `context`
+// (a CDP browserContextId); cb gets the result as JSON, or "null" without that worker.
+void CallWorker(const std::string& ext, const std::string& context, const std::string& expression,
+                std::function<void(std::string)> cb);
 // {"<extension id>": {"icon": "data:…" | null, "badge": "3", "color": "rgba(…)"}}
 std::string StateJson();
 

@@ -74,19 +74,26 @@ class UiSchemeFactory : public CefSchemeHandlerFactory {
 CefRefPtr<CefSchemeHandlerFactory> NewUiSchemeFactory() { return new UiSchemeFactory(); }
 
 
-// Copies the bundled uBOL to <data>/ubol when its manifest differs, so an
-// app update refreshes it. The fixed path keeps the unpacked extension id stable.
-std::string StageUbol() {
+// Copies a bundled extension to <data>/<name> when it differs, so an app update
+// refreshes it. The fixed path keeps an unpacked extension's id stable (uBOL has no
+// manifest key). uBOL is compared by its manifest (its filter lists are large);
+// Site tweaks by every bundled file, since it changes without a version bump.
+std::string StageExtension(const std::string& name, bool every_file) {
   namespace fs = std::filesystem;
-  fs::path src = platform::ResourcePath("extensions/ubol");
-  fs::path dst = fs::path(State::Get().Dir()) / "ubol";
+  fs::path src = platform::ResourcePath("extensions/" + name);
+  fs::path dst = fs::path(State::Get().Dir()) / name;
   std::error_code ec;
-  if (ReadFile((src / "manifest.json").string()) != ReadFile((dst / "manifest.json").string())) {
+  bool same = ReadFile((src / "manifest.json").string()) == ReadFile((dst / "manifest.json").string());
+  if (same && every_file)
+    for (fs::recursive_directory_iterator it(src, ec), end; same && !ec && it != end; it.increment(ec))
+      if (it->is_regular_file(ec))
+        same = ReadFile(it->path().string()) == ReadFile((dst / fs::relative(it->path(), src, ec)).string());
+  if (!same) {
     fs::remove_all(dst, ec);
     fs::create_directories(dst.parent_path(), ec);
     fs::copy(src, dst, fs::copy_options::recursive, ec);
     // A partial copy would match the manifest and be reused for good; the bundle copy must stay
-    // unwritten (Chromium indexes rulesets into it, breaking the signature). Skip uBOL this launch.
+    // unwritten (Chromium indexes rulesets into it, breaking the signature). Skip it this launch.
     if (ec) return fs::remove_all(dst, ec), "";
   }
   return dst.string();
@@ -117,12 +124,14 @@ void BrowserApp::OnBeforeCommandLineProcessing(const CefString& process_type,
   command_line->AppendSwitch("use-mock-keychain");
   // Private DevTools pipe for extension action state (action_watch.h).
   if (action_watch::Enabled()) command_line->AppendSwitch("remote-debugging-pipe");
-  // Bundled uBlock Origin Lite: blocks ads and defuses anti-adblock scripts.
+  // Bundled uBlock Origin Lite (blocks ads and defuses anti-adblock scripts) and
+  // Site tweaks (userscripts and userstyles; Controller::SetUpSiteTweaks).
   // Chromium writes indexed rulesets into an unpacked extension's folder, so
   // load a copy from the data dir and keep the signed bundle untouched.
   // Keep any --load-extension the user passed: this switch replaces, not adds.
   std::string extensions = JoinExtensionPaths(
-      {command_line->GetSwitchValue("load-extension").ToString(), StageUbol()});
+      {command_line->GetSwitchValue("load-extension").ToString(), StageExtension("ubol", false),
+       StageExtension("tweaks", true)});
   command_line->RemoveSwitch("load-extension");
   if (!extensions.empty()) command_line->AppendSwitchWithValue("load-extension", extensions);
 }
