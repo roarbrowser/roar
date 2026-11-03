@@ -171,8 +171,9 @@ inline std::vector<std::string> CliChatArgs(const std::string& cli, const std::s
   } else if (cli == "qwen")
     a = {"--approval-mode", "plan"};  // Plain text output: its stream-json differs across versions.
   else if (cli == "opencode")
-    // --standalone: a private server inside the sandbox, not the background service outside it. Tools off: CliChatEnv.
-    a = {"run", "--standalone", "--format", "json"};
+    // --standalone: a private server inside the sandbox, not the background service outside it.
+    // roar-chat: the agent CliChatEnv defines, whose own deny-all rules come after any in the user's config.
+    a = {"run", "--standalone", "--format", "json", "--agent", "roar-chat"};
   else
     return {};
   if (pick) a.insert(a.end(), {"--model", model});
@@ -182,11 +183,15 @@ inline std::vector<std::string> CliChatArgs(const std::string& cli, const std::s
 }
 
 // Environment entries ("K=V") a chat turn sets for `cli`, put in front of it through /usr/bin/env.
-// opencode: inline config, the highest-precedence layer, switches every tool off and denies every
-// permission (its `skill` tool stays listed, its permission denied), no sharing, no git snapshots.
+// opencode (2.x): inline config, its last config layer, denies every tool (v2 `permissions` and the older
+// keys) and defines the roar-chat agent. Rules match last-wins, and an agent's own rules come after the
+// config's, so a user's agent-level allow on build would beat a global deny: hence a fresh agent. Its
+// `skill` tool stays listed but denied. No sharing, no git snapshots.
 inline std::vector<std::string> CliChatEnv(const std::string& cli) {
   if (cli == "opencode")
-    return {R"(OPENCODE_CONFIG_CONTENT={"tools":{"*":false,"skill":false},"permission":{"*":"deny"},"share":"disabled","autoupdate":false,"snapshot":false})"};
+    return {R"(OPENCODE_CONFIG_CONTENT={"permissions":[{"action":"*","resource":"*","effect":"deny"}],"tools":{"*":false},"permission":{"*":"deny"},)"
+            R"("agents":{"roar-chat":{"mode":"primary","description":"Roar chat panel: answers only, no tools","permissions":[{"action":"*","resource":"*","effect":"deny"}]}},)"
+            R"("share":"disabled","autoupdate":false,"snapshot":false})"};
   return {};
 }
 
@@ -226,8 +231,10 @@ inline std::string CliSandboxProfile(const std::string& cli, const std::string& 
        " (subpath \"/private/tmp\") (subpath \"/private/var/folders\") (subpath \"/dev\"))\n";
   p += "(deny network*)\n(allow network-outbound (remote tcp \"*:443\") (remote unix-socket (path-literal \"/private/var/run/mDNSResponder\")))\n";
   // opencode talks to its own private server on localhost, and often to a local model server (Ollama, LM Studio...).
+  // Not its background service's password file: that service runs outside the sandbox with the user's tools.
   if (cli == "opencode")
-    p += "(allow network-bind network-inbound (local ip \"localhost:*\"))\n(allow network-outbound (remote ip \"localhost:*\"))\n";
+    p += "(allow network-bind network-inbound (local ip \"localhost:*\"))\n(allow network-outbound (remote ip \"localhost:*\"))\n"
+         "(deny file-read-data (literal " + q(home + "/.config/opencode/service.json") + "))\n";
   return p;
 }
 
@@ -244,8 +251,9 @@ inline std::string CliChatStatus(const std::string& cli, const std::string& foun
   else if (cli == "codex") in = env("OPENAI_API_KEY") || exists(home + "/.codex/auth.json");
   else if (cli == "gemini") in = env("GEMINI_API_KEY") || exists(home + "/.gemini/oauth_creds.json") || exists(home + "/.gemini/gemini-credentials.json") || exists(home + "/.gemini/google_accounts.json");
   else if (cli == "qwen") in = env("OPENAI_API_KEY") || exists(home + "/.qwen/oauth_creds.json") || exists(home + "/.qwen/settings.json");
-  // opencode: a provider login (`opencode auth login`) or a config of its own (local providers need no login).
-  else if (cli == "opencode") in = exists(home + "/.local/share/opencode/auth.json") || exists(home + "/.config/opencode/opencode.json") || exists(home + "/.config/opencode/opencode.jsonc");
+  // opencode: its data (2.x keeps logins in opencode.db, 1.x in auth.json) or a config of its own (local providers need no login).
+  else if (cli == "opencode") in = exists(home + "/.local/share/opencode/opencode.db") || exists(home + "/.local/share/opencode/auth.json") ||
+                                   exists(home + "/.config/opencode/opencode.json") || exists(home + "/.config/opencode/opencode.jsonc");
   return in ? "ok" : "signed-out";
 }
 

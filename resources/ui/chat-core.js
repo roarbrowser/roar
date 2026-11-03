@@ -176,7 +176,7 @@
       isolation: 'Read-only plan mode: it can still read files. ' + SANDBOX },
     // Model "default" is the one in your opencode config, local providers (oMLX, Ollama...) included.
     { id: 'cli-opencode', cli: 'opencode', install: 'curl -fsSL https://opencode.ai/install | bash', name: 'opencode', account: 'opencode', models: ['default'], pages: false,
-      isolation: 'Every tool switched off except loading your opencode skills; your opencode plugins still load. ' + SANDBOX + ' It may also reach servers on this Mac (local models).' },
+      isolation: 'Every tool switched off (needs opencode 2), though your opencode plugins and MCP servers still start, and chats stay in its session history. ' + SANDBOX + ' It may also reach servers on this Mac (local models).' },
   ].map((p) => ({ ...p, kind: 'cli', key: false, url: '' }));
   // Why page text may not go to provider `p`, or '' when it may.
   const pageRefusal = (p) => !p || p.kind !== 'cli' || p.pages ? ''
@@ -230,7 +230,7 @@
       if (cli === 'opencode') {
         // run --format json: each text part arrives whole; a step ending with reason "stop" ends the turn.
         if (j.type === 'text' && j.part?.text?.trim()) {
-          const t = (deltas ? '\n\n' : '') + j.part.text.replace(/^\s+/, '');
+          const t = (deltas ? '\n\n' : '') + j.part.text.replace(/^\n+/, '');
           return (deltas = true), { text: t };
         }
         if (j.type === 'error') return { error: j.error?.data?.message || j.error?.message || j.error?.name || 'failed' };

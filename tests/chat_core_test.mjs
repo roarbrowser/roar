@@ -133,7 +133,7 @@ check(detCli[0].models.includes('sonnet') && detCli[2].models.length === 0, 'det
 // Untrusted page text only goes to a CLI with every tool off (src/model_chat.h ChatCliToolless: claude only).
 const byCli = Object.fromEntries(core.CLI_PROVIDERS.map((p) => [p.cli, p]));
 check(core.CLI_PROVIDERS.filter((p) => p.pages).map((p) => p.cli).join() === 'claude', 'only Claude Code may be sent a tab');
-check(core.pageRefusal(byCli.claude) === '' && ['codex', 'gemini', 'qwen', 'opencode'].every((c) => /won't send it web pages/.test(core.pageRefusal(byCli[c]))), 'codex, gemini and qwen refuse page attachments with a reason');
+check(core.pageRefusal(byCli.claude) === '' && ['codex', 'gemini', 'qwen', 'opencode'].every((c) => /won't send it web pages/.test(core.pageRefusal(byCli[c]))), 'codex, gemini, qwen and opencode refuse page attachments with a reason');
 check(core.pageRefusal(ps[0]) === '' && core.pageRefusal(undefined) === '', 'API and local providers are never refused');
 check(core.CLI_PROVIDERS.every((p) => /sandbox/.test(p.isolation)) && /All tools off/.test(byCli.claude.isolation) && !/tools off/i.test(byCli.qwen.isolation), 'isolation text says what applies, per CLI');
 
@@ -145,8 +145,10 @@ const ocOut = [
 ].map((j) => JSON.stringify(j)).join('\n') + '\n';
 r = runCli('opencode', 'INFO log line\n' + ocOut);
 check(r.text === 'Hé 🦁\n\nsecond' && r.done && !r.error, 'opencode json: text parts joined, leading blank lines dropped, stop ends');
-r = runCli('opencode', JSON.stringify({ type: 'error', error: { name: 'ProviderAuthError', data: { message: 'No API key' } } }) + '\n');
-check(r.error === 'No API key' && !r.done, 'opencode: error event surfaces its message');
+r = runCli('opencode', JSON.stringify({ type: 'error', error: { type: 'provider.no-route', message: 'Model unavailable: x' } }) + '\n');
+check(r.error === 'Model unavailable: x' && !r.done, 'opencode: error event surfaces its message');
+r = runCli('opencode', JSON.stringify({ type: 'text', part: { text: '\n    indented code' } }) + '\n');
+check(r.text === '    indented code', 'opencode: only leading newlines are dropped, not indentation');
 r = runCli('opencode', JSON.stringify({ type: 'step_finish', part: { reason: 'tool-calls' } }) + '\n');
 check(!r.done, 'opencode: a step that is not the last does not end the turn');
 
