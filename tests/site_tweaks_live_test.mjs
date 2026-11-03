@@ -142,7 +142,9 @@ try {
   const prompt = await until(async () => (await list()).some(connectPrompt), 15000);
   check(prompt, 'a request to a host outside @connect asks the person');
   if (prompt) {
-    const q = await evalIn(connectPrompt, `document.getElementById('q').textContent`);
+    // The page fills in the script and host after it loads; wait for them.
+    const read = () => evalIn(connectPrompt, `document.getElementById('q').textContent`);
+    const q = (await until(async () => /other\.localhost/.test((await read()) || '') && read(), 5000)) || await read();
     check(/other\.localhost/.test(q || ''), `the prompt names the script and host (${q})`);
     await shot('2-connect-prompt', connectPrompt);
     await evalIn(connectPrompt, `document.getElementById('deny').click()`, 2000);

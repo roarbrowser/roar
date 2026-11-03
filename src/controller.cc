@@ -1818,9 +1818,6 @@ bool Controller::AgentMayReach(int browser_id, const std::string& profile_path) 
     Tab* t = FindTabByBrowser(it->second);
     if ((t && StartsWith(t->url, "roar://")) || StartsWith(it->second->GetMainFrame()->GetURL().ToString(), "roar://"))
       return false;
-    // Site tweaks' pages show script code and stored values, which stay away from agents.
-    if (StartsWith(it->second->GetMainFrame()->GetURL().ToString(), std::string("chrome-extension://") + kTweaksId + "/"))
-      return false;
   }
   // Decide by profile, which covers popups and pages Roar has not seen yet.
   // Ghost-<n> and anything unknown match no space and stay hidden.

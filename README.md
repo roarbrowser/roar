@@ -251,7 +251,8 @@ aggregate download counts. These are the connections Roar's own code makes that 
 - **Dictation:** the speech model is downloaded from Hugging Face the first time you use it.
 - **uBlock Origin Lite:** ships with its filter rules built in; Roar fetches no lists for it.
 - **Site tweaks:** scripts, styles and their stored values stay in the profile (never synced) and
-  are part of Roar's backups. Roar contacts only the URLs a tweak names: where you install it from,
+  are part of Roar's backups. Agents in spaces you open to them can read and edit them, so an agent
+  can write or fix a tweak for you. Roar contacts only the URLs a tweak names: where you install it from,
   its `@require`/`@resource` files, its update URL (checked daily; updates wait for you to review
   the diff), and hosts a script requests, which must be in its `@connect` list or allowed by you.
 - **AI sites in the sidebar:** the sites you open there (for example `chatgpt.com`, `claude.ai`,
