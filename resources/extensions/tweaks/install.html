@@ -1,0 +1,21 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Install site tweak</title>
+<link rel="stylesheet" href="style.css">
+<main hidden>
+  <div class="row"><h1 id="title">Loading…</h1><span class="spacer"></span><span id="kind" class="tag"></span></div>
+  <p id="desc" class="muted"></p>
+  <div id="error" class="banner" hidden></div>
+  <div class="card"><dl id="facts"></dl></div>
+  <div id="vars"></div>
+  <div class="row" style="margin:16px 0">
+    <button id="install" class="primary" disabled>Install</button>
+    <button id="cancel">Cancel</button>
+    <span id="status" class="muted"></span>
+  </div>
+  <h2>Code</h2>
+  <div class="card"><pre id="code"></pre></div>
+</main>
+<script src="vendor/less.min.js"></script>
+<script src="vendor/stylus-renderer.min.js"></script>
+<script type="module" src="install.js"></script>

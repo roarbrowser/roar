@@ -1,0 +1,3 @@
+less 4.9.1 (npm less, dist/less.min.js, Apache-2.0)
+stylus-lang-bundle 0.64.0 (npm stylus-lang-bundle, dist/stylus-renderer.min.js, MIT; bundles stylus 0.64.0 (MIT), path-browserify 1.0.1 (MIT), event-lite 0.1.3 (MIT), tiny-sha1 0.2.1 (MIT))
+Both unmodified apart from the removed sourceMappingURL comment.

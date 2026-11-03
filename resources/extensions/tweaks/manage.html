@@ -1,0 +1,24 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Site tweaks</title>
+<link rel="stylesheet" href="style.css">
+<link rel="icon" href="icon32.png">
+<main>
+  <div class="row">
+    <h1>Site tweaks</h1>
+    <label class="row" title="Turns every script and style off, or back on"><input type="checkbox" id="global"> On</label>
+    <span class="spacer"></span>
+    <button id="new-script">New script</button>
+    <button id="new-style">New style</button>
+    <button id="import">Import…</button>
+    <button id="export">Export</button>
+    <button id="updates">Check for updates</button>
+    <input type="file" id="file" accept=".zip,.json,application/zip,application/json" hidden>
+  </div>
+  <p class="muted">Userscripts and userstyles for the sites you visit. They and their stored data stay on this computer: never synced, and included in Roar's backups.</p>
+  <div id="banner" class="banner" hidden></div>
+  <div id="view"></div>
+</main>
+<script src="vendor/less.min.js"></script>
+<script src="vendor/stylus-renderer.min.js"></script>
+<script type="module" src="manage.js"></script>

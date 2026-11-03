@@ -1,0 +1,27 @@
+:root { --bg: #fbfaf8; --fg: #1d1b19; --muted: #6b655e; --line: #e4e0da; --card: #fff; --accent: #e97828; --bad: #c0392b; --ok: #2e7d4f; color-scheme: light dark; }
+@media (prefers-color-scheme: dark) { :root { --bg: #1c1b1a; --fg: #ece8e3; --muted: #a39d95; --line: #34312e; --card: #252321; --accent: #f08c42; --bad: #e0675a; --ok: #5cbf86; } }
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg); font: 14px/1.45 -apple-system, system-ui, "Segoe UI", sans-serif; }
+main { max-width: 980px; margin: 0 auto; padding: 24px 16px 64px; }
+h1 { font-size: 20px; margin: 0; }
+h2 { font-size: 15px; margin: 24px 0 8px; }
+a { color: var(--accent); }
+button, .btn { font: inherit; padding: 6px 12px; border-radius: 7px; border: 1px solid var(--line); background: var(--card); color: var(--fg); cursor: pointer; }
+button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+button.danger { color: var(--bad); }
+button:disabled { opacity: .5; cursor: default; }
+input[type=text], input[type=number], select, textarea { font: inherit; padding: 5px 8px; border-radius: 6px; border: 1px solid var(--line); background: var(--card); color: var(--fg); }
+.muted { color: var(--muted); }
+.row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.spacer { flex: 1; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; }
+.banner { padding: 10px 14px; border-radius: 8px; background: color-mix(in srgb, var(--bad) 14%, transparent); margin: 12px 0; }
+.ok { color: var(--ok); } .bad { color: var(--bad); }
+pre, textarea.code { font: 12.5px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+pre { white-space: pre-wrap; word-break: break-word; margin: 0; }
+textarea.code { width: 100%; min-height: 60vh; tab-size: 2; white-space: pre; }
+.tag { font-size: 11px; padding: 1px 7px; border-radius: 99px; border: 1px solid var(--line); color: var(--muted); }
+.diff .add { background: color-mix(in srgb, var(--ok) 18%, transparent); }
+.diff .del { background: color-mix(in srgb, var(--bad) 18%, transparent); }
+dl { display: grid; grid-template-columns: max-content 1fr; gap: 4px 14px; margin: 0; }
+dt { color: var(--muted); } dd { margin: 0; word-break: break-word; }

@@ -1,0 +1,8 @@
+[
+  {
+    "id": 1,
+    "priority": 1,
+    "action": { "type": "redirect", "redirect": { "regexSubstitution": "chrome-extension://mfbgmphllcfijgajblnepjfgopbgmnok/install.html#\\0" } },
+    "condition": { "regexFilter": "^(https?|ftp)://[^?#]*\\.user\\.(js|css)([?#].*)?$", "resourceTypes": ["main_frame"] }
+  }
+]

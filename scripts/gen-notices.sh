@@ -106,6 +106,13 @@ notice() {  # notice <heading> <file>
   notice "chrome-devtools-mcp" "$ROOT/mcp/node_modules/chrome-devtools-mcp/LICENSE"
   notice "chrome-devtools-mcp: bundled third-party notices" "$ROOT/mcp/node_modules/chrome-devtools-mcp/build/src/third_party/THIRD_PARTY_NOTICES"
   notice "chrome-devtools-mcp addendum: lookup-closest-locale (MIT License)" "$ROOT/licenses/lookup-closest-locale-LICENSE"
+  # Site tweaks' vendored preprocessors (resources/extensions/tweaks/vendor/VERSIONS.txt).
+  TW="$ROOT/resources/extensions/tweaks/vendor"
+  notice "Site tweaks component: less 4.9.1 (Apache License 2.0; https://github.com/less/less.js)" "$TW/less-LICENSE"
+  notice "Site tweaks component: stylus-lang-bundle 0.64.0, a browser build of Stylus 0.64.0 (MIT License; https://github.com/openstyles/stylus-lang-bundle)" "$TW/stylus-lang-bundle-LICENSE"
+  notice "Site tweaks component: path-browserify 1.0.1, inside stylus-lang-bundle (MIT License)" "$TW/path-browserify-LICENSE"
+  notice "Site tweaks component: event-lite 0.1.3, inside stylus-lang-bundle (MIT License)" "$TW/event-lite-LICENSE"
+  notice "Site tweaks component: tiny-sha1 0.2.1, inside stylus-lang-bundle (MIT License)" "$TW/tiny-sha1-LICENSE"
   # The license files uBO Lite ships for its own bundled parts (fonts, libraries).
   UBOL_LICENSES="$(cd "$ROOT/third_party/ubol" && find -L . -mindepth 2 -type f \( -iname '*licen[cs]e*' -o -iname 'copying*' \) | sort)"
   [[ -n "$UBOL_LICENSES" ]] || { echo "gen-notices.sh: no license files in third_party/ubol" >&2; exit 1; }

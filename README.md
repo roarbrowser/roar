@@ -153,6 +153,10 @@ port 9444) started on demand.
   in the data dir, so ghost tabs are not a guarantee against someone with access to your Mac.
 - Copy Link Address unwraps Outlook Safe Links and `.mcas.ms` wrappers.
 - uBlock Origin Lite is built in; other Chrome extensions install as usual.
+- Site tweaks: built-in userscripts (GM_* and GM.* APIs) and userstyles (UserCSS with settings,
+  less and stylus). Open any `.user.js` or `.user.css` link to install one; each site's tweaks and
+  their menu commands are in the address bar's site menu. Imports Violentmonkey and Tampermonkey
+  backup zips and Stylus exports. Not loaded in ghost tabs.
 
 **Getting around**
 - One command bar (⌘T, ⌘L) for addresses, search, open tabs, history and the text of pages
@@ -234,6 +238,10 @@ aggregate download counts. These are the connections Roar's own code makes that 
   provided as is, without warranty, under the MIT License.
 - **Dictation:** the speech model is downloaded from Hugging Face the first time you use it.
 - **uBlock Origin Lite:** ships with its filter rules built in; Roar fetches no lists for it.
+- **Site tweaks:** scripts, styles and their stored values stay in the profile (never synced) and
+  are part of Roar's backups. Roar contacts only the URLs a tweak names: where you install it from,
+  its `@require`/`@resource` files, its update URL (checked daily; updates wait for you to review
+  the diff), and hosts a script requests, which must be in its `@connect` list or allowed by you.
 - **AI sites in the sidebar:** the sites you open there (for example `chatgpt.com`, `claude.ai`,
   `gemini.google.com`, `perplexity.ai`, `grok.com`, `chat.mistral.ai`, `copilot.microsoft.com`)
   load like any web page, with that space's cookies.
