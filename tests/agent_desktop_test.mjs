@@ -81,7 +81,9 @@ try {
   check(await set(`![...document.querySelectorAll('#onb [aria-pressed=true]')].some((b) => /Claude Code/.test(b.closest('.tool-row').innerText))`), 'no aria-pressed Claude Code');
   await shot('onboarding', (x) => x.url.includes('settings.html'));
   await set(`document.getElementById('onb').remove(); showTab('chat'); ask({cmd:'state'}).then((s) => chatRefresh((typeof s === 'string' ? JSON.parse(s) : s).settings)).then(() => true)`);
-  const mc = await set(`document.querySelector('[data-p=cli-claude]')?.innerText`);
+  // Not installed (app only, no CLI) puts the row in the closed More section: open it to read the row.
+  const mc = await set(`(() => { const r = document.querySelector('[data-p=cli-claude]'); const d = r?.closest('details'); if (d) d.open = true; return r?.innerText; })()`);
+  check(await set(`!!document.querySelector('[data-p=cli-claude]')?.closest('details')`), 'Claude row without the CLI sits under More');
   check(/agent features need Claude Code/.test(mc || '') && /curl -fsSL/.test(mc), 'Model chat row: ' + mc);
   const at = (t) => (mc || '').indexOf(t);
   check(at('agent features') < at('curl -fsSL') && at('curl -fsSL') < at('Then run claude once in Terminal to sign in.'), 'Model chat order: message, command, sign-in line');
