@@ -27,13 +27,17 @@ inline const std::vector<NotifyType>& NotifyTypes() {
       {"agentDone", {true, 45, false}},     // notify_user "done"/"info" cards.
       {"agentNeeds", {true, 120, true}},    // notify_user "needs_you" cards (ask_user always shows: it waits on you).
       {"agentPage", {true, 45, false}},     // An agent opened a page for you while Roar was in the background.
-      {"update", {false, 0, false}},        // A Roar update is available.
+      {"update", {false, 45, false}},       // A Roar update is available.
       {"download", {false, 15, false}},     // A download finished.
       {"dictation", {false, 15, false}},    // Dictation stopped with a problem.
       {"error", {false, 45, false}},        // Something failed: a download, an import, an agent session.
   };
   return types;
 }
+
+// Roar's own question cards with no Settings row (make Roar the default browser, connect agents):
+// they clear after 2 minutes like a needs-you card, which answers nothing (same as Dismiss).
+inline constexpr NotifyPref kRoarCardPref{true, 120, false};
 
 inline const NotifyType* FindNotifyType(const std::string& id) {
   for (const auto& t : NotifyTypes()) if (id == t.id) return &t;

@@ -18,6 +18,8 @@ int main() {
   check(p.on && p.dismiss == 120 && p.mac, "default sessionNeeds: on, 2 min, macOS");
   check(!NotifyGet(m, "download").on && !NotifyGet(m, "update").on && !NotifyGet(m, "error").on && !NotifyGet(m, "dictation").on, "new types are opt in");
   for (const auto& t : NotifyTypes()) check(m.find(std::string(t.id) + ":") != std::string::npos, "migration writes every type");
+  for (const auto& t : NotifyTypes()) check(t.def.dismiss > 0, "every type clears itself by default");
+  check(kRoarCardPref.dismiss > 0 && !NotifyTiming(kRoarCardPref, "info").screen, "Roar's own cards clear on a timer");
 
   // Migration: the four old switches carry over.
   Settings s;
