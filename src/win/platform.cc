@@ -563,6 +563,12 @@ std::string UniqueDownloadPath(const std::string& name) {
   return U(p.wstring());
 }
 
+int RenameNoReplace(const std::string& from, const std::string& to) {
+  if (MoveFileExW(W(from).c_str(), W(to).c_str(), 0)) return 0;  // No MOVEFILE_REPLACE_EXISTING.
+  DWORD err = GetLastError();
+  return err == ERROR_ALREADY_EXISTS || err == ERROR_FILE_EXISTS ? 1 : -1;
+}
+
 // Windows mail can't take an attachment from a mailto: link, so this shows the zip in Explorer and opens
 // a draft that asks for it to be attached.
 void SendDiagnostics() {

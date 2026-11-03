@@ -98,6 +98,7 @@ struct Download {
   std::string name;
   std::string path;
   std::string url;
+  std::string title;  // The page it came from, for auto-name downloads; empty for ghost tabs.
   int64_t received = 0;
   int64_t total = 0;  // -1 when the server didn't say.
   int64_t speed = 0;

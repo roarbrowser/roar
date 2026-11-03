@@ -110,6 +110,8 @@ void SetAutoUpdate(bool checks, bool downloads);
 void ChooseLookback(void* window, const std::string& what, std::function<void(double since)> done);
 // A path in ~/Downloads for |name| that doesn't exist yet ("name (1).ext" and so on).
 std::string UniqueDownloadPath(const std::string& name);
+// Renames a file without ever replacing another: 0 renamed, 1 `to` exists, -1 any other failure.
+int RenameNoReplace(const std::string& from, const std::string& to);
 // Pops a native menu at the mouse; an empty title is a separator, a leading '-'
 // a disabled label. `done` gets the clicked index (never called if dismissed).
 void PopupMenu(const std::vector<std::string>& titles, std::function<void(int index)> done);

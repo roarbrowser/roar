@@ -208,6 +208,9 @@ aggregate download counts. These are the connections Roar's own code makes that 
   `api.anthropic.com`), a local server on `localhost`, or an AI command-line tool you have installed
   and signed in to (such as Claude Code), which sends your messages, and any page text you include,
   to that tool's own service under its own terms.
+- **Name downloads with AI (off by default):** when a download finishes, its file name, the page title and
+  the download's address go to your default chat model, which suggests a clearer name. Never for ghost tabs.
+  Turn it on in Settings > Model chat.
 - **Gmail in the sidebar (on by default):** Roar checks each space's unread Gmail
   (`mail.google.com/mail/u/<n>/feed/atom`, up to 6 accounts) with that space's own Google cookies,
   at launch and every few minutes. Turn it off in Settings > Sidebar modules.

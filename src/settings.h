@@ -66,6 +66,7 @@ struct Settings {
   std::string chat_defaults_seen = "openai,anthropic,perplexity";
   std::string chat_model;
   bool chat_search = false;  // New chats start with "Search the web" on; each chat keeps its own.
+  bool auto_name_downloads = false;  // A finished download gets a name from the Ask default model (sidebar.html autoName).
   bool footer_tour = false;  // Onboarding's last step: the sidebar highlights Settings and the space dot.
   bool agents_had_ring = false;  // Agents could reach a space after onboarding (the hint then says how to reconnect).
   bool agent_ring_seen = false;  // The sidebar's one-time note explaining the ring on a space dot was dismissed.
@@ -138,6 +139,7 @@ inline const std::vector<SettingField>& SettingFields() {
       {"cdpOpen", &Settings::cdp_enabled, false},
       {"agentHeadless", &Settings::agent_headless, true},
       {"askLlms", &Settings::ask_llms, true},
+      {"autoNameDownloads", &Settings::auto_name_downloads, true},
       {"agentHidden", &Settings::agent_hidden, true},
       {"agentColors", &Settings::agent_colors, true},
       {"agentOrder", &Settings::agent_order, true},

@@ -1921,6 +1921,17 @@ roar.actions = (all) => {
 };
 const render0 = roar.render;
 roar.render = (s) => { render0(s); loadPins(); ringCoach(s); footerTour(s); if (s.dictation) roar.dictation(s.dictation); };
+// Name downloads with AI (Settings › Model chat): Roar sends each finished download here; the Ask default model
+// suggests a name and downloads.rename cleans it (DownloadName) and renames the file. No model, no rename.
+roar.autoName = async (d) => {
+  try {
+    const chats = await aiChatList(), pick = chatCore.defaultModel(chats, state.settings.chatModel || ''), p = chats.find((x) => pick.startsWith(x.id + '|'));
+    if (!p) return;
+    const key = 'download:' + d.id, item = { key, title: `a downloaded file named "${d.name}"${d.title ? ` from the page "${d.title}"` : ''}`, url: d.url };
+    const name = chatCore.parseNames(await chatCore.oneShot(p, pick.slice(p.id.length + 1), chatCore.renamePrompt([item]), window.roarQuery), [key])[key];
+    if (name) ask({ cmd: 'downloads.rename', id: d.id, name });
+  } catch {}
+};
 // Onboarding's last step highlights Settings and the current space dot, once (welcome.html sets footerTour).
 function footerTour(s) {
   const on = !!s.settings?.footerTour && !s.settings?.onboarded;

@@ -8,6 +8,7 @@
 
 #include <sys/stat.h>
 #include "atomic_write.h"
+#include "download_name.h"
 #include "ext_paths.h"
 #include "link_clean.h"
 #include "space_rules.h"
@@ -3924,16 +3925,19 @@ bool Controller::OnBeforeDownload(CefRefPtr<CefBrowser> browser, CefRefPtr<CefDo
   auto ghost_ctx = contexts_.find(kGhostContext);
   bool ghost = browser && ghost_ctx != contexts_.end() && ghost_ctx->second &&
                browser->GetHost()->GetRequestContext()->IsSame(ghost_ctx->second);
-  auto start = [this, name, item_id, url, total, callback, ghost] {
+  Tab* from = ghost ? nullptr : FindTabByBrowser(browser);
+  std::string title = from ? from->title : "";
+  auto start = [this, name, item_id, url, total, callback, ghost, title] {
     std::string path = platform::UniqueDownloadPath(name);
     Download d;
     d.id = next_download_++;
     d.item_id = item_id;
-    d.name = path.substr(path.rfind('/') + 1);
+    d.name = path.substr(path.find_last_of("/\\") + 1);
     d.path = path;
     d.url = url;
     d.total = total;
     d.ghost = ghost;
+    d.title = title;
     downloads_.push_back(d);
     callback->Continue(path, false);
     PushSidebar();
@@ -3986,9 +3990,19 @@ void Controller::OnDownloadUpdated(CefRefPtr<CefDownloadItem> item,
   if (d->done && !item->GetFullPath().empty()) d->path = item->GetFullPath();
   if (d->done && !was_done) {
     platform::QuarantineDownload(d->path, d->ghost ? "" : d->url);  // No ghost URL on disk.
-    d->name = d->path.substr(d->path.rfind('/') + 1);
+    d->name = d->path.substr(d->path.find_last_of("/\\") + 1);  // Windows paths use backslashes; the name goes to the model.
     ShowHint("Downloaded " + d->name);
     Notice("download", "Downloaded " + d->name, "In your Downloads folder.");
+    // One sidebar asks the model, then sends downloads.rename. Ghost downloads never leave Roar.
+    if (State::Get().settings.auto_name_downloads && !d->ghost && win_ && win_->sidebar)
+      if (auto b = win_->sidebar->GetBrowser()) {
+        auto j = CefDictionaryValue::Create();
+        j->SetInt("id", d->id);
+        j->SetString("name", d->name);
+        j->SetString("title", d->title);
+        j->SetString("url", d->url);
+        b->GetMainFrame()->ExecuteJavaScript("window.roar && roar.autoName && roar.autoName(" + ToJson(Wrap(j)) + ")", "", 0);
+      }
   } else if (d->canceled) {
     ShowHint("Canceled " + d->name);
   } else if (d->failed) {
@@ -5364,6 +5378,30 @@ bool Controller::HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> 
       if (cmd == "downloads.reveal" && d.done) platform::RevealInFinder(d.path);
     }
     callback->Success("");
+  } else if (cmd == "downloads.rename") {
+    // The name is a model's reply (auto-name downloads): untrusted, so DownloadName cleans it and
+    // RenameNoReplace never replaces a file. Only finished, non-ghost downloads Roar tracks.
+    int id = int_arg("id");
+    std::string reply = msg->GetString("name").ToString(), renamed;
+    for (auto& d : downloads_) {
+      if (d.id != id || !d.done || d.ghost) continue;
+      size_t slash = d.path.find_last_of("/\\");
+      if (slash == std::string::npos) break;
+      std::string dir = d.path.substr(0, slash + 1), old = d.path.substr(slash + 1);
+      for (int n = 0; n < 100; ++n) {
+        std::string name = DownloadName(old, reply, n);
+        if (name.empty() || Lower(name) == Lower(old)) break;
+        int r = platform::RenameNoReplace(d.path, dir + name);
+        if (r < 0) break;  // Moved or deleted since, or not allowed.
+        if (r == 0) {
+          d.path = dir + name;
+          d.name = renamed = name;
+          PushSidebar();
+          break;
+        }
+      }
+    }
+    callback->Success(renamed);
   } else if (cmd == "downloads.clear") {
     std::erase_if(downloads_, [](const Download& d) { return d.done || d.canceled || d.failed; });
     PushSidebar();

@@ -1475,6 +1475,11 @@ std::string UniqueDownloadPath(const std::string& name) {
   return url.path.UTF8String;
 }
 
+int RenameNoReplace(const std::string& from, const std::string& to) {
+  if (renamex_np(from.c_str(), to.c_str(), RENAME_EXCL) == 0) return 0;
+  return errno == EEXIST ? 1 : -1;
+}
+
 void RevealInFinder(const std::string& path) {
   NSURL* url = [NSURL fileURLWithPath:NS(path)];
   if ([NSFileManager.defaultManager fileExistsAtPath:url.path])
