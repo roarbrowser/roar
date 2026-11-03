@@ -94,12 +94,8 @@ try {
   const back = (await a1.send('Target.attachToTarget', { targetId: w1.id, flatten: true }))?.sessionId;
   check(!!back && (await ev(back))?.result?.value === '/w1', 'switching agents back on lets an agent attach again');
 
-  // Reader mode turns a tab into a privileged Roar page in place: an attached agent is cut off first.
-  const sh2 = (await a1.send('Target.attachToTarget', { targetId: h1.id, flatten: true }))?.sessionId;
-  await ask(`(async () => { const t = (await ask({cmd:'state'})).tabs.find((t) => t.url.endsWith('/h1')); await ask({cmd:'tab.activate', id: t.id}); return true; })()`);
-  await ask(`ask({cmd:'run',id:'reader'})`);
-  for (let i = 0; i < 20 && !a1.events.some((e) => e.method === 'Target.detachedFromTarget' && e.params?.sessionId === sh2); i++) await sleep(250);
-  check(a1.events.some((e) => e.method === 'Target.detachedFromTarget' && e.params?.sessionId === sh2), 'reader mode cuts off the agent on that tab');
+  // Not covered here: reader mode (Navigate to roar://) cuts off agents too, but ROAR_UI_CDP=1, which this
+  // test needs to drive the sidebar, lets agents reach Roar pages (AgentMayReach), so the tab stays reachable.
 } catch (e) {
   check(false, 'threw: ' + (e?.stack || e));
 } finally {
