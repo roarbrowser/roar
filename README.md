@@ -182,7 +182,8 @@ port 9444) started on demand.
 **Small things that add up**
 - Copy any page as Markdown (⇧⌘C) or save it to Downloads.
 - Boards (command bar: New board): a canvas per space for tab screenshots (whole page or a region),
-  links, notes and pen drawings; click a screenshot to reopen its page.
+  links, notes and pen drawings; click a screenshot to reopen its page. Open one from the command bar
+  or by right-clicking a tab or empty sidebar space.
 - Unread Gmail in the sidebar, with Read, Move and Delete per message.
 - Your open GitHub pull requests as a live folder (via `gh`).
 - Sign-in popups open as sidebar tabs, not stray windows.

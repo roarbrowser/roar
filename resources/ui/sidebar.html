@@ -1086,10 +1086,23 @@ function iconMenu(t, e) {
 // Ask tabs (model chat, or an AI site opened by Ask about this page) show under AI, not in Tabs.
 const isMacUi = /Mac/.test(navigator.platform);
 const askTab = (t) => !t.ghost && (/^roar:\/\/ui\/chat\.html/.test(t.url || '') || !!t.askLlm);
+// The active space's boards for a right-click menu (newest first), then New board and All boards.
+const boardList = () => Promise.race([ask({ cmd: 'board.list' }), new Promise((r) => setTimeout(() => r([]), 300))]).catch(() => []);
+const boardItems = (list) => `<hr><div class="head">Boards</div>
+    ${(Array.isArray(list) ? list : []).sort((a, b) => (b.updated || 0) - (a.updated || 0)).slice(0, 8)
+      .map((b) => `<button data-act="board" data-b="${esc(b.id)}">${esc(b.name || 'Untitled board')}</button>`).join('')}
+    <button data-act="newBoard">New board</button>${list?.length ? '<button data-act="boards">All boards</button>' : ''}`;
+// True when |act| was a board item (and opened it).
+const boardAct = (act, d) => {
+  const id = act === 'board' ? 'open:roar://ui/board.html#' + d.b : act === 'newBoard' ? 'open:roar://ui/board.html#new' : act === 'boards' ? 'boards' : '';
+  if (id) ask({ cmd: 'run', id });
+  return !!id;
+};
 async function tabMenu(t, e) {
   // uBOL can take up to 5 s to answer; past 300 ms draw the menu without the ad-block item.
   const seq = ctxSeq;
-  const ab = await Promise.race([ask({ cmd: 'tab.adblock', id: t.id }), new Promise((r) => setTimeout(r, 300))]).catch(() => null);
+  const [ab, boards] = await Promise.all([Promise.race([ask({ cmd: 'tab.adblock', id: t.id }), new Promise((r) => setTimeout(r, 300))]).catch(() => null),
+    t.ghost ? null : boardList()]);
   if (seq !== ctxSeq) return; // dismissed or another menu opened meanwhile
   const groups = state.groups || [];
   showCtx(`${t.pinned ? '<button data-act="unpin">Unpin tab</button><button data-act="icon">Set icon…</button>' : '<button data-act="pin">Pin tab</button>'}
@@ -1101,7 +1114,8 @@ async function tabMenu(t, e) {
     <hr><button data-act="rename">Rename…</button>${t.name ? '<button data-act="unname">Reset name</button>' : ''}
     ${t.agentMark ? '<button data-act="clearAgent">Clear agent mark</button>' : ''}${t.split ? '<button data-act="unsplit">Separate tabs</button>' : ''}${t.floating ? '' : '<button data-act="float">Open in floating window</button>'}
     ${ab ? `<button data-act="adblock" role="menuitemcheckbox" aria-checked="${ab.excluded}" title="${esc(ab.site)}">${ab.excluded ? '✓ ' : ''}Don't block ads on this site</button>` : ''}
-    <button data-act="close">Close tab</button>`, e, (act, d) => {
+    ${boards ? boardItems(boards) + '<hr>' : ''}<button data-act="close">Close tab</button>`, e, (act, d) => {
+    if (boardAct(act, d)) return hideCtx();
     if (act === 'space') ask({ cmd: 'tab.space', id: t.id, space: +d.s });
     else if (act === 'float') ask({ cmd: 'tab.float', id: t.id });
     else if (act === 'adblock') ask({ cmd: 'tab.adblock', id: t.id, what: 'toggle' });
@@ -1160,13 +1174,16 @@ $('site').onclick = (e) => { e.stopPropagation(); siteMenu(); };
 // One click copies the current URL; Roar shows the "Copied link" toast.
 $('copy-url').onclick = (e) => { e.stopPropagation(); ask({ cmd: 'run', id: 'copyUrl' }); };
 // Right-click on empty sidebar space.
-function sidebarMenu(e) {
+async function sidebarMenu(e) {
+  const seq = ctxSeq, boards = await boardList();
+  if (seq !== ctxSeq) return;
   const others = state.spaces.filter((sp) => sp.id !== state.activeSpace);
   showCtx(`<button data-act="newTab">New tab</button>
     <button data-act="newGhostTab">New ghost tab</button>
     <button data-act="newWindow">New window</button>
     ${others.length ? `<hr><div class="head">Switch to space</div>${others.map((sp) => `<button data-act="space" data-s="${sp.id}">${dot(sp.color)}${esc(sp.name)}</button>`).join('')}` : '<hr>'}
-    <button data-act="newSpace">New space</button>`, e, (act, d) => {
+    <button data-act="newSpace">New space</button>${boardItems(boards)}`, e, (act, d) => {
+    if (boardAct(act, d)) return hideCtx();
     if (act === 'space') ask({ cmd: 'space.switch', id: +d.s });
     else ask({ cmd: 'run', id: act });
     hideCtx();
