@@ -80,12 +80,18 @@ for ARCH in "${ARCHES[@]}"; do
   fi
 
   # Notarize when the app carries a Developer ID signature and a notarytool keychain
-  # profile is named (xcrun notarytool store-credentials <name>; ROAR_NOTARY_PROFILE=<name>).
+  # profile is named (xcrun notarytool store-credentials <name>; ROAR_NOTARY_PROFILE=<name>),
+  # or an App Store Connect API key is given (ROAR_NOTARY_API_KEY=<.p8>, _KEY_ID, _ISSUER) for
+  # shells that can't reach the login keychain, such as SSH.
   # Read the signature once: under pipefail, `codesign | grep -q` fails whenever grep exits early.
   SIGN_ID="$(codesign -dvv "$APP" 2>&1 | sed -n 's/^Authority=\(Developer ID Application.*\)/\1/p' | head -1 || true)"
   if [[ -n "$SIGN_ID" && -n "${ROAR_NOTARY_PROFILE:-}" ]]; then
     codesign --force --timestamp --sign "$SIGN_ID" "$DMG"
-    xcrun notarytool submit "$DMG" --keychain-profile "$ROAR_NOTARY_PROFILE" --wait
+    if [[ -n ${ROAR_NOTARY_API_KEY:-} ]]; then
+      xcrun notarytool submit "$DMG" --key "$ROAR_NOTARY_API_KEY" --key-id "$ROAR_NOTARY_KEY_ID" --issuer "$ROAR_NOTARY_ISSUER" --wait
+    else
+      xcrun notarytool submit "$DMG" --keychain-profile "$ROAR_NOTARY_PROFILE" --wait
+    fi
     xcrun stapler staple "$DMG"
   else
     NOTARIZED=0
@@ -93,8 +99,9 @@ for ARCH in "${ARCHES[@]}"; do
   fi
   [[ $ARCH == arm64 ]] && SHA="$(shasum -a 256 "$DMG" | cut -d' ' -f1)"
 
-  # Sparkle appcast entry; sign_update reads the EdDSA private key from the login keychain.
-  SIG="$(third_party/Sparkle/bin/sign_update "$DMG")"   # sparkle:edSignature="..." length="..."
+  # Sparkle appcast entry; sign_update reads the EdDSA private key from the login keychain,
+  # or from ROAR_SPARKLE_KEY_FILE where the keychain is out of reach (SSH).
+  SIG="$(third_party/Sparkle/bin/sign_update ${ROAR_SPARKLE_KEY_FILE:+--ed-key-file "$ROAR_SPARKLE_KEY_FILE"} "$DMG")"   # sparkle:edSignature="..." length="..."
   ITEM="    <item>
       <title>$VERSION</title>
       <pubDate>$(LC_ALL=C date -u '+%a, %d %b %Y %H:%M:%S +0000')</pubDate>
