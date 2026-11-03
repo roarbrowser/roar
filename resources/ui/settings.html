@@ -181,7 +181,7 @@ p.reason a { color: inherit; }
       <h3>Your subscriptions</h3>
       <p class="reason" id="code-copy">Coding assistants you've installed use your own plan, no API key. Each runs in a macOS sandbox: it reads only its own folders and reaches the network over HTTPS. Only Claude Code can be sent a tab.</p>
       <div id="chat-providers"></div>
-      <div class="row"><span class="name">Add an OpenAI-compatible server<small>Any server with /v1/chat/completions, like vLLM or LiteLLM.</small></span>
+      <div class="row" id="chat-add-row"><span class="name">Add an OpenAI-compatible server<small>Any server with /v1/chat/completions, like vLLM or LiteLLM.</small></span>
         <span class="end"><input type="text" id="chat-add-name" placeholder="Name" aria-label="New server name" style="width:110px"><input type="text" id="chat-add-url" class="query" placeholder="http://localhost:8000/v1" aria-label="New server URL" style="width:220px"><button class="btn" id="chat-add">Add</button></span></div>
     </section>
 
@@ -574,10 +574,15 @@ async function chatRefresh(st) {
     <span class="end"><input type="text" class="query" data-url value="${esc(p.url)}" aria-label="${esc(p.name)} URL" spellcheck="false" style="width:240px">
     ${p.get ? `<button class="btn" data-get="${esc(p.get)}">Get ${esc(p.name)}</button>` : ''}
     ${p.key ? `<input type="password" data-key placeholder="${p.state === 'available' ? '••••••••' : 'API key'}" aria-label="${esc(p.name)} API key" autocomplete="off" style="width:150px"><button class="btn" data-savekey>Save key</button>${p.state === 'available' ? '<button class="btn" data-delkey>Remove key</button>' : ''}` : '<button class="btn" data-remove>Remove</button>'}</span></div>`;
+  const addRow = $('chat-add-row');  // Lives in More: moved back in after every repaint.
   const paint = (rows) => {
     if (box.contains(document.activeElement)) return;  // Don't rebuild under the cursor.
     const open = box.querySelector('#chat-api')?.open ? ' open' : '';  // Collapsed by default; a repaint keeps it as the user left it.
-    box.innerHTML = rows.filter((p) => p.kind === 'cli').map(row).join('') + `<details class="group" id="chat-api"${open}><summary>API keys and local servers</summary>` + rows.filter((p) => p.kind !== 'cli').map(row).join('') + '</details>';
+    // Your subscriptions lists only assistants found on this Mac; More holds API keys, servers and the rest.
+    const cli = rows.filter((p) => p.kind === 'cli'), missing = cli.filter((p) => p.state === 'missing');
+    box.innerHTML = cli.filter((p) => p.state !== 'missing').map(row).join('') + `<details class="group" id="chat-api"${open}><summary>More</summary><h3>API keys and local servers</h3>`
+      + rows.filter((p) => p.kind !== 'cli').map(row).join('') + '<div id="chat-add-slot"></div>' + (missing.length ? '<h3>Coding assistants not installed</h3>' + missing.map(row).join('') : '') + '</details>';
+    box.querySelector('#chat-add-slot').replaceWith(addRow);
   };
   const gen = (chatRefresh.gen = (chatRefresh.gen || 0) + 1);
   if (!box.children.length) paint(list);
@@ -631,6 +636,7 @@ $('chat-add').onclick = () => {
   while (list.some((p) => p.id === id)) id += '-2';
   list.push({ id, name, url });
   $('chat-add-name').value = $('chat-add-url').value = '';
+  $('chat-add').blur();  // The row sits inside #chat-providers now; paint skips while focus is in there.
   chatSave(list);
 };
 
