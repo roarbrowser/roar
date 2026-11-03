@@ -83,6 +83,23 @@ int main() {
       check(roar::CliSandboxProfile("claude", "/Users/u", "/S", {}).find("(prefix \"/Users/u/.claude\")") != std::string::npos, "sandbox: claude gets ~/.claude and ~/.claude.json");
       check(roar::CliSandboxProfile("x", "/Users/u", "/S", {"/Users/u", "/"}).find("(subpath \"/Users/u\")") == std::string::npos, "sandbox: an install dir of home or / is ignored");
     }
+    {
+      auto o = roar::CliChatArgs("opencode", "studio/qwen");
+      check(o.size() >= 4 && o[0] == "run" && has(o, "--standalone") && has(o, "json") && *(std::find(o.begin(), o.end(), "--model") + 1) == "studio/qwen",
+            "opencode: run --standalone --format json, provider/model as one entry");
+      check(!has(roar::CliChatArgs("opencode", "default"), "--model"), "opencode: default model omitted");
+      auto env = roar::CliChatEnv("opencode");
+      check(env.size() == 1 && env[0].rfind("OPENCODE_CONFIG_CONTENT={", 0) == 0 && env[0].find("\"*\":false") != std::string::npos &&
+                env[0].find("\"*\":\"deny\"") != std::string::npos && roar::CliChatEnv("claude").empty(),
+            "opencode: inline config turns every tool off and denies every permission; other CLIs get no env");
+      check(!roar::ChatCliToolless("opencode"), "opencode may not be sent pages");
+      auto sb = roar::CliSandboxProfile("opencode", "/Users/u", "/S", {});
+      auto in = [&](const std::string& t) { return sb.find(t) != std::string::npos; };
+      check(in("(subpath \"/Users/u/.config/opencode\")") && in("(subpath \"/Users/u/.local/share/opencode\")") && in("(subpath \"/Users/u/.cache/opencode\")") &&
+                !in("(subpath \"/Users/u/.opencode\")") && in("(local ip \"localhost:*\")") && in("(remote ip \"localhost:*\")"),
+            "sandbox: opencode gets its XDG dirs and localhost");
+      check(roar::CliSandboxProfile("codex", "/Users/u", "/S", {}).find("localhost") == std::string::npos, "sandbox: other CLIs get no localhost");
+    }
     bool shelly = false;
     for (auto& cli : roar::ChatClis())
       for (auto& a : roar::CliChatArgs(cli, "sonnet", "/p")) shelly |= a == "sh" || a == "/bin/sh" || a.find("$") != std::string::npos;  // codex's -c is its config flag.
@@ -110,6 +127,10 @@ int main() {
     check(roar::FindChatCli("codex", "/h", "", [](const std::string& p) { return p == "/h/.volta/bin/codex"; }) == "/h/.volta/bin/codex", "Volta's bin is searched");
     check(roar::FindChatCli("gemini", "/h", "", [](const std::string& p) { return p == "/h/.local/share/mise/shims/gemini"; }) == "/h/.local/share/mise/shims/gemini", "mise shims are searched");
     check(roar::FindChatCli("qwen", "/h", "", [](const std::string& p) { return p == "/h/.asdf/shims/qwen"; }) == "/h/.asdf/shims/qwen", "asdf shims are searched");
+    check(roar::CliChatStatus("opencode", "/h/.opencode/bin/opencode", "/h", has, read, noenv) == "signed-out", "opencode with no login or config is signed out");
+    fs.insert("/h/.config/opencode/opencode.jsonc");
+    check(roar::CliChatStatus("opencode", "/h/.opencode/bin/opencode", "/h", has, read, noenv) == "ok", "opencode with its own config is ready");
+    check(roar::FindChatCli("opencode", "/h", "", [](const std::string& p) { return p == "/h/.opencode/bin/opencode"; }) == "/h/.opencode/bin/opencode", "opencode's installer dir is searched");
     auto sb = roar::CliSandboxProfile("gemini", "/h", "/S", {});
     check(sb.find("(subpath \"/h/.local/share/mise\")") != std::string::npos && sb.find("(subpath \"/h/.asdf\")") != std::string::npos && sb.find("(literal \"/h/.tool-versions\")") != std::string::npos, "sandbox: mise and asdf stores are readable");
   }

@@ -128,14 +128,27 @@ check(core.cliStatus(cc, 'desktop-only').state === 'missing' && /Claude app is i
 check(core.providerStatus({ id: 'ollama', key: false }).get === 'https://ollama.com/download', 'a missing local server links to its download page');
 const askCli = (m) => m.cmd === 'chat.clis' ? Promise.resolve({ claude: 'ok', codex: 'signed-out', gemini: 'missing' }) : Promise.resolve({});
 const detCli = await core.detectProviders(core.CLI_PROVIDERS, askCli, 50);
-check(detCli.map((p) => p.cli + ':' + p.state).join() === 'claude:available,codex:signed-out,gemini:missing,qwen:missing', 'detect: CLIs ranked by status');
+check(detCli.map((p) => p.cli + ':' + p.state).join() === 'claude:available,codex:signed-out,gemini:missing,qwen:missing,opencode:missing', 'detect: CLIs ranked by status');
 check(detCli[0].models.includes('sonnet') && detCli[2].models.length === 0, 'detect: installed CLIs list their models, missing ones none');
 // Untrusted page text only goes to a CLI with every tool off (src/model_chat.h ChatCliToolless: claude only).
 const byCli = Object.fromEntries(core.CLI_PROVIDERS.map((p) => [p.cli, p]));
 check(core.CLI_PROVIDERS.filter((p) => p.pages).map((p) => p.cli).join() === 'claude', 'only Claude Code may be sent a tab');
-check(core.pageRefusal(byCli.claude) === '' && ['codex', 'gemini', 'qwen'].every((c) => /won't send it web pages/.test(core.pageRefusal(byCli[c]))), 'codex, gemini and qwen refuse page attachments with a reason');
+check(core.pageRefusal(byCli.claude) === '' && ['codex', 'gemini', 'qwen', 'opencode'].every((c) => /won't send it web pages/.test(core.pageRefusal(byCli[c]))), 'codex, gemini and qwen refuse page attachments with a reason');
 check(core.pageRefusal(ps[0]) === '' && core.pageRefusal(undefined) === '', 'API and local providers are never refused');
 check(core.CLI_PROVIDERS.every((p) => /sandbox/.test(p.isolation)) && /All tools off/.test(byCli.claude.isolation) && !/tools off/i.test(byCli.qwen.isolation), 'isolation text says what applies, per CLI');
+
+const ocOut = [
+  { type: 'step_start', part: { type: 'step-start' } },
+  { type: 'text', part: { type: 'text', text: '\n\nHé 🦁' } },
+  { type: 'text', part: { type: 'text', text: 'second' } },
+  { type: 'step_finish', part: { type: 'step-finish', reason: 'stop' } },
+].map((j) => JSON.stringify(j)).join('\n') + '\n';
+r = runCli('opencode', 'INFO log line\n' + ocOut);
+check(r.text === 'Hé 🦁\n\nsecond' && r.done && !r.error, 'opencode json: text parts joined, leading blank lines dropped, stop ends');
+r = runCli('opencode', JSON.stringify({ type: 'error', error: { name: 'ProviderAuthError', data: { message: 'No API key' } } }) + '\n');
+check(r.error === 'No API key' && !r.done, 'opencode: error event surfaces its message');
+r = runCli('opencode', JSON.stringify({ type: 'step_finish', part: { reason: 'tool-calls' } }) + '\n');
+check(!r.done, 'opencode: a step that is not the last does not end the turn');
 
 // Markdown sanitizer.
 const md = core.renderMarkdown;

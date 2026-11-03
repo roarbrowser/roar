@@ -174,6 +174,9 @@
       isolation: 'A deny-all tool policy is applied, but Roar has not verified it holds. ' + SANDBOX },
     { id: 'cli-qwen', cli: 'qwen', install: 'npm install -g @qwen-code/qwen-code@latest', node: true, name: 'Qwen Code', account: 'Qwen', models: ['default'], pages: false,
       isolation: 'Read-only plan mode: it can still read files. ' + SANDBOX },
+    // Model "default" is the one in your opencode config, local providers (oMLX, Ollama...) included.
+    { id: 'cli-opencode', cli: 'opencode', install: 'curl -fsSL https://opencode.ai/install | bash', name: 'opencode', account: 'opencode', models: ['default'], pages: false,
+      isolation: 'Every tool switched off except loading your opencode skills; your opencode plugins still load. ' + SANDBOX + ' It may also reach servers on this Mac (local models).' },
   ].map((p) => ({ ...p, kind: 'cli', key: false, url: '' }));
   // Why page text may not go to provider `p`, or '' when it may.
   const pageRefusal = (p) => !p || p.kind !== 'cli' || p.pages ? ''
@@ -198,7 +201,7 @@
   // formats are one event per line. claude: stream-json with partial messages; codex: exec --json
   // (whole messages, no token deltas); gemini: stream-json; anything else is plain text.
   const cliParser = (cli) => {
-    if (!['claude', 'codex', 'gemini'].includes(cli)) return (chunk) => (chunk ? [{ text: chunk }] : []);
+    if (!['claude', 'codex', 'gemini', 'opencode'].includes(cli)) return (chunk) => (chunk ? [{ text: chunk }] : []);
     let buf = '', deltas = false;
     const event = (j) => {
       if (cli === 'claude') {
@@ -222,6 +225,16 @@
         if (j.type === 'turn.failed') return { error: j.error?.message || 'failed' };
         if (j.type === 'error') return { error: j.message || 'failed' };
         if (j.type === 'turn.completed') return { done: true };
+        return null;
+      }
+      if (cli === 'opencode') {
+        // run --format json: each text part arrives whole; a step ending with reason "stop" ends the turn.
+        if (j.type === 'text' && j.part?.text?.trim()) {
+          const t = (deltas ? '\n\n' : '') + j.part.text.replace(/^\s+/, '');
+          return (deltas = true), { text: t };
+        }
+        if (j.type === 'error') return { error: j.error?.data?.message || j.error?.message || j.error?.name || 'failed' };
+        if (j.type === 'step_finish' && j.part?.reason === 'stop') return { done: true };
         return null;
       }
       if (j.type === 'message' && j.role === 'assistant' && typeof j.content === 'string') return { text: j.content };

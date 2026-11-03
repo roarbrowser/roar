@@ -5774,7 +5774,12 @@ bool Controller::HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> 
     char real[PATH_MAX];
     std::string install = realpath(exe.c_str(), real) ? std::string(real) : exe;
     install = install.substr(0, install.rfind('/'));
-    args.insert(args.begin(), {"-p", CliSandboxProfile(cli, home, cwd, {exe.substr(0, exe.rfind('/')), install}), exe});
+    args.insert(args.begin(), exe);
+    if (auto env = CliChatEnv(cli); !env.empty()) {  // SpawnStream sets only PATH, so env goes through /usr/bin/env.
+      args.insert(args.begin(), env.begin(), env.end());
+      args.insert(args.begin(), "/usr/bin/env");
+    }
+    args.insert(args.begin(), {"-p", CliSandboxProfile(cli, home, cwd, {exe.substr(0, exe.rfind('/')), install})});
     dirs = exe.substr(0, exe.rfind('/'));  // Its own dir first: node-based CLIs find their node beside them.
     for (auto& d : ChatSearchDirs(home, path)) dirs += ":" + d;
     dirs += ":/usr/bin:/bin:/usr/sbin:/sbin";

@@ -77,7 +77,7 @@ inline bool ChatKeyAllowed(const std::string& url) {
 inline std::vector<std::string> ChatSearchDirs(const std::string& home, const std::string& path) {
   std::vector<std::string> dirs = {"/opt/homebrew/bin", "/usr/local/bin", home + "/.local/bin", home + "/.claude/local",
                                    home + "/.npm-global/bin", home + "/.local/share/fnm/aliases/default/bin", home + "/.bun/bin",
-                                   home + "/.volta/bin", home + "/Library/pnpm", home + "/.local/share/mise/shims", home + "/.asdf/shims"};
+                                   home + "/.volta/bin", home + "/Library/pnpm", home + "/.opencode/bin", home + "/.local/share/mise/shims", home + "/.asdf/shims"};
   // nvm keeps one dir per Node version; newest first, as a shell with nvm's default would mostly pick.
   std::error_code ec;
   std::vector<std::string> nvm;
@@ -119,7 +119,7 @@ inline std::map<std::string, bool> InstalledChatApps(const std::string& home, co
 // Agent CLIs model chat runs one-shot on the user's own login (chat.cli). Each gets the conversation on
 // stdin and runs in an empty scratch folder with its tools off or read-only, so it only answers.
 inline const std::vector<std::string>& ChatClis() {
-  static const std::vector<std::string> clis = {"claude", "codex", "gemini", "qwen"};
+  static const std::vector<std::string> clis = {"claude", "codex", "gemini", "qwen", "opencode"};
   return clis;
 }
 
@@ -170,12 +170,24 @@ inline std::vector<std::string> CliChatArgs(const std::string& cli, const std::s
          "--extensions", "none", "--allowed-mcp-server-names", "roar-none"};
   } else if (cli == "qwen")
     a = {"--approval-mode", "plan"};  // Plain text output: its stream-json differs across versions.
+  else if (cli == "opencode")
+    // --standalone: a private server inside the sandbox, not the background service outside it. Tools off: CliChatEnv.
+    a = {"run", "--standalone", "--format", "json"};
   else
     return {};
   if (pick) a.insert(a.end(), {"--model", model});
   if (cli == "codex") a.push_back("-");  // Read the prompt from stdin.
   if (cli == "gemini" || cli == "qwen") a.insert(a.end(), {"-p", "Answer the conversation above."});  // Appended to stdin.
   return a;
+}
+
+// Environment entries ("K=V") a chat turn sets for `cli`, put in front of it through /usr/bin/env.
+// opencode: inline config, the highest-precedence layer, switches every tool off and denies every
+// permission (its `skill` tool stays listed, its permission denied), no sharing, no git snapshots.
+inline std::vector<std::string> CliChatEnv(const std::string& cli) {
+  if (cli == "opencode")
+    return {R"(OPENCODE_CONFIG_CONTENT={"tools":{"*":false,"skill":false},"permission":{"*":"deny"},"share":"disabled","autoupdate":false,"snapshot":false})"};
+  return {};
 }
 
 // argv after the executable for a CLI's own browser sign-in (chat.login), or {} when it has none.
@@ -197,7 +209,9 @@ inline std::string CliSandboxProfile(const std::string& cli, const std::string& 
     return o + "\"";
   };
   std::string conf = cli == "claude" ? "(prefix " + q(home + "/.claude") + ")"  // ~/.claude and ~/.claude.json*
-                                     : "(subpath " + q(home + "/." + cli) + ")";
+                     : cli == "opencode" ? "(subpath " + q(home + "/.config/opencode") + ") (subpath " + q(home + "/.local/share/opencode") +
+                                               ") (subpath " + q(home + "/.cache/opencode") + ") (subpath " + q(home + "/.local/state/opencode") + ")"
+                                         : "(subpath " + q(home + "/." + cli) + ")";
   std::string p = "(version 1)\n(allow default)\n(deny file-read-data file-write* (subpath \"/\"))\n(allow file-read-data (literal \"/\")";
   for (const char* d : {"/usr", "/bin", "/sbin", "/System", "/Library", "/private/etc", "/private/var/db", "/opt/homebrew"})
     p += " (subpath " + q(d) + ")";
@@ -211,6 +225,9 @@ inline std::string CliSandboxProfile(const std::string& cli, const std::string& 
   p += ")\n(allow file-read-data file-write* (subpath " + q(scratch) + ") " + conf +
        " (subpath \"/private/tmp\") (subpath \"/private/var/folders\") (subpath \"/dev\"))\n";
   p += "(deny network*)\n(allow network-outbound (remote tcp \"*:443\") (remote unix-socket (path-literal \"/private/var/run/mDNSResponder\")))\n";
+  // opencode talks to its own private server on localhost, and often to a local model server (Ollama, LM Studio...).
+  if (cli == "opencode")
+    p += "(allow network-bind network-inbound (local ip \"localhost:*\"))\n(allow network-outbound (remote ip \"localhost:*\"))\n";
   return p;
 }
 
@@ -227,6 +244,8 @@ inline std::string CliChatStatus(const std::string& cli, const std::string& foun
   else if (cli == "codex") in = env("OPENAI_API_KEY") || exists(home + "/.codex/auth.json");
   else if (cli == "gemini") in = env("GEMINI_API_KEY") || exists(home + "/.gemini/oauth_creds.json") || exists(home + "/.gemini/gemini-credentials.json") || exists(home + "/.gemini/google_accounts.json");
   else if (cli == "qwen") in = env("OPENAI_API_KEY") || exists(home + "/.qwen/oauth_creds.json") || exists(home + "/.qwen/settings.json");
+  // opencode: a provider login (`opencode auth login`) or a config of its own (local providers need no login).
+  else if (cli == "opencode") in = exists(home + "/.local/share/opencode/auth.json") || exists(home + "/.config/opencode/opencode.json") || exists(home + "/.config/opencode/opencode.jsonc");
   return in ? "ok" : "signed-out";
 }
 
