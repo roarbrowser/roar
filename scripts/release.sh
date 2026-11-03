@@ -25,6 +25,10 @@ git fetch -q origin main
 git merge-base --is-ancestor origin/main HEAD || { echo "HEAD is not ahead of origin/main; rebase first (release.sh pushes HEAD to main)" >&2; exit 1; }
 [[ -z "$(git status --porcelain --untracked-files=no)" ]] || { echo "working tree dirty; commit first" >&2; exit 1; }
 git rev-parse -q --verify "refs/tags/$TAG" >/dev/null && { echo "$TAG already exists" >&2; exit 1; }
+# API-key notarization needs all three, checked before anything is edited or built.
+[[ -z ${ROAR_NOTARY_API_KEY:-} || ( -n ${ROAR_NOTARY_KEY_ID:-} && -n ${ROAR_NOTARY_ISSUER:-} && -f $ROAR_NOTARY_API_KEY ) ]] ||
+  { echo "release.sh: ROAR_NOTARY_API_KEY needs ROAR_NOTARY_KEY_ID, ROAR_NOTARY_ISSUER and an existing key file" >&2; exit 1; }
+[[ -z ${ROAR_SPARKLE_KEY_FILE:-} || -f $ROAR_SPARKLE_KEY_FILE ]] || { echo "release.sh: no ROAR_SPARKLE_KEY_FILE at $ROAR_SPARKLE_KEY_FILE" >&2; exit 1; }
 
 # Version lives in Info.plist.in. Sparkle compares the build number (CFBundleVersion against
 # sparkle:version), so it must rise with every release: major*10000 + minor*100 + patch (0.17.0 -> 1700).
