@@ -229,5 +229,14 @@
       <description><![CDATA[Connect Hermes Agent and opencode from Settings > Agents. opencode now shows as connected when its config is opencode.json. Agent Files lists Hermes SOUL.md and skills, and opencode agents, commands and skills.]]></description>
       <enclosure url="https://github.com/roarbrowser/roar/releases/download/v1.9.0/Roar-1.9.0.dmg" type="application/octet-stream" sparkle:edSignature="fgUjJw5vs+9sinezc4bG6oPaa5cZdxtbnVDHM6RFqztVhe8y9+CcBcQA0ioMsopj+8ZcuORTIQai6T9NemvsCA==" length="207841984"/>
     </item>
+    <item>
+      <title>1.9.1</title>
+      <pubDate>Tue, 03 Nov 2026 17:03:07 +0000</pubDate>
+      <sparkle:version>10901</sparkle:version>
+      <sparkle:shortVersionString>1.9.1</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[Switching a space's agents off now disconnects agents already attached to its tabs, not just new ones. Model chat can use opencode (opencode 2) as a provider, with every tool switched off. Right click a tab or empty sidebar space to open a board, start a new one or see all boards.]]></description>
+      <enclosure url="https://github.com/roarbrowser/roar/releases/download/v1.9.1/Roar-1.9.1.dmg" type="application/octet-stream" sparkle:edSignature="C3q0p254PzVeGiGow4ndUZHXpMMlY/51pHDf9Tma5JjG9R6Iu5cug0cxSOmyuZ6OtoJ4U1NHfjbuYUVcB9HzBw==" length="207893517"/>
+    </item>
   </channel>
 </rss>
