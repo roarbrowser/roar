@@ -15,6 +15,7 @@
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
+#include <functional>
 #include <sstream>
 #include <utility>
 
@@ -80,6 +81,8 @@ const std::vector<Spec>& Specs() {
       {"codex", "Codex CLI", Format::kToml, ".codex/config.toml", ".codex", {}, nullptr},
       {"gemini", "Gemini CLI", Format::kJson, ".gemini/settings.json", ".gemini", {"mcpServers"}, PlainEntry},
       {"goose", "Goose", Format::kYaml, ".config/goose/config.yaml", ".config/goose", {}, nullptr},
+      // Hermes Agent (Nous Research): mcp_servers in ~/.hermes/config.yaml, or $HERMES_HOME.
+      {"hermes", "Hermes Agent", Format::kYaml, ".hermes/config.yaml", ".hermes", {}, nullptr},
       {"lmstudio", "LM Studio", Format::kJson, ".lmstudio/mcp.json", ".lmstudio", {"mcpServers"}, PlainEntry},
       {"opencode", "opencode", Format::kJson, ".config/opencode/opencode.json", ".config/opencode", {"mcp"},
        OpencodeEntry},
@@ -322,7 +325,7 @@ std::string MergeJson(std::string& s, const Spec& spec, const std::string& serve
   return Json(s).Valid() ? "" : "internal error: merged JSON doesn't parse";
 }
 
-// --- TOML (Codex) and YAML (Goose): line-based edits of one block ---
+// --- TOML (Codex) and YAML (Goose, Hermes): line-based edits of one block ---
 
 std::vector<std::string> Lines(const std::string& s) {
   std::vector<std::string> out;
@@ -435,7 +438,18 @@ std::string MergeToml(std::string& s, const std::string& server, bool* connected
 
 size_t IndentOf(const std::string& l) { return l.find_first_not_of(' '); }
 
-std::string MergeYaml(std::string& s, const std::string& server, bool* connected, bool* present) {
+// A `key: value` line's value is `want`, quoted or not.
+bool YamlIs(const std::string& line, const std::string& key, const std::string& want) {
+  std::string t = Trim(line);
+  if (t.compare(0, key.size() + 1, key + ":") != 0) return false;
+  std::string v = Trim(t.substr(key.size() + 1));
+  if (v.size() >= 2 && (v[0] == '"' || v[0] == '\'') && v.back() == v[0]) v = v.substr(1, v.size() - 2);
+  return v == want;
+}
+
+// Goose keeps servers under `extensions:`, Hermes under `mcp_servers:`.
+std::string MergeYaml(std::string& s, bool hermes, const std::string& server, bool* connected, bool* present) {
+  const std::string top = hermes ? "mcp_servers" : "extensions", cmd = hermes ? "command" : "cmd";
   std::vector<std::string> lines = Lines(s);
   for (const auto& l : lines) {
     size_t ws = l.find_first_not_of(" \t");
@@ -445,15 +459,15 @@ std::string MergeYaml(std::string& s, const std::string& server, bool* connected
   size_t ext = lines.size();
   for (size_t i = 0; i < lines.size(); ++i) {
     std::string t = lines[i].substr(0, lines[i].find(" #"));
-    if (t.rfind("extensions:", 0) != 0) continue;
-    std::string rest = Trim(t.substr(11));
-    if (rest == "{}" || rest.empty()) { ext = i; lines[i] = "extensions:"; break; }
-    return "\"extensions\" is written inline; edit it by hand";
+    if (t.rfind(top + ":", 0) != 0) continue;
+    std::string rest = Trim(t.substr(top.size() + 1));
+    if (rest == "{}" || rest.empty()) { ext = i; lines[i] = top + ":"; break; }
+    return "\"" + top + "\" is written inline; edit it by hand";
   }
   if (connected) *connected = false;
   if (ext == lines.size()) {
     if (connected) return "";
-    lines.push_back("extensions:");
+    lines.push_back(top + ":");
   }
   size_t end = ext + 1;
   std::string child = "  ";
@@ -464,9 +478,12 @@ std::string MergeYaml(std::string& s, const std::string& server, bool* connected
     if (!child_found) { child = lines[end].substr(0, IndentOf(lines[end])); child_found = true; }
   }
   std::string u = child;
-  std::vector<std::string> entry = {child + "roar:",       child + u + "name: roar",  child + u + "type: stdio",
-                                    child + u + "cmd: " + Quote(server), child + u + "args: []",
-                                    child + u + "enabled: true", child + u + "timeout: 300"};
+  std::vector<std::string> entry =
+      hermes ? std::vector<std::string>{child + "roar:", child + u + "command: " + Quote(server), child + u + "args: []",
+                                        child + u + "enabled: true"}
+             : std::vector<std::string>{child + "roar:", child + u + "name: roar", child + u + "type: stdio",
+                                        child + u + "cmd: " + Quote(server), child + u + "args: []",
+                                        child + u + "enabled: true", child + u + "timeout: 300"};
   size_t roar = end;
   for (size_t i = ext + 1; i < end; ++i)
     if (!Blank(lines[i]) && IndentOf(lines[i]) == child.size() && Trim(lines[i]) == "roar:") { roar = i; break; }
@@ -479,7 +496,7 @@ std::string MergeYaml(std::string& s, const std::string& server, bool* connected
   if (connected) {
     *present = roar != end;
     for (size_t i = roar + 1; roar != end && i < roar_end; ++i)
-      if (Trim(lines[i]) == Trim(entry[3])) *connected = true;
+      if (YamlIs(lines[i], cmd, server)) *connected = true;
     return "";
   }
   if (roar != end) {
@@ -501,7 +518,7 @@ std::string Merge(const Spec& spec, std::string& s, const std::string& server, b
   switch (spec.format) {
     case Format::kJson: return MergeJson(s, spec, server, connected, present);
     case Format::kToml: return MergeToml(s, server, connected, present);
-    case Format::kYaml: return MergeYaml(s, server, connected, present);
+    case Format::kYaml: return MergeYaml(s, std::string(spec.id) == "hermes", server, connected, present);
     case Format::kCopyOnly: return "no config file to write";
   }
   return "";
@@ -513,11 +530,18 @@ std::string CodexHome(const std::string& home) {
   return c && *c ? c : home + "/.codex";
 }
 
+// Hermes reads $HERMES_HOME (its active profile) instead of ~/.hermes when it's set.
+std::string HermesHome(const std::string& home) {
+  const char* c = getenv("HERMES_HOME");
+  return c && *c ? c : home + "/.hermes";
+}
+
 std::string FileFor(const Spec& spec, const std::string& home) {
   std::string f = home + "/" + spec.file;
   if (std::string(spec.id) == "codex") f = CodexHome(home) + "/config.toml";
-  // opencode also reads opencode.jsonc; edit that one if it's the one in use.
-  if (std::string(spec.id) == "opencode" && fs::exists(home + "/.config/opencode/opencode.jsonc"))
+  if (std::string(spec.id) == "hermes") f = HermesHome(home) + "/config.yaml";
+  // opencode.jsonc only when there's no opencode.json, the order `opencode mcp add` picks them in.
+  if (std::string(spec.id) == "opencode" && !fs::exists(f) && fs::exists(home + "/.config/opencode/opencode.jsonc"))
     f = home + "/.config/opencode/opencode.jsonc";
   return f;
 }
@@ -586,7 +610,9 @@ std::vector<Client> List(const std::string& home, const std::string& server) {
     c.id = spec.id;
     c.name = spec.name;
     c.snippet = Snippet(spec, server);
-    std::string detect = std::string(spec.id) == "codex" ? CodexHome(home) : home + "/" + spec.detect;
+    std::string detect = std::string(spec.id) == "codex" ? CodexHome(home)
+                         : std::string(spec.id) == "hermes" ? HermesHome(home)
+                                                            : home + "/" + spec.detect;
     c.detected = fs::is_directory(detect, ec);
     if (spec.format == Format::kCopyOnly) { out.push_back(c); continue; }
     c.file = FileFor(spec, home);
@@ -601,55 +627,91 @@ std::vector<Client> List(const std::string& home, const std::string& server) {
   return out;
 }
 
+namespace {
+
+// Reads `file` (through a symlink, as dotfile managers leave them), lets `edit` change the text, and
+// writes it back atomically when it changed, backing the original up once as <file>.bak.
+std::string Rewrite(fs::path file, const std::function<std::string(std::string&)>& edit) {
+  std::error_code ec;
+  if (fs::is_symlink(fs::symlink_status(file, ec))) {
+    file = fs::canonical(file, ec);
+    if (ec) return "can't resolve " + file.string();
+  }
+  std::string text;
+  bool existed = Read(file.string(), &text);
+  std::string original = text;
+  std::string err = edit(text);
+  if (!err.empty()) return file.string() + ": " + err;
+  if (existed && text == original) return "";
+  fs::create_directories(file.parent_path(), ec);
+  fs::path bak = file.string() + ".bak";
+  if (existed && !fs::exists(bak, ec)) {
+    fs::copy_file(file, bak, ec);
+    if (ec) return "can't back up " + file.string() + ": " + ec.message();
+  }
+  fs::path tmp = file.string() + ".roar-tmp";
+  // Created private (or with the original's mode) before any content lands;
+  // O_EXCL after unlink refuses a symlink planted in between.
+#ifdef _WIN32
+  // No symlink games without admin rights on Windows; _O_EXCL still refuses a planted file.
+  fs::remove(tmp, ec);
+  int fd = -1;
+  _wsopen_s(&fd, tmp.wstring().c_str(), _O_WRONLY | _O_CREAT | _O_EXCL | _O_BINARY, _SH_DENYRW, _S_IREAD | _S_IWRITE);
+  if (fd < 0) return "can't write " + tmp.string();
+  bool ok = _write(fd, text.data(), static_cast<unsigned>(text.size())) == static_cast<int>(text.size());
+  ok = _close(fd) == 0 && ok;
+#else
+  unlink(tmp.c_str());
+  mode_t mode = existed ? static_cast<mode_t>(fs::status(file, ec).permissions() & fs::perms::mask) : 0600;
+  int fd = open(tmp.c_str(), O_WRONLY | O_CREAT | O_EXCL | O_TRUNC | O_NOFOLLOW, mode);
+  if (fd < 0) return "can't write " + tmp.string();
+  fchmod(fd, mode);  // umask may have narrowed it.
+  bool ok = write(fd, text.data(), text.size()) == static_cast<ssize_t>(text.size());
+  ok = close(fd) == 0 && ok;
+#endif
+  if (!ok) { fs::remove(tmp, ec); return "can't write " + tmp.string(); }
+  fs::rename(tmp, file, ec);
+  if (ec) { fs::remove(tmp, ec); return "can't write " + file.string() + ": " + ec.message(); }
+  return "";
+}
+
+// Hermes doesn't read MCP server instructions, so they go in its SOUL.md (always in its context).
+// Only into one that exists: SOUL.md replaces Hermes's default identity, which it seeds on first run.
+// Keep in step with INSTRUCTIONS in mcp/roar-mcp.mjs (tests/agent_connect_test.cc checks).
+const char kSoulSection[] = R"(## Browser (Roar)
+
+Roar is the person's own web browser, already signed in to their sites, and these tools drive it.
+Use Roar whenever a task touches the web: opening, reading or checking a page, searching, logged-in sites (mail, GitHub, dashboards, docs), filling forms, or testing a local web app. Prefer it over fetching pages yourself or starting another browser, unless the person asks otherwise.
+- Pages you open appear as tabs in the person's sidebar, in the space set by use_profile, which applies to this session only. Only spaces the person allows agents in can be used; ghost tabs are hidden from agents.
+- You see and act only on pages you opened and the person's own tabs; other agents' pages are off-limits.
+- When several pages belong to one task, pass the same group to new_page so they sit together in one tab group; group_page moves or ungroups a page you opened.
+- Open pages in the background unless the person should see them. Roar closes every page you opened when you post a "done" notify_user, when you stay idle, and when this session ends; close them sooner when you no longer need them.
+- notify_user puts a card in Roar's sidebar: use level "done" when a long task finishes, "needs_you" when you are blocked.
+  Write title and body as one or two plain sentences for a person: no code, markdown, logs, paths or ids.
+- ask_user asks the person a question with buttons in Roar and waits for the answer; use it when you cannot go on without a decision.
+)";
+
+// Appends kSoulSection unless a heading already names Roar (one the person wrote stays theirs).
+std::string AddSoulSection(std::string& s) {
+  for (const std::string& l : Lines(s))
+    if (l.rfind("#", 0) == 0 && l.find("Roar") != std::string::npos) return "";
+  if (!s.empty()) s += s.back() == '\n' ? "\n" : "\n\n";
+  s += kSoulSection;
+  return "";
+}
+
+}  // namespace
+
 std::string Connect(const std::string& id, const std::string& home, const std::string& server) {
   std::error_code hec;
   if (home.empty() || !fs::is_directory(home, hec)) return "no home directory";
   for (const Spec& spec : Specs()) {
     if (id != spec.id) continue;
     if (spec.format == Format::kCopyOnly) return spec.name + std::string(" has no config file Roar can edit");
-    std::error_code ec;
-    fs::path file = FileFor(spec, home);
-    // Write through a symlink (dotfile managers) rather than replacing it.
-    if (fs::is_symlink(fs::symlink_status(file, ec))) {
-      file = fs::canonical(file, ec);
-      if (ec) return "can't resolve " + file.string();
-    }
-    std::string text;
-    bool existed = Read(file.string(), &text);
-    std::string original = text;
-    std::string err = Merge(spec, text, server, nullptr);
-    if (!err.empty()) return file.string() + ": " + err;
-    if (existed && text == original) return "";
-    fs::create_directories(file.parent_path(), ec);
-    fs::path bak = file.string() + ".bak";
-    if (existed && !fs::exists(bak, ec)) {
-      fs::copy_file(file, bak, ec);
-      if (ec) return "can't back up " + file.string() + ": " + ec.message();
-    }
-    fs::path tmp = file.string() + ".roar-tmp";
-    // Created private (or with the original's mode) before any content lands;
-    // O_EXCL after unlink refuses a symlink planted in between.
-#ifdef _WIN32
-    // No symlink games without admin rights on Windows; _O_EXCL still refuses a planted file.
-    fs::remove(tmp, ec);
-    int fd = -1;
-    _wsopen_s(&fd, tmp.wstring().c_str(), _O_WRONLY | _O_CREAT | _O_EXCL | _O_BINARY, _SH_DENYRW, _S_IREAD | _S_IWRITE);
-    if (fd < 0) return "can't write " + tmp.string();
-    bool ok = _write(fd, text.data(), static_cast<unsigned>(text.size())) == static_cast<int>(text.size());
-    ok = _close(fd) == 0 && ok;
-#else
-    unlink(tmp.c_str());
-    mode_t mode = existed ? static_cast<mode_t>(fs::status(file, ec).permissions() & fs::perms::mask) : 0600;
-    int fd = open(tmp.c_str(), O_WRONLY | O_CREAT | O_EXCL | O_TRUNC | O_NOFOLLOW, mode);
-    if (fd < 0) return "can't write " + tmp.string();
-    fchmod(fd, mode);  // umask may have narrowed it.
-    bool ok = write(fd, text.data(), text.size()) == static_cast<ssize_t>(text.size());
-    ok = close(fd) == 0 && ok;
-#endif
-    if (!ok) { fs::remove(tmp, ec); return "can't write " + tmp.string(); }
-    fs::rename(tmp, file, ec);
-    if (ec) { fs::remove(tmp, ec); return "can't write " + file.string() + ": " + ec.message(); }
-    return "";
+    std::string err = Rewrite(FileFor(spec, home), [&](std::string& t) { return Merge(spec, t, server, nullptr); });
+    std::string soul = HermesHome(home) + "/SOUL.md";
+    if (err.empty() && id == "hermes" && fs::exists(soul, hec)) err = Rewrite(soul, AddSoulSection);
+    return err;
   }
   return "unknown client " + id;
 }

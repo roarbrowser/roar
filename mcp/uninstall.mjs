@@ -14,7 +14,6 @@ const OURS = /roar-mcp/;
 export function mcpConfigs(home, env = process.env, win = process.platform === 'win32') {
   const app = win ? env.APPDATA || join(home, 'AppData', 'Roaming') : join(home, 'Library', 'Application Support');
   const code = (v) => join(app, v, 'User');
-  const oc = join(home, '.config/opencode/opencode.jsonc');
   return {
     json: [
       [join(home, '.claude.json'), ['mcpServers']],
@@ -28,14 +27,16 @@ export function mcpConfigs(home, env = process.env, win = process.platform === '
       [join(home, '.config/zed/settings.json'), ['context_servers']],
       [join(home, '.gemini/settings.json'), ['mcpServers']],
       [join(home, '.lmstudio/mcp.json'), ['mcpServers']],
-      [existsSync(oc) ? oc : join(home, '.config/opencode/opencode.json'), ['mcp']],
+      [join(home, '.config/opencode/opencode.json'), ['mcp']],
+      [join(home, '.config/opencode/opencode.jsonc'), ['mcp']],
       [join(home, '.kiro/settings/mcp.json'), ['mcpServers']],
       [join(home, '.aws/amazonq/mcp.json'), ['mcpServers']],
       [join(home, '.copilot/mcp-config.json'), ['mcpServers']],
       [join(home, '.junie/mcp/mcp.json'), ['mcpServers']],
     ],
     toml: join(env.CODEX_HOME || join(home, '.codex'), 'config.toml'),
-    yaml: join(home, '.config/goose/config.yaml'),
+    // [file, top-level key holding the servers]: Goose, Hermes Agent.
+    yaml: [[join(home, '.config/goose/config.yaml'), 'extensions'], [join(env.HERMES_HOME || join(home, '.hermes'), 'config.yaml'), 'mcp_servers']],
   };
 }
 
@@ -51,13 +52,13 @@ export function dropToml(s) {
   return out.join('\n').replace(/\n{3,}/g, '\n\n');
 }
 
-// Removes `roar:` (and everything indented under it) from Goose's top-level `extensions:` map.
-export function dropYaml(s) {
+// Removes `roar:` (and everything indented under it) from the top-level `top:` map (Goose's extensions, Hermes's mcp_servers).
+export function dropYaml(s, top = 'extensions') {
   const lines = s.split('\n'), out = [];
   let inExt = false, skip = -1;
   for (const l of lines) {
     const ind = l.search(/\S/);
-    if (ind === 0) { inExt = /^extensions:\s*(#.*)?$/.test(l); skip = -1; }
+    if (ind === 0) { inExt = l.replace(/\s*(#.*)?$/, '') === top + ':'; skip = -1; }
     else if (skip >= 0 && (ind < 0 || ind > skip)) continue;
     else skip = -1;
     if (inExt && ind > 0 && l.trim() === 'roar:') { skip = ind; continue; }
@@ -90,7 +91,7 @@ export function uninstallAgents(home = process.env.HOME || homedir(), exe = proc
     const indent = /\n(\s+)"/.exec(text)?.[1] || 2;
     save(file, JSON.stringify(obj, null, indent) + (text.endsWith('\n') ? '\n' : ''), log);
   }
-  for (const [file, drop] of [[cfg.toml, dropToml], [cfg.yaml, dropYaml]]) {
+  for (const [file, drop] of [[cfg.toml, dropToml], ...cfg.yaml.map(([f, top]) => [f, (s) => dropYaml(s, top)])]) {
     if (!existsSync(file)) continue;
     const text = readFileSync(file, 'utf8'), next = drop(text);
     if (next !== text && OURS.test(text)) save(file, next, log);

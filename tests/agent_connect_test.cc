@@ -88,13 +88,62 @@ int main() {
        {"GOOSE_PROVIDER: openai", "  developer:\n    enabled: true", "GOOSE_MODEL: gpt-4o"}, "    cmd: \"" + kServer + "\"");
   Expect(!Has(Get(".config/goose/config.yaml"), "/old"), "goose replaces the stale roar entry");
 
+  // opencode: opencode.jsonc only when there's no opencode.json (as `opencode mcp add` picks).
+  Put(".config/opencode/opencode.jsonc", "{\n  // mine\n}\n");
+  Expect(Connected("opencode"), "opencode reads opencode.json beside a stub opencode.jsonc");
+  fs::remove(home + "/.config/opencode/opencode.json");
+  Expect(!Connected("opencode") && Connect("opencode", home, kServer).empty(), "opencode connects into opencode.jsonc");
+  Expect(Has(Get(".config/opencode/opencode.jsonc"), "// mine") && Has(Get(".config/opencode/opencode.jsonc"), kServer),
+         "opencode.jsonc keeps its comment and gets roar");
+
+  // Hermes: mcp_servers in config.yaml, and Roar's section appended to an existing SOUL.md.
+  Put(".hermes/SOUL.md", "You are Hermes.\n");
+  Case("hermes", ".hermes/config.yaml",
+       "model:\n  default: qwen\nmcp_servers:\n  # tools\n  github:\n    command: npx\n    args: [\"-y\", \"gh\"]\n    enabled: true\nterminal:\n  backend: local\n",
+       {"model:\n  default: qwen", "  # tools\n  github:\n    command: npx\n    args: [\"-y\", \"gh\"]", "terminal:\n  backend: local"},
+       "    enabled: true\n  roar:\n    command: \"" + kServer + "\"\n    args: []\n    enabled: true\nterminal:");
+  {
+    std::string soul = Get(".hermes/SOUL.md"), js;
+    Expect(soul.rfind("You are Hermes.\n\n## Browser (Roar)\n\n", 0) == 0 && soul.find("## Browser") == soul.rfind("## Browser"),
+           "hermes SOUL.md gets one Roar section: " + soul);
+    // The section is roar-mcp's server instructions, word for word.
+    std::ifstream in("mcp/roar-mcp.mjs");
+    std::stringstream ss;
+    ss << in.rdbuf();
+    js = ss.str();
+    size_t a = js.find("export const INSTRUCTIONS = `"), b = js.find("`;", a);
+    Expect(a != std::string::npos && b != std::string::npos && Has(soul, js.substr(a + 29, b - a - 29)),
+           "SOUL section matches INSTRUCTIONS in mcp/roar-mcp.mjs");
+  }
+  // A hand-written entry (unquoted command, own args) counts as connected and is left alone.
+  const std::string mine = "mcp_servers:\n  roar:\n    command: " + kServer +
+                           "\n    args: [\"--no-usage-statistics\", \"--no-performance-crux\"]\n    enabled: true\n";
+  Put(".hermes/config.yaml", mine);
+  Put(".hermes/SOUL.md", "# Me\n## Browser (Roar)\nmy own words\n");
+  for (const auto& c : List(home, kServer))
+    if (c.id == "hermes") Expect(c.connected && !c.stale, "hermes hand-written entry is connected, not stale");
+  Expect(roar::agents::RepairStale(home, kServer).empty() && Get(".hermes/config.yaml") == mine, "launch repair leaves it alone");
+  Expect(Connect("hermes", home, kServer).empty() && Get(".hermes/SOUL.md") == "# Me\n## Browser (Roar)\nmy own words\n",
+         "hermes leaves a person's Roar section alone");
+  // No SOUL.md yet: none is made (it would replace Hermes's default identity).
+  fs::remove(home + "/.hermes/SOUL.md");
+  fs::remove(home + "/.hermes/config.yaml");
+  Expect(Connect("hermes", home, kServer).empty() && !fs::exists(home + "/.hermes/SOUL.md"), "hermes makes no SOUL.md");
+  // HERMES_HOME (a profile).
+  fs::create_directories(home + "/hh");
+  setenv("HERMES_HOME", (home + "/hh").c_str(), 1);
+  Expect(Connect("hermes", home, kServer).empty() && Has(Get("hh/config.yaml"), kServer) && Connected("hermes"),
+         "hermes honours HERMES_HOME");
+  unsetenv("HERMES_HOME");
+
   // Malformed files are reported and left untouched, with no backup.
   struct Bad { const char* id; const char* rel; const char* text; };
   for (const Bad& b : {Bad{"cursor", ".cursor/mcp.json", "{\"mcpServers\": {\"a\": }"},
                        Bad{"gemini", ".gemini/settings.json", "[1, 2]"},
                        Bad{"windsurf", ".codeium/windsurf/mcp_config.json", "{\"mcpServers\": []}"},
                        Bad{"codex", ".codex/config.toml", "[mcp_servers.x\ncommand = \"y\"\n"},
-                       Bad{"goose", ".config/goose/config.yaml", "extensions:\n\troar: {}\n"}}) {
+                       Bad{"goose", ".config/goose/config.yaml", "extensions:\n\troar: {}\n"},
+                       Bad{"hermes", ".hermes/config.yaml", "mcp_servers: {github: {command: npx}}\n"}}) {
     fs::remove(home + "/" + b.rel + ".bak");
     Put(b.rel, b.text);
     std::string err = Connect(b.id, home, kServer);

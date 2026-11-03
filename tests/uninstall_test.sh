@@ -24,12 +24,17 @@ setup() {
   echo '{}' > "$L/Application Support/Roar/state.json"; echo 9333 > "$L/Application Support/Roar/cdp-port"
   touch "$L/Application Support/Roar/instance.lock" "$L/Preferences/$id.plist" "$L/Logs/Roar-update.log"
   # Neighbours that must survive.
-  mkdir -p "$L/Application Support/Other" "$L/Caches/com.other" "$L/Logs/Other" "$H/.claude" "$H/.codex" "$H/.config/goose" "$H/.config/zed"
+  mkdir -p "$L/Application Support/Other" "$L/Caches/com.other" "$L/Logs/Other" "$H/.claude" "$H/.codex" "$H/.config/goose" "$H/.config/zed" \
+    "$H/.config/opencode" "$H/.hermes"
   touch "$L/Preferences/com.other.plist" "$L/Logs/Other/x.log"
   printf '{\n  "mcpServers": {\n    "other": { "command": "other" },\n    "roar": { "type": "stdio", "command": "%s", "args": [] }\n  },\n  "numStartups": 3\n}\n' "$MCP" > "$H/.claude.json"
   printf '{\n  "hooks": { "Stop": [ { "matcher": "", "hooks": [ { "type": "command", "command": "mine" } ] } ] }\n}\n' > "$H/.claude/settings.json"
   printf 'model = "o3"\n\n[mcp_servers.other]\ncommand = "other"\n\n[mcp_servers.roar]\ncommand = "%s"\nargs = []\n\n[mcp_servers.roar.env]\nX = "1"\n\n[profiles.fast]\nmodel = "o4"\n' "$MCP" > "$H/.codex/config.toml"
   printf 'GOOSE_MODEL: x\nextensions:\n  developer:\n    enabled: true\n  roar:\n    name: roar\n    cmd: "%s"\n    args: []\n  memory:\n    enabled: true\n' "$MCP" > "$H/.config/goose/config.yaml"
+  # Hermes as hand-written (unquoted command, its own args); opencode with roar in .json beside a stub .jsonc.
+  printf 'model:\n  default: x\nmcp_servers:\n  github:\n    command: npx\n  roar:\n    command: %s\n    args: ["--no-usage-statistics"]\n    enabled: true\nterminal:\n  backend: local\n' "$MCP" > "$H/.hermes/config.yaml"
+  printf '{\n  "mcp": {\n    "roar": { "type": "local", "command": ["%s"], "enabled": true }\n  },\n  "model": "m"\n}\n' "$MCP" > "$H/.config/opencode/opencode.json"
+  printf '{\n  "$schema": "https://opencode.ai/config.json"\n}' > "$H/.config/opencode/opencode.jsonc"
   printf '// my settings\n{\n  "context_servers": { "roar": { "command": "%s" } }\n}\n' "$MCP" > "$H/.config/zed/settings.json"
   # Session hooks the way Roar installs them (Claude Code only: the other CLIs' dirs are absent).
   env -i HOME="$H" PATH=/usr/bin:/bin "$MCP" agent-hooks install claude >/dev/null
@@ -62,7 +67,9 @@ DATA='./.roar-headless
 ./Library/Application Support/Roar-2'
 BACKUPS='./.claude.json.roar-uninstall.bak
 ./.codex/config.toml.roar-uninstall.bak
-./.config/goose/config.yaml.roar-uninstall.bak'
+./.config/goose/config.yaml.roar-uninstall.bak
+./.config/opencode/opencode.json.roar-uninstall.bak
+./.hermes/config.yaml.roar-uninstall.bak'
 
 check_configs() {
   ! grep -q roar "$H/.claude.json" || fail ".claude.json still has roar"
@@ -74,6 +81,10 @@ check_configs() {
   grep -q 'mcp_servers.other' "$H/.codex/config.toml" && grep -q 'profiles.fast' "$H/.codex/config.toml" || fail "codex lost other tables"
   ! grep -q roar "$H/.config/goose/config.yaml" || fail "goose roar left"
   grep -q developer "$H/.config/goose/config.yaml" && grep -q memory "$H/.config/goose/config.yaml" || fail "goose lost extensions"
+  ! grep -q roar "$H/.hermes/config.yaml" || fail "hermes roar left"
+  grep -q github "$H/.hermes/config.yaml" && grep -q 'backend: local' "$H/.hermes/config.yaml" || fail "hermes lost other keys"
+  ! grep -q roar "$H/.config/opencode/opencode.json" || fail "opencode roar left"
+  grep -q '"model": "m"' "$H/.config/opencode/opencode.json" || fail "opencode lost other keys"
   cmp -s "$H/.config/zed/settings.json" "$T/zed.orig" || fail "JSONC file was rewritten"
   grep -q 'skipped .*zed/settings.json' "$T/out" || fail "JSONC skip not reported"
 }

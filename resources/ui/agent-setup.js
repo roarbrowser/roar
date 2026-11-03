@@ -33,7 +33,7 @@ const claudeCliStatus = () => /^Win/.test(navigator.platform) ? Promise.resolve(
 const CLIENT_KINDS = {
   chat: ['<path d="M2.5 4.5a2 2 0 012-2h7a2 2 0 012 2v4.5a2 2 0 01-2 2H7l-3 2.5v-2.5h0a2 2 0 01-1.5-2z"/>', 'claude-desktop jan anythingllm msty cherry openwebui librechat lmstudio'],
   editor: ['<path d="M5.5 4L2 8l3.5 4M10.5 4L14 8l-3.5 4M9 3L7 13"/>', 'cursor vscode vscode-insiders cline roo windsurf zed kiro junie continue jetbrains'],
-  term: ['<rect x="1.8" y="2.8" width="12.4" height="10.4" rx="2"/><path d="M4.6 6.4L6.6 8l-2 1.6M8.2 10h3"/>', 'codex gemini goose amazonq copilot-cli opencode'],
+  term: ['<rect x="1.8" y="2.8" width="12.4" height="10.4" rx="2"/><path d="M4.6 6.4L6.6 8l-2 1.6M8.2 10h3"/>', 'codex gemini goose amazonq copilot-cli opencode hermes'],
 };
 const CLIENT_TINTS = ['#d97757', '#4b8af0', '#8b6cf0', '#2f9e5b', '#e0a030', '#d6409f', '#12a594'];
 const clientIcon = (id, size = 16) => {

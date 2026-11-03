@@ -48,7 +48,7 @@ Windows is an early preview (x64). Run `Roar-windows-x64-setup.exe` to install R
 
 **2. First open.** Roar is signed with a Developer ID and notarized, so it opens like any app you download: macOS asks once whether to open it. Click **Open**.
 
-**3. Connect your agent (1 min).** Roar's welcome page has a **Connect** button for Claude Code, Claude Desktop, Cursor, VS Code, Windsurf, Codex, Gemini CLI and others. Click yours and restart that app. The MCP server ships inside Roar and launches Roar if it isn't running (keep Allow agents to connect on).
+**3. Connect your agent (1 min).** Roar's welcome page has a **Connect** button for Claude Code, Claude Desktop, Cursor, VS Code, Windsurf, Codex, Gemini CLI, opencode, Hermes Agent and others. Click yours and restart that app. The MCP server ships inside Roar and launches Roar if it isn't running (keep Allow agents to connect on).
 
 <details>
 <summary>Set it up by hand</summary>
@@ -66,6 +66,18 @@ Claude Desktop (`~/Library/Application Support/Claude/claude_desktop_config.json
 
 ```json
 { "mcpServers": { "roar": { "command": "/Applications/Roar.app/Contents/Resources/roar-mcp" } } }
+```
+
+opencode (`~/.config/opencode/opencode.json`): `{ "mcp": { "roar": { "type": "local", "command": ["/Applications/Roar.app/Contents/Resources/roar-mcp"], "enabled": true } } }`
+
+Hermes Agent (`~/.hermes/config.yaml`), which doesn't read MCP server instructions, so Connect also adds a "Browser (Roar)" section to an existing `~/.hermes/SOUL.md`:
+
+```yaml
+mcp_servers:
+  roar:
+    command: "/Applications/Roar.app/Contents/Resources/roar-mcp"
+    args: []
+    enabled: true
 ```
 </details>
 

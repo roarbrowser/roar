@@ -1,5 +1,5 @@
 // Adds Roar's MCP server to the config files of agent clients (Claude, Cursor,
-// VS Code, Codex, Goose...). No CEF, so tests/agent_connect_test.cc runs alone.
+// VS Code, Codex, Goose, Hermes...). No CEF, so tests/agent_connect_test.cc runs alone.
 #pragma once
 
 #include <string>
@@ -21,7 +21,8 @@ std::vector<Client> List(const std::string& home, const std::string& server);
 
 // Writes or updates the roar entry in client `id`'s config. Keeps other
 // servers and the file's layout, backs the original up once as <file>.bak,
-// and writes nothing when the file doesn't parse. Returns "" or an error.
+// and writes nothing when the file doesn't parse. For Hermes, which ignores MCP server
+// instructions, also appends Roar's section to an existing SOUL.md. Returns "" or an error.
 std::string Connect(const std::string& id, const std::string& home, const std::string& server);
 
 // Run before letting the `claude` CLI rewrite ~/.claude.json: backs it up once
