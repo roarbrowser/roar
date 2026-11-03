@@ -238,5 +238,14 @@
       <description><![CDATA[Switching a space's agents off now disconnects agents already attached to its tabs, not just new ones. Model chat can use opencode (opencode 2) as a provider, with every tool switched off. Right click a tab or empty sidebar space to open a board, start a new one or see all boards.]]></description>
       <enclosure url="https://github.com/roarbrowser/roar/releases/download/v1.9.1/Roar-1.9.1.dmg" type="application/octet-stream" sparkle:edSignature="C3q0p254PzVeGiGow4ndUZHXpMMlY/51pHDf9Tma5JjG9R6Iu5cug0cxSOmyuZ6OtoJ4U1NHfjbuYUVcB9HzBw==" length="207893517"/>
     </item>
+    <item>
+      <title>1.9.2</title>
+      <pubDate>Tue, 03 Nov 2026 21:40:05 +0000</pubDate>
+      <sparkle:version>10902</sparkle:version>
+      <sparkle:shortVersionString>1.9.2</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[Model chat: Your subscriptions lists only the assistants Roar finds, the rest sit under More. Servers you add can take an API key. Model chat can now be your Ask about this page choice.]]></description>
+      <enclosure url="https://github.com/roarbrowser/roar/releases/download/v1.9.2/Roar-1.9.2.dmg" type="application/octet-stream" sparkle:edSignature="tugzCLRa/RkHBGUhHZY74ESLB1iXGE37ipE8PZxAM3eu6VdqTsy0l9vVbFy6G+CqQK+BaR1p/ojWrwXSGbwWBg==" length="207894675"/>
+    </item>
   </channel>
 </rss>
