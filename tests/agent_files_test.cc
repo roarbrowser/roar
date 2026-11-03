@@ -23,12 +23,16 @@ int main() {
       {"/h/p/.claude/skills/s/SKILL.md", "Claude"}, {"/h/p/.kiro/steering/a.md", "Kiro"},
       {"/h/p/.roo/rules/a.md", "Roo"}, {"/h/p/.roo/rules-code/a.md", "Roo"}, {"/h/p/.continue/rules/a.md", "Continue"},
       {"/h/p/.junie/guidelines.md", "Junie"}, {"/h/p/.idx/airules.md", "Gemini"},
+      {"/h/.hermes/SOUL.md", "Hermes"}, {"/h/.hermes/skills/browser/roar/SKILL.md", "Hermes"},
+      {"/h/p/.opencode/agents/review.md", "opencode"}, {"/h/p/.opencode/skills/s/SKILL.md", "opencode"},
+      {"/h/.config/opencode/command/a.md", "opencode"}, {"/h/.config/opencode/skills/s/SKILL.md", "opencode"},
       // Not agent files.
       {"/h/p/README.md", ""}, {"/h/p/rules/a.md", ""}, {"/h/p/.cursor/rules/a.md", ""},
       {"/h/p/.github/instructions/a.md", ""}, {"/h/p/.claude/settings.json", ""}, {"/h/p/skills/s/SKILL.md", ""},
       {"/etc/passwd", ""}, {"/h/p/.junie/other.md", ""}, {"/h/p/.roo/rulesx/a.md", ""},
       {"/h/p/AGENT.md", ""}, {"/h/p/CLAUDE.md.local", ""}, {"/h/p/rules/.claude/a.md", ""},
-      {"/h/p/.github/chatmodes/a.md", ""}, {"/h/.codeium/windsurf/memories/other.md", ""}};
+      {"/h/p/.github/chatmodes/a.md", ""}, {"/h/.codeium/windsurf/memories/other.md", ""},
+      {"/h/p/SOUL.md", ""}, {"/h/p/opencode/agents/a.md", ""}, {"/h/.config/opencode/plugins/a.md", ""}};
   int failures = 0;
   for (auto& c : cases) {
     std::string k = roar::AgentFileKind(c.path);

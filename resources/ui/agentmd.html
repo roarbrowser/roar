@@ -85,13 +85,13 @@ textarea:focus { outline: 2px solid var(--mane); outline-offset: -2px; }
   <div id="confirm" role="alertdialog" aria-label="Unsaved changes" hidden><span>Discard your unsaved changes?</span><button class="btn" id="discard">Discard</button><button class="btn" id="keep">Keep editing</button></div>
   <pre id="text"></pre>
   <textarea id="editor" hidden aria-label="File contents" spellcheck="false"></textarea>
-  <div class="empty" id="empty">Pick a file to read it. Roar looks for CLAUDE.md, AGENTS.md, GEMINI.md, Cursor, Copilot, Windsurf, Cline, Kiro, Roo, Continue and Junie rules, Claude commands, agents and skills, and similar files under your home folder.</div>
+  <div class="empty" id="empty">Pick a file to read it. Roar looks for CLAUDE.md, AGENTS.md, GEMINI.md, Cursor, Copilot, Windsurf, Cline, Kiro, Roo, Continue and Junie rules, Claude and opencode commands, agents and skills, Hermes’s SOUL.md and skills, and similar files under your home folder.</div>
 </main>
 <script src="bridge.js"></script>
 <script>
 const $ = (id) => document.getElementById(id);
 const home = (p) => p.replace(/^\/Users\/[^/]+/, '~');
-const KINDS = ['Claude', 'Cursor', 'Copilot', 'Gemini', 'AGENTS/Codex', 'Windsurf', 'Cline', 'Kiro', 'Roo', 'Continue', 'Junie', 'Aider', 'Other'];
+const KINDS = ['Claude', 'Cursor', 'Copilot', 'Gemini', 'AGENTS/Codex', 'Windsurf', 'Cline', 'Kiro', 'Roo', 'Continue', 'Junie', 'Aider', 'Hermes', 'opencode', 'Other'];
 let files = [], current = '', text = '', collapsed = new Set(), picked = new Set();
 let filter = { q: '', kinds: [], project: '', group: 'project', date: 'mtime', age: '' };
 try { filter = { ...filter, ...JSON.parse(localStorage.getItem('agentFilesFilter') || '{}') }; } catch {}

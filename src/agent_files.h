@@ -49,6 +49,12 @@ inline std::string AgentFileKind(const std::string& path) {
   if (g == ".continue" && d == "rules" && md) return "Continue";
   if (d == ".junie" && n == "guidelines.md") return "Junie";
   if (d == ".idx" && n == "airules.md") return "Gemini";  // Firebase Studio (Gemini).
+  if ((d == ".hermes" && n == "soul.md") || (under(".hermes", "skills") && n == "skill.md")) return "Hermes";
+  // opencode: agents, commands and skills in a project's .opencode/ or in ~/.config/opencode/.
+  for (const char* sub : {"agent", "agents", "command", "commands", "skill", "skills"})
+    if (md && (under(".opencode", sub) || (g == "opencode" && gg == ".config" && d == sub) ||
+               (up.size() > 3 && up[1] == sub && up[2] == "opencode" && up[3] == ".config" && n == "skill.md")))
+      return "opencode";
   return "";
 }
 
@@ -71,7 +77,7 @@ inline std::pair<std::string, std::string> AgentFileProject(const std::string& p
 // Dot-folders the home-folder walk enters (all others are skipped).
 inline const std::set<std::string>& AgentDotDirs() {
   static const std::set<std::string> dots = {".claude", ".codex", ".gemini", ".cursor", ".config", ".github", ".windsurf",
-      ".clinerules", ".kiro", ".roo", ".continue", ".junie", ".idx", ".codeium"};
+      ".clinerules", ".kiro", ".roo", ".continue", ".junie", ".idx", ".codeium", ".hermes", ".opencode"};
   return dots;
 }
 
