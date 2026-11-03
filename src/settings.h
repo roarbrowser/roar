@@ -65,6 +65,7 @@ struct Settings {
   // Key default ids already offered to chat_providers; State::Load adds a newer one once, so removals stick.
   std::string chat_defaults_seen = "openai,anthropic,perplexity";
   std::string chat_model;
+  bool auto_name_tabs = false;  // New tabs get a short name from the chat_model once their first title loads (sidebar.html autoName).
   bool chat_search = false;  // New chats start with "Search the web" on; each chat keeps its own.
   bool auto_name_downloads = false;  // A finished download gets a name from the Ask default model (sidebar.html autoName).
   bool footer_tour = false;  // Onboarding's last step: the sidebar highlights Settings and the space dot.
@@ -147,6 +148,7 @@ inline const std::vector<SettingField>& SettingFields() {
       {"agentTerminal", &Settings::agent_terminal, true},
       {"chatProviders", &Settings::chat_providers, true},
       {"chatModel", &Settings::chat_model, true},
+      {"autoNameTabs", &Settings::auto_name_tabs, true},
       {"chatDefaultsSeen", &Settings::chat_defaults_seen, false},
       {"chatSearch", &Settings::chat_search, true},
       {"afterUpdates", &Settings::after_updates, true},

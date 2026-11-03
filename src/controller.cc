@@ -5468,8 +5468,9 @@ bool Controller::HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> 
     auto closed = [&](int space) { Space* sp = st.FindSpace(space); return from_agent && !(sp && sp->agents); };
     if (kind == "tab") {
       Tab* t = FindTab(int_arg("id"));
-      // From the bridge, only a tab this connection opened.
-      if (!t || t->ghost || closed(t->space) || (from_agent && t->mcp_owner != msg->GetString("owner").ToString()))
+      // From the bridge, only a tab this connection opened, never a ghost tab. The sidebar may name ghost tabs:
+      // SaveNow skips them, so their names stay in memory.
+      if (!t || (t->ghost && from_agent) || closed(t->space) || (from_agent && t->mcp_owner != msg->GetString("owner").ToString()))
         return callback->Failure(0, "No such tab"), true;
       old = t->name, t->name = name;
     } else if (kind == "group") {

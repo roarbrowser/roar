@@ -311,13 +311,37 @@
     + items.map((i) => `${i.key}: ${String(i.title || '').slice(0, 200)}${i.url ? ' (' + String(i.url).slice(0, 300) + ')' : ''}`).join('\n');
   // The model's reply -> {key: name} for the asked keys only; names cut to 80 chars, empty dropped.
   // What one bulk rename covers: "group:3" (the group and its tabs), "all:<space>" (every tab, groups keep their
-  // names) or "ungrouped:<space>". tabs: the active space's, as the sidebar gets them. Ghost tabs are never sent.
+  // names), "ungrouped:<space>", "split:<space>" (both halves of every split pair) or "ghost:<space>" (the Ghost
+  // section: ghost tabs and pairs holding one). tabs: the active space's, as the sidebar gets them. Ghost tabs are
+  // sent only by "ghost:", and only to a chat model (sidebar aiTarget), never an agent session.
   // "sessions:" renames every agent session listed (sessions: [{id}]).
   const renameKeys = (key, tabs, sessions = []) => {
     if (key.startsWith('sessions:')) return sessions.map((c) => 'session:' + c.id);
-    const [kind, id] = key.split(':'), real = tabs.filter((t) => !t.ghost && !/^roar:\/\/ui\/claude\.html/.test(t.url || ''));  // the sidebar hides these (agent full views)
+    const ghostly = (t) => t.ghost || (t.split && tabs.some((o) => o.id === t.splitWith && o.ghost));
+    const [kind, id] = key.split(':'), real = tabs.filter((t) => !ghostly(t) && !/^roar:\/\/ui\/claude\.html/.test(t.url || ''));  // the sidebar hides these (agent full views)
+    if (kind === 'ghost') return tabs.filter(ghostly).map((t) => 'tab:' + t.id);
+    if (kind === 'split') return real.filter((t) => t.split).map((t) => 'tab:' + t.id);
     if (kind === 'group') return [key, ...real.filter((t) => t.group === +id).map((t) => 'tab:' + t.id)];
     return real.filter((t) => kind === 'all' || (!t.group && !t.pinned)).map((t) => 'tab:' + t.id);
+  };
+  // Naming new tabs (settings.autoNameTabs): the "tab:<id>" keys to name now. seen ({ids: {}, spaces: {}}) is kept
+  // by the caller: tabs there before (restored tabs, a space's tabs on its first visit, any tab while off) and
+  // tabs already handled are never named, so each tab is named at most once. Named tabs and pinned tabs outside a
+  // group are skipped (ghost, split and grouped tabs are named); others wait for a real title (not loading, not a
+  // roar:// or about: page, not the URL shown as title).
+  const autoNameKeys = (tabs, seen, space, on) => {
+    const first = !seen.spaces[space], out = [];
+    seen.spaces[space] = true;
+    for (const t of tabs) {
+      if (seen.ids[t.id]) continue;
+      if (!on || first || (t.pinned && !t.group) || t.name) { seen.ids[t.id] = true; continue; }
+      const title = String(t.title || '').trim().toLowerCase(), url = String(t.url || '').toLowerCase();
+      const bare = (u) => u.replace(/^[\w-]+:\/\//, '').replace(/^www\./, '').replace(/\/$/, '');
+      if (t.loading || !title || /^(roar|about|chrome|devtools):/.test(url) || title.includes('://') || url.startsWith(title) || bare(url) === bare(title)) continue;
+      seen.ids[t.id] = true;
+      out.push('tab:' + t.id);
+    }
+    return out;
   };
   const parseNames = (text, keys) => {
     const m = String(text || '').match(/\{[\s\S]*\}/);
@@ -341,7 +365,7 @@
       onSuccess: (chunk) => { for (const d of cli ? lines(chunk) : sse(chunk).map((x) => streamDelta(p.kind, x))) { if (d.text) text += d.text; if (d.error) err = d.error; } },
       onFailure: (code, message) => (code === 0 && !err ? done(text) : fail(new Error(err || `${p.name} failed (${code}) ${String(message || '').slice(0, 200)}`))) });
   });
-  const api = { defaultModel, renamePrompt, renameKeys, parseNames, oneShot, SEARCH_SYSTEM, searchMode, openRequest, addSources, webSearchTool, CLI_PROVIDERS, CLI_LOGIN, signedOutError, pageRefusal, cliStatus, cliPrompt, cliParser, parseProviders, sseParser, streamDelta, requestBody, modelIds, providerStatus, detectProviders, renderMarkdown };
+  const api = { defaultModel, renamePrompt, renameKeys, autoNameKeys, parseNames, oneShot, SEARCH_SYSTEM, searchMode, openRequest, addSources, webSearchTool, CLI_PROVIDERS, CLI_LOGIN, signedOutError, pageRefusal, cliStatus, cliPrompt, cliParser, parseProviders, sseParser, streamDelta, requestBody, modelIds, providerStatus, detectProviders, renderMarkdown };
   if (typeof module === 'object') module.exports = api;
   else globalThis.chatCore = api;
 })();

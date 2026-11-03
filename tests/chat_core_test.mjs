@@ -188,6 +188,27 @@ check(JSON.stringify(core.parseNames('Sure!\n```json\n{"tab:3": " \\"Team  Docs\
   check(core.renameKeys('all:0', tabs).join() === 'tab:1,tab:2,tab:3,tab:5,tab:8,tab:10', 'bulk space: every tab, no groups, no ghosts, no hidden agent tabs');
   check(core.renameKeys('ungrouped:0', tabs).join() === 'tab:2,tab:10', 'bulk ungrouped: every loose tab, no hidden agent tab');
   check(core.renameKeys('sessions:0', tabs, [{ id: 'a-1' }, { id: 'b' }]).join() === 'session:a-1,session:b', 'bulk sessions: every listed session'); }
+{ const tabs = [{ id: 1 }, { id: 2, split: true, splitWith: 3 }, { id: 3, split: true, splitWith: 2 }, { id: 4, ghost: true }, { id: 5, ghost: true, split: true, splitWith: 6 }, { id: 6, split: true, splitWith: 5 },
+    { id: 7, group: 9, kept: true }, { id: 8, group: 9, pinned: true, kept: true }];
+  check(core.renameKeys('split:0', tabs).join() === 'tab:2,tab:3', 'bulk split: both halves of every pair without a ghost tab');
+  check(core.renameKeys('ghost:0', tabs).join() === 'tab:4,tab:5,tab:6', 'bulk ghost: ghost tabs and both halves of a pair holding one');
+  check(!core.renameKeys('all:0', tabs).some((k) => ['tab:4', 'tab:5', 'tab:6'].includes(k)) && !core.renameKeys('group:9', tabs).includes('tab:4'), 'ghost tabs are only in the ghost bulk');
+  check(core.renameKeys('group:9', tabs).join() === 'group:9,tab:7,tab:8', 'bulk group (pinned group): the group and all its tabs, pinned ones too'); }
 check(JSON.stringify(core.parseNames('no json here', ['tab:1'])) === '{}', 'parse names: no JSON -> none');
+// Naming new tabs: restored tabs and tabs opened while off are never named; new ones once, after a real title.
+{ const seen = { ids: {}, spaces: {} }, page = (id, title, more) => ({ id, title, url: 'https://site.test/' + id, ...more });
+  check(core.autoNameKeys([page(1, 'Old')], seen, 0, true).length === 0, 'auto name: tabs there at first render are not named');
+  check(core.autoNameKeys([page(1, 'Old'), page(2, 'Opened while off')], seen, 0, false).length === 0, 'auto name: setting off -> nothing to name');
+  const fresh = [page(3, 'Pricing'), page(4, 'Docs'), page(5, 'Mine', { name: 'My name' }), page(6, 'Pinned', { pinned: true }), page(7, 'Ghost', { ghost: true }),
+    page(8, '', { loading: true }), { id: 9, title: 'about:blank', url: 'about:blank' }, { id: 10, title: 'New tab', url: 'roar://ui/newtab.html' }, page(11, 'site.test/11'), { id: 12, title: 'www.x.test', url: 'https://www.x.test/' },
+    page(14, 'In pinned group', { group: 3, kept: true }), page(15, 'Split half', { split: true, splitWith: 16 }), page(16, 'Other half', { split: true, splitWith: 15 })];
+  const all = [page(1, 'Old'), page(2, 'Opened while off'), ...fresh];
+  check(core.autoNameKeys(all, seen, 0, true).join() === 'tab:3,tab:4,tab:7,tab:14,tab:15,tab:16', 'auto name: new titled tabs (ghost, split, pinned group too) in one batch; named, pinned and not-yet-titled skipped');
+  check(core.autoNameKeys(all, seen, 0, true).length === 0, 'auto name: a tab is never queued twice');
+  all[7] = page(8, 'Loaded'); all.push(page(13, 'GitHub', { url: 'https://github.com/' }));
+  check(core.autoNameKeys(all, seen, 0, true).join() === 'tab:8,tab:13', 'auto name: a tab waits for its first real title');
+  check(core.autoNameKeys([page(17, 'Pinned in group', { pinned: true, group: 3 })], seen, 0, true).join() === 'tab:17', 'auto name: a pinned tab inside a group is named');
+  check(core.autoNameKeys([page(5, 'Mine'), page(6, 'Pinned')], seen, 0, true).length === 0, 'auto name: tabs skipped once stay skipped (unnamed or unpinned later)');
+  check(core.autoNameKeys([page(20, 'Other space')], seen, 1, true).length === 0, "auto name: another space's tabs on its first visit are not named"); }
 console.log(fail ? `${fail} failure(s)` : 'ok');
 process.exit(fail ? 1 : 0);
