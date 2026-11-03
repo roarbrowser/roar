@@ -20,6 +20,8 @@ check(ps[0].kind === 'openai' && ps[0].url === 'http://localhost:11434/v1' && ps
 check(ps[1].name === 'anthropic' && ps[1].key === true, 'names default to id; key flag kept');
 const pp = core.parseProviders(JSON.stringify([{ id: 'perplexity', name: 'Perplexity', url: 'https://api.perplexity.ai', key: true }]))[0];
 check(pp.kind === 'openai' && pp.key === true && pp.url === 'https://api.perplexity.ai', 'perplexity default kept as openai kind with a key');
+const opt = core.parseProviders(JSON.stringify([{ id: 'studio', name: 'Studio', url: 'http://127.0.0.1:18000/v1', key: true, optional: true }, { id: 'o2', url: 'http://x', optional: true }]));
+check(opt[0].key === true && opt[0].optional === true && opt[1].optional === false, 'an added server keeps its optional key; optional needs key:true');
 check(core.parseProviders('{oops').length === 0 && core.parseProviders('{}').length === 0 && core.parseProviders('').length === 0, 'bad JSON gives no providers');
 
 // SSE, OpenAI style, split mid-event and with CRLF.
@@ -53,6 +55,15 @@ check(pst(loc, { probe: [] }).state === 'running', 'a server that answers with n
 check(pst(loc, { installed: true }).state === 'installed' && /ollama serve/.test(pst(loc, { installed: true }).label), 'installed but silent gets a start hint');
 check(pst(loc).state === 'missing' && pst({ id: 'x', key: false }, { installed: true }).label.includes('Start its server'), 'nothing found is missing; unknown app gets a generic hint');
 check(pst(apiP, { hasKey: true }).state === 'available' && pst(apiP).state === 'needs-key', 'API provider is available only with a Keychain key');
+const OPT = { id: 'studio', key: true, optional: true };
+check(pst(OPT, { probe: ['m'] }).state === 'running' && !/Keychain/.test(pst(OPT, { probe: ['m'] }).label), 'added server with no key runs when it answers');
+check(pst(OPT, { probe: ['m'], hasKey: true }).label === 'Running · 1 model · API key in Keychain', 'added server with a key says so');
+check(pst(OPT).state === 'missing' && /Save its API key if it needs one/.test(pst(OPT).label) && /API key in Keychain/.test(pst(OPT, { hasKey: true }).label), 'silent added server suggests a key, or says one is saved');
+const optAsk = (keyed) => (m) => m.cmd === 'chat.keys' ? Promise.resolve({ studio: keyed }) : m.cmd === 'chat.installed' ? Promise.resolve({})
+  : m.provider === 'studio' ? Promise.resolve({ data: [{ id: 'qwen' }] }) : Promise.reject(new Error('refused'));
+const [o1] = await core.detectProviders([OPT], optAsk(false), 50), [o2] = await core.detectProviders([OPT], optAsk(true), 50);
+check(o1.state === 'running' && o1.models.join() === 'qwen' && o1.hasKey === false, 'detect: added server is probed without a key');
+check(o2.state === 'running' && o2.hasKey === true, 'detect: added server with a saved key reports hasKey');
 const fakeAsk = (m) => m.cmd === 'chat.installed' ? Promise.resolve({ lmstudio: true })
   : m.cmd === 'chat.keys' ? Promise.resolve({ openai: true })
   : m.provider === 'jan' ? new Promise(() => {})  // Hangs: must time out.

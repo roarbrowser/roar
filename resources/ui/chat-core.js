@@ -18,7 +18,8 @@
       const kind = p.kind || 'openai', url = String(p.url || '').trim().replace(/\/+$/, '');
       if (!KINDS.includes(kind) || !/^https?:\/\/[^\s/]+/.test(url)) continue;
       seen.add(p.id);
-      out.push({ id: p.id, kind, name: String(p.name || p.id).slice(0, 60), url, key: p.key === true });
+      // optional: a server added in Settings, which may or may not want a key (oMLX, LiteLLM, vLLM --api-key).
+      out.push({ id: p.id, kind, name: String(p.name || p.id).slice(0, 60), url, key: p.key === true, optional: p.key === true && p.optional === true });
     }
     return out;
   };
@@ -132,6 +133,8 @@
   };
   const RANK = { running: 0, available: 1, installed: 2, 'needs-key': 3, 'signed-out': 3, missing: 4 };
   const providerStatus = (p, { probe = null, installed = false, hasKey = false } = {}) => {
+    if (p.optional) return probe ? { state: 'running', label: `Running · ${probe.length} model${probe.length === 1 ? '' : 's'}${hasKey ? ' · API key in Keychain' : ''}` }
+      : { state: 'missing', label: hasKey ? 'Not answering · API key in Keychain' : 'Not answering. Save its API key if it needs one.' };
     if (p.key) return hasKey ? { state: 'available', label: 'API key in Keychain' } : { state: 'needs-key', label: 'Needs an API key' };
     if (probe) return { state: 'running', label: `Running · ${probe.length} model${probe.length === 1 ? '' : 's'}` };
     if (installed) return { state: 'installed', label: 'Installed, not running. ' + (START_HINTS[p.id] || 'Start its server.') };
@@ -150,12 +153,12 @@
         const st = cliStatus(p, clis?.[p.cli]);
         return { ...p, ...st, models: st.state === 'missing' ? [] : p.models };
       }
-      const probe = p.key && !keys?.[p.id] ? null : await Promise.race([
+      const probe = p.key && !p.optional && !keys?.[p.id] ? null : await Promise.race([
         ask({ cmd: 'chat.request', provider: p.id, what: 'models' }).then((r) => modelIds(typeof r === 'string' ? r : JSON.stringify(r))),
         late(null),
       ]).catch(() => null);
       const models = probe?.length ? probe : p.key && keys?.[p.id] && PPLX.test(p.url) ? PPLX_MODELS : probe || [];
-      return { ...p, models, ...providerStatus(p, { probe, installed: !!installed?.[p.id], hasKey: !!keys?.[p.id] }) };
+      return { ...p, models, hasKey: !!keys?.[p.id], ...providerStatus(p, { probe, installed: !!installed?.[p.id], hasKey: !!keys?.[p.id] }) };
     }));
     return out.map((p, i) => [p, i]).sort((a, b) => RANK[a[0].state] - RANK[b[0].state] || a[1] - b[1]).map(([p]) => p);
   };

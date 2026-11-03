@@ -3,8 +3,8 @@
 // Connect installs Roar's session hooks (claude.hooks) and adds Roar to its MCP config (agents.connect).
 // Needs bridge.js and cl-session.js (AGENT_TOOLS, agentIcon).
 
-// Same ids and order as kLlms (controller.cc).
-const LLMS = [['chatgpt', 'ChatGPT'], ['claude', 'Claude'], ['gemini', 'Gemini'], ['perplexity', 'Perplexity'], ['grok', 'Grok'],
+// Same ids and order as kLlms (controller.cc), plus "model": Roar's own Model chat (askModel in command.html, sidebar.html).
+const LLMS = [['model', 'Model chat'], ['chatgpt', 'ChatGPT'], ['claude', 'Claude'], ['gemini', 'Gemini'], ['perplexity', 'Perplexity'], ['grok', 'Grok'],
   ['mistral', 'Le Chat'], ['deepseek', 'DeepSeek'], ['copilot', 'Copilot'], ['kimi', 'Kimi']];
 // A hooked CLI's id in agents.list (agent_connect.cc).
 const CLI_MCP = { claude: 'claude-code', codex: 'codex', gemini: 'gemini', copilot: 'copilot-cli' };

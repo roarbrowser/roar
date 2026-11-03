@@ -59,6 +59,7 @@ const COMMANDS = [
     { id: 'askLlm:deepseek', title: 'DeepSeek', keys: '', words: 'llm ai' },
     { id: 'askLlm:copilot', title: 'Copilot', keys: '', words: 'llm ai microsoft bing' },
     { id: 'askLlm:kimi', title: 'Kimi', keys: '', words: 'llm ai moonshot' },
+    { id: 'askLlm:model', title: 'Model chat', ask: 'Ask a model about this page', keys: '', words: 'llm ai local model chat ollama' },
   ] },
   { id: 'modelChat', title: 'Ask a model', keys: '', words: 'ask ai llm chat ollama lm studio llama jan openai anthropic gpt claude local model direct' },
   { id: 'agentChat', title: 'Ask your terminal agent about this page', keys: '', words: 'ai chat claude code codex gemini qwen copilot cli session terminal' },
@@ -132,7 +133,7 @@ const syncLlms = () => ask({ cmd: 'state' }).then((st) => {
   const pick = ALL_LLMS.find((c) => c.id.slice(7) === (st.settings?.askLlms || '').split(',')[0]);
   const at = COMMANDS.indexOf(ASK);
   if (at >= 0) COMMANDS.splice(at, 1);
-  if (pick) COMMANDS.unshift(Object.assign(ASK, { id: pick.id, title: `Ask ${pick.title} about this page`, words: ASK.words + ' ' + pick.words }));
+  if (pick) COMMANDS.unshift(Object.assign(ASK, { id: pick.id, title: pick.ask || `Ask ${pick.title} about this page`, words: ASK.words + ' ' + pick.words }));
 }).catch(() => {});
 // Open board… lists this space's boards, and only shows up once there is one.
 const BOARD = COMMANDS.find((c) => c.id === 'openBoard');
@@ -263,6 +264,9 @@ function closeSubmenu() {
 function choose(it) {
   if (!it) return;
   if (it.children) openSubmenu(it);
+  // Model chat as the ⌘T AI: Roar's own chat, with the active tab attached (chat.html #ask=<tab id>).
+  else if (it.id === 'askLlm:model') ask({ cmd: 'state' }).then((st) => (typeof st === 'string' ? JSON.parse(st) : st).tabs.find((t) => t.active))
+    .then((t) => ask({ cmd: 'open', text: 'roar://ui/chat.html#ask=' + (t?.id ?? ''), newTab: true }));
   else if (it.type === 'run') ask({ cmd: 'run', id: it.id });
   else if (it.type === 'tab' || (it.type === 'text' && it.id)) ask({ cmd: 'tab.activate', id: it.id });
   else if (it.type === 'text') ask({ cmd: 'open', text: it.url, newTab });

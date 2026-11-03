@@ -360,6 +360,9 @@ $('log').addEventListener('click', (e) => {
 });
 
 (async () => {
+  // #ask=<tab id>: opened by "Ask a model about this page" (⌘T with Model chat chosen); attach that tab, never another.
+  const askId = /^#ask=(\d+)$/.exec(location.hash)?.[1];
+  if (askId) history.replaceState(null, '', location.href.split('#')[0]);
   try { chats = await ask({ cmd: 'chat.history' }); } catch { chats = []; }
   if (!Array.isArray(chats)) chats = [];
   show(chats.find((c) => c.id === location.hash.slice(1)) || newChat());
@@ -370,7 +373,18 @@ $('log').addEventListener('click', (e) => {
   if (!chat.messages.length) chat.search = searchDefault;
   pickWebTab(st);
   $('model').innerHTML = '<option value="">Looking for models…</option>';
-  loadModels(st);  // Detection runs in the background; the page is usable meanwhile.
+  const asked = askId && st.tabs.find((t) => t.id === +askId);
+  if (askId && (!asked || asked.ghost || !/^https?:/.test(asked.url || ''))) note(asked?.ghost ? 'Ghost tabs stay private' : 'Open a web page first');
+  // Detection runs in the background; the page is usable meanwhile.
+  loadModels(st).then(() => {
+    if (!askId) return;
+    $('text').focus();
+    if (!asked || asked.ghost || !/^https?:/.test(asked.url || '')) return;
+    webTab = asked;
+    paintAttach();
+    if (!$('attach').disabled) $('attach').click();
+    else if (pageRefusal(picked())) note(pageRefusal(picked()));
+  });
   // Tabs change while the chat is open; keep "Include this tab" pointing at the latest one.
   setInterval(() => ask({ cmd: 'state' }).then((x) => pickWebTab(typeof x === 'string' ? JSON.parse(x) : x)).catch(() => {}), 5000);
 })();

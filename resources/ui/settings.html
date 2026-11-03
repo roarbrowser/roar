@@ -573,7 +573,7 @@ async function chatRefresh(st) {
     : `<div class="row" data-p="${esc(p.id)}"><span class="name">${esc(p.name)}<small data-state="${p.state || ''}">${esc(p.label || 'Checking…')}</small></span>
     <span class="end"><input type="text" class="query" data-url value="${esc(p.url)}" aria-label="${esc(p.name)} URL" spellcheck="false" style="width:240px">
     ${p.get ? `<button class="btn" data-get="${esc(p.get)}">Get ${esc(p.name)}</button>` : ''}
-    ${p.key ? `<input type="password" data-key placeholder="${p.state === 'available' ? '••••••••' : 'API key'}" aria-label="${esc(p.name)} API key" autocomplete="off" style="width:150px"><button class="btn" data-savekey>Save key</button>${p.state === 'available' ? '<button class="btn" data-delkey>Remove key</button>' : ''}` : '<button class="btn" data-remove>Remove</button>'}</span></div>`;
+    ${p.key ? `<input type="password" data-key placeholder="${p.hasKey ? '••••••••' : p.optional ? 'API key (optional)' : 'API key'}" aria-label="${esc(p.name)} API key" autocomplete="off" style="width:150px"><button class="btn" data-savekey>Save key</button>${p.hasKey ? '<button class="btn" data-delkey>Remove key</button>' : ''}` : ''}${!p.key || p.optional ? '<button class="btn" data-remove>Remove</button>' : ''}</span></div>`;
   const addRow = $('chat-add-row');  // Lives in More: moved back in after every repaint.
   const paint = (rows) => {
     if (box.contains(document.activeElement)) return;  // Don't rebuild under the cursor.
@@ -623,7 +623,10 @@ $('chat-providers').addEventListener('click', async (e) => {
       await ask({ cmd: 'chat.keySet', provider: id, key: k });
       row.querySelector('[data-key]').value = '';
     } else if (e.target.matches('[data-delkey]')) await ask({ cmd: 'chat.keySet', provider: id, key: '' });
-    else if (e.target.matches('[data-remove]')) return chatSave(list.filter((p) => p.id !== id));
+    else if (e.target.matches('[data-remove]')) {
+      if (list.find((p) => p.id === id)?.key) await ask({ cmd: 'chat.keySet', provider: id, key: '' }).catch(() => {});  // No orphan key left in the Keychain.
+      return chatSave(list.filter((p) => p.id !== id));
+    }
     else return;
     e.target.blur();
     chatRefresh(last.settings);
@@ -634,7 +637,7 @@ $('chat-add').onclick = () => {
   if (!name || !/^https?:\/\/\S+$/.test(url)) return $('chat-add-url').focus();
   let id = name.toLowerCase().replace(/[^\w-]+/g, '-').slice(0, 30) || 'server';
   while (list.some((p) => p.id === id)) id += '-2';
-  list.push({ id, name, url });
+  list.push({ id, name, url, key: true, optional: true });
   $('chat-add-name').value = $('chat-add-url').value = '';
   $('chat-add').blur();  // The row sits inside #chat-providers now; paint skips while focus is in there.
   chatSave(list);
