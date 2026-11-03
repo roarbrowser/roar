@@ -138,8 +138,9 @@ port 9444) started on demand.
   not a stray window, so you can watch, take over, or close what the agent is doing.
 - **Agents per profile.** Right-click a space (or use Settings) to allow or block agents in
   it. Blocked spaces and ghost tabs are hidden from CDP entirely, so agents can't list or
-  attach to them; with several spaces allowed, the agent asks you which to use (or calls
-  `use_profile`), and its new pages open there.
+  attach to them, and blocking a space disconnects agents already attached to its tabs; with
+  several spaces allowed, the agent asks you which to use (or calls `use_profile`), and its new
+  pages open there.
 - **One click to cut it off.** The dot under the settings icon shows whether agents can
   reach the current space (hover for the port, connected agents and allowed spaces); click
   it to allow or block agents in this space. Settings > "Allow agents to connect" closes

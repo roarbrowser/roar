@@ -484,6 +484,7 @@ class Controller {
   void DictationEnsure();
   void DictationSet(const std::string& state, const std::string& detail = "");
   void (*cdp_http_)(int port) = nullptr;  // Roar's CEF patch: opens (port) or closes (0) it live.
+  void (*cdp_detach_hidden_)() = nullptr;  // Roar's CEF patch: drops CDP clients from targets AgentMayReach now refuses.
   void SetCdp(bool on);
   int gmail_refresh_gen_ = 0;  // Debounces refreshes while the mail tab navigates.
   int command_height_ = 0;

@@ -1305,6 +1305,7 @@ void Controller::Start() {
     if (auto set = reinterpret_cast<void (*)(Hook)>(sym("roar_set_create_target_hook")))
       set([](const char* url) { return Controller::Get()->OpenTargetTab(url); });
     cdp_http_ = reinterpret_cast<void (*)(int)>(sym("roar_devtools_http"));
+    cdp_detach_hidden_ = reinterpret_cast<void (*)()>(sym("roar_devtools_detach_hidden"));
     // Hides ghost tabs and spaces with agents off from CDP clients (scripts/cef-patches).
     using Filter = bool (*)(int, const char*);
     if (auto filter = reinterpret_cast<void (*)(Filter)>(sym("roar_set_devtools_target_filter")))
@@ -5320,6 +5321,8 @@ bool Controller::HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> 
     // Whether agents (CDP clients) may see and open this space's tabs.
     if (Space* sp = State::Get().FindSpace(int_arg("id"))) {
       sp->agents = msg->GetBool("on");
+      // The filter only hides targets; agents already attached must be cut off too.
+      if (!sp->agents && cdp_detach_hidden_) cdp_detach_hidden_();
       PushSidebar();
       SaveSoon();
     }
