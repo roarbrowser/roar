@@ -220,5 +220,14 @@
       <description><![CDATA[Site tweaks: a built-in manager for userscripts and userstyles. Install any .user.js or .user.css link, use the GM APIs and UserCSS settings, and import your Violentmonkey, Tampermonkey or Stylus backups. Boards: a canvas in each space for tab screenshots, links, notes and drawings (command bar › New board). New tabs and finished downloads can be named with AI; both are off by default in Settings, and ghost tabs are never named automatically. Rename with AI also works on split pairs and ghost tabs, and asks before sending a ghost tab's title and address.]]></description>
       <enclosure url="https://github.com/roarbrowser/roar/releases/download/v1.8.0/Roar-1.8.0.dmg" type="application/octet-stream" sparkle:edSignature="AKpClPXD+XDe2utJKSTL+HW/sKpvK5+BInUpnRRZyFITAW6GU32HxpOFvncIZTc+i84X1uppxuPWWJGzORMVBg==" length="207822579"/>
     </item>
+    <item>
+      <title>1.9.0</title>
+      <pubDate>Tue, 03 Nov 2026 02:55:41 +0000</pubDate>
+      <sparkle:version>10900</sparkle:version>
+      <sparkle:shortVersionString>1.9.0</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[Connect Hermes Agent and opencode from Settings > Agents. opencode now shows as connected when its config is opencode.json. Agent Files lists Hermes SOUL.md and skills, and opencode agents, commands and skills.]]></description>
+      <enclosure url="https://github.com/roarbrowser/roar/releases/download/v1.9.0/Roar-1.9.0.dmg" type="application/octet-stream" sparkle:edSignature="fgUjJw5vs+9sinezc4bG6oPaa5cZdxtbnVDHM6RFqztVhe8y9+CcBcQA0ioMsopj+8ZcuORTIQai6T9NemvsCA==" length="207841984"/>
+    </item>
   </channel>
 </rss>
