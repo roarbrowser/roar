@@ -43,7 +43,7 @@ const agentsShown = async () => (await cdp((x) => x.url.includes('settings.html'
 const waitFor = async (f) => { for (let i = 0; i < 30; i++) { const v = await f(); if (v) return v; await sleep(250); } };
 const cleanup = () => { try { roar.kill('SIGKILL'); } catch {} rmSync(data, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 }); };
 try {
-  await start();
+  await start(); await sleep(2000); // the sidebar is listed before its bridge (ask) is ready
   const set = async (expr) => (await cdp((x) => x.url.includes('settings.html'), 'Runtime.evaluate', { expression: expr, awaitPromise: true, returnByValue: true }))?.result?.value;
   // Desktop-only stand-in: no claude CLI, Claude.app present (chat.clis reports it), and a leftover MCP entry claiming connected.
   const fake = `(() => { const a = window.ask; window.ask = (m) => m.cmd === 'chat.clis' ? Promise.resolve({ claude: 'desktop-only' })
@@ -143,7 +143,7 @@ try {
   const sf = join(data, 'state.json'), sj = JSON.parse(readFileSync(sf, 'utf8'));
   sj.tabs.push({ ...sj.tabs.find((t) => /chat\.html/.test(t.url)), url: 'https://example.com/', title: 'Claude', askLlm: 'Claude' });
   writeFileSync(sf, JSON.stringify(sj));
-  await start();
+  await start(); await sleep(2000); // the sidebar is listed before its bridge (ask) is ready
   await sleep(1500);
   // Unpinned tabs come back through Reopen last session (Controller lastSession).
   await sidebar(`ask({cmd:'run',id:'lastSession'})`);
