@@ -226,7 +226,7 @@ body.drag-active .pinned:empty::before { content: 'Drop to pin'; color: var(--in
 .cl-ic .agent-icon { display: block; }
 .cl-ic .ask-badge { position: absolute; right: -4px; bottom: -4px; width: 9px; height: 9px; border-radius: 3px; background: var(--ground); color: var(--ink-2); display: grid; place-items: center; }
 .cl-ic .ask-badge svg { width: 9px; height: 9px; }
-/* Code (agent sessions) and Ask (chats) subheads, shown only when both kinds are listed. */
+/* Subheads: Code (agent sessions) and Ask (chats) when both are listed, or one per service when several are. */
 .cl-sub { margin: 6px 10px 2px; font: 600 10.5px var(--ui); letter-spacing: .04em; text-transform: uppercase; color: var(--ink-3); }
 .cl-ic .dot { position: absolute; right: -3px; bottom: -3px; width: 7px; height: 7px; margin: 0; box-shadow: 0 0 0 2px var(--ground); }
 .cl-acts { position: absolute; top: 5px; right: 4px; display: flex; gap: 1px; padding-left: 14px; opacity: 0; pointer-events: none; transition: opacity .12s ease-out;
@@ -690,7 +690,7 @@ window.roar = {
       send: '<svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 13V3.5M4 7.2L8 3.2l4 4"/></svg>',
     };
     // "Claude is waiting for your input" → "Waiting for your input": the icon already names the tool.
-    const tidy = (t) => (t || '').replace(/^(Claude|Codex|Gemini|Qwen|Copilot)( Code| CLI)? (is|has|needs) /i, (m, a, b, v) => v.toLowerCase() === 'is' ? '' : v + ' ').replace(/^./, (x) => x.toUpperCase());
+    const tidy = (t) => (t || '').replace(/^(Claude|Codex|Gemini|Qwen|Copilot|OpenCode)( Code| CLI)? (is|has|needs) /i, (m, a, b, v) => v.toLowerCase() === 'is' ? '' : v + ' ').replace(/^./, (x) => x.toUpperCase());
     const attachAttrs = webTab ? `title="Send the tab you're looking at, with a prompt if you like: Roar saves it as Markdown and types @file into the session's prompt"` : 'aria-disabled="true" title="Switch to a web page first: only web pages can be sent"';
     const clRow = (c) => {
       const st = needs(c) ? 'needs_you' : c.state === 'needs_you' ? 'working' : (c.state || 'idle');
@@ -744,7 +744,8 @@ window.roar = {
     // Ask chats: one row each, like a session, its icon and name saying which model it was with.
     const chatTool = (c) => c.brand || (/^cli-/.test(c.model || '') ? c.model.slice(4).split('|')[0] : 'model');
     const chatIcon = (c) => AGENT_TOOLS[chatTool(c)] ? agentIcon(chatTool(c), 16) : '<svg class="agent-icon" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="var(--ink-2)" stroke-width="1.5" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 3.5h11v7h-6l-3 2.5v-2.5h-2z"/></svg>';
-    const chatWho = (c) => [c.brandName || (AGENT_TOOLS[chatTool(c)] ? agentName(chatTool(c)) : 'Model'), (c.model || '').split('|').slice(1).join('|')].filter((x) => x && x !== 'default').join(' · ');
+    const chatService = (c) => c.brandName || AGENT_TOOLS[chatTool(c)]?.[0] || 'Model';
+    const chatWho = (c) => [chatService(c), (c.model || '').split('|').slice(1).join('|')].filter((x) => x && x !== 'default').join(' · ');
     const chatTab = (c) => state.tabs.find((t) => t.url === 'roar://ui/chat.html#' + c.id);
     // A just-opened Ask tab has no chat yet: it shows here as New chat until its first message.
     // An "Ask your AI about this page" tab (askLlm) shows the same way, with the AI's name.
@@ -752,13 +753,20 @@ window.roar = {
       `<div class="row pr cl${t.active ? ' active' : ''}" data-chattab="${t.id}"><button class="clmain" aria-label="New chat${t.askLlm ? ' with ' + esc(t.askLlm) : ''}. Open"><span class="cl-ic">${chatIcon({})}</span><span class="label"><span class="cl-name"><b>New chat</b></span><small>${esc(t.askLlm || 'Ask')}</small></span></button><span class="cl-acts"><button data-chatclose="${t.id}" title="Close" aria-label="Close New chat">${x}</button></span></div>`).join('');
     // The 8 newest chats, plus any open in a tab so every Ask tab has a row.
     const chatsSorted = (s.chats || []).slice().sort((a, b) => b.updated - a.updated);
-    const chatRows = newChats + chatsSorted.filter((c, i) => i < 8 || chatTab(c)).map((c) =>
+    const chatList = chatsSorted.filter((c, i) => i < 8 || chatTab(c));
+    const chatRow = (c) =>
       `<div class="row pr cl${chatTab(c)?.active ? ' active' : ''}" data-chatid="${esc(c.id)}" title="${esc(c.title)}"><button class="clmain" aria-label="${esc(chatWho(c))}: ${esc(c.title || 'Untitled')}. Open"><span class="cl-ic">${chatIcon(c)}<span class="ask-badge" aria-hidden="true"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M1.5 2.5h13v8.5h-7l-3.5 3v-3h-2.5z"/></svg></span></span>` +
       `<span class="label"><span class="cl-name"><b>${esc(c.title || 'Untitled')}</b><time>${clAgo(c.updated)}</time></span><small>${esc(chatWho(c))}</small></span></button>` +
-      `<span class="cl-acts">${chatTab(c) ? `<button data-chatclose="${chatTab(c).id}" title="Close" aria-label="Close ${esc(c.title)}">${x}</button>` : ''}<button data-chatdel="${esc(c.id)}" title="Delete this chat" aria-label="Delete ${esc(c.title)}">${ico.hide}</button></span></div>`).join('');
+      `<span class="cl-acts">${chatTab(c) ? `<button data-chatclose="${chatTab(c).id}" title="Close" aria-label="Close ${esc(c.title)}">${x}</button>` : ''}<button data-chatdel="${esc(c.id)}" title="Delete this chat" aria-label="Delete ${esc(c.title)}">${ico.hide}</button></span></div>`;
     const clHidRow = clHid ? `<button class="note cl-hidden" data-clshowhidden>${clShowHidden ? 'Done showing' : 'Show'} ${clHid} hidden</button>` : '';
+    // One heading per service once more than one is listed. Sessions keep Agent order so a group never jumps when one
+    // starts; a single service stays a plain list under Code and Ask.
+    const clSub = (t) => `<div class="cl-sub" aria-hidden="true">${esc(t)}</div>`;
+    const codeGroups = clGroups(clVis, agentTool, agentOrder(s)), chatGroups = clGroups(chatList, chatService);
+    const codeRows = codeGroups.length > 1 ? codeGroups.map((g) => clSub(AGENT_TOOLS[g.key][0]) + g.rows.map(clRow).join('')).join('') : clVis.map(clRow).join('');
+    const chatRows = newChats + (chatGroups.length > 1 ? chatGroups.map((g) => clSub('Ask · ' + g.key) + g.rows.map(chatRow).join('')).join('') : chatList.map(chatRow).join(''));
     const both = (starting || clVis.length) && chatRows;
-    setHtml($('cl'), (both ? '<div class="cl-sub" aria-hidden="true">Code</div>' : '') + starting + (clVis.map(clRow).join('') + (both ? '<div class="cl-sub" aria-hidden="true">Ask</div>' : '') + chatRows || (starting || afRow ? '' : '<div class="note">No sessions yet. Press Code to start a coding agent, or Ask to talk to a model.</div>')) + clHidRow + afRow);
+    setHtml($('cl'), (both && codeGroups.length < 2 ? clSub('Code') : '') + starting + (codeRows + (both && (chatGroups.length < 2 || newChats) ? clSub('Ask') : '') + chatRows || (starting || afRow ? '' : '<div class="note">No sessions yet. Press Code to start a coding agent, or Ask to talk to a model.</div>')) + clHidRow + afRow);
     // An Ask tab becoming active opens AI, so its row (the only place it shows) is visible.
     const askNow = state.tabs.find((t) => t.active && askTab(t))?.id || 0;
     if (askNow && askNow !== askActive) {

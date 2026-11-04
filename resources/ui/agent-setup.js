@@ -7,7 +7,7 @@
 const LLMS = [['model', 'Model chat'], ['chatgpt', 'ChatGPT'], ['claude', 'Claude'], ['gemini', 'Gemini'], ['perplexity', 'Perplexity'], ['grok', 'Grok'],
   ['mistral', 'Le Chat'], ['deepseek', 'DeepSeek'], ['copilot', 'Copilot'], ['kimi', 'Kimi']];
 // A hooked CLI's id in agents.list (agent_connect.cc).
-const CLI_MCP = { claude: 'claude-code', codex: 'codex', gemini: 'gemini', copilot: 'copilot-cli' };
+const CLI_MCP = { claude: 'claude-code', codex: 'codex', gemini: 'gemini', copilot: 'copilot-cli', opencode: 'opencode' };
 // Claude Desktop without the claude CLI (chat.clis "desktop-only"): every Claude Code row and button shows this instead.
 const CLAUDE_INSTALL = 'curl -fsSL https://claude.ai/install.sh | bash';
 const claudeInstallHtml = () => `<span class="as-install" role="note"><small class="status warn">The Claude app is installed, but Roar’s agent features need Claude Code, its command-line tool.</small><span class="as-fix"><code>${CLAUDE_INSTALL}</code><button type="button" class="btn" data-copytext="${CLAUDE_INSTALL}" aria-label="Copy the Claude Code install command">Copy</button></span><small>Then run claude once in Terminal to sign in.</small></span>`;

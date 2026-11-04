@@ -1548,7 +1548,7 @@ bool Controller::AgentConnected(const std::string& tool) const {
 }
 
 void Controller::CheckAgentHooks() {
-  static const std::map<std::string, std::string> kNames = {{"claude", "Claude Code"}, {"codex", "Codex"}, {"gemini", "Gemini CLI"}, {"qwen", "Qwen Code"}, {"copilot", "Copilot CLI"}};
+  static const std::map<std::string, std::string> kNames = {{"claude", "Claude Code"}, {"codex", "Codex"}, {"gemini", "Gemini CLI"}, {"qwen", "Qwen Code"}, {"copilot", "Copilot CLI"}, {"opencode", "OpenCode"}};
   if (hook_card_) ResolveAlert(std::exchange(hook_card_, 0), "");
   auto& set = State::Get().settings;
   // Onboarding has its own agent step; the warning waits until it's done.
@@ -2527,7 +2527,7 @@ void Controller::AgentStart(const std::string& dir, const std::string& prompt, s
   std::string tool = State::Get().settings.agent_tool;
   auto connected = [this](const std::string& t) { return agent_hooks_.find("\n" + t + " installed") != std::string::npos; };
   if (!connected(tool))
-    for (const char* t : {"claude", "codex", "gemini", "qwen", "copilot"})
+    for (const char* t : {"claude", "codex", "gemini", "qwen", "copilot", "opencode"})
       if (connected(t)) { tool = t; break; }
   platform::RoarMcp({"claude-ctl", "new", dir, prompt, tool},
                     [this, dir, tabs, open_view, done](const std::string& out) {
@@ -3055,7 +3055,7 @@ void Controller::ClaudeAlert(CefRefPtr<CefDictionaryValue> d) {
   if (state != "idle" && state != "needs_you") return;
   NotifyPref pref = NotifyGet(set.notifications, state == "idle" ? "sessionDone" : "sessionNeeds");
   if (!set.claude_sidebar || !pref.on) return;
-  static const std::map<std::string, std::string> kNames = {{"codex", "Codex"}, {"gemini", "Gemini CLI"}, {"qwen", "Qwen Code"}, {"copilot", "Copilot CLI"}};
+  static const std::map<std::string, std::string> kNames = {{"codex", "Codex"}, {"gemini", "Gemini CLI"}, {"qwen", "Qwen Code"}, {"copilot", "Copilot CLI"}, {"opencode", "OpenCode"}};
   auto name = kNames.find(d->GetString("tool").ToString());
   std::string tool = name == kNames.end() ? std::string("Claude Code") : name->second;
   std::string title = d->GetString("project").ToString() + (state == "idle" ? " is done" : " needs you");
@@ -5617,7 +5617,7 @@ bool Controller::HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> 
     // replies the per-tool status.
     bool on = msg->GetBool("on");
     std::string tool = msg->GetString("tool").ToString();
-    static const std::set<std::string> kTools = {"claude", "codex", "gemini", "qwen", "copilot"};
+    static const std::set<std::string> kTools = {"claude", "codex", "gemini", "qwen", "copilot", "opencode"};
     if (!tool.empty() && !kTools.count(tool)) return callback->Failure(0, "unknown tool"), true;
     std::vector<std::string> args = {"agent-hooks", on ? "install" : "uninstall"};
     // Turned off on purpose: don't bring these hooks back at the next launch.

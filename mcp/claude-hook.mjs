@@ -1,4 +1,4 @@
-// Agent sessions (Claude Code, Codex, Gemini, Qwen, Copilot CLIs) in Roar's sidebar. Modes of roar-mcp:
+// Agent sessions (Claude Code, Codex, Gemini, Qwen, Copilot, OpenCode CLIs) in Roar's sidebar. Modes of roar-mcp:
 //   roar-mcp agent-hook <tool> [event]         a CLI's hook: reads the event JSON on stdin and writes
 //                                              <Roar data>/claude-sessions/<key>.json (key: the Claude
 //                                              session id, else <tool>-<session id>)
@@ -19,6 +19,7 @@ import { basename, delimiter, isAbsolute, join } from 'node:path';
 import { execFileSync, spawn } from 'node:child_process';
 import { homedir } from 'node:os';
 import { chat, runningWork, transcriptFor, tail } from './agent-chat.mjs';
+import { pluginSource } from './agent-opencode.mjs';
 
 const WIN = process.platform === 'win32';
 const HOME = process.env.HOME || homedir();
@@ -51,19 +52,22 @@ export const TOOLS = {
   // https://docs.github.com/en/copilot/reference/copilot-cli-reference/cli-hooks-reference
   copilot: { name: 'Copilot CLI', dir: () => process.env.COPILOT_HOME || join(HOME, '.copilot'), file: 'hooks/roar.json', own: true,
     events: ['sessionStart', 'userPromptSubmitted', 'preToolUse', 'notification', 'agentStop', 'sessionEnd'] },
+  // No shell hooks: a TUI plugin of Roar's (agent-opencode.mjs), listed in cli.json, sends this hook Claude-shaped events.
+  opencode: { name: 'OpenCode', dir: () => join(process.env.XDG_CONFIG_HOME || join(HOME, '.config'), 'opencode'), file: 'cli.json', plugin: true, events: [] },
 };
 const short = (s, n) => (s = String(s || '').replace(/\s+/g, ' ').trim()).length > n ? s.slice(0, n - 1) + '…' : s;
 
 // What a tool call means in a few words.
-// Gemini/Qwen and Copilot name their built-in tools differently; mapped onto Claude's.
+// Gemini/Qwen, Copilot and OpenCode name their built-in tools differently; mapped onto Claude's.
 const ALIASES = { write_file: 'Write', replace: 'Edit', edit: 'Edit', create: 'Write', apply_patch: 'Edit', read_file: 'Read', view: 'Read',
+  read: 'Read', write: 'Write', webfetch: 'WebFetch', websearch: 'WebSearch', subagent: 'Agent',
   run_shell_command: 'Bash', shell: 'Bash', bash: 'Bash', exec_command: 'Bash', glob: 'Glob', grep: 'Grep', search_file_content: 'Grep',
   google_web_search: 'WebSearch', web_fetch: 'WebFetch', web_search: 'WebSearch' };
 export function describe(tool, input = {}) {
   tool = ALIASES[tool] || tool;
   if (typeof input === 'string') try { input = JSON.parse(input); } catch { input = {}; }
   input ||= {};
-  const file = input.file_path || input.notebook_path || input.path;
+  const file = input.file_path || input.filePath || input.notebook_path || input.path;
   if (/^(Edit|MultiEdit|Write|NotebookEdit)$/.test(tool)) return `Editing ${basename(file || 'a file')}`;
   if (tool === 'Read') return `Reading ${basename(file || 'a file')}`;
   if (tool === 'Bash') return short(input.description || `Running ${input.command || 'a command'}`, 70);
@@ -150,11 +154,13 @@ const WAITING = 'Done, waiting for you';  // An idle session Roar can type into 
 export function update(prev, ev, now, tool = 'claude') {
   const s = { ...prev, id: keyOf(tool, ev.session_id), sid: ev.session_id, tool, cwd: ev.cwd || prev.cwd || '', updated: now };
   if (ev.hook_event_name === 'UserPromptSubmit') s.first ||= short(userText(ev.prompt), 60);
-  s.name = (ev.transcript_path && customTitle(ev.transcript_path)) || prev.name || '';
+  // OpenCode's plugin sends the session's own title.
+  s.name = (tool === 'opencode' && ev.title) || (ev.transcript_path && customTitle(ev.transcript_path)) || prev.name || '';
   s.project = s.name || (isScratch(s.cwd) ? scratchName(s.first) : basename(s.cwd || '') || TOOLS[tool]?.name || tool);
   s.started ||= now;
   switch (ev.hook_event_name) {
-    case 'SessionStart': return { ...s, state: 'idle', doing: 'Started' };
+    // OpenCode's plugin starts a row again when a terminal opens that session: it only claims the terminal.
+    case 'SessionStart': return tool === 'opencode' && prev.state ? s : { ...s, state: 'idle', doing: 'Started' };
     case 'UserPromptSubmit': return { ...s, state: 'working', prompt: short(userText(ev.prompt), 120) || prev.prompt, reply: '', doing: 'Thinking', pending: '' };
     case 'PreToolUse': return { ...s, state: 'working', doing: describe(ev.tool_name, ev.tool_input), pending: asking(ev.tool_name, ev.tool_input) };
     case 'Notification': {
@@ -233,6 +239,8 @@ function hook(tool, argEvent) {
   if (!TOOLS[tool]) return;
   try { ev = normalize(tool, JSON.parse(readFileSync(0, 'utf8')), argEvent); } catch { return; }
   if (!ev || typeof ev.session_id !== 'string' || !/^[\w-]+$/.test(ev.session_id)) return;
+  // Started by Roar in a folder the session may not report back (OpenCode on a remote server): start() names its stand-in.
+  if (ok(process.env.ROAR_STUB, /^new-\d+$/)) rmSync(join(DIR, process.env.ROAR_STUB + '.json'), { force: true });
   const file = join(DIR, keyOf(tool, ev.session_id) + '.json');
   // An ended session leaves <key>.ended, so a late async hook can't bring its row back.
   const ended = file.replace(/\.json$/, '.ended');
@@ -254,7 +262,12 @@ function hook(tool, argEvent) {
   if (prev.updated > now) return;
   mkdirSync(DIR, { recursive: true });
   const next = update(prev, ev, now, tool);
-  if (!next.term || ev.hook_event_name === 'SessionStart') next.term = where();
+  // watch: an OpenCode session seen from a terminal not showing it. Only that terminal's pid (the row goes with it), and
+  // never over the terminal that does show it.
+  if (!next.term || (ev.hook_event_name === 'SessionStart' && !ev.watch)) {
+    const w = where();
+    next.term = ev.watch ? { pid: w.pid } : w;
+  }
   next.live = !!(next.term.tmux?.pane || next.term.cmux);
   if (!next.live && next.doing === WAITING) next.doing = 'Done';  // Roar can't type its reply; that goes in its own app.
   const tmp = `${file}.${process.pid}.tmp`;  // One per hook process, so concurrent hooks never share it.
@@ -283,6 +296,7 @@ export function hooksFor(t, action, exe) {
     try { cfg = JSON.parse(readFileSync(file, 'utf8')); }
     catch { throw new Error(`${file.replace(HOME, '~')} is not valid JSON; not touching it`); }
   }
+  if (T.plugin) return pluginFor(t, action, exe, cfg);
   const has = (e) => T.own ? cfg.hooks?.[e]?.some(OURS) : cfg.hooks?.[e]?.some((m) => m.hooks?.some(OURS));
   const installed = T.events.every(has);
   // Installed by a Roar at another path (moved, or a copy since deleted): the CLI runs a missing program.
@@ -305,6 +319,29 @@ export function hooksFor(t, action, exe) {
     if (kept.length) cfg.hooks[e] = kept; else delete cfg.hooks[e];
   }
   if (!Object.keys(cfg.hooks).length) delete cfg.hooks;
+  if (existsSync(file) && !existsSync(file + '.roar.bak')) copyFileSync(file, file + '.roar.bak');
+  writeFileSync(file + '.tmp', JSON.stringify(cfg, null, 2) + '\n');
+  renameSync(file + '.tmp', file);
+  return action === 'install' ? 'installed' : 'not installed';
+}
+
+// hooksFor for a CLI with a plugin instead of hooks: Roar's folder listed in |cfg|.plugins. The plugin text changes with
+// Roar, so any difference reads as outdated and Roar's launch check rewrites it.
+function pluginFor(t, action, exe, cfg) {
+  const T = TOOLS[t], file = join(T.dir(), T.file), folder = join(T.dir(), 'roar-plugin'), code = join(folder, 'tui.js');
+  const list = Array.isArray(cfg.plugins) ? cfg.plugins : [];
+  if (action === 'status') {
+    if (!list.includes(folder) || !existsSync(code)) return binOf(t) ? 'not installed' : 'absent';
+    return readFileSync(code, 'utf8') === pluginSource(exe) ? 'installed' : 'outdated';
+  }
+  const kept = list.filter((p) => p !== folder);
+  if (action === 'install') {
+    mkdirSync(folder, { recursive: true });
+    writeFileSync(code + '.tmp', pluginSource(exe));
+    renameSync(code + '.tmp', code);
+    kept.push(folder);
+  } else rmSync(folder, { recursive: true, force: true });
+  if (kept.length) cfg.plugins = kept; else delete cfg.plugins;
   if (existsSync(file) && !existsSync(file + '.roar.bak')) copyFileSync(file, file + '.roar.bak');
   writeFileSync(file + '.tmp', JSON.stringify(cfg, null, 2) + '\n');
   renameSync(file + '.tmp', file);
@@ -354,6 +391,7 @@ const CLIS = {
   gemini: { args: (p) => ['-i', p] },
   qwen: { args: (p) => ['-i', p] },
   copilot: { args: (p) => ['-i', p] },
+  opencode: { bin: [join(HOME, '.opencode/bin/opencode')], args: (p) => ['--prompt', p] },
 };
 const binOf = (tool) => [...BIN_DIRS.map((d) => join(d, tool)), ...(CLIS[tool].bin || [])].flatMap((p) => EXTS.map((x) => p + x)).find((p) => existsSync(p));
 
@@ -378,12 +416,14 @@ function start(dir, prompt, tool = 'claude') {
   if (!CLIS[tool]) throw new Error('unknown agent CLI');
   const bin = binOf(tool);
   if (!bin) throw new Error(`${TOOLS[tool].name} is not installed (no ${tool} command found)`);
-  const cmd = [bin, ...(prompt ? CLIS[tool].args(prompt.slice(0, 2000)) : [])].map(sq).join(' ');
+  let cmd = [bin, ...(prompt ? CLIS[tool].args(prompt.slice(0, 2000)) : [])].map(sq).join(' ');
   const name = isScratch(dir) ? scratchName(prompt) : basename(dir) || tool;
   if (WIN) return startWindows(dir, bin, prompt ? CLIS[tool].args(prompt.slice(0, 2000)) : [], name);
   // Until the CLI's own hook runs (Claude's after it asks whether to trust the folder), a stand-in entry
   // lets Roar show the new terminal; the first real event for this folder replaces it.
   const now = Date.now(), stub = { id: `new-${now}`, tool, cwd: dir, project: name, state: 'starting', doing: 'Starting…', started: now, updated: now, live: true, term: {} };
+  // OpenCode's session may report another folder (its server's), so the event can't match this stand-in by cwd.
+  if (tool === 'opencode') cmd = `ROAR_STUB=${stub.id} ${cmd}`;
   if (existsSync(CMUX)) {
     const out = run1(CMUX, ['new-workspace', '--name', name, '--cwd', dir, '--command', cmd, '--focus', 'false']);
     const ws = /workspace:\d+/.exec(out)?.[0];
