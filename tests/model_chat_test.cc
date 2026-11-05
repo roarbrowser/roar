@@ -159,6 +159,18 @@ int main() {
     check(roar::ChatDefaultsToAdd({{"pp", "https://api.perplexity.ai/v1"}}, defs, old).empty(), "merge: /v1 is the same server");
     check(roar::ChatDefaultsToAdd({{"perplexity", "https://x"}}, defs, old).empty(), "merge: same id is no duplicate");
   }
+  // OpenCode servers: the password goes only where these servers live, and only these calls go at all.
+  for (const char* u : {"http://192.168.1.50:4096/api/event", "http://10.0.0.2:4096", "http://172.20.1.1:4096/x", "http://100.100.1.1:4096", "http://studio.local:4096", "http://box.lan/x", "https://oc.example.com/api", "http://127.0.0.1:4096"})
+    check(roar::ChatServerAuthAllowed(u), (std::string("password may go to ") + u).c_str());
+  for (const char* u : {"http://8.8.8.8:4096", "http://example.com:4096", "http://172.32.0.1", "http://192.169.1.1", "http://192.168.1.1.evil.com", "http://local:80", "http://x@192.168.1.1/", "ftp://192.168.1.1", "http://100.128.0.1"})
+    check(!roar::ChatServerAuthAllowed(u), (std::string("no password to ") + u).c_str());
+  for (auto [m, p] : std::vector<std::pair<const char*, const char*>>{{"GET", "/api/event"}, {"POST", "/api/session"}, {"POST", "/api/session/ses_1/prompt"}, {"POST", "/api/session/ses_1/interrupt"}, {"DELETE", "/api/session/ses_1"}, {"POST", "/api/session/ses_1/permission/per_2/reply"}})
+    check(roar::OpencodeCallAllowed(m, p), (std::string("allowed: ") + m + " " + p).c_str());
+  for (auto [m, p] : std::vector<std::pair<const char*, const char*>>{{"GET", "/api/session"}, {"DELETE", "/api/session"}, {"POST", "/api/event"}, {"POST", "/api/session/ses_1/shell"}, {"POST", "/api/session/ses_1/command"}, {"GET", "/api/session/ses_1"}, {"POST", "/api/session/../prompt"}, {"POST", "/api/config"}, {"POST", "api/session/s/prompt"}, {"POST", "/api/session/s/permission/p/other"}, {"POST", "/api/session/s/prompt?x=1"}, {"POST", ""}})
+    check(!roar::OpencodeCallAllowed(m, p), (std::string("refused: ") + m + " [" + p + "]").c_str());
+  check(roar::OpencodeSessionBody(false, "/w") == R"({"title":"Roar Ask","permissions":[{"action":"*","resource":"*","effect":"deny"}]})", "tools off: deny-all, no folder");
+  check(roar::OpencodeSessionBody(true, "") == R"({"title":"Roar Ask"})", "tools on: no rules of Roar's");
+  check(roar::OpencodeSessionBody(true, "/a\"b") == R"({"title":"Roar Ask","location":{"directory":"/a\"b"}})", "the folder is escaped");
   std::printf(failures ? "%d failure(s)\n" : "ok\n", failures);
   return failures ? 1 : 0;
 }

@@ -1,7 +1,7 @@
 // Model chat (chat.html): the pure parts, no DOM and no bridge, so tests/chat_core_test.mjs runs them
 // in node. Requests themselves go through Roar (chat.request), which adds the API key from the Keychain.
 (() => {
-  const KINDS = ['openai', 'anthropic'];
+  const KINDS = ['openai', 'anthropic', 'opencode'];
   const PPLX = /^https:\/\/api\.perplexity\.ai(\/|$)/;
   // Perplexity's /models may not answer; these keep its picker filled once a key is saved.
   const PPLX_MODELS = ['sonar', 'sonar-pro', 'sonar-reasoning-pro', 'sonar-deep-research'];
@@ -19,7 +19,9 @@
       if (!KINDS.includes(kind) || !/^https?:\/\/[^\s/]+/.test(url)) continue;
       seen.add(p.id);
       // optional: a server added in Settings, which may or may not want a key (oMLX, LiteLLM, vLLM --api-key).
-      out.push({ id: p.id, kind, name: String(p.name || p.id).slice(0, 60), url, key: p.key === true, optional: p.key === true && p.optional === true });
+      // opencode: a server the user's own terminals use. tools: its agent may act there (Settings); off, the session has none.
+      out.push({ id: p.id, kind, name: String(p.name || p.id).slice(0, 60), url, key: p.key === true, optional: p.key === true && p.optional === true,
+        ...(kind === 'opencode' && { tools: p.tools === true, dir: String(p.dir || '').trim().slice(0, 300) }) });
     }
     return out;
   };
@@ -70,6 +72,31 @@
     return found ? { ...text, ...src(found, true) } : text;
   };
 
+  // An OpenCode server's event stream, read for one session, as run() needs it: { connected }, { text }, { done }, { error },
+  // { permission } to answer, { form } it can't, { tool } it's using. getSid: the session, unknown until it's made.
+  // A subagent's session counts: its approvals block the turn just the same.
+  const opencodeEvents = (getSid) => {
+    const kids = new Set();
+    return (data) => {
+      let e;
+      try { e = JSON.parse(data); } catch { return {}; }
+      const d = e.data || {}, sid = getSid(), from = d.sessionID || d.form?.sessionID;
+      if (e.type === 'server.connected') return { connected: true };
+      if (e.type === 'session.created' && d.parentID && (d.parentID === sid || kids.has(d.parentID))) { kids.add(d.sessionID); return {}; }
+      if (!sid || (from !== sid && !kids.has(from))) return {};
+      if (e.type === 'permission.asked') return { permission: { id: d.id, session: from, text: d.message || [d.action, d.resources?.[0]].filter(Boolean).join(': ') } };
+      if (e.type === 'form.created') return { form: d.form?.title || 'a question' };
+      if (e.type === 'session.tool.input.started') return { tool: d.name };
+      if (from !== sid) return {};
+      if (e.type === 'session.text.delta') return { text: d.delta };
+      if (e.type === 'session.text.ended') return { text: '\n\n' };
+      if (e.type === 'session.execution.succeeded') return { done: true };
+      if (e.type === 'session.execution.interrupted') return d.reason === 'superseded' ? {} : { done: true };
+      if (e.type === 'session.execution.failed') return { error: d.error?.message || 'it failed' };
+      return {};
+    };
+  };
+
   // Chat history -> the provider's request body. A user turn with a page carries it as Markdown.
   // A local model's web search (m.search, from chat.search) rides in the user turn between markers carrying a
   // random tag, so text from the web can't fake the end of the block. It is data, never instructions.
@@ -101,7 +128,7 @@
   // How "Search the web" works for provider `p`: 'anthropic' and 'responses' use the API's own tool, 'local' has
   // Roar search in a ghost page, '' can't (agent CLIs: their own tools are off).
   // 'builtin': Perplexity searches on every answer, so the toggle has nothing to add.
-  const searchMode = (p) => !p || p.kind === 'cli' ? '' : p.kind === 'anthropic' ? 'anthropic'
+  const searchMode = (p) => !p || p.kind === 'cli' || p.kind === 'opencode' ? '' : p.kind === 'anthropic' ? 'anthropic'
     : /^https:\/\/api\.openai\.com(\/|$)/.test(p.url) ? 'responses' : PPLX.test(p.url) ? 'builtin' : 'local';
   // The link a local model asked Roar to open ("OPEN: <url>" as its whole reply), or ''.
   const openRequest = (text) => (String(text).trim().match(/^OPEN:\s*(https?:\/\/\S+)$/) || [])[1] || '';
@@ -133,6 +160,8 @@
   };
   const RANK = { running: 0, available: 1, installed: 2, 'needs-key': 3, 'signed-out': 3, missing: 4 };
   const providerStatus = (p, { probe = null, installed = false, hasKey = false } = {}) => {
+    if (p.kind === 'opencode') return probe ? { state: 'running', label: `Connected · ${p.tools ? 'its agent can use tools there' : 'answers only, no tools'}` }
+      : { state: 'missing', label: hasKey ? 'Not answering. Check its URL and password.' : 'Not answering. Save its password if it has one.' };
     if (p.optional) return probe ? { state: 'running', label: `Running · ${probe.length} model${probe.length === 1 ? '' : 's'}${hasKey ? ' · API key in Keychain' : ''}` }
       : { state: 'missing', label: hasKey ? 'Not answering · API key in Keychain' : 'Not answering. Save its API key if it needs one.' };
     if (p.key) return hasKey ? { state: 'available', label: 'API key in Keychain' } : { state: 'needs-key', label: 'Needs an API key' };
@@ -154,7 +183,8 @@
         return { ...p, ...st, models: st.state === 'missing' ? [] : p.models };
       }
       const probe = p.key && !p.optional && !keys?.[p.id] ? null : await Promise.race([
-        ask({ cmd: 'chat.request', provider: p.id, what: 'models' }).then((r) => modelIds(typeof r === 'string' ? r : JSON.stringify(r))),
+        // An OpenCode server answers with its sessions, and uses its own default model.
+        ask({ cmd: 'chat.request', provider: p.id, what: 'models' }).then((r) => (p.kind === 'opencode' ? ['default'] : modelIds(typeof r === 'string' ? r : JSON.stringify(r)))),
         late(null),
       ]).catch(() => null);
       const models = probe?.length ? probe : p.key && keys?.[p.id] && PPLX.test(p.url) ? PPLX_MODELS : probe || [];
@@ -182,7 +212,8 @@
       isolation: 'Every tool switched off (needs opencode 2), though your opencode plugins and MCP servers still start, and chats stay in its session history. ' + SANDBOX + ' It may also reach servers on this Mac (local models).' },
   ].map((p) => ({ ...p, kind: 'cli', key: false, url: '' }));
   // Why page text may not go to provider `p`, or '' when it may.
-  const pageRefusal = (p) => !p || p.kind !== 'cli' || p.pages ? ''
+  const pageRefusal = (p) => p?.kind === 'opencode' ? (p.tools ? `${p.name} can use tools, and a web page could tell it to. Turn its tools off in Settings, or use another model, to include a tab.` : '')
+    : !p || p.kind !== 'cli' || p.pages ? ''
     : `${p.name} can't be fully cut off from your files, so Roar won't send it web pages (a page could tell it to read them). Use Claude Code or an API model to include a tab.`;
   // CLIs with a sign-in command Roar can run (chat.login); gemini and qwen sign in only from their own prompt.
   const CLI_LOGIN = ['claude', 'codex'];
@@ -382,7 +413,7 @@
       onSuccess: (chunk) => { for (const d of cli ? lines(chunk) : sse(chunk).map((x) => streamDelta(p.kind, x))) { if (d.text) text += d.text; if (d.error) err = d.error; } },
       onFailure: (code, message) => (code === 0 && !err ? done(text) : fail(new Error(err || `${p.name} failed (${code}) ${String(message || '').slice(0, 200)}`))) });
   });
-  const api = { defaultModel, renamePrompt, renameKeys, autoNameKeys, parseNames, oneShot, SEARCH_SYSTEM, searchMode, openRequest, addSources, webSearchTool, CLI_PROVIDERS, CLI_LOGIN, signedOutError, pageRefusal, cliStatus, cliPrompt, cliParser, parseProviders, sseParser, streamDelta, requestBody, modelIds, providerStatus, detectProviders, renderMarkdown };
+  const api = { opencodeEvents, defaultModel, renamePrompt, renameKeys, autoNameKeys, parseNames, oneShot, SEARCH_SYSTEM, searchMode, openRequest, addSources, webSearchTool, CLI_PROVIDERS, CLI_LOGIN, signedOutError, pageRefusal, cliStatus, cliPrompt, cliParser, parseProviders, sseParser, streamDelta, requestBody, modelIds, providerStatus, detectProviders, renderMarkdown };
   if (typeof module === 'object') module.exports = api;
   else globalThis.chatCore = api;
 })();

@@ -5720,7 +5720,7 @@ bool Controller::HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> 
       if (msg->HasKey("scratch") && msg->GetBool("scratch")) return AgentScratch(text, tabs, false, reply), true;
       return AgentStart(msg->GetString("id").ToString(), text, tabs, false, reply), true;
     }
-    if (action == "tools" || action == "cmux") return platform::RoarMcp({"claude-ctl", action}, [callback](const std::string& out) { callback->Success(out); }), true;
+    if (action == "tools" || action == "cmux" || action == "opencode-server") return platform::RoarMcp({"claude-ctl", action}, [callback](const std::string& out) { callback->Success(out); }), true;
     if (action != "focus" && action != "screen" && action != "send" && action != "chat" && action != "quit" && action != "resize" && action != "running" && action != "paste") return callback->Failure(0, "bad action"), true;
     std::vector<std::string> args = {"claude-ctl", action, msg->GetString("id").ToString()};
     if (action == "send" || action == "screen" || action == "resize" || action == "paste") args.push_back(msg->GetString("text").ToString());
@@ -5754,37 +5754,47 @@ bool Controller::HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> 
     });
   } else if (cmd == "chat.request") {
     // {provider, what: "models"|"chat", body}: see ChatRequest.
-    std::string id = msg->GetString("provider"), kind = "openai", base;
+    // what "opencode", {method, path, body}: one call to an OpenCode server (OpencodeCallAllowed).
+    std::string id = msg->GetString("provider"), kind = "openai", base, dir;
+    bool tools = false;
     if (auto list = CefParseJSON(State::Get().settings.chat_providers, JSON_PARSER_RFC); list && list->GetType() == VTYPE_LIST)
       for (size_t i = 0, n = list->GetList()->GetSize(); i < n; ++i)
         if (auto p = list->GetList()->GetDictionary(i); p && p->GetString("id") == id) {
           if (p->GetString("kind") == "anthropic") kind = "anthropic";
+          if (p->GetString("kind") == "opencode") kind = "opencode", tools = p->GetBool("tools"), dir = p->GetString("dir").ToString();
           base = p->GetString("url").ToString();
           while (!base.empty() && base.back() == '/') base.pop_back();
         }
-    std::string what = msg->GetString("what"), url = ChatEndpoint(kind, base, what);
+    std::string what = msg->GetString("what"), method = msg->GetString("method"), path = msg->GetString("path"), body = msg->GetString("body");
+    bool server = what == "opencode";
+    if (server && (kind != "opencode" || !OpencodeCallAllowed(method, path))) return callback->Failure(-1, "Not a call Model chat makes"), true;
+    if (server && path == "/api/session") body = OpencodeSessionBody(tools, dir);
+    std::string url = server && !base.empty() ? base + path : ChatEndpoint(kind, base, what);
     if (url.empty()) return callback->Failure(-1, "Unknown provider or URL"), true;
     auto http = CefRequest::Create();
     http->SetURL(url);
     http->SetFlags(UR_FLAG_DISABLE_CACHE);
     CefRequest::HeaderMap headers;
-    if (std::string key = platform::SecretGet(id); !key.empty() && ChatKeyAllowed(url)) {
-      if (kind == "anthropic") headers.insert({"x-api-key", key});
+    if (std::string key = platform::SecretGet(id); !key.empty() && (kind == "opencode" ? ChatServerAuthAllowed(url) : ChatKeyAllowed(url))) {
+      if (kind == "opencode") {
+        std::string login = "opencode:" + key;
+        headers.insert({"Authorization", "Basic " + CefBase64Encode(login.data(), login.size()).ToString()});
+      } else if (kind == "anthropic") headers.insert({"x-api-key", key});
       else headers.insert({"Authorization", "Bearer " + key});
     }
     if (kind == "anthropic") headers.insert({"anthropic-version", "2023-06-01"});
-    bool stream = what == "chat" || what == "responses";
-    if (stream) {
-      std::string body = msg->GetString("body");
+    bool stream = what == "chat" || what == "responses" || (server && path == "/api/event");
+    if (server && method != "GET") http->SetMethod(method);
+    if (!body.empty() && (what == "chat" || what == "responses" || server)) {
       auto post = CefPostData::Create();
       auto el = CefPostDataElement::Create();
       el->SetToBytes(body.size(), body.data());
       post->AddElement(el);
-      http->SetMethod("POST");
+      http->SetMethod(server ? method : "POST");
       http->SetPostData(post);
       headers.insert({"Content-Type", "application/json"});
-      headers.insert({"Accept", "text/event-stream"});
     }
+    if (stream) headers.insert({"Accept", "text/event-stream"});
     http->SetHeaderMap(headers);
     int bid = browser->GetIdentifier();
     auto req = CefURLRequest::Create(http, new ChatRequest(bid, stream, callback), CefRequestContext::GetGlobalContext());

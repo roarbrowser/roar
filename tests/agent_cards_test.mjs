@@ -62,6 +62,7 @@ try {
   let all = await cards();
   const a1 = mine(all, A)[0];
   check(a1?.chat === 'proj-alpha' && a1.owner === A.owner && a1.alive && !a1.ask && a1.until > 0, 'a card carries its folder, connection and expiry: ' + JSON.stringify(a1));
+  await until(() => evalIn('sidebar.html', `!!document.querySelector('[data-alert="${a1.id}"] .who')`));  // Drawn on the sidebar's next push.
   const shown = await evalIn('sidebar.html', `document.querySelector('[data-alert="${a1.id}"] .who').textContent`);
   check(shown.includes('proj-alpha'), 'the sidebar card shows the chat name: ' + shown);
 

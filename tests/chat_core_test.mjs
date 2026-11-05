@@ -238,5 +238,29 @@ check(JSON.stringify(core.parseNames('no json here', ['tab:1'])) === '{}', 'pars
   check(core.autoNameKeys([page(7, 'Ghost, later'), page(18, 'Half'), page(19, 'Ghost half', { ghost: true })], seen, 0, true).length === 0, 'auto name: a skipped ghost tab stays skipped');
   check(core.autoNameKeys([page(5, 'Mine'), page(6, 'Pinned')], seen, 0, true).length === 0, 'auto name: tabs skipped once stay skipped (unnamed or unpinned later)');
   check(core.autoNameKeys([page(20, 'Other space')], seen, 1, true).length === 0, "auto name: another space's tabs on its first visit are not named"); }
+// OpenCode servers.
+{
+  const oc = core.parseProviders(JSON.stringify([{ id: 'studio', kind: 'opencode', name: 'S', url: 'http://10.0.0.2:4096/', key: true, optional: true, tools: true, dir: ' /w ' }, { id: 'p', kind: 'opencode', url: 'http://x', tools: 'yes' }, { id: 'o', url: 'http://y' }]));
+  check(oc[0].kind === 'opencode' && oc[0].tools === true && oc[0].dir === '/w' && oc[0].url === 'http://10.0.0.2:4096', 'an OpenCode server keeps its tools and folder');
+  check(oc[1].tools === false && !('tools' in oc[2]), 'tools only when truly on, and only for OpenCode');
+  check(core.searchMode(oc[0]) === '', 'no web search through it');
+  check(/can use tools/.test(core.pageRefusal(oc[0])) && core.pageRefusal(oc[1]) === '', 'pages refused with tools on, allowed with none');
+  const ev = (sid, ...list) => { const f = core.opencodeEvents(() => sid); return list.map((e) => f(JSON.stringify(e))); };
+  const s = (type, data) => ({ type, data: { sessionID: 'a', ...data } });
+  check(ev('', { type: 'server.connected', data: {} })[0].connected === true, 'connected, before any session');
+  check(ev('a', s('session.text.delta', { delta: 'hi' }))[0].text === 'hi', 'text streams');
+  check(JSON.stringify(ev('a', { type: 'session.text.delta', data: { sessionID: 'other', delta: 'x' } })[0]) === '{}', 'another session\'s text is ignored');
+  check(ev('a', s('session.execution.succeeded'))[0].done && ev('a', s('session.execution.interrupted', { reason: 'user' }))[0].done, 'finished or stopped ends the turn');
+  check(JSON.stringify(ev('a', s('session.execution.interrupted', { reason: 'superseded' }))[0]) === '{}', 'a superseded run doesn\'t');
+  check(ev('a', s('session.execution.failed', { error: { message: 'no model' } }))[0].error === 'no model', 'a failure says why');
+  const p = ev('a', { type: 'permission.asked', data: { id: 'per', sessionID: 'a', action: 'shell', resources: ['git push'] } })[0].permission;
+  check(p.id === 'per' && p.session === 'a' && p.text === 'shell: git push', 'an approval names what it wants');
+  const kid = ev('a', { type: 'session.created', data: { sessionID: 'k', parentID: 'a' } }, { type: 'permission.asked', data: { id: 'p2', sessionID: 'k', action: 'read' } }, { type: 'session.text.delta', data: { sessionID: 'k', delta: 'x' } }, { type: 'session.execution.succeeded', data: { sessionID: 'k' } });
+  check(kid[1].permission?.session === 'k' && !kid[2].text && !kid[3].done, 'a subagent asks too, but its text and finish aren\'t the reply');
+  check(ev('a', { type: 'form.created', data: { form: { sessionID: 'a', title: 'Which?' } } })[0].form === 'Which?', 'a form is reported');
+  check(JSON.stringify(core.opencodeEvents(() => 'a')('not json')) === '{}', 'bad events are skipped');
+  check(core.providerStatus(oc[1], { probe: ['default'] }).label.includes('no tools') && core.providerStatus(oc[0], { probe: ['default'] }).label.includes('tools there'), 'its status says which mode');
+  check(core.providerStatus(oc[1], {}).state === 'missing', 'not answering');
+}
 console.log(fail ? `${fail} failure(s)` : 'ok');
 process.exit(fail ? 1 : 0);

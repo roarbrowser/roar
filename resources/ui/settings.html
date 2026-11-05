@@ -193,8 +193,8 @@ p.reason a { color: inherit; }
       <h3>Your subscriptions</h3>
       <p class="reason" id="code-copy">Coding assistants you've installed use your own plan, no API key. Each runs in a macOS sandbox: it reads only its own folders and reaches the network over HTTPS. Only Claude Code can be sent a tab.</p>
       <div id="chat-providers"></div>
-      <div class="row" id="chat-add-row"><span class="name">Add an OpenAI-compatible server<small>Any server with /v1/chat/completions, like vLLM or LiteLLM.</small></span>
-        <span class="end"><input type="text" id="chat-add-name" placeholder="Name" aria-label="New server name" style="width:110px"><input type="text" id="chat-add-url" class="query" placeholder="http://localhost:8000/v1" aria-label="New server URL" style="width:220px"><button class="btn" id="chat-add">Add</button></span></div>
+      <div class="row" id="chat-add-row"><span class="name">Add a server<small>Any server with /v1/chat/completions, like vLLM or LiteLLM, or an OpenCode server, which answers with its own default model.</small><span hidden>Add an OpenAI-compatible server</span></span>
+        <span class="end"><select id="chat-add-kind" aria-label="Server type"><option value="openai">OpenAI-compatible</option><option value="opencode">OpenCode server</option></select><input type="text" id="chat-add-name" placeholder="Name" aria-label="New server name" style="width:110px"><input type="text" id="chat-add-url" class="query" placeholder="http://localhost:8000/v1" aria-label="New server URL" style="width:220px"><button class="btn" id="chat-add">Add</button></span></div>
     </section>
 
     <section id="agents"><h2>Agents</h2>
@@ -636,7 +636,14 @@ $('search').oninput = () => {
 // and detected providers move to the top.
 async function chatRefresh(st) {
   const list = [...chatCore.parseProviders(st.chatProviders), ...chatCore.CLI_PROVIDERS], box = $('chat-providers'), sel = $('chat-default');
-  const row = (p) => p.kind === 'cli' ? `<div class="row" data-p="${esc(p.id)}"><span class="name">${esc(p.name)}<small data-state="${p.state || ''}">${esc(p.label || 'Checking…')}</small>${p.run ? `<span class="fix"><code>${esc(p.run)}</code><button class="btn" data-copy="${esc(p.run)}">Copy</button><button class="btn" data-recheck>Check again</button></span>` : ''}${p.login ? `<span class="fix"><button class="btn" data-login="${esc(p.login)}">Sign in</button></span>` : ''}${p.after ? `<small>${esc(p.after)}</small>` : ''}</span><span class="end"><small style="max-width:360px">${esc(p.isolation.replace(/\s*Runs under a macOS sandbox.*$/, ''))}</small></span></div>`
+  // An OpenCode server: a password instead of a key, and whether its agent may use tools.
+  const plain = (u) => /^http:/.test(u) && !/^http:\/\/(localhost|127\.0\.0\.1)[:/]/.test(u);
+  const ocRow = (p) => `<div class="row" data-p="${esc(p.id)}"><span class="name">${esc(p.name)}<small data-state="${p.state || ''}">${esc(p.label || 'Checking…')}</small>${plain(p.url) ? '<small>Its password crosses your network unencrypted.</small>' : ''}</span>
+    <span class="end"><input type="text" class="query" data-url value="${esc(p.url)}" aria-label="${esc(p.name)} URL" spellcheck="false" style="width:240px">
+    <input type="password" data-key placeholder="${p.hasKey ? '••••••••' : 'Password (if it has one)'}" aria-label="${esc(p.name)} password" autocomplete="off" style="width:170px"><button class="btn" data-savekey>Save password</button>${p.hasKey ? '<button class="btn" data-delkey>Remove password</button>' : ''}<button class="btn" data-remove>Remove</button></span></div>
+    <div class="row" data-p="${esc(p.id)}"><label class="name" for="oc-t-${esc(p.id)}">Let ${esc(p.name)} use tools<small>Ask runs as its agent, under that server's own permission rules: it can read files and run commands there. Web pages can't be included while this is on.</small></label><input type="checkbox" class="switch" id="oc-t-${esc(p.id)}" data-tools${p.tools ? ' checked' : ''}></div>
+    ${p.tools ? `<div class="row" data-p="${esc(p.id)}"><span class="name">Work in<small>A folder on that server. Blank uses its default.</small></span><input type="text" class="query" data-dir value="${esc(p.dir)}" aria-label="${esc(p.name)} working folder" spellcheck="false" style="width:240px"></div>` : ''}`;
+  const row = (p) => p.kind === 'opencode' ? ocRow(p) : p.kind === 'cli' ? `<div class="row" data-p="${esc(p.id)}"><span class="name">${esc(p.name)}<small data-state="${p.state || ''}">${esc(p.label || 'Checking…')}</small>${p.run ? `<span class="fix"><code>${esc(p.run)}</code><button class="btn" data-copy="${esc(p.run)}">Copy</button><button class="btn" data-recheck>Check again</button></span>` : ''}${p.login ? `<span class="fix"><button class="btn" data-login="${esc(p.login)}">Sign in</button></span>` : ''}${p.after ? `<small>${esc(p.after)}</small>` : ''}</span><span class="end"><small style="max-width:360px">${esc(p.isolation.replace(/\s*Runs under a macOS sandbox.*$/, ''))}</small></span></div>`
     : `<div class="row" data-p="${esc(p.id)}"><span class="name">${esc(p.name)}<small data-state="${p.state || ''}">${esc(p.label || 'Checking…')}</small></span>
     <span class="end"><input type="text" class="query" data-url value="${esc(p.url)}" aria-label="${esc(p.name)} URL" spellcheck="false" style="width:240px">
     ${p.get ? `<button class="btn" data-get="${esc(p.get)}">Get ${esc(p.name)}</button>` : ''}
@@ -664,6 +671,12 @@ async function chatRefresh(st) {
 const chatSave = (list) => set({ chatProviders: JSON.stringify(list) }).then(() => chatRefresh(last.settings));
 $('chat-default').onchange = () => set({ chatModel: $('chat-default').value });
 $('chat-providers').addEventListener('change', (e) => {
+  if (e.target.matches('[data-tools], [data-dir]')) {
+    const list = chatCore.parseProviders(last.settings.chatProviders), p = list.find((x) => x.id === e.target.closest('[data-p]').dataset.p);
+    if (e.target.matches('[data-tools]')) p.tools = e.target.checked; else p.dir = e.target.value.trim();
+    e.target.blur();
+    return void chatSave(list);
+  }
   if (!e.target.matches('[data-url]')) return;
   const id = e.target.closest('[data-p]').dataset.p, list = chatCore.parseProviders(last.settings.chatProviders);
   const p = list.find((x) => x.id === id), url = e.target.value.trim();
@@ -699,12 +712,20 @@ $('chat-providers').addEventListener('click', async (e) => {
     chatRefresh(last.settings);
   } catch (err) { alert(err.message); }
 });
+// OpenCode keeps no setting for its server, so offer the one a running terminal uses.
+$('chat-add-kind').onchange = async () => {
+  const oc = $('chat-add-kind').value === 'opencode';
+  $('chat-add-url').placeholder = oc ? 'http://192.168.1.10:4096' : 'http://localhost:8000/v1';
+  if (!oc || $('chat-add-url').value) return;
+  const url = await clSession.ctl('', 'opencode-server');
+  if (/^https?:\/\//.test(url)) { $('chat-add-url').value = url.trim(); $('chat-add-name').value ||= 'OpenCode server'; }
+};
 $('chat-add').onclick = () => {
   const name = $('chat-add-name').value.trim(), url = $('chat-add-url').value.trim(), list = chatCore.parseProviders(last.settings.chatProviders);
   if (!name || !/^https?:\/\/\S+$/.test(url)) return $('chat-add-url').focus();
   let id = name.toLowerCase().replace(/[^\w-]+/g, '-').slice(0, 30) || 'server';
   while (list.some((p) => p.id === id)) id += '-2';
-  list.push({ id, name, url, key: true, optional: true });
+  list.push({ id, name, url, key: true, optional: true, ...($('chat-add-kind').value === 'opencode' && { kind: 'opencode', tools: false }) });
   $('chat-add-name').value = $('chat-add-url').value = '';
   $('chat-add').blur();  // The row sits inside #chat-providers now; paint skips while focus is in there.
   chatSave(list);

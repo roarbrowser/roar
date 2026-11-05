@@ -9,6 +9,7 @@
 //                                              (cmux, else tmux, else Terminal; Windows: wt.exe, else a console)
 //   roar-mcp claude-ctl tools                  prints the installed CLIs' ids, one per line
 //   roar-mcp claude-ctl cmux                   whether Roar can drive cmux: ok, none, or why not
+//   roar-mcp claude-ctl opencode-server        the URL a running OpenCode terminal uses, or nothing
 //   roar-mcp claude-ctl chat <session> [process start ms]   the session as chat JSON (mcp/agent-chat.mjs)
 //   roar-mcp claude-ctl focus|screen|send <session> [text|key:<name>]
 //                                              brings the session's terminal forward, prints its screen,
@@ -455,6 +456,10 @@ function start(dir, prompt, tool = 'claude') {
 function ctl(action, id, arg, arg2) {
   if (action === 'new') return start(id, arg, arg2 || 'claude');
   if (action === 'tools') return installed().join('\n');
+  if (action === 'opencode-server') {
+    // The server a running terminal connects to, for Settings to offer: OpenCode keeps no setting for it.
+    return /(?:^|\/)opencode\b.*\s--server[= ](https?:\/\/\S+)/m.exec(run1('ps', ['-axo', 'command']))?.[1] || '';
+  }
   if (action === 'cmux') {
     // Whether Roar can drive cmux: ok, none (not installed or not running), or the refusal as an error.
     if (!CMUX || !existsSync(CMUX)) return 'none';

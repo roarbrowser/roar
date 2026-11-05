@@ -1,6 +1,7 @@
 // Model chat's native helpers. Header-only and CEF-free so tests/model_chat_test.cc checks them standalone.
 #pragma once
 
+#include <cstdio>
 #include <algorithm>
 #include <cctype>
 #include <cstdlib>
@@ -34,7 +35,7 @@ inline std::string TakeCompleteUtf8(std::string& buf) {
 // The URL a provider request goes to, or "" when it isn't one Roar allows. `what` is "models" or "chat".
 inline std::string ChatEndpoint(const std::string& kind, const std::string& base, const std::string& what) {
   if (base.rfind("http://", 0) != 0 && base.rfind("https://", 0) != 0) return "";
-  if (what == "models") return base + "/models";
+  if (what == "models") return base + (kind == "opencode" ? "/api/session?limit=1" : "/models");
   if (what == "chat") return base + (kind == "anthropic" ? "/messages" : "/chat/completions");
   if (what == "responses" && kind != "anthropic") return base + "/responses";  // OpenAI's web search lives here.
   return "";
@@ -70,6 +71,56 @@ inline bool ChatKeyAllowed(const std::string& url) {
   for (const char* p : {"http://localhost:", "http://localhost/", "http://127.0.0.1:", "http://127.0.0.1/", "http://[::1]:"})
     if (url.rfind(p, 0) == 0) return true;
   return false;
+}
+
+// Whether an OpenCode server's password may go to `url`: as for a key, or over plain HTTP to a private network, where
+// these servers usually sit (`opencode serve` has no TLS). Settings says it isn't encrypted there.
+inline bool ChatServerAuthAllowed(const std::string& url) {
+  if (ChatKeyAllowed(url)) return true;
+  if (url.rfind("http://", 0) != 0) return false;
+  std::string host = url.substr(7, url.find_first_of(":/?#", 7) - 7);
+  if (host.find('@') != std::string::npos) return false;
+  auto ends = [&](const char* s) { std::string e = s; return host.size() > e.size() && host.compare(host.size() - e.size(), e.size(), e) == 0; };
+  if (ends(".local") || ends(".lan")) return true;
+  int a = -1, b = -1, c = -1, d = -1, used = 0;
+  if (std::sscanf(host.c_str(), "%d.%d.%d.%d%n", &a, &b, &c, &d, &used) != 4 || used != static_cast<int>(host.size())) return false;
+  return a == 10 || (a == 192 && b == 168) || (a == 172 && b >= 16 && b <= 31) || (a == 100 && b >= 64 && b <= 127);  // The last: Tailscale.
+}
+
+// The only calls Model chat makes to an OpenCode server. It's the user's agent, with their tools: nothing else goes through.
+inline bool OpencodeCallAllowed(const std::string& method, const std::string& path) {
+  if (path == "/api/event") return method == "GET";
+  if (path == "/api/session") return method == "POST";
+  std::vector<std::string> p;
+  for (size_t a = 1, b; a <= path.size(); a = b + 1) {
+    b = path.find('/', a);
+    if (b == std::string::npos) b = path.size();
+    p.push_back(path.substr(a, b - a));
+  }
+  auto id = [](const std::string& s) {
+    return !s.empty() && std::all_of(s.begin(), s.end(), [](unsigned char c) { return std::isalnum(c) || c == '_' || c == '-'; });
+  };
+  if (path.empty() || path[0] != '/' || p.size() < 3 || p[0] != "api" || p[1] != "session" || !id(p[2])) return false;
+  if (p.size() == 3) return method == "DELETE";
+  if (p.size() == 4) return method == "POST" && (p[3] == "prompt" || p[3] == "interrupt");
+  return p.size() == 6 && method == "POST" && p[3] == "permission" && id(p[4]) && p[5] == "reply";
+}
+
+// A new session on an OpenCode server. Written here, never by the page: with tools off the server itself offers the
+// model no tools, whatever its config or agents allow. The title saves a model call to name it.
+inline std::string OpencodeSessionBody(bool tools, const std::string& dir) {
+  std::string body = R"({"title":"Roar Ask")";
+  if (!tools) body += R"(,"permissions":[{"action":"*","resource":"*","effect":"deny"}])";
+  if (tools && !dir.empty()) {
+    std::string q;
+    for (char c : dir) {
+      if (static_cast<unsigned char>(c) < 0x20) continue;
+      if (c == '"' || c == '\\') q += '\\';
+      q += c;
+    }
+    body += R"(,"location":{"directory":")" + q + "\"}";
+  }
+  return body + "}";
 }
 
 // Where a GUI-launched Roar looks for CLIs: a Finder or LaunchAgent launch gets a short $PATH, so the
