@@ -247,5 +247,14 @@
       <description><![CDATA[Model chat: Your subscriptions lists only the assistants Roar finds, the rest sit under More. Servers you add can take an API key. Model chat can now be your Ask about this page choice.]]></description>
       <enclosure url="https://github.com/roarbrowser/roar/releases/download/v1.9.2/Roar-1.9.2.dmg" type="application/octet-stream" sparkle:edSignature="tugzCLRa/RkHBGUhHZY74ESLB1iXGE37ipE8PZxAM3eu6VdqTsy0l9vVbFy6G+CqQK+BaR1p/ojWrwXSGbwWBg==" length="207894675"/>
     </item>
+    <item>
+      <title>1.10.0</title>
+      <pubDate>Thu, 05 Nov 2026 00:16:55 +0000</pubDate>
+      <sparkle:version>11000</sparkle:version>
+      <sparkle:shortVersionString>1.10.0</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[Copy an extension to another space with its data, so it arrives signed in (Settings > Extensions). OpenCode sessions now show in the AI sidebar, including when OpenCode connects to a server on another computer: connect it in Settings > Agents. The AI section groups sessions and chats by service when more than one is listed, and Ask chats name the right CLI.]]></description>
+      <enclosure url="https://github.com/roarbrowser/roar/releases/download/v1.10.0/Roar-1.10.0.dmg" type="application/octet-stream" sparkle:edSignature="Z/cgxG142rt8926h9oh6NWYXBtJ8sDC0ivdRAcJheSIck6YSm84Cl2UcIFzt6fkj6xkNHsjEqimXH57BznYFCw==" length="207903116"/>
+    </item>
   </channel>
 </rss>
