@@ -256,5 +256,14 @@
       <description><![CDATA[Copy an extension to another space with its data, so it arrives signed in (Settings > Extensions). OpenCode sessions now show in the AI sidebar, including when OpenCode connects to a server on another computer: connect it in Settings > Agents. The AI section groups sessions and chats by service when more than one is listed, and Ask chats name the right CLI.]]></description>
       <enclosure url="https://github.com/roarbrowser/roar/releases/download/v1.10.0/Roar-1.10.0.dmg" type="application/octet-stream" sparkle:edSignature="Z/cgxG142rt8926h9oh6NWYXBtJ8sDC0ivdRAcJheSIck6YSm84Cl2UcIFzt6fkj6xkNHsjEqimXH57BznYFCw==" length="207903116"/>
     </item>
+    <item>
+      <title>1.11.0</title>
+      <pubDate>Thu, 05 Nov 2026 00:45:56 +0000</pubDate>
+      <sparkle:version>11100</sparkle:version>
+      <sparkle:shortVersionString>1.11.0</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[OpenCode sessions now have a Chat view, including sessions on a server on another computer. Restart any open OpenCode terminal to use it. When cmux refuses Roar, Roar now tells you what to change, in the session and in Settings > Agents.]]></description>
+      <enclosure url="https://github.com/roarbrowser/roar/releases/download/v1.11.0/Roar-1.11.0.dmg" type="application/octet-stream" sparkle:edSignature="wz6RcqNTp8PzqiJV2r8uEDTs5OKkPst63TUeaalfohMFZSfP6TvnUC9rkW/2BFqZwn2nqK64UShxLrr/Qve9BQ==" length="207926262"/>
+    </item>
   </channel>
 </rss>
