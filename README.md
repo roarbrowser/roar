@@ -188,6 +188,8 @@ port 9444) started on demand.
   or by right-clicking a tab or empty sidebar space.
 - Close all tabs: right-click Tabs, a tab group, Split, Artifacts or Ghost. Pinned tabs stay, and the
   others can come back from Recently Closed (ghost tabs leave no trace).
+- Settings > Model chat lists what you've set up in the order Roar tries it: drag to reorder, and remove
+  anything you don't use. Removing a coding assistant leaves it installed on your Mac.
 - Unread Gmail in the sidebar, with Read, Move and Delete per message.
 - Your open GitHub pull requests as a live folder (via `gh`).
 - Sign-in popups open as sidebar tabs, not stray windows.

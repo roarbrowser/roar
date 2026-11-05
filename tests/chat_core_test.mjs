@@ -24,6 +24,25 @@ const opt = core.parseProviders(JSON.stringify([{ id: 'studio', name: 'Studio', 
 check(opt[0].key === true && opt[0].optional === true && opt[1].optional === false, 'an added server keeps its optional key; optional needs key:true');
 check(core.parseProviders('{oops').length === 0 && core.parseProviders('{}').length === 0 && core.parseProviders('').length === 0, 'bad JSON gives no providers');
 
+// Settings > Model chat: what's offered, in what order, and what counts as set up.
+{
+  const saved = JSON.stringify([{ id: 'a', url: 'http://a' }, { id: 'b', url: 'http://b' }, { id: 'c', url: 'http://c' }]);
+  const ids = (l) => l.map((p) => p.id).join();
+  check(core.idList('["a",1,"b"]').join() === 'a,b' && core.idList('{oops').length === 0 && core.idList('{}').length === 0, 'id lists keep strings and survive junk');
+  check(core.chatList({ chatProviders: saved }).length === 3 + core.CLI_PROVIDERS.length, 'nothing removed: servers and assistants all offered');
+  const left = ids(core.chatList({ chatProviders: saved, chatHidden: '["b","cli-codex"]' }));
+  check(!/\bb\b/.test(left) && !left.includes('cli-codex') && left.includes('cli-claude'), 'removed servers and assistants leave the list');
+  const list = [{ id: 'a' }, { id: 'b' }, { id: 'c' }, { id: 'd' }];
+  check(ids(core.chatOrdered(list, { chatOrder: '["c","a"]' })) === 'c,a,b,d', 'the saved order leads; the rest keep theirs');
+  check(ids(core.chatOrdered(list, {})) === 'a,b,c,d' && ids(core.chatOrdered(list, { chatOrder: '["gone"]' })) === 'a,b,c,d', 'no order, or a stale id, changes nothing');
+  check(core.defaultModel(core.chatOrdered([{ id: 'a', models: ['m'] }, { id: 'b', models: ['n'] }], { chatOrder: '["b"]' }), '') === 'b|n', 'First available follows the saved order');
+  const on = core.chatOn;
+  check(on({ kind: 'cli', state: 'available' }) && !on({ kind: 'cli', state: 'missing' }), 'an assistant is set up once it is on this Mac');
+  check(on({ kind: 'openai', key: true, hasKey: true, state: 'available' }) && !on({ kind: 'openai', key: true, state: 'needs-key' }), 'an API is set up once it has a key');
+  check(on({ kind: 'openai', state: 'running' }) && !on({ kind: 'openai', state: 'installed' }) && !on({ kind: 'openai', state: 'missing' }), 'a local server is set up while it answers');
+  check(on({ kind: 'openai', optional: true, state: 'missing' }) && on({ kind: 'opencode', state: 'missing' }), 'a server you added stays up even when it is not answering');
+}
+
 // SSE, OpenAI style, split mid-event and with CRLF.
 const feed = core.sseParser();
 const chunks = ['data: {"choices":[{"delta":{"role":"assistant"}}]}\n\ndata: {"choi', 'ces":[{"delta":{"content":"Hel"}}]}\r\n\r\n', ': keepalive\n\ndata: {"choices":[{"delta":{"content":"lo"}}]}\n\ndata: [DONE]\n\n'];

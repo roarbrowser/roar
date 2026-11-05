@@ -1583,7 +1583,7 @@ const aiIdArg = (kind, id) => kind === 'session' ? JSON.stringify(id) : id;
 var aiChats = null, aiChatsAt = 0;
 async function aiChatList() {
   if (aiChats && Date.now() - aiChatsAt < 60000) return aiChats;
-  const all = await chatCore.detectProviders([...chatCore.parseProviders(state.settings.chatProviders), ...chatCore.CLI_PROVIDERS], ask);
+  const all = chatCore.chatOrdered(await chatCore.detectProviders(chatCore.chatList(state.settings), ask), state.settings);
   aiChats = all.filter((p) => p.models.length && !chatCore.pageRefusal(p));
   aiChatsAt = Date.now();
   return aiChats;

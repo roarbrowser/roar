@@ -94,7 +94,7 @@ textarea { flex: 1; resize: none; border: 0; background: none; color: var(--ink)
 const $ = (id) => document.getElementById(id);
 $('mic').replaceWith(dictMic($('text')));
 textSize($('tsize'), (s) => document.body.style.setProperty('--ai-zoom', s));
-const { opencodeEvents, defaultModel, SEARCH_SYSTEM, searchMode, openRequest, addSources, CLI_PROVIDERS, signedOutError, pageRefusal, cliPrompt, cliParser, parseProviders, sseParser, streamDelta, requestBody, detectProviders, renderMarkdown } = chatCore;
+const { chatList, chatOrdered, opencodeEvents, defaultModel, SEARCH_SYSTEM, searchMode, openRequest, addSources, CLI_PROVIDERS, signedOutError, pageRefusal, cliPrompt, cliParser, parseProviders, sseParser, streamDelta, requestBody, detectProviders, renderMarkdown } = chatCore;
 let providers = [], chats = [], chat = null, streaming = null, webTab = null, page = null, searchDefault = false;
 
 // Re-read first: another chat tab or the sidebar (delete) may have changed the list since this page loaded.
@@ -158,8 +158,8 @@ function show(c) {
 // Models: only from providers detected now (a server that answers, or an API with a Keychain key), through
 // Roar, which adds the key. Detected providers come first.
 async function loadModels(st) {
-  providers = [...parseProviders(st.settings.chatProviders), ...CLI_PROVIDERS];
-  const all = await detectProviders(providers, ask), found = all.filter((p) => p.models.length);
+  providers = chatList(st.settings);
+  const all = chatOrdered(await detectProviders(providers, ask), st.settings), found = all.filter((p) => p.models.length);
   const sel = $('model'), want = chat?.model || st.settings.chatModel;
   sel.innerHTML = found.map((p) => `<optgroup label="${esc(p.kind === 'cli' ? p.name + ' (your subscription)' : p.name)}">${p.models.map((m) => `<option value="${esc(p.id + '|' + m)}">${esc(m)}</option>`).join('')}</optgroup>`).join('');
   if (!sel.options.length) sel.innerHTML = '<option value="">No models found</option>';

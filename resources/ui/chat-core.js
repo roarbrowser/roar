@@ -413,7 +413,24 @@
       onSuccess: (chunk) => { for (const d of cli ? lines(chunk) : sse(chunk).map((x) => streamDelta(p.kind, x))) { if (d.text) text += d.text; if (d.error) err = d.error; } },
       onFailure: (code, message) => (code === 0 && !err ? done(text) : fail(new Error(err || `${p.name} failed (${code}) ${String(message || '').slice(0, 200)}`))) });
   });
-  const api = { opencodeEvents, defaultModel, renamePrompt, renameKeys, autoNameKeys, parseNames, oneShot, SEARCH_SYSTEM, searchMode, openRequest, addSources, webSearchTool, CLI_PROVIDERS, CLI_LOGIN, signedOutError, pageRefusal, cliStatus, cliPrompt, cliParser, parseProviders, sseParser, streamDelta, requestBody, modelIds, providerStatus, detectProviders, renderMarkdown };
+  // Settings > Model chat keeps two lists of provider ids: chatHidden (removed there) and chatOrder (dragged there).
+  const idList = (json) => {
+    try { const v = JSON.parse(json || '[]'); return Array.isArray(v) ? v.filter((x) => typeof x === 'string') : []; } catch { return []; }
+  };
+  // Everything Model chat may use: the saved servers and the coding assistants, minus what was removed.
+  const chatList = (settings = {}) => {
+    const off = new Set(idList(settings.chatHidden));
+    return [...parseProviders(settings.chatProviders), ...CLI_PROVIDERS].filter((p) => !off.has(p.id));
+  };
+  // The person's order first; the rest keep the order they came in, so "First available" follows it too.
+  const chatOrdered = (found, settings = {}) => {
+    const o = idList(settings.chatOrder), rank = (p) => { const i = o.indexOf(p.id); return i < 0 ? o.length : i; };
+    return found.map((p, i) => [p, i]).sort((a, b) => rank(a[0]) - rank(b[0]) || a[1] - b[1]).map(([p]) => p);
+  };
+  // Set up, so Settings lists it above More: an assistant on this Mac, a server you added, a key or a server that answers.
+  const chatOn = (p) => (p.kind === 'cli' ? p.state !== 'missing' : p.optional || p.kind === 'opencode' || !!p.hasKey || p.state === 'running');
+
+  const api = { idList, chatList, chatOrdered, chatOn, opencodeEvents, defaultModel, renamePrompt, renameKeys, autoNameKeys, parseNames, oneShot, SEARCH_SYSTEM, searchMode, openRequest, addSources, webSearchTool, CLI_PROVIDERS, CLI_LOGIN, signedOutError, pageRefusal, cliStatus, cliPrompt, cliParser, parseProviders, sseParser, streamDelta, requestBody, modelIds, providerStatus, detectProviders, renderMarkdown };
   if (typeof module === 'object') module.exports = api;
   else globalThis.chatCore = api;
 })();

@@ -10,7 +10,7 @@ int main() {
   const std::set<std::string> want = {"archiveAfterHours", "onboarded", "searchUrl", "githubQuery", "githubFolder",
       "gmailFolder", "indexPages", "sidebarWidth", "pinnedColumns", "pinnedCentered", "cleanLinks", "askDefault",
       "claudeSidebar", "autoDismissDone", "claudeAlertDone", "claudeAlertNeeds", "claudeAlertSystem", "agentFiles",
-      "claudeHooksOffered", "agentHooksHad", "cdpOpen", "agentHeadless", "searchMigrated", "askLlms", "agentTool", "agentPins", "agentSection",
+      "claudeHooksOffered", "agentHooksHad", "cdpOpen", "chatOrder", "chatHidden", "agentHeadless", "searchMigrated", "askLlms", "agentTool", "agentPins", "agentSection",
       "cleanSafeLinks", "cleanMcas", "cleanTracking", "cleanParams", "agentFilesRow", "sidebarCounts", "agentHooksIgnore", "agentHooksSnooze", "agentColors", "agentHidden", "agentTerminal", "chatProviders", "chatModel", "chatDefaultsSeen", "chatSearch", "afterUpdates", "agentRingSeen", "agentOrder", "agentNames", "hiddenCounts", "dictation", "dictationKey", "footerTour", "agentsHadRing", "outlookIcon", "outlookMail", "dockBadge", "artifactGroup", "notifications", "messagesCodes", "mailCodes", "spaceRules", "autoNameDownloads", "autoNameTabs"};
   std::set<std::string> got;
   int failures = 0;
