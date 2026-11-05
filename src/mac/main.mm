@@ -6,6 +6,7 @@
 
 #include "action_watch.h"
 #include "backup.h"
+#include "ext_copy.h"
 #include "browser_app.h"
 #include "controller.h"
 #include "platform.h"
@@ -120,6 +121,8 @@ int main(int argc, char* argv[]) {
     }
     // A restore staged by Settings > Backup goes in now, before any profile is open.
     roar::backup::ApplyPendingRestore(roar::backup::P(data_dir));
+    // So does a copy of extensions between spaces (Settings > Extensions).
+    roar::ext_copy::ApplyPending(roar::backup::P(data_dir));
     if (roar::platform::CdpEnabled()) settings.remote_debugging_port = roar::platform::CdpPort();
     // Roar restores its own tabs; Chromium's session restore would reopen them
     // a second time as plain Chrome windows.

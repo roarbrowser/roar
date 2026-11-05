@@ -9,6 +9,7 @@
 #include <sys/stat.h>
 #include "atomic_write.h"
 #include "download_name.h"
+#include "ext_copy.h"
 #include "ext_paths.h"
 #include "link_clean.h"
 #include "space_rules.h"
@@ -1406,6 +1407,7 @@ void Controller::Start() {
   GitHubTick();
   GmailOpenTick();
   ClaudeTick();
+  ReportExtensionCopies();
   // MCP entries left pointing at a moved or older Roar are repointed here; none are added.
   if (!platform::Headless() && !InCheckout()) agents::RepairStale(platform::HomeDir(), platform::ResourcePath("roar-mcp"));
   platform::RoarMcp({"agent-hooks", "status"}, [this](const std::string& out) {
@@ -3382,11 +3384,11 @@ void Controller::SaveToLibrary(bool read_later) {
   ShowHint(!added ? "Already saved" : read_later ? "Added to Read Later" : "Bookmarked");
 }
 
-// Extensions installed in the active space's profile, plus the bundled ones.
-std::string Controller::ExtensionsJson() {
+// Extensions installed in a space's profile, plus the bundled ones.
+std::string Controller::ExtensionsJson(int space, bool bundled) {
   namespace fs = std::filesystem;
   State& state = State::Get();
-  std::string profile = state.ProfileDir(state.active_space);
+  std::string profile = state.ProfileDir(space < 0 ? state.active_space : space);
   auto list = CefListValue::Create();
   auto add = [&](const std::string& id, const fs::path& dir) {
     auto manifest = ReadJsonFile((dir / "manifest.json").string());
@@ -3454,11 +3456,63 @@ std::string Controller::ExtensionsJson() {
       if (v.is_directory() && (newest.empty() || v.path() > newest)) newest = v.path();
     if (!newest.empty()) add(e.path().filename().string(), newest);
   }
-  add("", fs::path(state.Dir()) / "ubol");
-  add(kTweaksId, fs::path(state.Dir()) / "tweaks");  // Its manifest key fixes the id.
+  if (bundled) {
+    add("", fs::path(state.Dir()) / "ubol");
+    add(kTweaksId, fs::path(state.Dir()) / "tweaks");  // Its manifest key fixes the id.
+  }
   auto v = CefValue::Create();
   v->SetList(list);
   return CefWriteJSON(v, JSON_WRITER_DEFAULT).ToString();
+}
+
+std::string Controller::ExtensionSpacesJson() {
+  auto list = CefListValue::Create();
+  for (const Space& sp : State::Get().spaces) {
+    auto d = CefDictionaryValue::Create();
+    d->SetInt("id", sp.id);
+    d->SetString("name", sp.name);
+    d->SetValue("extensions", CefParseJSON(ExtensionsJson(sp.id, false), JSON_PARSER_RFC));
+    list->SetDictionary(list->GetSize(), d);
+  }
+  auto v = CefValue::Create();
+  v->SetList(list);
+  return CefWriteJSON(v, JSON_WRITER_DEFAULT).ToString();
+}
+
+void Controller::ReportExtensionCopies() {
+  namespace fs = std::filesystem;
+  State& state = State::Get();
+  auto results = ext_copy::TakeResults(backup::P(state.Dir()));
+  if (results.empty()) return;
+  // The space and the extension as the person knows them, not their folder and id.
+  std::map<std::string, std::string> spaces, names;
+  for (const Space& sp : state.spaces) {
+    spaces[fs::path(state.ProfileDir(sp.id)).filename().string()] = sp.name;
+    auto v = CefParseJSON(ExtensionsJson(sp.id, false), JSON_PARSER_RFC);
+    auto l = v ? v->GetList() : nullptr;
+    for (size_t i = 0; l && i < l->GetSize(); ++i) names[l->GetDictionary(i)->GetString("id")] = l->GetDictionary(i)->GetString("name");
+  }
+  auto name = [&](const std::string& id) { return names.count(id) ? names[id] : std::string("An extension"); };
+  int copied = 0;
+  std::string first, failed, partial;
+  for (const auto& r : results) {
+    const std::string where = spaces.count(r.job.to) ? spaces[r.job.to] : r.job.to;
+    if (!r.error.empty()) { failed += name(r.job.id) + " didn't reach " + where + ": " + r.error + ". "; continue; }
+    if (!copied++) first = name(r.job.id) + " to " + where;
+    if (r.note == "local") partial += name(r.job.id) + " also keeps data Roar can't copy, so you may need to sign in again in " + where + ". ";
+  }
+  AgentAlert a;
+  a.id = next_alert_id_++;
+  a.agent = "Roar";
+  a.level = "info";
+  a.title = !copied ? "Couldn't copy extensions" : copied == 1 ? "Copied " + first : "Copied " + std::to_string(copied) + " extensions";
+  a.body = failed + partial;
+  if (a.body.empty()) a.body = "They keep their data and sign-ins in the other space.";
+  a.choices = {"OK"};
+  a.time = NowSeconds();
+  a.on_answer = [](const std::string&) {};
+  agent_alerts_.push_back(a);
+  PushSidebar();
 }
 
 void Controller::RenameSpace(int id, const std::string& name) {
@@ -5440,6 +5494,22 @@ bool Controller::HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> 
     callback->Success(action_watch::StateJson());
   } else if (cmd == "extensions.list") {
     callback->Success(ExtensionsJson());
+  } else if (cmd == "extensions.spaces") {
+    callback->Success(ExtensionSpacesJson());
+  } else if (cmd == "extensions.copy") {
+    // Queued for the next launch (ext_copy.h): the page relaunches once this replies.
+    State& st = State::Get();
+    auto folder = [&](int space) { return std::filesystem::path(st.ProfileDir(space)).filename().string(); };
+    auto ids = msg->GetList("ids"), to = msg->GetList("to");
+    int from = int_arg("from");
+    std::vector<ext_copy::Job> jobs;
+    for (size_t i = 0; st.FindSpace(from) && ids && to && i < ids->GetSize(); ++i)
+      for (size_t k = 0; k < to->GetSize(); ++k)
+        if (st.FindSpace(to->GetInt(k))) jobs.push_back({ids->GetString(i), folder(from), folder(to->GetInt(k))});
+    std::erase_if(jobs, [](const ext_copy::Job& j) { return !ext_copy::Valid(j); });
+    if (jobs.empty()) return callback->Failure(0, "Pick an extension and a different space."), true;
+    if (!ext_copy::Queue(backup::P(st.Dir()), jobs)) return callback->Failure(0, "Couldn't save the copy."), true;
+    callback->Success(std::to_string(jobs.size()));
   } else if (cmd == "extensions.popup") {
     ShowExtensionPopup(msg->GetString("url"), int_arg("x"), int_arg("y"));
     callback->Success("");

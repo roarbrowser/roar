@@ -199,7 +199,10 @@ class Controller {
   void SaveToLibrary(bool read_later);
   void OpenUiPage(const std::string& url);
   void OnSpaceReady(int space);
-  std::string ExtensionsJson();
+  // |space| -1: the active one. |bundled|: with uBOL and Site tweaks, which every space already has.
+  std::string ExtensionsJson(int space = -1, bool bundled = true);
+  std::string ExtensionSpacesJson();  // Every space with its own extensions, for Settings > Extensions.
+  void ReportExtensionCopies();  // A card for what the last launch copied (ext_copy.h).
   void PushActions(const std::string& json);
   void ShowExtensionPopup(const std::string& url, int x, int y);
   void CloseExtensionPopup();

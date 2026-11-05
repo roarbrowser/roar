@@ -129,6 +129,7 @@ port 9444) started on demand.
   press Esc or ⌃C. Others jump to their window. **Send tab** in that view sends a tab to the
   session's prompt (never ghost tabs); **Side by side** splits it beside your last web page. **New** starts a session in any folder. The hook reports the
   prompt, tool and state, never the conversation.
+- **OpenCode too, even on another computer.** Connect OpenCode in Settings > Agents and each terminal reports its sessions, also with `opencode --server`. Other sessions running on that server show as watch-only rows while a terminal is open. With more than one service listed, the AI section groups them under a heading each.
 - **Slash commands in the reply box.** Type `/` in a session window's chat or terminal reply
   box to list the tool's built-in commands plus your own and the project's commands and skills;
   pick with the arrow keys and Tab or Enter.
@@ -161,6 +162,7 @@ port 9444) started on demand.
 
 **Spaces and privacy**
 - Spaces keep separate tabs and a separate profile (logins, cookies, extensions): ⌃1–⌃9 or ⇧⌘[ ⇧⌘].
+- Settings > Extensions copies an extension to another space with its data, so it arrives signed in. Roar restarts to do it. An extension's cookies on its own website, and any localStorage it keeps, stay behind.
 - Ghost tabs (⇧⌘N) use a throwaway profile per session. Roar deletes it when the last ghost tab
   closes; if that fails (or Roar quits first), it is deleted on the next launch. Until then it sits
   in the data dir, so ghost tabs are not a guarantee against someone with access to your Mac.

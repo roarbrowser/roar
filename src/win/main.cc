@@ -21,6 +21,7 @@
 
 #include "action_watch.h"
 #include "backup.h"
+#include "ext_copy.h"
 #include "browser_app.h"
 #include "platform.h"
 #include "shared.h"
@@ -85,6 +86,8 @@ int APIENTRY wWinMain(HINSTANCE instance, HINSTANCE, LPWSTR, int) {
   }
   // A restore staged by Settings > Backup goes in now, before any profile is open.
   roar::backup::ApplyPendingRestore(roar::backup::P(data_dir));
+  // So does a copy of extensions between spaces (Settings > Extensions).
+  roar::ext_copy::ApplyPending(roar::backup::P(data_dir));
   if (roar::platform::CdpEnabled()) settings.remote_debugging_port = roar::platform::CdpPort();
 
   fs::path root = fs::u8path(data_dir);

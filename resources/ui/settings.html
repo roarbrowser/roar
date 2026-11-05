@@ -107,7 +107,7 @@ p.reason a { color: inherit; }
 <div class="wrap">
   <div class="top"><h1>Settings</h1><input id="search" type="search" placeholder="Search settings" aria-label="Search settings" spellcheck="false"><button class="btn" id="close">Close</button></div>
   <nav aria-label="Settings categories">
-    <a href="#general">General</a><a href="#tabs">Tabs &amp; Sidebar</a><a href="#modules">Sidebar modules</a>
+    <a href="#general">General</a><a href="#tabs">Tabs &amp; Sidebar</a><a href="#modules">Sidebar modules</a><a href="#extensions">Extensions</a>
     <a href="#dictation">Dictation</a><a href="#chat">Model chat</a><a href="#agents">Agents</a><a href="#notifications">Notifications</a><a href="#privacy">Privacy</a><a href="#backup">Backup</a><a href="#advanced">Advanced</a>
     <a href="#" class="tips" id="tips">Tips &amp; shortcuts</a>
   </nav>
@@ -164,6 +164,18 @@ p.reason a { color: inherit; }
       </div>
     </section>
 
+    <section id="extensions"><h2>Extensions</h2>
+      <p class="reason">Each space keeps its own extensions and sign-ins. Copy one to another space with its data, so it arrives signed in instead of starting over.</p>
+      <p class="status" id="ex-none" hidden></p>
+      <div id="ex-form" hidden>
+        <div class="row"><label class="name" for="ex-from">Copy from</label><select id="ex-from"></select></div>
+        <h3>Extensions</h3><div id="ex-list"></div>
+        <h3>Copy to</h3><div id="ex-to"></div>
+        <p class="status" id="ex-warn" hidden></p>
+        <div class="end"><button class="btn" id="ex-go" disabled>Copy and restart</button></div>
+      </div>
+      <p class="status" id="ex-result" hidden></p>
+    </section>
     <section id="dictation"><h2>Dictation</h2>
       <div class="row"><label class="name" for="dict-on">Dictation<small>Speak into any text field. Speech becomes text on this Mac; no audio leaves it.</small></label><input type="checkbox" class="switch" id="dict-on" data-set="dictation"></div>
       <fieldset id="dict-opts" style="border:0;margin:0;padding:0">
@@ -518,6 +530,60 @@ $('bk-confirm').onclick = async () => {
     setTimeout(() => ask({ cmd: 'run', id: 'relaunch' }), 1500);
   } catch (e) { bkResult('Import failed, nothing changed: ' + e.message, true); }
 };
+// Extensions: copy between spaces with their data. Roar does it at the next launch, before any profile opens (ext_copy.h).
+let exSpaces = [];
+const exFrom = () => exSpaces.find((s) => s.id === +$('ex-from').value);
+const exChecked = (box) => [...$(box).querySelectorAll('input:checked')].map((i) => i.value);
+function exRow(label, value, icon) {
+  const row = document.createElement('label');
+  row.className = 'row';
+  const name = Object.assign(document.createElement('span'), { className: 'name', textContent: label });
+  if (/^data:image\//.test(icon || '')) name.prepend(Object.assign(document.createElement('img'), { src: icon, width: 16, height: 16, alt: '', style: 'vertical-align:-3px;margin-right:8px' }));
+  const box = Object.assign(document.createElement('input'), { type: 'checkbox', className: 'switch', value });
+  box.onchange = exCheck;
+  row.append(name, box);
+  return row;
+}
+function exCheck() {
+  const ids = exChecked('ex-list'), to = exChecked('ex-to').map(Number), from = exFrom();
+  $('ex-go').disabled = !ids.length || !to.length;
+  // Copying over an install replaces that space's own data, and with it any sign-in there.
+  const hit = to.flatMap((id) => { const s = exSpaces.find((x) => x.id === id); return s.extensions.filter((e) => ids.includes(e.id)).map((e) => `${e.name} in ${s.name}`); });
+  const name = (id) => from.extensions.find((e) => e.id === id)?.name;
+  $('ex-warn').hidden = !ids.length || !to.length;
+  $('ex-warn').textContent = `The copy carries ${ids.length === 1 ? name(ids[0]) + '’s' : 'their'} sign-in with it, and some services sign out one copy when both are used.`
+    + (hit.length ? ` This replaces ${hit.join(' and ')}, along with any account signed in there.` : '') + ' Roar restarts to do it, and your tabs come back.';
+}
+function exFill() {
+  const from = exFrom();
+  $('ex-list').replaceChildren(...from.extensions.map((e) => exRow(e.name, e.id, e.icon)));
+  $('ex-to').replaceChildren(...exSpaces.filter((s) => s !== from).map((s) => exRow(s.name, s.id)));
+  if (!from.extensions.length) $('ex-list').textContent = 'No extensions in this space.';
+  exCheck();
+}
+async function exLoad() {
+  const r = await ask({ cmd: 'extensions.spaces' });
+  exSpaces = typeof r === 'string' ? JSON.parse(r) : r;
+  const many = exSpaces.length > 1, keep = $('ex-from').value;
+  $('ex-form').hidden = !many;
+  $('ex-none').hidden = many;
+  $('ex-none').textContent = 'You have one space, so there’s nowhere to copy to yet.';
+  if (!many) return;
+  $('ex-from').replaceChildren(...exSpaces.map((s) => new Option(s.name, s.id)));
+  // Start from the space with the most to copy.
+  $('ex-from').value = exSpaces.some((s) => String(s.id) === keep) ? keep : [...exSpaces].sort((a, b) => b.extensions.length - a.extensions.length)[0].id;
+  exFill();
+}
+$('ex-from').onchange = exFill;
+$('ex-go').onclick = async () => {
+  $('ex-go').disabled = true;
+  const show = (t) => { $('ex-result').hidden = false; $('ex-result').textContent = t; };
+  try {
+    await ask({ cmd: 'extensions.copy', from: exFrom().id, ids: exChecked('ex-list'), to: exChecked('ex-to').map(Number) });
+    show('Restarting to copy…');
+    setTimeout(() => ask({ cmd: 'run', id: 'relaunch' }), 800);
+  } catch (e) { show('Nothing was copied: ' + e.message); exCheck(); }
+};
 document.querySelectorAll('[data-goto]').forEach((a) => a.onclick = (e) => { e.preventDefault(); showTab(a.dataset.goto); });
 $('cws').onclick = (e) => { e.preventDefault(); ask({ cmd: 'open', text: e.target.href, newTab: true }); };
 $('tips').onclick = (e) => { e.preventDefault(); ask({ cmd: 'open', text: 'roar://ui/welcome.html#tips', newTab: true }); };
@@ -528,6 +594,7 @@ function showTab(id) {
   if (id === 'ask') id = 'chat';  // Ask's settings live in Model chat, not a tab of their own.
   if (!document.getElementById(id)?.matches('main section')) id = 'general';
   for (const sec of document.querySelectorAll('main section')) sec.hidden = sec.id !== id;
+  if (id === 'extensions') exLoad().catch((e) => { $('ex-none').hidden = false; $('ex-none').textContent = 'Couldn’t list extensions: ' + e.message; });
   for (const a of tabs) a.setAttribute('aria-current', String(a.hash === '#' + id));
   try { localStorage.setItem('settingsTab', id); } catch {}
   // Keeps the hash current so a later link to #agents is a change and fires hashchange.
