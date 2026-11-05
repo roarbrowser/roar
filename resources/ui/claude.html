@@ -6,7 +6,7 @@
 <link rel="stylesheet" href="roar.css">
 <style>
 /* One agent session (any hooked CLI), live: its terminal screen (tmux or cmux) and a reply box. */
-body { background: var(--panel); margin: 0; height: 100vh; display: flex; flex-direction: column; }
+body { background: var(--panel); margin: 0; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
 header { display: flex; align-items: center; gap: 10px; padding: 14px 20px 10px; }
 h1 { margin: 0; font: 800 22px/1.1 var(--round); letter-spacing: -.01em; }
 .state { font-size: 12px; color: var(--ink-3); flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -60,7 +60,8 @@ body.chat-mode #screen, body.chat-mode #reply, body.chat-mode .keys, body:not(.c
 /* Text size zooms what's inside the scroller, never the scroller: a zoomed scroller outgrew the window. */
 #msgs, #ask, #working, #running, #chat-note { zoom: var(--ai-zoom, 1); }
 #msgs { display: flex; flex-direction: column; gap: 10px; }
-.msg { max-width: min(760px, 88%); padding: 10px 14px; border-radius: 14px; overflow-wrap: anywhere; font: 14px/1.55 var(--ui); }
+/* Relative holds each .who inside its bubble: placed against the page, they made a long chat scroll past the box. */
+.msg { position: relative; max-width: min(760px, 88%); padding: 10px 14px; border-radius: 14px; overflow-wrap: anywhere; font: 14px/1.55 var(--ui); }
 .msg.user { align-self: flex-end; background: var(--mane-soft); border-bottom-right-radius: 4px; white-space: pre-wrap; }
 .msg.assistant { align-self: flex-start; background: var(--ground); border-bottom-left-radius: 4px; }
 .msg > :first-child { margin-top: 0; } .msg > :last-child { margin-bottom: 0; }
