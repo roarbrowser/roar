@@ -274,5 +274,14 @@
       <description><![CDATA[Model chat can now use an OpenCode server, so Ask reaches the same model as your OpenCode terminals, even on another computer. Add it in Settings > Model chat. By default it only answers, with tools blocked by the server. Turn on tools to let Ask work as that server's agent, with approvals shown in the chat.]]></description>
       <enclosure url="https://github.com/roarbrowser/roar/releases/download/v1.12.0/Roar-1.12.0.dmg" type="application/octet-stream" sparkle:edSignature="LmNyHoxybKTE3GjRosNJByQEwwl22w0Sry0AibPSfIjcsNk7elUylv0XSng2qlQOUR+MqfA118kK+s6OWTdxCw==" length="207916103"/>
     </item>
+    <item>
+      <title>1.12.1</title>
+      <pubDate>Thu, 05 Nov 2026 01:56:50 +0000</pubDate>
+      <sparkle:version>11201</sparkle:version>
+      <sparkle:shortVersionString>1.12.1</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[In an agent session's Chat view, the message box now stays on screen. Long chats could scroll it out of the window.]]></description>
+      <enclosure url="https://github.com/roarbrowser/roar/releases/download/v1.12.1/Roar-1.12.1.dmg" type="application/octet-stream" sparkle:edSignature="r67lD0b0a1/dwCbG/P8+jHIFJhIAY7lWIW3rzq7Rp33VwqN2DHq3UixXhadxivVN/OeZenM5OvQqlvfdKu+8Ag==" length="207916192"/>
+    </item>
   </channel>
 </rss>
