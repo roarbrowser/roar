@@ -301,5 +301,14 @@
       <description><![CDATA[Settings > Model chat now lists everything you've set up at the top: drag to set the order Roar tries them, and remove anything you don't use. Agent turns that finish very quickly now raise a notification, and agent messages send a macOS notification by default. The site menu's Site tweaks and ad-block items are back in spaces with agents off, and those spaces are better protected from agents. On Windows, agents now stay off until you turn on Let agents use Roar in Settings, including after this update.]]></description>
       <enclosure url="https://github.com/roarbrowser/roar/releases/download/v1.14.0/Roar-1.14.0.dmg" type="application/octet-stream" sparkle:edSignature="/laAp38OFV5BRSZ/yfamRQU8ZEYw/I8fZBl4a8eoZ0sZZEUvw0tgAsM4ZfUnNoSrO7um3Pp8fj/2/PM6yk+EAQ==" length="207933375"/>
     </item>
+    <item>
+      <title>1.15.0</title>
+      <pubDate>Thu, 05 Nov 2026 04:05:43 +0000</pubDate>
+      <sparkle:version>11500</sparkle:version>
+      <sparkle:shortVersionString>1.15.0</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[Site tweaks can now span every space: turn on Site tweaks in every space in Settings > Extensions and all your spaces get the same scripts and styles, with a change in one reaching them all. What scripts store stays per space, and agents can't reach Site tweaks while this is on. Mac only for now.]]></description>
+      <enclosure url="https://github.com/roarbrowser/roar/releases/download/v1.15.0/Roar-1.15.0.dmg" type="application/octet-stream" sparkle:edSignature="qPLardNJpoqXIpS7S5jIO7u+OdMaJnpj4Pqg8yvFEmvtcuBQKodAj1owixnY1Vk0PLqHaW9aZebDjRj5gLJyBw==" length="207951240"/>
+    </item>
   </channel>
 </rss>
