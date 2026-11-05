@@ -8,6 +8,7 @@
 //   roar-mcp claude-ctl new <folder> [first prompt] [tool]   starts that CLI (default claude) there
 //                                              (cmux, else tmux, else Terminal; Windows: wt.exe, else a console)
 //   roar-mcp claude-ctl tools                  prints the installed CLIs' ids, one per line
+//   roar-mcp claude-ctl cmux                   whether Roar can drive cmux: ok, none, or why not
 //   roar-mcp claude-ctl chat <session> [process start ms]   the session as chat JSON (mcp/agent-chat.mjs)
 //   roar-mcp claude-ctl focus|screen|send <session> [text|key:<name>]
 //                                              brings the session's terminal forward, prints its screen,
@@ -16,10 +17,11 @@
 // the current tool and the session state are kept; never the conversation.
 import { readFileSync, writeFileSync, writeSync, mkdirSync, rmSync, renameSync, existsSync, copyFileSync, readdirSync, statSync } from 'node:fs';
 import { basename, delimiter, isAbsolute, join } from 'node:path';
+import { connect } from 'node:net';
 import { execFileSync, spawn } from 'node:child_process';
 import { homedir } from 'node:os';
 import { chat, runningWork, transcriptFor, tail } from './agent-chat.mjs';
-import { pluginSource } from './agent-opencode.mjs';
+import { pluginSource, chatSocket } from './agent-opencode.mjs';
 
 const WIN = process.platform === 'win32';
 const HOME = process.env.HOME || homedir();
@@ -332,12 +334,12 @@ function pluginFor(t, action, exe, cfg) {
   const list = Array.isArray(cfg.plugins) ? cfg.plugins : [];
   if (action === 'status') {
     if (!list.includes(folder) || !existsSync(code)) return binOf(t) ? 'not installed' : 'absent';
-    return readFileSync(code, 'utf8') === pluginSource(exe) ? 'installed' : 'outdated';
+    return readFileSync(code, 'utf8') === pluginSource(exe, folder) ? 'installed' : 'outdated';
   }
   const kept = list.filter((p) => p !== folder);
   if (action === 'install') {
     mkdirSync(folder, { recursive: true });
-    writeFileSync(code + '.tmp', pluginSource(exe));
+    writeFileSync(code + '.tmp', pluginSource(exe, folder));
     renameSync(code + '.tmp', code);
     kept.push(folder);
   } else rmSync(folder, { recursive: true, force: true });
@@ -367,7 +369,15 @@ function hooks(cmd, action, exe, only) {
 // names a program or reaches a shell or AppleScript unchecked: binaries come from fixed paths,
 // and every other field must match a strict pattern.
 const TMUX = ['/opt/homebrew/bin/tmux', '/usr/local/bin/tmux', '/usr/bin/tmux'].find((p) => existsSync(p));
-const CMUX = process.env.ROAR_NO_CMUX ? '' : '/Applications/cmux.app/Contents/Resources/bin/cmux';  // ROAR_NO_CMUX: tests stay out of a real cmux.
+// ROAR_NO_CMUX: tests stay out of a real cmux. ROAR_TEST_CMUX: tests stand in a fake one.
+const CMUX = process.env.ROAR_TEST_CMUX || (process.env.ROAR_NO_CMUX ? '' : '/Applications/cmux.app/Contents/Resources/bin/cmux');
+// cmux's own refusals, as the fix for each. Its default Socket control admits only processes it started, and a Roar opened
+// from the Dock, Finder or a Sparkle update isn't one, however well it works from a cmux shell.
+const CMUX_REFUSED = [
+  [/ERROR: Access denied - only processes started inside cmux/, 'cmux is blocking Roar. In cmux, open Settings > Automation and set Socket control to Password.'],
+  [/ERROR: (Invalid password|Authentication required|Password mode is enabled)/, 'Roar can’t sign in to cmux. In cmux, open Settings > Automation and set the socket password again.'],
+];
+export const explain = (msg) => CMUX_REFUSED.find(([re]) => re.test(msg))?.[1] || msg;
 const ok = (v, re) => typeof v === 'string' && re.test(v);
 const run1 = (bin, args, timeout = 5000) => execFileSync(bin, args, { encoding: 'utf8', timeout });
 // 60 s: the first AppleScript call waits on macOS's Automation prompt until the person answers.
@@ -445,6 +455,12 @@ function start(dir, prompt, tool = 'claude') {
 function ctl(action, id, arg, arg2) {
   if (action === 'new') return start(id, arg, arg2 || 'claude');
   if (action === 'tools') return installed().join('\n');
+  if (action === 'cmux') {
+    // Whether Roar can drive cmux: ok, none (not installed or not running), or the refusal as an error.
+    if (!CMUX || !existsSync(CMUX)) return 'none';
+    try { run1(CMUX, ['ping']); return 'ok'; }
+    catch (e) { const raw = e.stderr?.toString().trim() || e.message; if (explain(raw) !== raw) throw e; return 'none'; }
+  }
   if (!/^[\w-]+$/.test(id || '')) throw new Error('bad session id');
   const s = JSON.parse(readFileSync(join(DIR, id + '.json'), 'utf8')), t = s.term || {};
   const tm = TMUX && ok(t.tmux?.socket, /^\/[\w./-]+$/) && ok(t.tmux?.pane, /^%\d+$/) && { ...t.tmux, bin: TMUX };
@@ -594,11 +610,37 @@ function focus(s, f) {
   throw new Error('no window known for this session');
 }
 
-export function run(args, exe) {
+// OpenCode's transcript is on its server. The plugin in the session's terminal reads it on request, so nothing is kept
+// on disk and Roar needs no server address or password. null: no plugin answered.
+function opencodeMessages(s) {
+  return new Promise((done) => {
+    if (!(s.term?.pid > 1) || !ok(s.sid, /^[\w-]+$/)) return done(null);
+    let text = '';
+    const c = connect(chatSocket(join(TOOLS.opencode.dir(), 'roar-plugin'), s.term.pid));
+    const end = (v) => { c.destroy(); done(v); };
+    c.setTimeout(5000, () => end(null));
+    c.on('error', () => end(null));
+    c.on('connect', () => c.write(JSON.stringify({ session: s.sid }) + '\n'));
+    c.on('data', (d) => { text += d; });
+    c.on('end', () => { try { end(JSON.parse(text).messages || null); } catch { end(null); } });
+  });
+}
+
+async function chatReply(id, born) {
+  if (!/^[\w-]+$/.test(id || '')) throw new Error('bad session id');
+  const s = JSON.parse(readFileSync(join(DIR, id + '.json'), 'utf8'));
+  if (s.tool !== 'opencode') return ctl('chat', id, born);
+  const messages = await opencodeMessages(s);
+  let screen = '';
+  try { screen = ctl('screen', id); } catch {}  // Only for busy and prompts: the chat itself doesn't need the terminal.
+  return JSON.stringify(chat(s, 0, screen, describe, messages));
+}
+
+export async function run(args, exe) {
   if (args[0] === 'claude-ctl') {
     // writeSync: the compiled roar-mcp (bun) dropped the tail of a large async stdout write into Roar's pipe.
-    try { writeSync(1, String(ctl(args[1], args[2], args[3], args[4]) ?? '')); }
-    catch (e) { writeSync(1, 'error: ' + (e.stderr?.toString().trim() || e.message)); process.exitCode = 1; }
+    try { writeSync(1, String((args[1] === 'chat' ? await chatReply(args[2], args[3]) : ctl(args[1], args[2], args[3], args[4])) ?? '')); }
+    catch (e) { writeSync(1, 'error: ' + explain(e.stderr?.toString().trim() || e.message)); process.exitCode = 1; }
     return;
   }
   if (args[0] === 'claude-hook') return hook('claude');

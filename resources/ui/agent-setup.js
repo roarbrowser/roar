@@ -54,7 +54,7 @@ function llmPicker(sel, after) {
 // Mac in agentOrder (drag a card, or arrow keys on its handle), the rest under "More agents", and one
 // "Reconnect all" banner for outdated ones.
 function agentSetup(root, { llm = true, list: asList = false } = {}) {
-  root.innerHTML = asList ? `<div class="as-banner" role="status" hidden></div><ol class="as-list"><li class="empty">Looking for agent tools…</li></ol>
+  root.innerHTML = asList ? `<div class="as-banner" role="status" hidden></div><div class="as-banner as-cmux" role="status" hidden><span></span></div><ol class="as-list"><li class="empty">Looking for agent tools…</li></ol>
     <details class="as-more as-gone"><summary>More agents</summary><ol class="as-list as-gone-list"></ol></details>
     <details class="as-more as-apps"><summary>Other apps: set up by hand<span hidden>copy their config</span></summary><ol class="as-list as-away"></ol></details>`
     : `${llm ? llmRowHtml() : ''}
@@ -179,7 +179,14 @@ function agentSetup(root, { llm = true, list: asList = false } = {}) {
     if (had) (root.querySelector(`[data-key="${CSS.escape(had)}"]`) || sel)?.focus();
   }
 
-  const refresh = () => Promise.all([ask({ cmd: 'state' }), ask({ cmd: 'agents.list' }), claudeCliStatus()]).then(([s, l, c]) => {
+  // cmux refusing Roar leaves sessions listed but their terminals unreachable, so it's said here rather than only on opening one.
+  const cmuxNote = (out) => {
+    const why = clSession.error(out), box = root.querySelector('.as-cmux');
+    if (!box) return;
+    box.hidden = !/cmux/.test(why);
+    box.firstElementChild.textContent = why;
+  };
+  const refresh = () => Promise.all([ask({ cmd: 'state' }), ask({ cmd: 'agents.list' }), claudeCliStatus(), asList ? clSession.ctl('', 'cmux').then(cmuxNote) : 0]).then(([s, l, c]) => {
     st = typeof s === 'string' ? JSON.parse(s) : s;
     clients = l || [];
     cli = c;

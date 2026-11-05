@@ -1,19 +1,26 @@
 // OpenCode's TUI plugin (mcp/agent-opencode.mjs): which server events become which agent-hook events, and that the
 // file Roar writes really runs on its own. scripts/test-agent-opencode.sh. No OpenCode or CEF needed.
-import { mkdtempSync, readFileSync, writeFileSync, existsSync, rmSync } from 'node:fs';
+import { mkdtempSync, readFileSync, statSync, writeFileSync, existsSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { reporter, pluginSource } from '../mcp/agent-opencode.mjs';
+import { connect } from 'node:net';
+import { reporter, pluginSource, conversation, chatSocket } from '../mcp/agent-opencode.mjs';
+import { chat, parseOpencode } from '../mcp/agent-chat.mjs';
 
 let fail = 0;
 const check = (ok, what) => { if (!ok) fail++; console.log((ok ? 'ok   ' : 'FAIL ') + what); };
 
 // What the TUI gives a plugin, with one server: |sessions| by id, the route and the tabs set by each test.
-function tui({ route, tabs = [], sessions = {}, running = [], tabsOn = false } = {}) {
+function tui({ route, tabs = [], sessions = {}, running = [], tabsOn = false, messages = {}, noServer = false } = {}) {
   let listener;
   const ctx = {
     location: { directory: '/here' },
+    client: { message: { list: async ({ sessionID, limit, order }) => {
+      if (noServer) throw new Error('offline');
+      const all = [...(messages[sessionID] || [])];
+      return { data: { data: (order === 'desc' ? all.reverse() : all).slice(0, limit), cursor: {} } };
+    } } },
     data: {
       listen: (f) => { listener = f; return () => { listener = null; }; },
       session: {
@@ -21,6 +28,8 @@ function tui({ route, tabs = [], sessions = {}, running = [], tabsOn = false } =
         root: (id) => { let s = sessions[id]; while (s?.parentID) { id = s.parentID; s = sessions[id]; } return id; },
         status: (id) => (running.includes(id) ? 'running' : 'idle'),
         list: () => Object.values(sessions),
+        // The TUI's cache: one page, like the real one.
+        message: { sync: async () => {}, list: (id) => (messages[id] || []).slice(-50) },
       },
     },
     ui: { router: { current: () => route }, tabs: { enabled: () => tabsOn, list: () => tabs } },
@@ -142,20 +151,58 @@ const start = (opts) => {
   const log = join(dir, 'got.jsonl'), fake = join(dir, 'roar-mcp');
   writeFileSync(fake, `#!/bin/sh\necho "$1 $2 $(cat)" >> ${JSON.stringify(log)}\n`, { mode: 0o755 });
   const file = join(dir, 'tui.mjs');
-  writeFileSync(file, pluginSource(fake));
+  writeFileSync(file, pluginSource(fake, dir));
   const plugin = (await import(pathToFileURL(file).href)).default;
   check(plugin.id === 'roar.sessions' && typeof plugin.setup === 'function', 'the written plugin loads on its own');
-  const t = tui({ route: { type: 'session', sessionID: 'ses_a' }, sessions: { ses_a: { id: 'ses_a', title: 'T' } } });
+  const t = tui({ route: { type: 'session', sessionID: 'ses_a' }, sessions: { ses_a: { id: 'ses_a', title: 'T' } }, messages: { ses_a: [{ type: 'user', text: 'hello', time: { created: 5 } }] } });
+  writeFileSync(join(dir, '1.sock'), '');
   const stop = plugin.setup(t.ctx);
   t.emit('session.inbox.enqueued', { sessionID: 'ses_a', item: { type: 'user', payload: { text: 'go' } } });
   for (let i = 0; i < 100 && !(existsSync(log) && readFileSync(log, 'utf8').split('\n').length > 2); i++) await new Promise((r) => setTimeout(r, 30));
   const lines = existsSync(log) ? readFileSync(log, 'utf8').trim().split('\n') : [];
   check(lines.length === 2 && lines.every((l) => l.startsWith('agent-hook opencode {')), 'it runs agent-hook opencode, one event each');
   check(/"SessionStart"/.test(lines[0]) && /"UserPromptSubmit"/.test(lines[1]), 'in order');
+  // Chat view's request, as roar-mcp sends it.
+  const sock = chatSocket(dir, process.pid);
+  const askIt = (body) => new Promise((ok) => { let s = ''; const c = connect(sock); c.on('connect', () => c.write(body + '\n')); c.on('data', (d) => { s += d; }); c.on('end', () => ok(s)); c.on('error', () => ok('error')); });
+  for (let i = 0; i < 40 && !existsSync(sock); i++) await new Promise((r) => setTimeout(r, 25));
+  check((statSync(sock).mode & 0o777) === 0o600, 'its socket is this user\'s alone');
+  check(JSON.parse(await askIt('{"session":"ses_a"}')).messages?.[0]?.text === 'hello', 'it answers with the session\'s messages');
+  check((await askIt('{"session":"../x"}')) === '{}' && (await askIt('nonsense')) === '{}', 'it refuses a bad id and bad input');
   stop();
+  check(!existsSync(sock), 'its socket goes when the terminal closes');
   rmSync(dir, { recursive: true, force: true });
 }
-check(pluginSource('/a"b').includes('"/a\\"b"'), 'the roar-mcp path is written as a JS string');
+check(pluginSource('/a"b', '/f').includes('"/a\\"b"'), 'the roar-mcp path is written as a JS string');
+
+// Chat view: only what's said and which tools ran reach Roar, trimmed.
+{
+  const t = tui({ messages: { s: [
+    { type: 'user', text: 'fix it', time: { created: 1000 } },
+    { type: 'assistant', time: { created: 2000 }, content: [{ type: 'reasoning', text: 'secret thoughts' }, { type: 'text', text: 'On it.' },
+      { type: 'tool', name: 'read', state: { status: 'completed', input: { filePath: '/w/a.md' }, content: [{ type: 'text', text: 'file body' }] } },
+      { type: 'tool', name: 'write', state: { status: 'running', input: { filePath: '/w/b.md', content: 'x'.repeat(5000) } } }] },
+    { type: 'system', text: 'internal' }, { type: 'user', text: '<system-reminder>injected</system-reminder>', time: { created: 2500 } },
+    { type: 'assistant', time: { created: 3000 }, content: [{ type: 'text', text: 'Done.' }] },
+  ] } });
+  const slim = await conversation(t.ctx, 's');
+  const json = JSON.stringify(slim);
+  check(!/secret thoughts|file body|internal/.test(json), 'reasoning, tool output and system turns stay out');
+  check(slim[1].content[2].input.content.length === 300, 'long tool inputs are cut');
+  const items = parseOpencode(slim);
+  check(items.map((i) => i.kind).join() === 'user,assistant,tools,assistant', 'turns in order, injected ones dropped: ' + items.map((i) => i.kind).join());
+  check(items[0].text === 'fix it' && items[0].at === new Date(1000).toISOString(), 'a user turn keeps its words and time');
+  const d = chat({ tool: 'opencode', sid: 's' }, 0, 'esc to interrupt', (t) => t, slim);
+  check(d.supported && d.busy && d.items[2].summary === 'Read a.md, edited b.md', 'chat() reads it, summing tools: ' + d.items[2]?.summary);
+  // A long session: the person's words sit far beyond the TUI's cached page.
+  const long = [{ type: 'user', text: 'the ask', time: { created: 1 } }, ...Array.from({ length: 120 }, (_, i) => ({ type: 'assistant', time: { created: 2 + i }, content: [{ type: 'text', text: 'step ' + i }] }))];
+  const far = await conversation(tui({ messages: { s: long } }).ctx, 's');
+  check(far[0].text === 'the ask' && far.length === 121, 'a long session reaches past the cached page, oldest first');
+  const near = await conversation(tui({ messages: { s: long }, noServer: true }).ctx, 's');
+  check(near.length === 50 && near[49].content[0].text === 'step 119', 'server unreachable: falls back to the cached page');
+  const off = chat({ tool: 'opencode', sid: 's' }, 0, '', (t) => t, null);
+  check(!off.supported && /Restart this OpenCode terminal/.test(off.hint), 'a terminal on the older plugin says to restart it');
+}
 
 console.log(fail ? `${fail} failure(s)` : 'ok');
 process.exit(fail ? 1 : 0);

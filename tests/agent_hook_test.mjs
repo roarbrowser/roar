@@ -155,5 +155,18 @@ let unk = '';
 try { ctl('new', WORK, '', 'nope'); } catch (e) { unk = e.stdout; }
 check(unk === 'error: unknown agent CLI', 'unknown CLI refused');
 try { execFileSync('tmux', ['-S', stub.term.tmux.socket, 'kill-server']); } catch {}
+// cmux refusing Roar, with its real wording (a Roar not started from a cmux shell, then a bad password).
+const fakeCmux = (say, code = 1) => { const f = join(HOME, 'fake-cmux'); writeFileSync(f, `#!/bin/sh\n${say ? `echo ${JSON.stringify(say)} >&2\n` : 'echo PONG\n'}exit ${code}\n`, { mode: 0o755 }); return { ...ctlEnv, ROAR_TEST_CMUX: f }; };
+const ctlWith = (e, ...a) => { try { return execFileSync(process.execPath, [EXE, 'claude-ctl', ...a], { env: e, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }); } catch (x) { return x.stdout; } };
+const denied = fakeCmux('Error: ERROR: Access denied - only processes started inside cmux can connect');
+writeFileSync(join(DATA, 'claude-sessions', 'cx1.json'), JSON.stringify({ id: 'cx1', sid: 'cx1', tool: 'claude', term: { cmux: { workspace: 'W', surface: 'S' } } }));
+check(ctlWith(denied, 'screen', 'cx1') === 'error: cmux is blocking Roar. In cmux, open Settings > Automation and set Socket control to Password.', 'cmux denied: says what to change, not its raw error');
+check(ctlWith(denied, 'cmux') === 'error: cmux is blocking Roar. In cmux, open Settings > Automation and set Socket control to Password.', 'cmux check reports the block');
+for (const say of ['Error: ERROR: Invalid password', 'Error: ERROR: Password mode is enabled but no socket password is configured in Settings.', 'ERROR: Authentication required'])
+  check(/^error: Roar can’t sign in to cmux/.test(ctlWith(fakeCmux(say), 'cmux')), `password trouble explained: ${say.slice(-24)}`);
+check(ctlWith(fakeCmux(''  , 0), 'cmux') === 'ok', 'cmux answering: ok');
+check(ctlWith(fakeCmux('Error: Socket not found at /x'), 'cmux') === 'none', 'cmux not running: no warning');
+check(ctlWith(ctlEnv, 'cmux') === 'none', 'no cmux: no warning');
+check(ctlWith(fakeCmux('Error: disk on fire'), 'screen', 'cx1') === 'error: Error: disk on fire', 'other errors pass through');
 console.log(fail ? `${fail} failure(s)` : 'ok');
 process.exit(fail ? 1 : 0);

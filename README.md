@@ -129,7 +129,7 @@ port 9444) started on demand.
   press Esc or ⌃C. Others jump to their window. **Send tab** in that view sends a tab to the
   session's prompt (never ghost tabs); **Side by side** splits it beside your last web page. **New** starts a session in any folder. The hook reports the
   prompt, tool and state, never the conversation.
-- **OpenCode too, even on another computer.** Connect OpenCode in Settings > Agents and each terminal reports its sessions, also with `opencode --server`. Other sessions running on that server show as watch-only rows while a terminal is open. With more than one service listed, the AI section groups them under a heading each.
+- **OpenCode too, even on another computer.** Connect OpenCode in Settings > Agents and each terminal reports its sessions, also with `opencode --server`. Other sessions running on that server show as watch-only rows while a terminal is open. Chat view reads them too, on request, and keeps nothing on disk. With more than one service listed, the AI section groups them under a heading each.
 - **Slash commands in the reply box.** Type `/` in a session window's chat or terminal reply
   box to list the tool's built-in commands plus your own and the project's commands and skills;
   pick with the arrow keys and Tab or Enter.

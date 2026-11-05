@@ -28,7 +28,7 @@ import { run as claudeHooks, chatLabel } from './claude-hook.mjs';
 
 // `roar-mcp agent-hook <tool>` / `agent-hooks <action> [tool]` (and the claude-* forms): agent sessions in the sidebar.
 const mode = process.argv.slice(2)[0];
-if (['claude-hook', 'claude-hooks', 'claude-ctl', 'agent-hook', 'agent-hooks'].includes(mode)) { claudeHooks(process.argv.slice(2), process.execPath); process.exit(); }
+if (['claude-hook', 'claude-hooks', 'claude-ctl', 'agent-hook', 'agent-hooks'].includes(mode)) { await claudeHooks(process.argv.slice(2), process.execPath); process.exit(); }
 if (mode === 'uninstall-agents') { const { uninstallAgents } = await import('./uninstall.mjs'); console.log(uninstallAgents().join('\n')); process.exit(); }
 
 // Contents/Resources/roar-mcp -> Roar.app

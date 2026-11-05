@@ -5720,7 +5720,7 @@ bool Controller::HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> 
       if (msg->HasKey("scratch") && msg->GetBool("scratch")) return AgentScratch(text, tabs, false, reply), true;
       return AgentStart(msg->GetString("id").ToString(), text, tabs, false, reply), true;
     }
-    if (action == "tools") return platform::RoarMcp({"claude-ctl", "tools"}, [callback](const std::string& out) { callback->Success(out); }), true;
+    if (action == "tools" || action == "cmux") return platform::RoarMcp({"claude-ctl", action}, [callback](const std::string& out) { callback->Success(out); }), true;
     if (action != "focus" && action != "screen" && action != "send" && action != "chat" && action != "quit" && action != "resize" && action != "running" && action != "paste") return callback->Failure(0, "bad action"), true;
     std::vector<std::string> args = {"claude-ctl", action, msg->GetString("id").ToString()};
     if (action == "send" || action == "screen" || action == "resize" || action == "paste") args.push_back(msg->GetString("text").ToString());

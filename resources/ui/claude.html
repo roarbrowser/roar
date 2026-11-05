@@ -456,7 +456,7 @@ async function chat() {
       $('view').querySelector('[data-view="chat"]').disabled = true;
       $('view').querySelector('[data-view="chat"]').title = `Chat view isn't available for ${agentName(session)} yet`;
       $('chat-off').hidden = false;
-      $('chat-off').textContent = `Chat view isn't available for ${agentName(session)} yet, so this session shows its terminal.`;
+      $('chat-off').textContent = d.hint || `Chat view isn't available for ${agentName(session)} yet, so this session shows its terminal.`;
       return setView('terminal');
     }
     const box = $('chat'), atBottom = box.scrollTop + box.clientHeight >= box.scrollHeight - 24;
@@ -474,7 +474,7 @@ async function chat() {
     $('running').innerHTML = run.length ? `<b>Running now</b><ul>${run.map((r) => `<li>${r.kind === 'helper' ? 'Helper' : 'Command'}: ${esc(r.label)}</li>`).join('')}</ul>` : '';
     $('working').hidden = !(d.busy || st === 'working') || !!d.prompt;
     $('working').textContent = session.doing && st === 'working' ? session.doing + '…' : 'Working…';
-    showAsk(d.prompt, st === 'needs_you' && /^Approve:|permission/i.test(session.ask || session.doing || ''));
+    showAsk(d.prompt, st === 'needs_you' && /^Approve:|^Asks to |permission/i.test(session.ask || session.doing || ''));
     if (atBottom) box.scrollTop = box.scrollHeight;
   } finally { chatBusy = false; }
 }

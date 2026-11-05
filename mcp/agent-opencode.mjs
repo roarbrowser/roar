@@ -4,6 +4,7 @@
 // events `roar-mcp agent-hook opencode` reads. hooksFor writes it to <config>/roar-plugin/tui.js and lists that
 // folder in cli.json, which OpenCode keeps loaded with --server (https://opencode.ai/v2/docs/build/plugins/cli/).
 // A session this terminal shows gets its pane; any other running on the server is `watch`: a row Roar can't type into.
+// Chat view asks the plugin for a session's messages over a socket only this user can open, so they're never kept on disk.
 
 // Everything it uses must be inside it: pluginSource writes its text into the plugin file.
 export function reporter(ctx, send, every = 2000) {
@@ -116,11 +117,36 @@ export function reporter(ctx, send, every = 2000) {
   return () => { clearInterval(timer); stop(); };
 }
 
+// One session's messages for Chat view, oldest first: what's said and which tools ran, without reasoning or tool output.
+export async function conversation(ctx, id) {
+  // Asked of the server: the TUI's own cache holds one page of 50, which in a long session is all tools and none of the person's words.
+  let list;
+  try {
+    const r = await ctx.client.message.list({ sessionID: id, limit: 200, order: 'desc' });
+    list = (r?.data?.data || r?.data || r).slice().reverse();
+  } catch {
+    await ctx.data.session.message.sync(id);
+    list = ctx.data.session.message.list(id);
+  }
+  const brief = (input) => Object.fromEntries(Object.entries(input || {}).map(([k, v]) => [k, typeof v === 'string' ? v.slice(0, 300) : v]));
+  return list.flatMap((m) => {
+    if (m.type === 'user') return [{ type: 'user', text: m.text, at: m.time?.created }];
+    if (m.type !== 'assistant') return [];
+    return [{ type: 'assistant', at: m.time?.created, content: (m.content || []).flatMap((c) =>
+      c.type === 'text' ? [{ type: 'text', text: c.text }] : c.type === 'tool' ? [{ type: 'tool', name: c.name, input: brief(c.state?.input) }] : []) }];
+  });
+}
+
+// Where a terminal's plugin listens: |folder| is the plugin's own, |pid| the terminal's OpenCode.
+export const chatSocket = (folder, pid) => (process.platform === 'win32' ? `\\\\.\\pipe\\roar-opencode-${pid}` : `${folder}/${pid}.sock`);
+
 // The plugin file, roar-mcp's path baked in like the other CLIs' hook commands. One report at a time, in order:
 // agent-hook drops an event older than the file it would update.
-export const pluginSource = (exe) => `// Written by Roar (Settings > Agents). Reports this terminal's OpenCode sessions to Roar's sidebar: never the conversation.
+export const pluginSource = (exe, folder) => `// Written by Roar (Settings > Agents). Reports this terminal's OpenCode sessions to Roar's sidebar, and shows Roar a session's messages when its Chat view asks. Stores none of them.
 import { spawn } from 'node:child_process';
-const ROAR = ${JSON.stringify(exe)};
+import { chmodSync, readdirSync, rmSync } from 'node:fs';
+import { createServer } from 'node:net';
+const ROAR = ${JSON.stringify(exe)}, FOLDER = ${JSON.stringify(folder)};
 const queue = [];
 let running = false;
 function pump() {
@@ -138,5 +164,41 @@ function pump() {
 }
 const send = (ev) => { if (queue.length < 200) queue.push(ev); pump(); };
 const reporter = ${reporter.toString()};
-export default { id: 'roar.sessions', setup: (ctx) => reporter(ctx, send) };
+const conversation = ${conversation.toString()};
+const chatSocket = ${chatSocket.toString()};
+// Answers one request per connection: {"session": id} in, {"messages": [...]} out.
+function serve(ctx) {
+  const path = chatSocket(FOLDER, process.pid), unix = process.platform !== 'win32';
+  if (unix) {
+    // Sockets of terminals that are gone.
+    try {
+      for (const f of readdirSync(FOLDER)) {
+        const pid = /^(\\d+)\\.sock$/.exec(f)?.[1];
+        if (pid) try { process.kill(+pid, 0); } catch (e) { if (e.code === 'ESRCH') rmSync(FOLDER + '/' + f, { force: true }); }
+      }
+    } catch {}
+    rmSync(path, { force: true });
+  }
+  const server = createServer((c) => {
+    let text = '';
+    c.on('error', () => {});
+    c.on('data', async (d) => {
+      text += d;
+      if (!text.includes('\\n')) return;
+      let out = {};
+      try {
+        const id = JSON.parse(text).session;
+        if (typeof id === 'string' && /^[\\w-]+$/.test(id)) out = { messages: await conversation(ctx, id) };
+      } catch {}
+      c.end(JSON.stringify(out));
+    });
+  });
+  server.on('error', () => {});
+  server.listen(path, () => { if (unix) try { chmodSync(path, 0o600); } catch {} });
+  return () => { server.close(); if (unix) rmSync(path, { force: true }); };
+}
+export default { id: 'roar.sessions', setup: (ctx) => {
+  const stop = reporter(ctx, send), close = serve(ctx);
+  return () => { stop(); close(); };
+} };
 `;
