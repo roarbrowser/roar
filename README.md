@@ -186,6 +186,8 @@ port 9444) started on demand.
 - Boards (command bar: New board): a canvas per space for tab screenshots (whole page or a region),
   links, notes and pen drawings; click a screenshot to reopen its page. Open one from the command bar
   or by right-clicking a tab or empty sidebar space.
+- Close all tabs: right-click Tabs, a tab group, Split, Artifacts or Ghost. Pinned tabs stay, and the
+  others can come back from Recently Closed (ghost tabs leave no trace).
 - Unread Gmail in the sidebar, with Read, Move and Delete per message.
 - Your open GitHub pull requests as a live folder (via `gh`).
 - Sign-in popups open as sidebar tabs, not stray windows.

@@ -5040,6 +5040,16 @@ bool Controller::HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> 
   } else if (cmd == "tab.close") {
     CloseTab(int_arg("id"));
     callback->Success("");
+  } else if (cmd == "tabs.close") {
+    // Close all tabs on a sidebar header: pinned tabs stay and the rest can come back from Recently
+    // Closed. The active tab goes last, so its neighbours don't each wake just to be closed.
+    std::vector<int> ids;
+    if (auto list = msg->GetList("ids"))
+      for (size_t i = 0; i < list->GetSize(); ++i)
+        if (Tab* t = FindTab(list->GetInt(i)); t && !t->pinned) ids.push_back(t->id);
+    std::stable_partition(ids.begin(), ids.end(), [&](int id) { return id != win_->active_id; });
+    for (int id : ids) ArchiveTab(id);
+    callback->Success("");
   } else if (cmd == "newtab.used") {
     if (Tab* tab = FindTabByBrowser(browser); tab && tab->id == start_tab_.id) start_tab_ = {};
     callback->Success("");
