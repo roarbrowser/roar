@@ -292,5 +292,14 @@
       <description><![CDATA[Right-click Tabs, a tab group, Split, Artifacts or Ghost to close every tab listed there. Pinned tabs stay, and the others can come back from Recently Closed. Site tweaks also has a new lion icon.]]></description>
       <enclosure url="https://github.com/roarbrowser/roar/releases/download/v1.13.0/Roar-1.13.0.dmg" type="application/octet-stream" sparkle:edSignature="o7BFtqXlw2qnFsQq9K9w/RprAWcC/6CBLKu2G2BgYXrZLhMyaggaLuJKYbxk+u866jdPMXVDnnZze4fpqJxkCQ==" length="207930705"/>
     </item>
+    <item>
+      <title>1.14.0</title>
+      <pubDate>Thu, 05 Nov 2026 03:15:08 +0000</pubDate>
+      <sparkle:version>11400</sparkle:version>
+      <sparkle:shortVersionString>1.14.0</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[Settings > Model chat now lists everything you've set up at the top: drag to set the order Roar tries them, and remove anything you don't use. Agent turns that finish very quickly now raise a notification, and agent messages send a macOS notification by default. The site menu's Site tweaks and ad-block items are back in spaces with agents off, and those spaces are better protected from agents. On Windows, agents now stay off until you turn on Let agents use Roar in Settings, including after this update.]]></description>
+      <enclosure url="https://github.com/roarbrowser/roar/releases/download/v1.14.0/Roar-1.14.0.dmg" type="application/octet-stream" sparkle:edSignature="/laAp38OFV5BRSZ/yfamRQU8ZEYw/I8fZBl4a8eoZ0sZZEUvw0tgAsM4ZfUnNoSrO7um3Pp8fj/2/PM6yk+EAQ==" length="207933375"/>
+    </item>
   </channel>
 </rss>
