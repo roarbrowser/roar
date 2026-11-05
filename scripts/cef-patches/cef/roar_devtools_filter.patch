@@ -13,7 +13,7 @@ diff --git a/cef/libcef/browser/chrome/roar_devtools_filter.cc b/cef/libcef/brow
 new file mode 100644
 --- /dev/null
 +++ b/cef/libcef/browser/chrome/roar_devtools_filter.cc
-@@ -0,0 +1,34 @@
+@@ -0,0 +1,50 @@
 +// Roar: lets the embedder hide browsers from remote CDP clients (the HTTP
 +// endpoints and the browser-level Target domain). Chromium side:
 +// roar_devtools_target_filter.patch.
@@ -25,6 +25,8 @@ new file mode 100644
 +namespace content {
 +void RoarSetDevToolsTargetFilter(bool (*filter)(WebContents*,
 +                                                BrowserContext*));
++void RoarSetDevToolsWorkerFilter(bool (*filter)(const std::string&,
++                                                BrowserContext*));
 +}  // namespace content
 +
 +namespace {
@@ -32,6 +34,9 @@ new file mode 100644
 +// profile directory; true shows the target.
 +using RoarTargetFilter = bool (*)(int browser_id, const char* profile_path);
 +RoarTargetFilter g_filter = nullptr;
++// Gets a service worker's script URL and profile directory; true shows it.
++using RoarWorkerFilter = bool (*)(const char* url, const char* profile_path);
++RoarWorkerFilter g_worker_filter = nullptr;
 +
 +bool Allow(content::WebContents* contents, content::BrowserContext* context) {
 +  auto browser =
@@ -40,6 +45,11 @@ new file mode 100644
 +  return !g_filter ||
 +         g_filter(browser ? browser->GetIdentifier() : 0, path.c_str());
 +}
++
++bool AllowWorker(const std::string& url, content::BrowserContext* context) {
++  std::string path = context ? context->GetPath().value() : std::string();
++  return !g_worker_filter || g_worker_filter(url.c_str(), path.c_str());
++}
 +}  // namespace
 +
 +// Exported for the embedder, which finds it with dlsym. Call on the UI thread.
@@ -47,4 +57,10 @@ new file mode 100644
 +roar_set_devtools_target_filter(RoarTargetFilter filter) {
 +  g_filter = filter;
 +  content::RoarSetDevToolsTargetFilter(filter ? Allow : nullptr);
++}
++
++extern "C" __attribute__((visibility("default"))) void
++roar_set_devtools_worker_filter(RoarWorkerFilter filter) {
++  g_worker_filter = filter;
++  content::RoarSetDevToolsWorkerFilter(filter ? AllowWorker : nullptr);
 +}

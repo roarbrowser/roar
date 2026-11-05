@@ -1312,6 +1312,11 @@ void Controller::Start() {
     using Filter = bool (*)(int, const char*);
     if (auto filter = reinterpret_cast<void (*)(Filter)>(sym("roar_set_devtools_target_filter")))
       filter([](int id, const char* path) { return Controller::Get()->AgentMayReach(id, path); });
+    // Service workers follow their profile the same way: each holds its extension's powers over the whole profile.
+    using WorkerFilter = bool (*)(const char*, const char*);
+    if (auto filter = reinterpret_cast<void (*)(WorkerFilter)>(sym("roar_set_devtools_worker_filter")))
+      filter([](const char*, const char* path) { return Controller::Get()->AgentMayReach(0, path); });
+    else LOG(WARNING) << "CEF lacks roar_set_devtools_worker_filter: agents off won't hide extension workers";
     // CDP HTTP and WebSocket clients must present this launch's token (scripts/cef-patches).
     if (auto set = reinterpret_cast<void (*)(const char*)>(sym("roar_set_devtools_token"))) set(cdp_token_.c_str());
 #ifndef _WIN32
