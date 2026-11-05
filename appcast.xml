@@ -265,5 +265,14 @@
       <description><![CDATA[OpenCode sessions now have a Chat view, including sessions on a server on another computer. Restart any open OpenCode terminal to use it. When cmux refuses Roar, Roar now tells you what to change, in the session and in Settings > Agents.]]></description>
       <enclosure url="https://github.com/roarbrowser/roar/releases/download/v1.11.0/Roar-1.11.0.dmg" type="application/octet-stream" sparkle:edSignature="wz6RcqNTp8PzqiJV2r8uEDTs5OKkPst63TUeaalfohMFZSfP6TvnUC9rkW/2BFqZwn2nqK64UShxLrr/Qve9BQ==" length="207926262"/>
     </item>
+    <item>
+      <title>1.12.0</title>
+      <pubDate>Thu, 05 Nov 2026 01:26:12 +0000</pubDate>
+      <sparkle:version>11200</sparkle:version>
+      <sparkle:shortVersionString>1.12.0</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[Model chat can now use an OpenCode server, so Ask reaches the same model as your OpenCode terminals, even on another computer. Add it in Settings > Model chat. By default it only answers, with tools blocked by the server. Turn on tools to let Ask work as that server's agent, with approvals shown in the chat.]]></description>
+      <enclosure url="https://github.com/roarbrowser/roar/releases/download/v1.12.0/Roar-1.12.0.dmg" type="application/octet-stream" sparkle:edSignature="LmNyHoxybKTE3GjRosNJByQEwwl22w0Sry0AibPSfIjcsNk7elUylv0XSng2qlQOUR+MqfA118kK+s6OWTdxCw==" length="207916103"/>
+    </item>
   </channel>
 </rss>
