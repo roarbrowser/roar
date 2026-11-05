@@ -3034,7 +3034,13 @@ void Controller::CapDoneCard(int id) {
 void Controller::ClaudeAlert(CefRefPtr<CefDictionaryValue> d) {
   std::string id = d->GetString("id"), state = d->GetString("state");
   auto [it, fresh] = claude_states_.try_emplace(id, state);
-  if (fresh || it->second == state) return;
+  // Turns finished (the hook counts them): a quick one starts and ends between two reads, so the state never changes.
+  // Seen for the first time, only one just finished counts: a restart must not announce old sessions.
+  int turns = d->GetType("turns") == VTYPE_INT ? d->GetInt("turns") : 0;
+  auto [counted, first] = claude_turns_.try_emplace(id, turns);
+  bool quick = state == "idle" && (first ? turns > 0 && NowSeconds() - d->GetDouble("updated") / 1000 < 5 : turns > counted->second);
+  counted->second = turns;
+  if (!quick && (fresh || it->second == state)) return;
   it->second = state;
   // An agent whose turn ended and stays idle 2 minutes gets its pages closed (the roar-mcp connection named in
   // agent-mcp/<agent pid>.json); a new turn within the 2 minutes bumps the generation and keeps them.
@@ -3167,6 +3173,7 @@ void Controller::ClaudeTick() {
     if (auto c = claude_cards_.find(it->first); c != claude_cards_.end()) { int card = c->second; claude_cards_.erase(c); ResolveAlert(card, ""); }
     claude_acked_.erase(it->first);
     claude_seen_.erase(it->first);
+    claude_turns_.erase(it->first);
     it = claude_states_.erase(it);
     SyncAlertBadge();
   }

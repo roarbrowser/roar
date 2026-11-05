@@ -366,6 +366,7 @@ class Controller {
   CefRefPtr<CefListValue> claude_ = CefListValue::Create();
   std::string claude_sig_;
   std::map<std::string, std::string> claude_states_;  // Session id -> last state, for its notification.
+  std::map<std::string, int> claude_turns_;  // Session id -> turns it had finished at the last read.
   std::set<std::string> claude_acked_;  // Sessions answered since their state last changed.
   std::set<std::string> claude_seen_;   // Sessions viewed in their full view since; they no longer count on the Dock badge.
   bool claude_hooks_ = false;

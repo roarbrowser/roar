@@ -183,7 +183,8 @@ export function update(prev, ev, now, tool = 'claude') {
       // The done card shows the start of the final reply: Claude/Codex send last_assistant_message, Gemini prompt_response.
       const said = ev.last_assistant_message || ev.prompt_response;
       const reply = short(said ? plain(said) : tool === 'claude' && ev.transcript_path ? lastSaid(ev.transcript_path, false) : '', 140);
-      return { ...s, state: 'idle', reply, doing: WAITING, pending: '' };
+      // turns: Roar reads these files every 2 s, so a whole turn can pass between two reads; the count still shows it.
+      return { ...s, state: 'idle', reply, doing: WAITING, pending: '', turns: (prev.turns || 0) + 1 };
     }
     default: return s;
   }
