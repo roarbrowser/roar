@@ -15,7 +15,7 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const WIN = process.platform === 'win32';
 const EXE = process.env.ROAR_EXE || join(ROOT, WIN ? 'build/src/Release/Roar.exe' : 'build/src/Release/Roar.app/Contents/MacOS/Roar');
 const PORT = 9470 + Math.floor(Math.random() * 20);
-const TMP = mkdtempSync(join(tmpdir(), 'roar-backup-'));
+const TMP = realpathSync(mkdtempSync(join(tmpdir(), 'roar-backup-')));  // CDP matches profiles by exact path, and /var is a symlink.
 const A = join(TMP, 'a'), B = join(TMP, 'b'), EXT = join(TMP, 'ext'), FILE = join(TMP, 'test.roarbackup');
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 let fail = 0;

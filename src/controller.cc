@@ -273,6 +273,11 @@ class HiddenWindowDelegate : public CefWindowDelegate {
   IMPLEMENT_REFCOUNTING(HiddenWindowDelegate);
 };
 
+// Pages closed to agents while Site tweaks are shared: the extension's own, and the ones that can open DevTools on it.
+bool TweaksGuarded(const std::string& url) {
+  return url.rfind(std::string("chrome-extension://") + kTweaksId + "/", 0) == 0 || url.rfind("chrome://extensions", 0) == 0 || url.rfind("devtools://", 0) == 0;
+}
+
 void SetUpSiteTweaks(CefRefPtr<CefRequestContext> ctx, bool ghost) {
   if (!ctx) return;
   auto all = ctx->GetPreference("extensions.settings");
@@ -1285,6 +1290,9 @@ static bool InCheckout() {
 void Controller::Start() {
   CEF_REQUIRE_UI_THREAD();
   client_ = new Client();
+  action_watch::OnShareSignal([](const std::string& ext, const std::string& session) {
+    if (ext == kTweaksId) Controller::Get()->TweaksShareFrom(session);
+  });
   action_watch::Start([](const std::string& json) { Controller::Get()->PushActions(json); });
   PollDriven();
   // Roar's CEF patch (scripts/cef-patches) routes CDP Target.createTarget here,
@@ -1315,7 +1323,7 @@ void Controller::Start() {
     // Service workers follow their profile the same way: each holds its extension's powers over the whole profile.
     using WorkerFilter = bool (*)(const char*, const char*);
     if (auto filter = reinterpret_cast<void (*)(WorkerFilter)>(sym("roar_set_devtools_worker_filter")))
-      filter([](const char*, const char* path) { return Controller::Get()->AgentMayReach(0, path); });
+      filter([](const char* url, const char* path) { return Controller::Get()->AgentMayReachWorker(url, path); });
     else LOG(WARNING) << "CEF lacks roar_set_devtools_worker_filter: agents off won't hide extension workers";
     // CDP HTTP and WebSocket clients must present this launch's token (scripts/cef-patches).
     if (auto set = reinterpret_cast<void (*)(const char*)>(sym("roar_set_devtools_token"))) set(cdp_token_.c_str());
@@ -1828,6 +1836,11 @@ bool Controller::AgentMayReach(int browser_id, const std::string& profile_path) 
     if ((t && StartsWith(t->url, "roar://")) || StartsWith(it->second->GetMainFrame()->GetURL().ToString(), "roar://"))
       return false;
   }
+  // Shared Site tweaks reach every space, so no agent may read or edit them, in a space it's allowed in or not.
+  if (it != browsers_.end() && State::Get().settings.tweaks_shared) {
+    Tab* t = FindTabByBrowser(it->second);
+    if ((t && TweaksGuarded(t->url)) || TweaksGuarded(it->second->GetMainFrame()->GetURL().ToString())) return false;
+  }
   // Decide by profile, which covers popups and pages Roar has not seen yet.
   // Ghost-<n> and anything unknown match no space and stay hidden.
   State& st = State::Get();
@@ -1835,6 +1848,28 @@ bool Controller::AgentMayReach(int browser_id, const std::string& profile_path) 
     if (profile_path == st.ProfileDir(sp.id)) return sp.agents;
   }
   return false;
+}
+
+bool Controller::AgentMayReachWorker(const std::string& url, const std::string& profile_path) {
+  if (State::Get().settings.tweaks_shared && StartsWith(url, std::string("chrome-extension://") + kTweaksId + "/")) return false;
+  return AgentMayReach(0, profile_path);
+}
+
+void Controller::TweaksShareFrom(const std::string& session) {
+  bool on = State::Get().settings.tweaks_shared;
+  action_watch::CallSession(session, std::string("roarShare('mode',") + (on ? "true" : "false") + ")", [this, on, session](std::string ok) {
+    if (!on || ok == "null") return;
+    action_watch::CallSession(session, "roarShare('snapshot')", [this, session](std::string snapshot) {
+      if (snapshot == "null") return;
+      for (const auto& other : action_watch::WorkerSessions(kTweaksId)) {
+        if (other == session) continue;
+        // A worker with news of its own answers with its snapshot, until nobody has any.
+        action_watch::CallSession(other, "roarShare('merge'," + snapshot + ")", [this, other](std::string r) {
+          if (r.find("\"newer\":true") != std::string::npos) TweaksShareFrom(other);
+        });
+      }
+    });
+  });
 }
 
 int Controller::SpaceOfProfile(CefRefPtr<CefBrowser> browser) {
@@ -4727,6 +4762,7 @@ void Controller::SuggestPageText(const std::string& q, CefRefPtr<CefListValue> l
 
 void Controller::ApplySettings(CefRefPtr<CefDictionaryValue> d) {
   Settings& s = State::Get().settings;
+  bool tweaks_were_shared = s.tweaks_shared;
   bool github_changed = false;
   for (const auto& f : SettingFields())
     if (f.ui && d->HasKey(f.key))
@@ -4744,6 +4780,11 @@ void Controller::ApplySettings(CefRefPtr<CefDictionaryValue> d) {
                             d->HasKey("autoUpdateDownloads") ? d->GetBool("autoUpdateDownloads") : platform::AutoUpdateDownloads());
   if (d->HasKey("dockBadge")) SyncAlertBadge();
   if (d->HasKey("dictation") && !s.dictation) DictationOff();
+  // Turned on: agents already on the extension go, then every worker shares. Off: each keeps the copy it has.
+  if (d->HasKey("tweaksShared") && d->GetBool("tweaksShared") != tweaks_were_shared) {
+    if (s.tweaks_shared && cdp_detach_hidden_) cdp_detach_hidden_();
+    for (const auto& w : action_watch::WorkerSessions(kTweaksId)) TweaksShareFrom(w);
+  }
   if (d->HasKey("cdpEnabled")) {
     s.cdp_enabled = d->GetBool("cdpEnabled");
     SetCdp(s.cdp_enabled);
@@ -6313,6 +6354,8 @@ void Controller::OnAddress(CefRefPtr<CefBrowser> browser, const std::string& url
   Tab* tab = FindTabByBrowser(browser);
   if (KeepAboveTabs(tab, IsUiBrowser(browser), url) && !IsExtensionPopup(browser))
     platform::KeepAbove(browser->GetHost()->GetWindowHandle());
+  // A page an agent is on can land on Site tweaks (a .user.js link opens its installer): AgentMayReach hides it, so cut it off.
+  if (State::Get().settings.tweaks_shared && TweaksGuarded(url) && cdp_detach_hidden_) cdp_detach_hidden_();
   // A window Chrome's UI opened outside Roar (an extension's chrome.tabs.create):
   // reopen its page as a Roar tab and close the stray window. Only its first
   // address decides. Pages a CDP client opened (Target.createTarget) must stay

@@ -9,6 +9,7 @@
 #include <functional>
 #include <set>
 #include <string>
+#include <vector>
 
 namespace roar::action_watch {
 
@@ -34,6 +35,12 @@ void UbolSite(const std::string& what, const std::string& url, const std::string
 // (a CDP browserContextId); cb gets the result as JSON, or "null" without that worker.
 void CallWorker(const std::string& ext, const std::string& context, const std::string& expression,
                 std::function<void(std::string)> cb);
+// Evaluates expression in one worker's session, like CallWorker.
+void CallSession(const std::string& session, const std::string& expression, std::function<void(std::string)> cb);
+// The sessions of every running worker of extension ext.
+std::vector<std::string> WorkerSessions(const std::string& ext);
+// cb gets a worker's session when one attaches, and when it logs "__roar_tweaks_share__".
+void OnShareSignal(std::function<void(const std::string& ext, const std::string& session)> cb);
 // {"<extension id>": {"icon": "data:…" | null, "badge": "3", "color": "rgba(…)"}}
 std::string StateJson();
 

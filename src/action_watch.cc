@@ -25,6 +25,7 @@ namespace {
 
 int g_write = -1, g_read = -1;
 std::function<void(const std::string&)> g_on_change;
+std::function<void(const std::string&, const std::string&)> g_on_share;
 std::string g_url;
 int g_next_id = 1;
 std::map<int, std::function<void(CefRefPtr<CefDictionaryValue>)>> g_pending;
@@ -182,6 +183,7 @@ void Attach(CefRefPtr<CefDictionaryValue> info) {
     g_sessions[session] = target;
     Send("Runtime.enable", nullptr, session);
     InstallHook(target, 20);
+    if (g_on_share) g_on_share(it->second.ext, session);
   });
 }
 
@@ -218,9 +220,11 @@ void OnMessage(const std::string& text) {
   } else if (method == "Runtime.consoleAPICalled") {
     auto args = params->GetList("args");
     auto first = args && args->GetSize() ? args->GetDictionary(0) : nullptr;
-    if (!first || first->GetString("value") != "__roar_action__") return;
+    if (!first) return;
     auto it = g_sessions.find(msg->GetString("sessionId"));
-    if (it != g_sessions.end()) Refresh(it->second);
+    if (it == g_sessions.end()) return;
+    if (first->GetString("value") == "__roar_action__") Refresh(it->second);
+    else if (first->GetString("value") == "__roar_tweaks_share__" && g_on_share) g_on_share(g_workers[it->second].ext, it->first);
   }
 }
 
@@ -394,6 +398,19 @@ void CallWorker(const std::string& ext, const std::string& context, const std::s
   for (const auto& w : g_workers)
     if (w.second.ext == ext && !w.second.session.empty() && !context.empty() && w.second.context == context)
       session = w.second.session;
+  CallSession(session, expression, std::move(cb));
+}
+
+std::vector<std::string> WorkerSessions(const std::string& ext) {
+  std::vector<std::string> out;
+  for (const auto& w : g_workers)
+    if (w.second.ext == ext && !w.second.session.empty()) out.push_back(w.second.session);
+  return out;
+}
+
+void OnShareSignal(std::function<void(const std::string&, const std::string&)> cb) { g_on_share = std::move(cb); }
+
+void CallSession(const std::string& session, const std::string& expression, std::function<void(std::string)> cb) {
   if (session.empty()) return cb("null");
   auto once = std::make_shared<std::function<void(std::string)>>(std::move(cb));
   auto finish = [once](std::string r) { if (*once) { auto f = std::move(*once); *once = nullptr; f(std::move(r)); } };

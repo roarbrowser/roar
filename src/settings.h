@@ -26,6 +26,7 @@ struct Settings {
   bool pinned_centered = false;  // Centers a short last row.
   // The CDP port, on by default; the sidebar's CDP indicator opens or closes it live.
   bool cdp_enabled = true;
+  bool tweaks_shared = false;  // Site tweaks: every space gets the same scripts and styles (lib/share.js). Agents can't reach the extension while on.
   bool cdp_win_off = false;  // Windows: agents were switched off once (State::Load). Stock CEF has no CDP token or space filter, so they're opt-in there.
   // Which Roar the bundled MCP server (roar-mcp.sh) drives: this one, or a hidden one on 9444.
   bool agent_headless = false;
@@ -142,6 +143,7 @@ inline const std::vector<SettingField>& SettingFields() {
       // "cdpOpen", not 0.5.0's "cdpEnabled": that release saved false for everyone. Pages call it cdpEnabled.
       {"cdpOpen", &Settings::cdp_enabled, false},
       {"cdpWinOff", &Settings::cdp_win_off, false},
+      {"tweaksShared", &Settings::tweaks_shared, true},
       {"agentHeadless", &Settings::agent_headless, true},
       {"askLlms", &Settings::ask_llms, true},
       {"autoNameDownloads", &Settings::auto_name_downloads, true},

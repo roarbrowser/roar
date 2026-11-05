@@ -146,6 +146,9 @@ class Controller {
   std::map<std::string, std::set<int>> driving_;  // Agent name -> tabs roar-mcp says it acts on (agent.drive).  // The tab CDP createTarget opened last (agent.front).
   // Whether remote CDP clients may see this browser (Roar's DevTools filter).
   bool AgentMayReach(int browser_id, const std::string& profile_path);
+  bool AgentMayReachWorker(const std::string& url, const std::string& profile_path);
+  // Site tweaks across spaces: tells a worker whether sharing is on and, when it is, passes its snapshot to the others.
+  void TweaksShareFrom(const std::string& session);
   // Where a connection's pages open by default: the active space, else the first
   // that allows agents; -1 when none does. Never shared between connections.
   int AgentSpace();
