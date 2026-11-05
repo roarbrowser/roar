@@ -283,5 +283,14 @@
       <description><![CDATA[In an agent session's Chat view, the message box now stays on screen. Long chats could scroll it out of the window.]]></description>
       <enclosure url="https://github.com/roarbrowser/roar/releases/download/v1.12.1/Roar-1.12.1.dmg" type="application/octet-stream" sparkle:edSignature="r67lD0b0a1/dwCbG/P8+jHIFJhIAY7lWIW3rzq7Rp33VwqN2DHq3UixXhadxivVN/OeZenM5OvQqlvfdKu+8Ag==" length="207916192"/>
     </item>
+    <item>
+      <title>1.13.0</title>
+      <pubDate>Thu, 05 Nov 2026 02:19:12 +0000</pubDate>
+      <sparkle:version>11300</sparkle:version>
+      <sparkle:shortVersionString>1.13.0</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[Right-click Tabs, a tab group, Split, Artifacts or Ghost to close every tab listed there. Pinned tabs stay, and the others can come back from Recently Closed. Site tweaks also has a new lion icon.]]></description>
+      <enclosure url="https://github.com/roarbrowser/roar/releases/download/v1.13.0/Roar-1.13.0.dmg" type="application/octet-stream" sparkle:edSignature="o7BFtqXlw2qnFsQq9K9w/RprAWcC/6CBLKu2G2BgYXrZLhMyaggaLuJKYbxk+u866jdPMXVDnnZze4fpqJxkCQ==" length="207930705"/>
+    </item>
   </channel>
 </rss>
