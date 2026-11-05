@@ -31,6 +31,8 @@ int main() {
   p = NotifyGet(m, "sessionNeeds");
   check(!p.on && !p.mac, "sessionNeeds off, no macOS");
   check(NotifyGet(m, "agentDone").dismiss == 30 && NotifyGet(m, "agentDone").on, "auto-dismiss off: agent done cards keep 30 s too");
+  check(NotifyGet("", "agentDone").on && NotifyGet("", "agentDone").dismiss == 45 && NotifyGet("", "agentDone").mac, "agent messages default to on, 45 s and a macOS notification");
+  check(!NotifyGet("agentDone:1:45:0", "agentDone").mac, "a saved choice beats the default");
   s.claude_alert_done = true;
   s.claude_alert_system = true;
   p = NotifyGet(NotifyMigrate(s), "sessionDone");

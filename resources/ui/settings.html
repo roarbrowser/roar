@@ -310,7 +310,7 @@ const refresh = () => ask({ cmd: 'state' }).then(apply);
 const NOTIFY = [
   ['sessionDone', 'Session finished', 'An agent session finished its turn.', [1, 45, 1], 'Alert me when a session finishes. Auto-dismiss done cards. Also send a macOS notification.'],
   ['sessionNeeds', 'Session needs you', 'An agent session is waiting for you.', [1, 120, 1], 'Alert me when a session needs me.'],
-  ['agentDone', 'Agent messages', 'Updates an agent sends you, such as “done”.', [1, 45, 0], 'notify_user done info cards'],
+  ['agentDone', 'Agent messages', 'Updates an agent sends you, such as “done”.', [1, 45, 1], 'notify_user done info cards'],
   ['agentNeeds', 'Agent needs you', 'An agent is blocked. Questions it asks always show.', [1, 120, 1], 'notify_user needs_you ask_user'],
   ['agentPage', 'Agent opened a page', 'While Roar is in the background.', [1, 45, 0], ''],
   ['update', 'Update available', 'A new version of Roar is ready to install.', [0, 0, 0], ''],

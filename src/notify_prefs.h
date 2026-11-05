@@ -24,7 +24,7 @@ inline const std::vector<NotifyType>& NotifyTypes() {
   static const std::vector<NotifyType> types = {
       {"sessionDone", {true, 45, true}},    // An agent session finished its turn (hooks, ClaudeAlert).
       {"sessionNeeds", {true, 120, true}},  // An agent session needs you.
-      {"agentDone", {true, 45, false}},     // notify_user "done"/"info" cards.
+      {"agentDone", {true, 45, true}},      // notify_user "done"/"info" cards.
       {"agentNeeds", {true, 120, true}},    // notify_user "needs_you" cards (ask_user always shows: it waits on you).
       {"agentPage", {true, 45, false}},     // An agent opened a page for you while Roar was in the background.
       {"update", {false, 0, false}},        // A Roar update is available.
