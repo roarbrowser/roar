@@ -339,6 +339,10 @@ void State::Load() {
                groups.end());
   for (auto& t : tabs)
     if (!FindGroup(t.group)) t.group = 0;
+#ifdef _WIN32
+  // Stock CEF has no CDP token or space filter: agents stay off until Settings turns them on, new installs and old alike.
+  if (!settings.cdp_win_off) settings.cdp_win_off = true, settings.cdp_enabled = false;
+#endif
 }
 
 bool State::GroupPinned(int id) {

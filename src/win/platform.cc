@@ -270,7 +270,8 @@ bool CdpEnabled() {
     // Read before CefInitialize, straight from state.json.
     // shortcut: substring match on "cdpOpen":false, upgrade to a real JSON parse if the format changes.
     std::string text = ss.str();
-    return text.find("\"cdpOpen\":false") == std::string::npos;
+    // Closed until State::Load has saved cdpWinOff: an older state.json still says cdpOpen true for everyone.
+    return text.find("\"cdpWinOff\":true") != std::string::npos && text.find("\"cdpOpen\":false") == std::string::npos;
   }();
   return on;
 }

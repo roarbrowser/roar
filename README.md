@@ -142,6 +142,8 @@ port 9444) started on demand.
   attach to them, and blocking a space disconnects agents already attached to its tabs; with
   several spaces allowed, the agent asks you which to use (or calls `use_profile`), and its new
   pages open there.
+  Mac only for now: Windows ships stock CEF, which can't hide a space or require a token. There,
+  agents stay off until you turn them on in Settings, and then they reach every space.
 - **One click to cut it off.** The dot under the settings icon shows whether agents can
   reach the current space (hover for the port, connected agents and allowed spaces); click
   it to allow or block agents in this space. Settings > "Allow agents to connect" closes

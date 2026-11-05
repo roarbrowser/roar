@@ -214,7 +214,7 @@ p.reason a { color: inherit; }
         <div class="row"><label class="name" for="af-on">Agent files row<small>Opens CLAUDE.md, AGENTS.md and rules in one click.</small></label><input type="checkbox" class="switch" id="af-on" data-set="agentFilesRow"></div>
       </div>
       <div class="blk"><h3>Browsing</h3>
-        <div class="row"><label class="name" for="cdp-on" title="Close it before a site that flags automated browsers">Let agents use Roar<span hidden>Agents can browse with Roar</span></label><span class="end"><button class="btn" id="cdp-relaunch" hidden>Relaunch to apply</button><input type="checkbox" class="switch" id="cdp-on" data-set="cdpEnabled"></span></div>
+        <div class="row"><label class="name" for="cdp-on" title="Close it before a site that flags automated browsers">Let agents use Roar<small id="cdp-win" hidden>On Windows, agents reach every space whatever its agent setting says, and any program on this PC can use the same port.</small><span hidden>Agents can browse with Roar</span></label><span class="end"><button class="btn" id="cdp-relaunch" hidden>Relaunch to apply</button><input type="checkbox" class="switch" id="cdp-on" data-set="cdpEnabled"></span></div>
         <fieldset id="agent-opts">
           <div class="row"><span class="name" id="mode-label">Where agents browse<small id="mode-note"></small></span>
             <div class="segmented" role="group" aria-labelledby="mode-label" data-seg="agentHeadless">
@@ -384,6 +384,7 @@ function apply(s) {
   $('gm-account-row').hidden = !s.gmail.enabled || s.gmail.signedOut || !(s.gmail.accounts?.length || s.gmail.account);
   $('gm-account').textContent = (s.gmail.accounts || []).map((a) => a.address).filter(Boolean).join(', ') || s.gmail.account || '';
   $('agent-opts').disabled = !st.cdpEnabled;
+  $('cdp-win').hidden = !/Win/.test(navigator.platform);
   setup.refresh();
   showLlm(st);
   if (!chatRefresh.done) chatRefresh.done = true, chatRefresh(st);
