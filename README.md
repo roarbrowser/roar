@@ -189,7 +189,8 @@ port 9444) started on demand.
   links, notes and pen drawings; click a screenshot to reopen its page. Open one from the command bar
   or by right-clicking a tab or empty sidebar space.
 - Close all tabs: right-click Tabs, a tab group, Split, Artifacts or Ghost. Pinned tabs stay, and the
-  others can come back from Recently Closed (ghost tabs leave no trace).
+  others can come back from Recently Closed (ghost tabs leave no trace). Ghost also has an X on its
+  header that closes the whole group.
 - Settings > Model chat lists what you've set up in the order Roar tries it: drag to reorder, and remove
   anything you don't use. Removing a coding assistant leaves it installed on your Mac.
 - Unread Gmail in the sidebar, with Read, Move and Delete per message.

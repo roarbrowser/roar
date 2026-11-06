@@ -160,6 +160,8 @@ body.drag-active .pinned:empty::before { content: 'Drop to pin'; color: var(--in
 /* Ghost tabs: a private, in-memory profile; their own tinted section. */
 #ghost-group { margin: 0 0 8px; padding: 2px 0 4px; border-radius: 10px; background: color-mix(in srgb, #6b5ca5 12%, transparent); }
 #ghost-group .group-head { color: #6b5ca5; gap: 6px; }
+#ghost-close { width: 20px; height: 20px; margin-right: -2px; padding: 0; display: grid; place-items: center; color: var(--ink-3); flex: none; }
+#ghost-close:hover { background: var(--rule); color: var(--ink); }
 #art-group .art-ico { width: 13px; height: 13px; margin-right: 5px; vertical-align: -2px; }
 .ghost-ico { width: 13px; height: 13px; flex: none; }
 .pin .fav { width: 18px; height: 18px; }
@@ -446,7 +448,7 @@ body.drag-active .pinned:empty::before { content: 'Drop to pin'; color: var(--in
   <div class="pinned" id="pinned"></div>
   <div id="pinned-groups"></div>
   <section id="ghost-group" hidden>
-    <div class="group-head"><svg class="ghost-ico" viewBox="0 0 16 16" fill="currentColor"><path d="M8 1.5a5 5 0 0 0-5 5v7.2l1.7-1.2 1.6 1.2L8 12.5l1.7 1.2 1.6-1.2 1.7 1.2V6.5a5 5 0 0 0-5-5zM6 5.6a1 1 0 1 1 0 2 1 1 0 0 1 0-2zm4 0a1 1 0 1 1 0 2 1 1 0 0 1 0-2z"/></svg><span>Ghost</span><span class="count" id="ghost-count"></span><span id="ghost-ai"></span></div>
+    <div class="group-head"><svg class="ghost-ico" viewBox="0 0 16 16" fill="currentColor"><path d="M8 1.5a5 5 0 0 0-5 5v7.2l1.7-1.2 1.6 1.2L8 12.5l1.7 1.2 1.6-1.2 1.7 1.2V6.5a5 5 0 0 0-5-5zM6 5.6a1 1 0 1 1 0 2 1 1 0 0 1 0-2zm4 0a1 1 0 1 1 0 2 1 1 0 0 1 0-2z"/></svg><span>Ghost</span><span class="count" id="ghost-count"></span><span id="ghost-ai"></span><span class="spacer"></span><button id="ghost-close" title="Close all ghost tabs" aria-label="Close all ghost tabs"><svg viewBox="0 0 12 12" width="10" height="10" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="m3 3 6 6M9 3l-6 6"/></svg></button></div>
     <div class="rows" id="ghost-tabs"></div>
   </section>
   <section id="art-group" aria-label="Artifacts" hidden>
@@ -912,6 +914,7 @@ document.addEventListener('click', (e) => {
   if (e.target.closest('#dl-btn')) return ask({ cmd: 'run', id: 'downloads' });
   const close = e.target.closest('[data-close]');
   if (close) { e.stopPropagation(); return ask({ cmd: 'tab.close', id: +close.dataset.close }); }
+  if (e.target.closest('#ghost-close')) { e.stopPropagation(); return ask({ cmd: 'tabs.close', ids: listedTabs($('ghost-group')) }); }
   const tab = e.target.closest('[data-id]');
   if (tab) return ask({ cmd: 'tab.activate', id: +tab.dataset.id });
   const selacct = e.target.closest('[data-selacct]');

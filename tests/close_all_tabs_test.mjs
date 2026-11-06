@@ -3,7 +3,7 @@
 // Usage: node tests/close_all_tabs_test.mjs <Roar binary>
 import { spawn } from 'node:child_process';
 import { createServer } from 'node:http';
-import { mkdtempSync, realpathSync, rmSync } from 'node:fs';
+import { mkdtempSync, readdirSync, realpathSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { cdpAuth } from './cdp_auth.mjs';
@@ -41,6 +41,17 @@ const rightClick = (selector) => ev(`(() => { const el = document.querySelector(
   el.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: r.left + 4, clientY: r.top + 4 }));
   return [...document.querySelectorAll('#ctx button')].filter((b) => b.dataset.act).map((b) => b.textContent + (b.disabled ? ' (off)' : '')); })()`);
 const pick = async () => { await ev(`document.querySelector('#ctx [data-act="closeall"]').click()`); await sleep(900); };
+// A real mouse click at the middle of an element, so hit-testing and the sidebar's click handler both count.
+const click = async (selector) => {
+  const [x, y] = await ev(`(() => { const r = document.querySelector(${JSON.stringify(selector)}).getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; })()`);
+  const t = (await list()).find((x) => x.url.includes('sidebar.html'));
+  const ws = new WebSocket(t.webSocketDebuggerUrl);
+  await new Promise((r) => (ws.onopen = r));
+  let n = 0;
+  const send = (type) => new Promise((ok) => { ws.onmessage = ok; ws.send(JSON.stringify({ id: ++n, method: 'Input.dispatchMouseEvent', params: { type, x, y, button: 'left', buttons: type === 'mousePressed' ? 1 : 0, clickCount: 1 } })); });
+  await send('mousePressed'); await send('mouseReleased');
+  ws.close();
+};
 // Only the command bar makes a ghost tab.
 const ghost = async (n) => {
   await ev(`ask({ cmd: 'run', id: 'newGhostTab' })`); await sleep(500);
@@ -105,6 +116,24 @@ try {
     check(!(await ev(`state.tabs.some((t) => t.ghost)`)), 'Ghost closes its tabs');
     check(!(await fresh()).includes('Boo'), 'a ghost tab stays out of Recently Closed');
   } else check(false, 'test setup: no ghost tab opened');
+
+  // The X on the Ghost header closes the whole group, a split ghost pair included, and ends the ghost session.
+  await open('Plain');
+  await ghost('GA'); await ghost('GB'); await ghost('GC');
+  await ev(`ask({ cmd: 'tab.split', id: ${id('GB')}, with: ${id('GC')}, stacked: false })`); await sleep(600);
+  const others = await ev(`state.tabs.filter((t) => !t.ghost).map((t) => t.id).sort().join()`);
+  const ghostDirs = () => readdirSync(data).filter((f) => f.startsWith('Ghost-'));
+  const oldDirs = ghostDirs();
+  check((await ev(`document.querySelectorAll('#ghost-group .split-pair .row').length`)) === 2 && (await ev(`document.querySelectorAll('#ghost-group .row').length`)) === 3, 'test setup: three ghost tabs, two of them a split pair');
+  check(await ev(`(() => { const b = $('ghost-close'), r = b.getBoundingClientRect(), x = document.querySelector('#ghost-tabs .row:not(.split-pair .row) .x').getBoundingClientRect(); return r.width > 0 && Math.abs(r.right - x.right) < 1 && document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2).closest('#ghost-close') === b; })()`), 'the Ghost header shows its X without hovering, lined up with the tabs\' Xs');
+  await click('#ghost-close'); await sleep(1200);
+  check(!(await ev(`state.tabs.some((t) => t.ghost)`)), 'the X closes every ghost tab, split pair too');
+  check(await ev(`$('ghost-group').hidden`), 'the Ghost header goes away with its tabs');
+  check((await ev(`state.tabs.filter((t) => !t.ghost).map((t) => t.id).sort().join()`)) === others, 'the X leaves every other tab open');
+  const after = await fresh();
+  check(!['GA', 'GB', 'GC'].some((n) => after.includes(n)), 'ghost tabs closed by the X stay out of Recently Closed');
+  await ghost('Next');
+  check(ghostDirs().some((d) => !oldDirs.includes(d)), `the next ghost tab starts a new session (${ghostDirs()})`);
 } catch (e) { check(false, 'test run: ' + e.message); } finally { cleanup(); }
 console.log(failed ? `${failed} failed` : 'all passed');
 process.exit(failed ? 1 : 0);
