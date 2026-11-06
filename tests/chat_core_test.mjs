@@ -280,6 +280,10 @@ check(JSON.stringify(core.parseNames('no json here', ['tab:1'])) === '{}', 'pars
   check(JSON.stringify(core.opencodeEvents(() => 'a')('not json')) === '{}', 'bad events are skipped');
   check(core.providerStatus(oc[1], { probe: ['default'] }).label.includes('no tools') && core.providerStatus(oc[0], { probe: ['default'] }).label.includes('tools there'), 'its status says which mode');
   check(core.providerStatus(oc[1], {}).state === 'missing', 'not answering');
+  // A closed <select> hides its group heading, so "default" must show as the tool it means.
+  const cliOc = core.CLI_PROVIDERS.find((x) => x.id === 'cli-opencode');
+  check(core.modelLabel(cliOc, 'default') === 'opencode' && core.modelLabel(oc[0], 'default') === oc[0].name, 'a default model shows as its tool');
+  check(core.modelLabel(cliOc, 'gpt-5') === 'gpt-5' && core.modelLabel(undefined, 'default') === 'default', 'a named model keeps its name, and an unknown tool falls back to the id');
 
   // oneShot (AI rename) through a fake server: it speaks sessions and events, and has no /chat/completions.
   const server = ({ events = [], session = '{"data":{"id":"a"}}', sessionFail = 0 } = {}) => {

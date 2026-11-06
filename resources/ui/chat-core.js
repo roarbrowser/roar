@@ -477,9 +477,12 @@
     return found.map((p, i) => [p, i]).sort((a, b) => rank(a[0]) - rank(b[0]) || a[1] - b[1]).map(([p]) => p);
   };
   // Set up, so Settings lists it above More: an assistant on this Mac, a server you added, a key or a server that answers.
+  // What a model is called on screen. "default" is a stored id meaning whatever that tool is set to, and a closed
+  // <select> hides its group heading, so it would read as a bare "default"; the tool's name says what you picked.
+  const modelLabel = (p, m) => (m === 'default' && p?.name) || m;
   const chatOn = (p) => (p.kind === 'cli' ? p.state !== 'missing' : p.optional || p.kind === 'opencode' || !!p.hasKey || p.state === 'running');
 
-  const api = { idList, chatList, chatOrdered, chatOn, opencodeEvents, defaultModel, renamePrompt, renameKeys, autoNameKeys, parseNames, oneShot, SEARCH_SYSTEM, searchMode, openRequest, addSources, webSearchTool, CLI_PROVIDERS, CLI_LOGIN, signedOutError, pageRefusal, shotRefusal, cliStatus, cliPrompt, cliParser, parseProviders, sseParser, streamDelta, requestBody, modelIds, providerStatus, detectProviders, renderMarkdown };
+  const api = { idList, chatList, chatOrdered, chatOn, modelLabel, opencodeEvents, defaultModel, renamePrompt, renameKeys, autoNameKeys, parseNames, oneShot, SEARCH_SYSTEM, searchMode, openRequest, addSources, webSearchTool, CLI_PROVIDERS, CLI_LOGIN, signedOutError, pageRefusal, shotRefusal, cliStatus, cliPrompt, cliParser, parseProviders, sseParser, streamDelta, requestBody, modelIds, providerStatus, detectProviders, renderMarkdown };
   if (typeof module === 'object') module.exports = api;
   else globalThis.chatCore = api;
 })();

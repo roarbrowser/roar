@@ -684,8 +684,8 @@ async function chatRefresh(st) {
   chatFound = found;
   paint(found);
   if (document.activeElement === sel) return;
-  sel.innerHTML = '<option value="">First available</option>' + found.filter((p) => p.models.length).map((p) => `<optgroup label="${esc(p.kind === 'cli' ? p.name + ' (your subscription)' : p.name)}">${p.models.map((x) => `<option value="${esc(p.id + '|' + x)}">${esc(x)}</option>`).join('')}</optgroup>`).join('');
-  if (st.chatModel && ![...sel.options].some((o) => o.value === st.chatModel)) sel.add(new Option(st.chatModel.split('|').pop() + ' (offline)', st.chatModel));
+  sel.innerHTML = '<option value="">First available</option>' + found.filter((p) => p.models.length).map((p) => `<optgroup label="${esc(p.kind === 'cli' ? p.name + ' (your subscription)' : p.name)}">${p.models.map((x) => `<option value="${esc(p.id + '|' + x)}">${esc(chatCore.modelLabel(p, x))}</option>`).join('')}</optgroup>`).join('');
+  if (st.chatModel && ![...sel.options].some((o) => o.value === st.chatModel)) sel.add(new Option(chatCore.modelLabel(list.find((p) => p.id === st.chatModel.split('|')[0]), st.chatModel.split('|').pop()) + ' (offline)', st.chatModel));
   sel.value = st.chatModel || '';
 }
 const chatSave = (list) => set({ chatProviders: JSON.stringify(list) }).then(() => chatRefresh(last.settings));
