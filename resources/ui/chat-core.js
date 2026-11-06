@@ -215,6 +215,9 @@
   const pageRefusal = (p) => p?.kind === 'opencode' ? (p.tools ? `${p.name} can use tools, and a web page could tell it to. Turn its tools off in Settings, or use another model, to include a tab.` : '')
     : !p || p.kind !== 'cli' || p.pages ? ''
     : `${p.name} can't be fully cut off from your files, so Roar won't send it web pages (a page could tell it to read them). Use Claude Code or an API model to include a tab.`;
+  // The same for oneShot, which has no chat to keep: an OpenCode server gives it a session with no tools, whatever the
+  // provider's chats may do, so it may always take page text.
+  const shotRefusal = (p) => (p?.kind === 'opencode' ? '' : pageRefusal(p));
   // CLIs with a sign-in command Roar can run (chat.login); gemini and qwen sign in only from their own prompt.
   const CLI_LOGIN = ['claude', 'codex'];
   const signedOutError = (cli, err) => CLI_LOGIN.includes(cli) && /not (logged|signed) in|isn.t signed in|\/login|codex login|unauthori[sz]ed|\b401\b/i.test(err || '');
@@ -403,17 +406,17 @@
     return out;
   };
   // One turn on an OpenCode server, as Ask runs it (chat.html run()): the reply comes over the event stream, so that
-  // opens first and the prompt goes once it connects. Tools off only: the prompt carries page text and nobody is here
-  // to answer an approval. ms ends a turn that never finishes, since an auto-name has no timeout of its own.
+  // opens first and the prompt goes once it connects. Its session never has tools, even when the provider's chats do: the
+  // prompt carries page text and nobody is here to answer an approval. ms ends a turn that never finishes, since an
+  // auto-name has no timeout of its own.
   const opencodeShot = (p, prompt, query, cancel, ms) => new Promise((done, fail) => {
-    if (pageRefusal(p)) return fail(new Error(pageRefusal(p)));
     let sid = '', text = '', qid, started = false, over = false;
     const events = opencodeEvents(() => sid), sse = sseParser();
     const failed = (code, message) => new Error(`${p.name} failed (${code}) ${String(message || '').slice(0, 200)}`);
-    const call = (method, path, body) => new Promise((ok, no) => query({
-      request: JSON.stringify({ cmd: 'chat.request', provider: p.id, what: 'opencode', method, path, ...(body && { body: JSON.stringify(body) }) }),
+    const call = (method, path, body, extra) => new Promise((ok, no) => query({
+      request: JSON.stringify({ cmd: 'chat.request', provider: p.id, what: 'opencode', method, path, ...(body && { body: JSON.stringify(body) }), ...extra }),
       onSuccess: ok, onFailure: (code, message) => no(failed(code, message)) }));
-    // Tools off, a session is only this turn: never leave it on the server, where it would show in OpenCode.
+    // The session is only this turn: never leave it on the server, where it would show in OpenCode.
     const drop = (id, running) => (running ? call('POST', `/api/session/${id}/interrupt`).catch(() => {}) : Promise.resolve())
       .then(() => call('DELETE', `/api/session/${id}`)).catch(() => {});
     const end = (err) => {
@@ -426,7 +429,7 @@
     };
     const start = async () => {
       try {
-        const made = await call('POST', '/api/session');
+        const made = await call('POST', '/api/session', null, { noTools: true });
         const info = typeof made === 'string' ? JSON.parse(made) : made, id = info?.data?.id || info?.id;
         if (!id) throw new Error(`${p.name} made no session`);
         if (over) return void drop(id, false);
@@ -476,7 +479,7 @@
   // Set up, so Settings lists it above More: an assistant on this Mac, a server you added, a key or a server that answers.
   const chatOn = (p) => (p.kind === 'cli' ? p.state !== 'missing' : p.optional || p.kind === 'opencode' || !!p.hasKey || p.state === 'running');
 
-  const api = { idList, chatList, chatOrdered, chatOn, opencodeEvents, defaultModel, renamePrompt, renameKeys, autoNameKeys, parseNames, oneShot, SEARCH_SYSTEM, searchMode, openRequest, addSources, webSearchTool, CLI_PROVIDERS, CLI_LOGIN, signedOutError, pageRefusal, cliStatus, cliPrompt, cliParser, parseProviders, sseParser, streamDelta, requestBody, modelIds, providerStatus, detectProviders, renderMarkdown };
+  const api = { idList, chatList, chatOrdered, chatOn, opencodeEvents, defaultModel, renamePrompt, renameKeys, autoNameKeys, parseNames, oneShot, SEARCH_SYSTEM, searchMode, openRequest, addSources, webSearchTool, CLI_PROVIDERS, CLI_LOGIN, signedOutError, pageRefusal, shotRefusal, cliStatus, cliPrompt, cliParser, parseProviders, sseParser, streamDelta, requestBody, modelIds, providerStatus, detectProviders, renderMarkdown };
   if (typeof module === 'object') module.exports = api;
   else globalThis.chatCore = api;
 })();

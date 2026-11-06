@@ -5835,7 +5835,8 @@ bool Controller::HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> 
     std::string what = msg->GetString("what"), method = msg->GetString("method"), path = msg->GetString("path"), body = msg->GetString("body");
     bool server = what == "opencode";
     if (server && (kind != "opencode" || !OpencodeCallAllowed(method, path))) return callback->Failure(-1, "Not a call Model chat makes"), true;
-    if (server && path == "/api/session") body = OpencodeSessionBody(tools, dir);
+    // noTools: a one-off turn carrying page text, on a server whose chats may use tools. It can only ever take tools away.
+    if (server && path == "/api/session") body = OpencodeSessionBody(tools && !msg->GetBool("noTools"), dir);
     std::string url = server && !base.empty() ? base + path : ChatEndpoint(kind, base, what);
     if (url.empty()) return callback->Failure(-1, "Unknown provider or URL"), true;
     auto http = CefRequest::Create();

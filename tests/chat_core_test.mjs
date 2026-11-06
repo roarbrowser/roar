@@ -283,16 +283,16 @@ check(JSON.stringify(core.parseNames('no json here', ['tab:1'])) === '{}', 'pars
 
   // oneShot (AI rename) through a fake server: it speaks sessions and events, and has no /chat/completions.
   const server = ({ events = [], session = '{"data":{"id":"a"}}', sessionFail = 0 } = {}) => {
-    const log = [], cancelled = []; let stream = null, n = 0;
+    const log = [], cancelled = [], made = []; let stream = null, n = 0;
     const query = (q) => {
       const r = JSON.parse(q.request), id = ++n;
       log.push(`${r.method || r.what} ${r.path || ''}`.trim());
       if (r.path === '/api/event') { stream = q; setTimeout(() => q.onSuccess(`data: ${JSON.stringify({ type: 'server.connected' })}\n\n`)); return id; }
-      if (r.path === '/api/session') { setTimeout(() => (sessionFail ? q.onFailure(sessionFail, 'no') : q.onSuccess(session))); return id; }
+      if (r.path === '/api/session') { made.push(r); setTimeout(() => (sessionFail ? q.onFailure(sessionFail, 'no') : q.onSuccess(session))); return id; }
       setTimeout(() => { q.onSuccess('{}'); if (r.path.endsWith('/prompt')) for (const e of events) stream.onSuccess(`data: ${JSON.stringify(e)}\n\n`); });
       return id;
     };
-    return { query, log, cancelled, cancel: (id) => cancelled.push(id), settle: () => new Promise((r) => setTimeout(r, 20)) };
+    return { query, log, cancelled, made, cancel: (id) => cancelled.push(id), settle: () => new Promise((r) => setTimeout(r, 20)) };
   };
   const shot = (f, ms = 1000, p = oc[1]) => core.oneShot(p, 'default', 'name it', f.query, f.cancel, ms).then((text) => ({ text }), (e) => ({ err: e.message }));
   let f = server({ events: [s('session.text.delta', { delta: '{"tab:1":' }), s('session.text.delta', { delta: '"Mail"}' }), s('session.execution.succeeded')] });
@@ -320,9 +320,13 @@ check(JSON.stringify(core.parseNames('no json here', ['tab:1'])) === '{}', 'pars
   f = server({ session: '{}' });
   r = await shot(f);
   check(/no session/.test(r.err || ''), 'oneShot: a server that makes no session says so');
-  f = server();
+  f = server({ events: [s('session.text.delta', { delta: 'named' }), s('session.execution.succeeded')] });
   r = await shot(f, 1000, oc[0]);
-  check(/can use tools/.test(r.err || '') && !f.log.length, 'oneShot: refuses a server with tools on before any call');
+  await f.settle();
+  check(r.text === 'named' && f.made.length === 1 && f.made[0].noTools === true, 'oneShot: a server with tools on still answers, in a session that asks for none');
+  check(f.log.includes('DELETE /api/session/a'), 'oneShot: that session goes too, unlike a tools-on chat');
+  check(core.shotRefusal(oc[0]) === '' && /can use tools/.test(core.pageRefusal(oc[0])), 'tools on: names may go through it, Ask still refuses pages');
+  check(/won't send it web pages/.test(core.shotRefusal(core.CLI_PROVIDERS.find((p) => p.cli === 'codex'))), 'a CLI that cannot drop its tools is still refused');
 }
 console.log(fail ? `${fail} failure(s)` : 'ok');
 process.exit(fail ? 1 : 0);

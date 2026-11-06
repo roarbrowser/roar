@@ -166,6 +166,19 @@ try {
   check(!existsSync(RAN), 'tools on: Deny blocks it');
   check((await sessions()).length === 1 && (await sessions())[0].id === kept[0].id, 'tools on: the next turn continues the same session');
 
+  // Both at once: Ask keeps its tools, and a rename on that same provider gets none, on a server that allows everything.
+  await startServer([{ action: '*', resource: '*', effect: 'allow' }]);
+  await ask({ cmd: 'settings.set', settings: { chatProviders: provider(true), chatModel: PID + '|default' } });
+  rmSync(RAN, { force: true });
+  const left = (await sessions()).length, named = (await ask({ cmd: 'state' })).tabs.find((x) => x.url.startsWith('roar://ui/chat.html'));
+  await ask({ cmd: 'agent.rename', kind: 'tab', id: named.id, name: '' });
+  calls = [];
+  await ev(await sidebar(), `aiChats = null; aiRename(${JSON.stringify('tab:' + named.id)}); 1`);
+  await until(async () => (await ask({ cmd: 'state' })).tabs.find((x) => x.id === named.id)?.name === 'Renamed Tab', 'the tab renamed', 80).then(() => check(true, 'tools on: rename still works'), (e) => check(false, 'tools on: rename: ' + e.message));
+  check(calls.length === 1 && calls[0].tools === 0, `tools on: the rename's model was offered no tools (${JSON.stringify(calls)})`);
+  check(!existsSync(RAN), 'tools on: nothing ran for a rename, on a server that allows everything');
+  await until(async () => (await sessions()).length === left, 'rename session deleted').then(() => check(true, 'tools on: the rename leaves no session, and the chat keeps its own'), () => check(false, 'tools on: the rename leaves no session, and the chat keeps its own'));
+
   // The password is what gets it in.
   if (password) {
     check((await fetch(OURL + '/api/session')).status === 401, 'the server does refuse without the password');
