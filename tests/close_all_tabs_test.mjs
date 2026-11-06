@@ -132,6 +132,8 @@ try {
   check((await ev(`state.tabs.filter((t) => !t.ghost).map((t) => t.id).sort().join()`)) === others, 'the X leaves every other tab open');
   const after = await fresh();
   check(!['GA', 'GB', 'GC'].some((n) => after.includes(n)), 'ghost tabs closed by the X stay out of Recently Closed');
+  await sleep(6500);  // The profile writes its files back as the tabs close, so Roar deletes it again a few seconds on.
+  check(!oldDirs.some((d) => ghostDirs().includes(d)), `the closed session's profile is gone from disk (${ghostDirs()})`);
   await ghost('Next');
   check(ghostDirs().some((d) => !oldDirs.includes(d)), `the next ghost tab starts a new session (${ghostDirs()})`);
 } catch (e) { check(false, 'test run: ' + e.message); } finally { cleanup(); }

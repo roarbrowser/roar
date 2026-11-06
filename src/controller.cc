@@ -87,6 +87,15 @@ std::filesystem::path ClaudePagesDir() { return std::filesystem::temp_directory_
 constexpr int kGhostContext = -1;
 // A direct child of the root cache path, as Chrome-style CEF requires.
 std::string GhostDir(int session) { return State::Get().Dir() + "/Ghost-" + std::to_string(session); }
+
+// Deletes a throwaway profile's folder once Chromium has stopped writing to it. A profile rewrites its files for a
+// moment after its last page closes, sites' host names included, so a delete made while the page closes doesn't last.
+// Only the folder: calls on a ghost context after its last page closed crashed Roar (CLAUDE.local.md). The second
+// pass is for a slow close; launch catches anything left if Roar quits first.
+void RemoveProfileDirLater(const std::string& dir) {
+  for (int64_t ms : {5000, 30000})
+    CefPostDelayedTask(TID_FILE_USER_BLOCKING, base::BindOnce([](std::string d) { std::error_code ec; std::filesystem::remove_all(d, ec); }, dir), ms);
+}
 constexpr int kSidebarMin = 200;
 constexpr int kSidebarMax = 480;
 int SidebarWidth() {
@@ -951,9 +960,7 @@ class SearchPageClient : public CefClient, public CefRenderHandler, public CefDi
   }
   void OnBeforeClose(CefRefPtr<CefBrowser>) override {
     browser_ = nullptr;
-    // The profile still writes for a moment after its page closes, so delete a little later. Only the folder:
-    // calls on a ghost context after its last page closed crashed Roar (CLAUDE.local.md). Launch catches strays.
-    CefPostDelayedTask(TID_FILE_USER_BLOCKING, base::BindOnce([](std::string d) { std::error_code ec; std::filesystem::remove_all(d, ec); }, dir_), 5000);
+    RemoveProfileDirLater(dir_);
   }
   void OnLoadingStateChange(CefRefPtr<CefBrowser> browser, bool loading, bool, bool) override {
     if (loading || done_) return;
@@ -2062,10 +2069,11 @@ void Controller::EndGhostSession() {
   if (it == contexts_.end()) return;
   contexts_.erase(it);
   ready_spaces_.erase(kGhostContext);
-  // Chromium may still hold files open; deleting on macOS unlinks them anyway,
-  // and launch removes any Ghost-* left behind.
+  // Now for the cookies and cache, which the open files keep only until they close (macOS unlinks them anyway).
+  // The tab is still closing here, so the profile writes its files back: delete again once it has stopped.
   std::error_code ec;
   std::filesystem::remove_all(GhostDir(ghost_session_), ec);
+  RemoveProfileDirLater(GhostDir(ghost_session_));
 }
 
 CefRefPtr<CefBrowserView> Controller::CreateTabView(const std::string& url, int space, bool ghost) {
