@@ -159,7 +159,7 @@ port 9444) started on demand.
 - A vertical sidebar with pinned tabs (⌘D), pinned groups and tab groups; drag to reorder.
 - Each tab has a thin bar that shrinks while you ignore it; when it runs out the tab moves to
   Archived (after 6h, 12h, 1 day or 1 week, or never). ⇧⌘K archives now, ⇧⌘T brings one back.
-- ⌃Tab switches tabs most recently used first; ⌘1–⌘9 jumps straight to one.
+- ⌃Tab switches tabs most recently used first; ⌘1–⌘9 jumps straight to one, not counting pinned tabs.
 - A speaker on tabs playing audio; click it to mute.
 
 **Spaces and privacy**
@@ -208,7 +208,7 @@ port 9444) started on demand.
 | ⌘D | Pin tab |
 | ⇧⌘K / ⇧⌘T | Archive tabs now / reopen archived tab |
 | ⌃Tab / ⌃⇧Tab | Next / previous tab, most recent first |
-| ⌘1–⌘9 | Jump to tab |
+| ⌘1–⌘9 | Jump to tab (pinned tabs aren't counted) |
 | ⌃1–⌃9, ⇧⌘[ / ⇧⌘] | Switch space |
 | ⌘\\ | Split view |
 | ⌥⌘R | Reader mode |

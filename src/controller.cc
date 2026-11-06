@@ -6766,10 +6766,11 @@ bool Controller::OnKey(CefRefPtr<CefBrowser> browser, const CefKeyEvent& event) 
       case 0xBD: ZoomStep(-1); return true;  // -
     }
     if (key >= '1' && key <= '9') {
-      // Counts tabs in the active space only.
+      // Counts tabs in the active space only, and not pinned ones: those are a click away in the strip, so 1 is
+      // the first real tab.
       std::vector<int> ids;
       for (const auto& t : tabs_)
-        if (t.space == State::Get().active_space) ids.push_back(t.id);
+        if (t.space == State::Get().active_space && !t.pinned) ids.push_back(t.id);
       size_t i = key == '9' ? ids.size() - 1 : static_cast<size_t>(key - '1');
       if (i < ids.size()) ActivateTab(ids[i]);
       return true;
