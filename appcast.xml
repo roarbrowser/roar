@@ -328,5 +328,14 @@
       <description><![CDATA[The Ghost section now has an X on its header: one click closes every ghost tab, split pairs included.]]></description>
       <enclosure url="https://github.com/roarbrowser/roar/releases/download/v1.16.1/Roar-1.16.1.dmg" type="application/octet-stream" sparkle:edSignature="VvVHxL+v6e+TatgO6Ht9TU2h9m6LMeBirzLrLOoTQwfh5VHbhxs/92X0I8D9o/wI+kUl0emlUrnsNYAGrQl0BQ==" length="207958165"/>
     </item>
+    <item>
+      <title>1.17.0</title>
+      <pubDate>Fri, 06 Nov 2026 11:58:40 +0000</pubDate>
+      <sparkle:version>11700</sparkle:version>
+      <sparkle:shortVersionString>1.17.0</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[⌘1–⌘9 now skip pinned tabs, so ⌘1 is your first real tab and ⌘9 the last. Ghost tabs are more private: their throwaway profile is now reliably deleted seconds after the last one closes, instead of often staying on disk with site names in it until the next launch. The model pickers show the tool you chose, such as opencode, instead of a bare "default".]]></description>
+      <enclosure url="https://github.com/roarbrowser/roar/releases/download/v1.17.0/Roar-1.17.0.dmg" type="application/octet-stream" sparkle:edSignature="bLcd7m5Huf6JbO7F9kM7Vt6f+1mcSvYPFECIzOsdfJ/iTWo4/LfkGYNKMgCqbQqtF6+xSo4+7C7xAp2YXV/CAw==" length="207949879"/>
+    </item>
   </channel>
 </rss>
