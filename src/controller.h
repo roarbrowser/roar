@@ -284,8 +284,8 @@ class Controller {
                           const std::vector<CefDraggableRegion>& regions);
   bool OnKey(CefRefPtr<CefBrowser> browser, const CefKeyEvent& event);
   bool OnGesture(CefRefPtr<CefBrowserView> view, cef_gesture_command_t command);
-  void CancelChat(int browser_id);
-  bool HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> frame,
+  void CancelChat(int browser_id, int64_t query_id);
+  bool HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> frame, int64_t query_id,
                    const std::string& request, CefRefPtr<Callback> callback);
   // Settings > Backup's backup.* commands (controller_backup.cc).
   bool HandleBackup(CefRefPtr<CefBrowser> browser, CefRefPtr<CefDictionaryValue> msg, CefRefPtr<Callback> callback);

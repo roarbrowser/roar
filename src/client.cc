@@ -18,10 +18,10 @@ class QueryHandler : public CefMessageRouterBrowserSide::Handler {
   bool OnQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> frame, int64_t query_id,
                const CefString& request, bool persistent,
                CefRefPtr<Callback> callback) override {
-    return Controller::Get()->HandleQuery(browser, frame, request, callback);
+    return Controller::Get()->HandleQuery(browser, frame, query_id, request, callback);
   }
-  void OnQueryCanceled(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame>, int64_t) override {
-    Controller::Get()->CancelChat(browser->GetIdentifier());
+  void OnQueryCanceled(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame>, int64_t query_id) override {
+    Controller::Get()->CancelChat(browser->GetIdentifier(), query_id);
   }
 };
 

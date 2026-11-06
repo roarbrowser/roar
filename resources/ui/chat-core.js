@@ -402,8 +402,54 @@
     }
     return out;
   };
+  // One turn on an OpenCode server, as Ask runs it (chat.html run()): the reply comes over the event stream, so that
+  // opens first and the prompt goes once it connects. Tools off only: the prompt carries page text and nobody is here
+  // to answer an approval. ms ends a turn that never finishes, since an auto-name has no timeout of its own.
+  const opencodeShot = (p, prompt, query, cancel, ms) => new Promise((done, fail) => {
+    if (pageRefusal(p)) return fail(new Error(pageRefusal(p)));
+    let sid = '', text = '', qid, started = false, over = false;
+    const events = opencodeEvents(() => sid), sse = sseParser();
+    const failed = (code, message) => new Error(`${p.name} failed (${code}) ${String(message || '').slice(0, 200)}`);
+    const call = (method, path, body) => new Promise((ok, no) => query({
+      request: JSON.stringify({ cmd: 'chat.request', provider: p.id, what: 'opencode', method, path, ...(body && { body: JSON.stringify(body) }) }),
+      onSuccess: ok, onFailure: (code, message) => no(failed(code, message)) }));
+    // Tools off, a session is only this turn: never leave it on the server, where it would show in OpenCode.
+    const drop = (id, running) => (running ? call('POST', `/api/session/${id}/interrupt`).catch(() => {}) : Promise.resolve())
+      .then(() => call('DELETE', `/api/session/${id}`)).catch(() => {});
+    const end = (err) => {
+      if (over) return;
+      over = true;
+      clearTimeout(timer);
+      cancel(qid);
+      if (sid) drop(sid, !!err);
+      if (err) fail(err); else done(text);
+    };
+    const start = async () => {
+      try {
+        const made = await call('POST', '/api/session');
+        const info = typeof made === 'string' ? JSON.parse(made) : made, id = info?.data?.id || info?.id;
+        if (!id) throw new Error(`${p.name} made no session`);
+        if (over) return void drop(id, false);
+        sid = id;
+        await call('POST', `/api/session/${sid}/prompt`, { text: cliPrompt([{ role: 'user', text: prompt }]) });
+      } catch (e) { end(e); }
+    };
+    const timer = setTimeout(() => end(new Error(`${p.name} didn't answer`)), ms);
+    qid = query({ request: JSON.stringify({ cmd: 'chat.request', provider: p.id, what: 'opencode', method: 'GET', path: '/api/event' }), persistent: true,
+      onSuccess: (chunk) => {
+        for (const raw of sse(chunk)) {
+          const d = events(raw);
+          if (d.text) text += d.text;
+          if (d.connected && !started) { started = true; start(); }
+          if (d.error) return end(new Error(d.error));
+          if (d.permission || d.form) return end(new Error(`${p.name} stopped to ask something Roar can't answer here`));
+          if (d.done) return end();
+        }
+      },
+      onFailure: (code, message) => end(code === 0 ? new Error(`${p.name} stopped before it answered`) : failed(code, message)) });
+  });
   // One non-interactive turn with provider p (from detectProviders): resolves to the whole reply text.
-  const oneShot = (p, model, prompt, query) => new Promise((done, fail) => {
+  const oneShot = (p, model, prompt, query, cancel = globalThis.roarQueryCancel, ms = 60000) => p.kind === 'opencode' ? opencodeShot(p, prompt, query, cancel, ms) : new Promise((done, fail) => {
     const cli = p.kind === 'cli', msgs = [{ role: 'user', text: prompt }];
     const request = cli ? { cmd: 'chat.cli', cli: p.cli, model, prompt: cliPrompt(msgs) }
       : { cmd: 'chat.request', provider: p.id, what: 'chat', body: JSON.stringify(requestBody(p.kind, model, msgs)) };

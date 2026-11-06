@@ -280,6 +280,49 @@ check(JSON.stringify(core.parseNames('no json here', ['tab:1'])) === '{}', 'pars
   check(JSON.stringify(core.opencodeEvents(() => 'a')('not json')) === '{}', 'bad events are skipped');
   check(core.providerStatus(oc[1], { probe: ['default'] }).label.includes('no tools') && core.providerStatus(oc[0], { probe: ['default'] }).label.includes('tools there'), 'its status says which mode');
   check(core.providerStatus(oc[1], {}).state === 'missing', 'not answering');
+
+  // oneShot (AI rename) through a fake server: it speaks sessions and events, and has no /chat/completions.
+  const server = ({ events = [], session = '{"data":{"id":"a"}}', sessionFail = 0 } = {}) => {
+    const log = [], cancelled = []; let stream = null, n = 0;
+    const query = (q) => {
+      const r = JSON.parse(q.request), id = ++n;
+      log.push(`${r.method || r.what} ${r.path || ''}`.trim());
+      if (r.path === '/api/event') { stream = q; setTimeout(() => q.onSuccess(`data: ${JSON.stringify({ type: 'server.connected' })}\n\n`)); return id; }
+      if (r.path === '/api/session') { setTimeout(() => (sessionFail ? q.onFailure(sessionFail, 'no') : q.onSuccess(session))); return id; }
+      setTimeout(() => { q.onSuccess('{}'); if (r.path.endsWith('/prompt')) for (const e of events) stream.onSuccess(`data: ${JSON.stringify(e)}\n\n`); });
+      return id;
+    };
+    return { query, log, cancelled, cancel: (id) => cancelled.push(id), settle: () => new Promise((r) => setTimeout(r, 20)) };
+  };
+  const shot = (f, ms = 1000, p = oc[1]) => core.oneShot(p, 'default', 'name it', f.query, f.cancel, ms).then((text) => ({ text }), (e) => ({ err: e.message }));
+  let f = server({ events: [s('session.text.delta', { delta: '{"tab:1":' }), s('session.text.delta', { delta: '"Mail"}' }), s('session.execution.succeeded')] });
+  let r = await shot(f);
+  await f.settle();
+  check(r.text === '{"tab:1":"Mail"}', 'oneShot: an OpenCode server answers over its event stream');
+  check(!f.log.some((l) => /chat/.test(l)), 'oneShot: never asks an OpenCode server for chat completions');
+  check(f.log.join() === 'GET /api/event,POST /api/session,POST /api/session/a/prompt,DELETE /api/session/a', `oneShot: stream first, then session, prompt, and the session goes (${f.log})`);
+  check(f.cancelled.length === 1 && f.cancelled[0] === 1, 'oneShot: closes its own event stream');
+  f = server({ events: [s('session.execution.failed', { error: { message: 'model down' } })] });
+  r = await shot(f);
+  await f.settle();
+  check(r.err === 'model down' && f.log.includes('DELETE /api/session/a'), 'oneShot: a failed turn reports why and still cleans up');
+  f = server({ events: [s('permission.asked', { id: 'q', message: 'rm' })] });
+  r = await shot(f);
+  await f.settle();
+  check(/ask/.test(r.err || '') && f.log.includes('DELETE /api/session/a'), 'oneShot: an approval it cannot answer fails at once');
+  f = server();
+  r = await shot(f, 30);
+  await f.settle();
+  check(/didn.t answer/.test(r.err || '') && f.log.join().endsWith('POST /api/session/a/interrupt,DELETE /api/session/a') && f.cancelled.length === 1, 'oneShot: a turn that never ends times out, is stopped and cleaned up');
+  f = server({ sessionFail: 401 });
+  r = await shot(f);
+  check(/\(401\)/.test(r.err || '') && f.cancelled.length === 1, 'oneShot: a refused session gives the status and closes the stream');
+  f = server({ session: '{}' });
+  r = await shot(f);
+  check(/no session/.test(r.err || ''), 'oneShot: a server that makes no session says so');
+  f = server();
+  r = await shot(f, 1000, oc[0]);
+  check(/can use tools/.test(r.err || '') && !f.log.length, 'oneShot: refuses a server with tools on before any call');
 }
 console.log(fail ? `${fail} failure(s)` : 'ok');
 process.exit(fail ? 1 : 0);

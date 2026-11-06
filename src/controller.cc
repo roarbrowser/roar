@@ -814,9 +814,13 @@ void ParseGmailFeed(const std::string& xml, GmailFeed& feed) {
   }
 }
 
-// Model chat's CLI children by browser (chat.cli), so a cancelled query can stop its process.
-std::vector<std::pair<int, int>>& ChatProcs() {
-  static std::vector<std::pair<int, int>> live;
+// One query from one page. A page can run several (the sidebar names things side by side), and cancelling one must
+// leave the rest running. Router query ids aren't unique across clients, so the browser is part of the key.
+using ChatQuery = std::pair<int, int64_t>;
+
+// Model chat's CLI children by query (chat.cli), so a cancelled query can stop its process.
+std::vector<std::pair<ChatQuery, int>>& ChatProcs() {
+  static std::vector<std::pair<ChatQuery, int>> live;
   return live;
 }
 
@@ -890,8 +894,8 @@ class ChatRequest : public CefURLRequestClient {
  public:
   ChatRequest(int browser_id, bool stream, CefRefPtr<CefMessageRouterBrowserSide::Callback> cb)
       : browser_id_(browser_id), stream_(stream), cb_(cb) {}
-  static std::vector<std::pair<int, CefRefPtr<CefURLRequest>>>& Live() {
-    static std::vector<std::pair<int, CefRefPtr<CefURLRequest>>> live;
+  static std::vector<std::pair<ChatQuery, CefRefPtr<CefURLRequest>>>& Live() {
+    static std::vector<std::pair<ChatQuery, CefRefPtr<CefURLRequest>>> live;
     return live;
   }
   void OnRequestComplete(CefRefPtr<CefURLRequest> request) override {
@@ -4815,7 +4819,7 @@ void Controller::ApplySettings(CefRefPtr<CefDictionaryValue> d) {
 // ---------------------------------------------------------------------------
 // Message router
 
-bool Controller::HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> frame,
+bool Controller::HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> frame, int64_t query_id,
                              const std::string& request, CefRefPtr<Callback> callback) {
   auto parsed = CefParseJSON(request, JSON_PARSER_RFC);
   if (!parsed || parsed->GetType() != VTYPE_DICTIONARY) return false;
@@ -5861,7 +5865,7 @@ bool Controller::HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> 
     http->SetHeaderMap(headers);
     int bid = browser->GetIdentifier();
     auto req = CefURLRequest::Create(http, new ChatRequest(bid, stream, callback), CefRequestContext::GetGlobalContext());
-    ChatRequest::Live().push_back({bid, req});
+    ChatRequest::Live().push_back({{bid, query_id}, req});
   } else if (cmd == "chat.keys") {
     // Which providers have a key, never the keys.
     auto d = CefDictionaryValue::Create();
@@ -5937,13 +5941,13 @@ bool Controller::HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> 
           *pending += chunk;
           if (std::string out = TakeCompleteUtf8(*pending); !out.empty()) callback->Success(out);
         },
-        [callback, pending, bid](int status, const std::string& err) {
+        [callback, pending, bid, query_id](int status, const std::string& err) {
           auto& live = ChatProcs();
-          live.erase(std::remove_if(live.begin(), live.end(), [&](auto& p) { return p.first == bid; }), live.end());
+          live.erase(std::remove_if(live.begin(), live.end(), [&](auto& p) { return p.first == ChatQuery{bid, query_id}; }), live.end());
           if (!pending->empty()) callback->Success(*pending);
           callback->Failure(status, status ? err.substr(err.size() > 2000 ? err.size() - 2000 : 0) : "");
         });
-    if (pid) ChatProcs().push_back({bid, pid});
+    if (pid) ChatProcs().push_back({{bid, query_id}, pid});
   } else if (cmd == "chat.login") {
     // {cli}: runs the CLI's own sign-in, which opens its sign-in page in the default browser and waits for
     // the callback on localhost. Not sandboxed: fixed argv, no page text, and it must listen and write its login.
@@ -6988,12 +6992,13 @@ void Controller::OpenExternal(const std::string& url) {
 }  // namespace roar
 
 namespace roar {
-// The router canceled a page's query (Stop, or the page went away): drop its provider requests.
-void Controller::CancelChat(int browser_id) {
+// The router canceled a query (Stop, or the page went away, which cancels each of its queries): drop that one's work.
+void Controller::CancelChat(int browser_id, int64_t query_id) {
+  const ChatQuery query{browser_id, query_id};
   auto live = ChatRequest::Live();
-  for (auto& [bid, req] : live)
-    if (bid == browser_id) req->Cancel();
-  for (auto& [bid, pid] : ChatProcs())
-    if (bid == browser_id) platform::KillStream(pid);
+  for (auto& [q, req] : live)
+    if (q == query) req->Cancel();
+  for (auto& [q, pid] : ChatProcs())
+    if (q == query) platform::KillStream(pid);
 }
 }  // namespace roar

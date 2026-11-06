@@ -38,7 +38,8 @@ const model = createServer((q, r) => {
       out({ choices: [{ index: 0, delta: { role: 'assistant', tool_calls: [{ index: 0, id: 'call_' + calls.length, type: 'function', function: { name: 'shell', arguments: JSON.stringify({ command: `touch ${RAN}`, description: 'mark' }) } }] }, finish_reason: null }] });
       out({ choices: [{ index: 0, delta: {}, finish_reason: 'tool_calls' }] });
     } else {
-      for (const w of ['plain ', 'answer']) out({ choices: [{ index: 0, delta: { role: 'assistant', content: w }, finish_reason: null }] });
+      const named = /tab:(\d+): /.exec(b);  // A rename prompt wants its names as JSON; its example is "tab:1": , so the colon-space picks the item.
+      for (const w of named ? [`{"tab:${named[1]}":"Renamed Tab"}`] : ['plain ', 'answer']) out({ choices: [{ index: 0, delta: { role: 'assistant', content: w }, finish_reason: null }] });
       out({ choices: [{ index: 0, delta: {}, finish_reason: 'stop' }] });
     }
     r.write('data: [DONE]\n\n');
@@ -126,6 +127,21 @@ try {
   await ev(t, `document.getElementById('form').requestSubmit()`);
   await idle(t);
   await until(async () => (await sessions()).length === 0, 'stopped session deleted').then(() => check(true, 'Stop ends the turn and cleans up'), () => check(false, 'Stop ends the turn and cleans up'));
+
+  // AI rename: one turn, no chat page, from the real sidebar. Tools are off, so it may carry a tab's title.
+  const side = await sidebar();
+  await ask({ cmd: 'settings.set', settings: { chatModel: PID + '|default' } });
+  const tab = (await ask({ cmd: 'state' })).tabs.find((x) => x.url.startsWith('roar://ui/chat.html'));
+  calls = [];
+  await ev(side, `aiChats = null; aiRename(${JSON.stringify('tab:' + tab.id)}); 1`);
+  await until(async () => (await ask({ cmd: 'state' })).tabs.find((x) => x.id === tab.id)?.name === 'Renamed Tab', 'the tab renamed', 80).then(() => check(true, 'rename: the sidebar names a tab through the server'), (e) => check(false, 'rename: ' + e.message));
+  check(calls.length === 1 && calls[0].tools === 0, `rename: the model was offered no tools (${JSON.stringify(calls)})`);
+  await until(async () => (await sessions()).length === 0, 'rename session deleted').then(() => check(true, 'rename: its session is cleaned up'), () => check(false, 'rename: its session is cleaned up'));
+  // Renames run side by side: one ending closes its own stream, never the other's.
+  const shotOf = (text) => `chatCore.oneShot(${JSON.stringify({ id: PID, kind: 'opencode', name: 'Studio', tools: false })}, 'default', ${JSON.stringify(text)}, window.roarQuery).then((t) => t, (e) => 'failed: ' + e.message)`;
+  const both = await ev(side, `Promise.all([${shotOf('slowly please')}, ${shotOf('quickly')}])`);
+  check(both.every((x) => /plain answer/.test(x)), `rename: two at once both finish (${JSON.stringify(both)})`);
+  await until(async () => (await sessions()).length === 0, 'both sessions deleted').then(() => check(true, 'rename: both sessions are cleaned up'), () => check(false, 'rename: both sessions are cleaned up'));
 
   // Tools on, with the shell needing approval.
   await startServer([{ action: '*', resource: '*', effect: 'allow' }, { action: 'shell', resource: '*', effect: 'ask' }]);
