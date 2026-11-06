@@ -319,5 +319,14 @@
       <description><![CDATA[Pinned tabs now fill the sidebar: they share each row evenly up to your limit in Settings, and wide ones show the tab's name. Drag a pinned tab onto another to reorder it (hold Option to split them instead), or use Move in its menu. Tabs in a group can move up and down, and a group can be sorted by name or last active. The Gmail, Outlook and GitHub popovers are easier to close: the close button stays in view, and clicking the page or anywhere outside closes them. AI rename now works with an OpenCode server, and that server keeps its tools for Ask.]]></description>
       <enclosure url="https://github.com/roarbrowser/roar/releases/download/v1.16.0/Roar-1.16.0.dmg" type="application/octet-stream" sparkle:edSignature="rx3woCWS7YkUrrM9FYTlt3bWAhPng5Nvw00t24QJH9m/sID1GS+c7jD2JSDRaAQ3p//BiUbstRfcjCMKYn3XDw==" length="207957691"/>
     </item>
+    <item>
+      <title>1.16.1</title>
+      <pubDate>Fri, 06 Nov 2026 11:19:10 +0000</pubDate>
+      <sparkle:version>11601</sparkle:version>
+      <sparkle:shortVersionString>1.16.1</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[The Ghost section now has an X on its header: one click closes every ghost tab, split pairs included.]]></description>
+      <enclosure url="https://github.com/roarbrowser/roar/releases/download/v1.16.1/Roar-1.16.1.dmg" type="application/octet-stream" sparkle:edSignature="VvVHxL+v6e+TatgO6Ht9TU2h9m6LMeBirzLrLOoTQwfh5VHbhxs/92X0I8D9o/wI+kUl0emlUrnsNYAGrQl0BQ==" length="207958165"/>
+    </item>
   </channel>
 </rss>
