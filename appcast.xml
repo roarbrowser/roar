@@ -310,5 +310,14 @@
       <description><![CDATA[Site tweaks can now span every space: turn on Site tweaks in every space in Settings > Extensions and all your spaces get the same scripts and styles, with a change in one reaching them all. What scripts store stays per space, and agents can't reach Site tweaks while this is on. Mac only for now.]]></description>
       <enclosure url="https://github.com/roarbrowser/roar/releases/download/v1.15.0/Roar-1.15.0.dmg" type="application/octet-stream" sparkle:edSignature="qPLardNJpoqXIpS7S5jIO7u+OdMaJnpj4Pqg8yvFEmvtcuBQKodAj1owixnY1Vk0PLqHaW9aZebDjRj5gLJyBw==" length="207951240"/>
     </item>
+    <item>
+      <title>1.16.0</title>
+      <pubDate>Fri, 06 Nov 2026 10:13:19 +0000</pubDate>
+      <sparkle:version>11600</sparkle:version>
+      <sparkle:shortVersionString>1.16.0</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[Pinned tabs now fill the sidebar: they share each row evenly up to your limit in Settings, and wide ones show the tab's name. Drag a pinned tab onto another to reorder it (hold Option to split them instead), or use Move in its menu. Tabs in a group can move up and down, and a group can be sorted by name or last active. The Gmail, Outlook and GitHub popovers are easier to close: the close button stays in view, and clicking the page or anywhere outside closes them. AI rename now works with an OpenCode server, and that server keeps its tools for Ask.]]></description>
+      <enclosure url="https://github.com/roarbrowser/roar/releases/download/v1.16.0/Roar-1.16.0.dmg" type="application/octet-stream" sparkle:edSignature="rx3woCWS7YkUrrM9FYTlt3bWAhPng5Nvw00t24QJH9m/sID1GS+c7jD2JSDRaAQ3p//BiUbstRfcjCMKYn3XDw==" length="207957691"/>
+    </item>
   </channel>
 </rss>
