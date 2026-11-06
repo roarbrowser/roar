@@ -140,9 +140,8 @@ p.reason a { color: inherit; }
           <button data-v="6">6 h</button><button data-v="12">12 h</button><button data-v="24">1 day</button><button data-v="168">1 week</button><button data-v="0">Never</button></div></div>
       <div class="row"><label class="name" for="auto-name">Name new tabs with AI<small>Gives each new tab a short name once its page loads, using your default model in Model chat. Sends page titles and URLs to that model. Ghost tabs are never named automatically.</small></label><input type="checkbox" class="switch" id="auto-name" data-set="autoNameTabs"></div>
       <h3>Pinned tiles</h3>
-      <div class="row"><label class="name" for="pin-cols">Tiles per row</label><select id="pin-cols" data-set="pinnedColumns" data-kind="number">
+      <div class="row"><label class="name" for="pin-cols">Most tiles per row<small>Tiles share each row evenly, and wide ones show the tab's name.</small></label><select id="pin-cols" data-set="pinnedColumns" data-kind="number">
         <option value="0">Fit to width</option><option>2</option><option>3</option><option>4</option><option>5</option><option>6</option><option>7</option><option>8</option></select></div>
-      <div class="row"><label class="name" for="pin-center">Center a short last row</label><input type="checkbox" class="switch" id="pin-center" data-set="pinnedCentered"></div>
       <h3>Spaces</h3>
       <div class="row"><span class="name"><span id="spaces"></span><small>Rename, remove and agent access are in each space's sidebar menu.</small></span><span class="end"><button class="btn" id="space-add">Add space</button></span></div>
       <div class="row"><label class="name" for="space-rules">Open links from other apps in<small>One rule per line: a site, then a space name. <code>github.com/acme Work</code> sends that path, <code>figma.com Design</code> the site and its subdomains, <code>*.atlassian.net Work</code> a pattern. The first match wins; other links open in the current space.</small></label><textarea class="query" id="space-rules" data-set="spaceRules" rows="4" spellcheck="false" placeholder="github.com/acme Work"></textarea></div>

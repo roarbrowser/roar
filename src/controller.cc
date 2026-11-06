@@ -5127,6 +5127,22 @@ bool Controller::HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> 
     PushSidebar();
     SaveSoon();
     callback->Success(std::to_string(g.id));
+  } else if (cmd == "group.order") {
+    // {id, tabs}: the group's tabs in this order, among the places they already hold. Any it doesn't name follow, as they were.
+    int id = int_arg("id");
+    std::map<int, size_t> rank;
+    if (auto list = msg->GetList("tabs"))
+      for (size_t i = 0; i < list->GetSize(); ++i) rank.emplace(list->GetInt(i), i);
+    std::vector<size_t> places;
+    std::vector<Tab> ordered;
+    for (size_t i = 0; id && i < tabs_.size(); ++i)
+      if (tabs_[i].group == id) places.push_back(i), ordered.push_back(tabs_[i]);
+    auto rank_of = [&](const Tab& t) { auto it = rank.find(t.id); return it == rank.end() ? rank.size() : it->second; };
+    std::stable_sort(ordered.begin(), ordered.end(), [&](const Tab& a, const Tab& b) { return rank_of(a) < rank_of(b); });
+    for (size_t i = 0; i < places.size(); ++i) tabs_[places[i]] = ordered[i];
+    PushSidebar();
+    SaveSoon();
+    callback->Success("");
   } else if (cmd == "group.update") {
     if (TabGroup* g = State::Get().FindGroup(int_arg("id"))) {
       if (msg->HasKey("name") && !msg->GetString("name").empty()) g->name = msg->GetString("name");
