@@ -2,23 +2,54 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>Agent badge</title>
+<title>Your rank</title>
 <link rel="stylesheet" href="roar.css">
-<!-- The agent badge: what Roar has counted of your agents' work (agent.stats), as a card to share. -->
+<!-- Your rank in Roar: the ladder (agent.stats, src/agent_stats.h), how it's earned, and the card to share. -->
 <style>
+/* The page's own theme switch: the same tokens as roar.css, forced either way. */
+:root[data-theme="light"] { --ground: #fff1e2; --panel: #fff9f0; --ink: #4a2e18; --ink-2: #7a5a40; --ink-3: #7d604a; --rule: #f0dcc4; --hover: #ffe6cc; --mane: #ff7a00; --mane-ink: #a04700; --mane-soft: #ffe2b8; --ok: #23794a; color-scheme: light; }
+:root[data-theme="dark"] { --ground: #1e140c; --panel: #2a1d12; --ink: #fbeedd; --ink-2: #d2b89c; --ink-3: #a3876f; --rule: #3d2b1c; --hover: #332417; --mane: #ff9a2e; --mane-ink: #ffc72c; --mane-soft: #4a2c10; --ok: #5cc488; color-scheme: dark; }
 body { background: var(--panel); }
-main { max-width: 760px; margin: 0 auto; padding: 44px 28px 72px; }
+main { max-width: 760px; margin: 0 auto; padding: 40px 28px 72px; }
+.top { display: flex; align-items: flex-start; gap: 16px; margin-bottom: 18px; }
+.top > div:first-child { flex: 1; min-width: 0; }
+.eyebrow { margin: 0 0 4px; font: 700 11px var(--ui); letter-spacing: .12em; text-transform: uppercase; color: var(--ink-3); }
 h1 { margin: 0 0 6px; font: 800 36px/1.1 var(--round); letter-spacing: -.02em; }
-.lede { margin: 0 0 22px; color: var(--ink-2); font-size: 14px; }
+h2 { margin: 36px 0 10px; font: 700 16px var(--round); }
+.lede { margin: 0; color: var(--ink-2); font-size: 14px; }
 .lede b { color: var(--ink); font-weight: 650; }
-.empty { padding: 28px; border-radius: 16px; background: var(--ground); color: var(--ink-2); text-align: center; }
+#ladder { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+#ladder li { display: grid; grid-template-columns: 28px minmax(0, 1fr) auto; align-items: center; gap: 4px 12px; padding: 10px 14px; border-radius: 12px; background: var(--ground); }
+#ladder .mark { grid-row: span 2; display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; font: 700 12px var(--round); background: var(--panel); color: var(--ink-3); box-shadow: inset 0 0 0 1px var(--rule); }
+#ladder .earned .mark { background: var(--mane); color: #2a1604; box-shadow: none; }
+#ladder .name { font: 700 14px var(--round); }
+#ladder .needs { font-size: 12px; color: var(--ink-3); text-align: right; }
+#ladder .prog { grid-column: 2 / -1; font-size: 12px; color: var(--ink-2); }
+#ladder .prog:empty { display: none; }
+#ladder .locked { opacity: .78; }
+#ladder .locked .name { color: var(--ink-2); }
+#ladder .current { box-shadow: inset 0 0 0 2px var(--mane); opacity: 1; }
+#ladder .here { margin-left: 8px; font: 600 11px var(--ui); color: var(--mane-ink); }
+.how { margin: 0 0 8px; color: var(--ink-2); font-size: 13.5px; line-height: 1.55; max-width: 62ch; }
+.how a { color: var(--mane-ink); }
+.opt { display: flex; align-items: center; gap: 12px; padding: 12px 0; border-top: 1px solid var(--rule); margin-top: 28px; }
+.opt label { flex: 1; font-size: 13.5px; }
+.opt small { display: block; color: var(--ink-3); font-size: 12px; }
 </style>
 </head>
 <body>
 <main>
-  <h1 id="rank">Your agent badge</h1>
-  <p class="lede" id="lede"></p>
+  <header class="top">
+    <div><p class="eyebrow">Your rank</p><h1 id="rank">Cub</h1><p class="lede" id="lede"></p></div>
+    <div class="segmented" id="theme" role="group" aria-label="Page theme"><button data-theme="system">System</button><button data-theme="light">Light</button><button data-theme="dark">Dark</button></div>
+  </header>
   <div id="share"></div>
+  <h2>The ladder</h2>
+  <ol id="ladder"></ol>
+  <h2>How it works</h2>
+  <p class="how" id="how">Your rank grows as you use Roar. The first three ranks come from the days you browse with Roar, no AI needed. From Hunter on, they also count the agent sessions and hours Roar sees when you connect a coding agent in Settings › Agents. Everything is counted on this computer and never leaves it unless you share your card.</p>
+  <p class="how">A rank you've reached stays yours: it never goes down, and Settings › Backup carries it to a new computer. <a href="#" id="to-agents">Connect a coding agent</a></p>
+  <div class="opt"><label for="shown">Show my rank in Roar<small>Under Roar in the sidebar, and Agent badge in the AI header's menu. This page stays in Settings › Agents › More.</small></label><input type="checkbox" class="switch" id="shown"></div>
 </main>
 <script src="bridge.js"></script>
 <script src="cl-session.js"></script>
@@ -26,21 +57,48 @@ h1 { margin: 0 0 6px; font: 800 36px/1.1 var(--round); letter-spacing: -.02em; }
 <script>
 const $ = (id) => document.getElementById(id);
 const { xml } = shareCard;
-// Sessions it takes to reach each rank, and the color of its ring.
-const RANKS = [[0, 'Cub', '#e8b87a'], [10, 'Scout', '#ffc72c'], [50, 'Hunter', '#ff9a2e'], [200, 'Pride Leader', '#ff7a00'], [1000, 'Apex Lion', '#e5484d']];
-const rankOf = (n) => RANKS.filter((r) => n >= r[0]).pop();
-const nextOf = (n) => RANKS.find((r) => n < r[0]);
 const nameOf = (tool) => AGENT_ROWS[tool]?.[0] || tool;
 const plural = (n, w) => `${n.toLocaleString()} ${w}${n === 1 ? '' : 's'}`;
 const ease = (t) => 1 - Math.pow(1 - t, 3);
+// Each rank's ring color, Cub to Apex Lion.
+const RING = ['#e8b87a', '#f0b05a', '#ffc72c', '#ffb02e', '#ff9a2e', '#ff8a1a', '#ff7a00', '#e5484d'];
 // The card's colors, light and dark; the lion keeps its cream tile on both.
 const INKS = {
   light: { field: '#fff4e4', disc: '#fff9f0', label: '#8a6a4e', rank: '#4a2e18', count: '#ff7a00', sub: '#6b4e36' },
   dark: { field: '#1e140c', disc: '#2a1d12', label: '#c3a688', rank: '#fbeedd', count: '#ff9a2e', sub: '#d2b89c' },
 };
 
+// The page's theme: System (the default), Light or Dark, remembered on this computer.
+const THEME_KEY = 'badgeTheme';
+const themeNow = () => { try { return localStorage.getItem(THEME_KEY) || 'system'; } catch { return 'system'; } };
+function applyTheme(t) {
+  if (t === 'system') delete document.documentElement.dataset.theme; else document.documentElement.dataset.theme = t;
+  for (const b of $('theme').querySelectorAll('button')) b.setAttribute('aria-pressed', String(b.dataset.theme === t));
+}
+applyTheme(themeNow());
+$('theme').onclick = (e) => {
+  const t = e.target.closest('[data-theme]')?.dataset.theme;
+  if (!t) return;
+  try { localStorage.setItem(THEME_KEY, t); } catch {}
+  applyTheme(t);
+  window.spec?.redraw?.();
+};
+
+// What a rank needs that you don't have yet, as "12 of 30 days".
+const needs = (r) => [r.days && `${plural(r.days, 'day')}`, r.sessions && `${plural(r.sessions, 'session')}`, r.hours && `${plural(r.hours, 'agent hour')}`].filter(Boolean).join(' · ') || 'Start using Roar';
+const progress = (r, s) => [[s.days, r.days, 'days'], [s.total, r.sessions, 'sessions'], [s.hours, r.hours, 'agent hours']]
+  .filter(([have, need]) => need && have < need).map(([have, need, w]) => `${have.toLocaleString()} of ${need.toLocaleString()} ${w}`).join(' · ');
+function ladder(s) {
+  $('ladder').innerHTML = s.ladder.map((r, i) => {
+    const state = i < s.rank ? 'earned' : i === s.rank ? 'earned current' : 'locked';
+    return `<li data-rank="${i}" class="${state}"><span class="mark" aria-hidden="true">${i <= s.rank ? '✓' : i + 1}</span>`
+      + `<span class="name">${esc(r.name)}${i === s.rank ? '<span class="here">You are here</span>' : ''}</span><span class="needs">${esc(needs(r))}</span>`
+      + `<span class="prog">${i > s.rank ? esc(progress(r, s)) : ''}</span></li>`;
+  }).join('');
+}
+
 function art(s, t = 1, ring = 0, dark = false) {
-  const [, rank, color] = rankOf(s.total), k = dark ? INKS.dark : INKS.light;
+  const rank = s.ladder[s.rank].name, color = RING[s.rank], k = dark ? INKS.dark : INKS.light;
   const pop = t < 1 ? .72 + .28 * ease(t) + Math.sin(t * Math.PI) * .08 : 1;
   const shown = (n) => Math.round(n * ease(t)).toLocaleString();
   const rings = ring ? [0, 1].map((i) => { const r = 150 + ((ring + i * .5) % 1) * 90; return `<circle cx="228" cy="268" r="${r}" fill="none" stroke="${color}" stroke-width="6" opacity="${(1 - ((ring + i * .5) % 1)) * .6}"/>`; }).join('') : '';
@@ -56,24 +114,25 @@ function art(s, t = 1, ring = 0, dark = false) {
 
 async function start() {
   const raw = await ask({ cmd: 'agent.stats' });
-  const s = { total: raw.total, hours: Math.round(raw.agentSeconds / 3600), names: Object.entries(raw.sessions).sort((a, b) => b[1] - a[1]).map((e) => nameOf(e[0])) };
-  const since = raw.since ? new Date(raw.since * 1000).toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' }) : '';
-  if (!s.total) {
-    $('lede').textContent = 'Roar counts your agents’ sessions from today, on this computer only.';
-    $('share').innerHTML = '<p class="empty">No sessions yet. Run an agent and your badge will start here.</p>';
-    return;
-  }
-  const [, rank] = rankOf(s.total), next = nextOf(s.total);
+  const s = { ...raw, hours: Math.round(raw.agentSeconds / 3600), names: Object.entries(raw.sessions).sort((a, b) => b[1] - a[1]).map((e) => nameOf(e[0])) };
+  const rank = s.ladder[s.rank].name, next = s.ladder[s.rank + 1];
   $('rank').textContent = rank;
-  $('lede').innerHTML = `<b>${plural(s.total, 'session')}</b> since ${esc(since)}.` + (next ? ` ${esc(next[1])} at ${next[0].toLocaleString()}.` : ' The top of the pride.');
+  $('lede').innerHTML = `<b>${plural(s.days, 'day')}</b> with Roar` + (s.total ? `, <b>${plural(s.total, 'agent session')}</b>` : '') + '. '
+    + (next ? `Next: ${esc(next.name)}, ${esc(progress(next, s))}.` : 'The top of the pride.');
+  ladder(s);
   window.spec = {
     title: 'Your agent badge', file: 'Roar agent badge', dark: true, live: true,
+    theme: () => { const t = themeNow(); return t === 'system' ? null : t; },
     card: (o = {}) => art(s, 1, 0, o.dark),
     frames: (o = {}) => [...Array.from({ length: 18 }, (_, i) => art(s, (i + 1) / 18, 0, o.dark)), ...Array.from({ length: 12 }, (_, i) => art(s, 1, (i + 1) / 12, o.dark))],
     caption: () => `${rank} on Roar: ${plural(s.total, 'agent session')}${s.hours ? ', ' + plural(s.hours, 'agent hour') : ''}. The open-source browser your agent can drive. https://${shareCard.SITE}`,
   };
   await shareCard.mount($('share'), window.spec);
 }
+// The switch that hides your rank from the footer and the AI header's menu.
+ask({ cmd: 'state' }).then((st) => { $('shown').checked = (typeof st === 'string' ? JSON.parse(st) : st).settings.badgeShown !== false; });
+$('shown').onchange = (e) => ask({ cmd: 'settings.set', settings: { badgeShown: e.target.checked } });
+$('to-agents').onclick = (e) => { e.preventDefault(); ask({ cmd: 'open', text: 'roar://ui/settings.html#agents', newTab: true }); };
 start();
 </script>
 </body>

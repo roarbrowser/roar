@@ -2,7 +2,8 @@
 // Nothing leaves the computer until the person posts it. Used by garden.html and badge.html; needs bridge.js.
 // A spec is { title, file, caption(opts), card(opts), frames(opts), options?: [{ key, label, on }], dark?, live? }: card returns
 // one SVG from shareCard.frame and frames a list of them. `dark` sets opts.dark from prefers-color-scheme (the card draws a
-// dark version, and pass { dark } to frame); `live` plays the frames in the preview as the GIF would, or shows the last one
+// dark version, and pass { dark } to frame; `theme()` returning 'light' or 'dark' overrides the system, and mount gives the
+// spec a `redraw()` to call when it changes); `live` plays the frames in the preview as the GIF would, or shows the last one
 // under prefers-reduced-motion. The GIF encoder is here because Roar has no image library to lean on.
 window.shareCard = (() => {
   const W = 1200, H = 630, GW = 600, GH = 315, DELAY_CS = 8, HOLD_CS = 120;
@@ -130,7 +131,8 @@ window.shareCard = (() => {
   async function mount(root, spec) {
     const opts = Object.fromEntries((spec.options || []).map((o) => [o.key, o.on !== false]));
     const scheme = matchMedia('(prefers-color-scheme: dark)'), still = matchMedia('(prefers-reduced-motion: reduce)');
-    if (spec.dark) opts.dark = scheme.matches;
+    const wantDark = () => { const t = spec.theme?.(); return t === 'dark' || (t !== 'light' && scheme.matches); };
+    if (spec.dark) opts.dark = wantDark();
     root.classList.add('share');
     root.innerHTML = `${spec.live ? `<canvas class="share-card" width="${W}" height="${H}" role="img" aria-label="${xml(spec.title)}"></canvas>` : `<img class="share-card" alt="${xml(spec.title)}">`}<div class="share-opts"></div>
       <div class="share-acts"><button class="btn primary" data-a="copy">Copy image</button><button class="btn" data-a="png">Save image</button><button class="btn" data-a="gif">Save GIF</button><button class="btn" data-a="caption">Copy caption</button><span class="share-note" role="status"></span></div>`;
@@ -157,7 +159,8 @@ window.shareCard = (() => {
       canvas = card;
       play(pics, n);
     };
-    if (spec.dark) scheme.addEventListener('change', () => { opts.dark = scheme.matches; draw(); });
+    spec.redraw = () => { if (spec.dark) opts.dark = wantDark(); draw(); };
+    if (spec.dark) scheme.addEventListener('change', spec.redraw);
     if (spec.live) still.addEventListener('change', () => draw());
     for (const o of spec.options || []) {
       const label = document.createElement('label');

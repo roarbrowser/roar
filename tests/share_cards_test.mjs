@@ -143,7 +143,28 @@ try {
 
   // Counting
   await open('roar://ui/badge.html');
-  check(!!(await until(() => badge(`document.querySelector('.empty')?.textContent.includes('No sessions')`))), 'with nothing counted the badge says so, with no card');
+  // No agents yet: still a rank, a card, the whole ladder, and a plain word on how it works.
+  check(!!(await until(() => badge(`document.getElementById('rank')?.textContent === 'Cub' && !!document.querySelector('canvas.share-card')`))), 'with no agents the badge still shows your rank and card');
+  check(/no AI needed/.test(await badge(`document.getElementById('how').textContent`) || ''), 'and explains how ranks are earned, AI or not');
+  check(await badge(`document.querySelectorAll('#ladder li[data-rank]').length`) === 8, 'the ladder lists every rank');
+  check(await badge(`document.querySelector('#ladder li[data-rank="0"]').classList.contains('earned') && document.querySelector('#ladder li[data-rank="3"]').classList.contains('locked')`), 'earned ranks lit, future ones locked');
+  check(/10 sessions/.test(await badge(`document.querySelector('#ladder li[data-rank="3"]').textContent`) || '') && /1 of 30 days/.test(await badge(`document.querySelector('#ladder li[data-rank="2"]').textContent`) || ''),
+    'a locked rank says what it needs, with your progress: ' + await badge(`document.querySelector('#ladder li[data-rank="2"]').textContent`));
+  // The page's own theme switch beats the system's, and is remembered.
+  const field = `(() => { const d = document.querySelector('canvas.share-card').getContext('2d').getImageData(4, 4, 1, 1).data; return d[0]; })()`;
+  await cdp((x) => x.url.includes('badge.html'), 'Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: 'light' }] });
+  await badge(`document.querySelector('#theme [data-theme="dark"]').click()`);
+  check(!!(await until(async () => (await badge(field)) < 60)) && await badge(`document.documentElement.dataset.theme`) === 'dark', 'theme switch: Dark wins over a light system');
+  await badge(`location.reload()`);
+  check(!!(await until(async () => (await badge(field)) < 60)), 'and is remembered');
+  await badge(`document.querySelector('#theme [data-theme="light"]').click()`);
+  check(!!(await until(async () => (await badge(field)) > 200)), 'theme switch: Light');
+  await badge(`document.querySelector('#theme [data-theme="system"]').click()`);
+  // The page hides your rank from the footer and the AI menu.
+  await badge(`document.getElementById('shown').click()`);
+  check(!!(await until(async () => (await side(`ask({ cmd: 'state' }).then((s) => (typeof s === 'string' ? JSON.parse(s) : s).settings.badgeShown)`)) === false)), 'the page switch hides your rank');
+  await badge(`document.getElementById('shown').click()`);
+  await until(async () => (await side(`ask({ cmd: 'state' }).then((s) => (typeof s === 'string' ? JSON.parse(s) : s).settings.badgeShown)`)) === true);
   mkdirSync(join(data, 'claude-sessions'), { recursive: true });
   session('sess-a');
   session('codex-b', { tool: 'codex', state: 'idle' });
@@ -173,8 +194,6 @@ try {
   check((await badge(`spec.frames({ dark: true })`)).every((f) => f.includes('#1e140c')), 'and dark GIF frames');
   check(!svg.includes('#1e140c') && !svg.includes('#2a1d12'), 'the Savanna card stays light');
   check(badgeSvg.includes('&lt;1') && !(await badge(`spec.caption()`)).includes('hour'), 'under an hour reads as <1, and stays out of the caption');
-  const ranks = await badge(`JSON.stringify([0, 9, 10, 49, 50, 199, 200, 999, 1000].map((n) => rankOf(n)[1]))`);
-  check(ranks === JSON.stringify(['Cub', 'Cub', 'Scout', 'Scout', 'Hunter', 'Hunter', 'Pride Leader', 'Pride Leader', 'Apex Lion']), 'ranks: ' + ranks);
   const badgePng = await badge(`shareCard.render(spec, {}).then((c) => c.toDataURL('image/png').split(',')[1])`);
   const badgeGif = await badge(`shareCard.animate(spec, {}).then((u) => { let s = ''; for (let i = 0; i < u.length; i += 32768) s += String.fromCharCode(...u.subarray(i, i + 32768)); return btoa(s); })`);
   const bi = JSON.parse(await badge(`(${gifInfo})(${JSON.stringify(badgeGif)})`));
