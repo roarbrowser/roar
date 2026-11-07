@@ -346,5 +346,17 @@
       <description><![CDATA[Hermes Agent in the sidebar: add a Hermes dashboard in Settings > Agents and its open sessions show up to watch, from any computer. Share your Savanna, or a new agent badge that ranks your agents' work from Cub to Apex Lion, as an image or animated GIF.]]></description>
       <enclosure url="https://github.com/roarbrowser/roar/releases/download/v1.18.0/Roar-1.18.0.dmg" type="application/octet-stream" sparkle:edSignature="8CYiVG9orBEQHPtvHvrzZNILPg9rcENaFPVqsN0rEci2t8t50Djqvo0u2RezQJHXP3G3PrYkcK5TroZR/HB/BQ==" length="208003560"/>
     </item>
+    <item>
+      <title>1.19.0</title>
+      <pubDate>Sat, 07 Nov 2026 17:19:44 +0000</pubDate>
+      <sparkle:version>11900</sparkle:version>
+      <sparkle:shortVersionString>1.19.0</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[- Cleaner AI header in the sidebar: the label no longer gets cut off, the icons match, and Ask and Code sit together as a pair.
+- Hermes: Roar now shows the cards on your Hermes kanban board as well as your sessions, alerts you when a card is waiting on you, and drops sessions that have ended instead of keeping them for hours.
+- Hermes: when Hermes.app connects to a server on another computer, Connect for Hermes in Settings points Roar at that server for you.
+- Fixed old roar-mcp processes piling up each time Roar relaunched.]]></description>
+      <enclosure url="https://github.com/roarbrowser/roar/releases/download/v1.19.0/Roar-1.19.0.dmg" type="application/octet-stream" sparkle:edSignature="0XX55VlEotko+fZOECznS3unbhX04ba14lGA9KIeg4asbPBd8CKr1hp5md4o1mLJr5ZM4dYiLu+pkj1KNYdmBQ==" length="208013914"/>
+    </item>
   </channel>
 </rss>
