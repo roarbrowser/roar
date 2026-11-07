@@ -29,6 +29,10 @@ namespace fs = std::filesystem;
 
 inline constexpr int kSchema = 1;
 inline constexpr const char* kPending = "restore-pending";
+// The agent badge's counts: restored as kAgentStatsImported, which Roar merges in (controller_share.cc), so an
+// import never lowers the counts or the rank this computer already has.
+inline constexpr const char* kAgentStats = "agent-stats.json";
+inline constexpr const char* kAgentStatsImported = "agent-stats.imported.json";
 
 enum Cat { kNone, kSettings, kExtensions, kBrowsing, kNever };
 inline const char* CatName(Cat c) {
@@ -136,7 +140,7 @@ inline Cat Classify(const std::string& rel) {
       name.resize(name.size() - std::strlen(sfx));
   if (name == "LOCK") return kNone;
   if (slash == std::string::npos) {
-    if (name == "state.json" || name == "library.json" || name == "Boards") return kSettings;
+    if (name == "state.json" || name == "library.json" || name == "Boards" || name == kAgentStats) return kSettings;
     // Local State holds the cookie encryption key on Windows, so it travels with the cookies.
     if (name == "pages.json" || name == "history.json" || name == "chats.json" || name == "chats" || name == "Local State") return kBrowsing;
     return kNone;  // Caches, locks, runtime files, the staged uBOL copy, earlier backups.
@@ -519,7 +523,7 @@ inline int ApplyPendingRestore(const fs::path& dir) {
   std::ifstream list(pending / "remove.txt", std::ios::binary);
   if (!list) return -1;
   for (std::string rel; std::getline(list, rel);)
-    if (SafeRel(rel)) fs::remove_all(dir / P(rel), ec);
+    if (SafeRel(rel) && rel != kAgentStats) fs::remove_all(dir / P(rel), ec);
   list.close();
   int n = 0;
   fs::path files = pending / "files";
@@ -528,7 +532,7 @@ inline int ApplyPendingRestore(const fs::path& dir) {
        it.increment(ec))
     if (it->is_regular_file(ec)) staged.push_back(it->path());
   for (const fs::path& src : staged) {
-    fs::path dst = dir / fs::relative(src, files, ec);
+    fs::path rel = fs::relative(src, files, ec), dst = dir / (rel == kAgentStats ? fs::path(kAgentStatsImported) : rel);
     fs::create_directories(dst.parent_path(), ec);
     fs::remove(dst, ec);
     fs::rename(src, dst, ec);

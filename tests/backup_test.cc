@@ -95,6 +95,15 @@ int main(int argc, char** argv) {
   Check(!err.empty() && !fs::exists(dst / kPending), "tampered backup refused");
   Check(!SafeRel("../x") && !SafeRel("/etc") && !SafeRel("a/../../b") && SafeRel("Default/Preferences"), "paths checked");
 
+  // The agent badge: exported with the settings, and on restore merged in by Roar (never copied over the live counts).
+  Check(Classify("agent-stats.json") == kSettings, "the agent badge travels with the settings");
+  fs::path merge = root / "merge";
+  Put(merge / "agent-stats.json", "LIVE");
+  Put(merge / kPending / "files" / "agent-stats.json", "OLD");
+  Put(merge / kPending / "remove.txt", "agent-stats.json\n");
+  Check(ApplyPendingRestore(merge) == 1 && Get(merge / "agent-stats.json") == "LIVE" && Get(merge / "agent-stats.imported.json") == "OLD",
+        "restore keeps the live badge and stages the backup's for a merge");
+
   std::error_code ec;
   fs::remove_all(root, ec);
   std::printf("%s\n", failures ? "FAILED" : "all passed");

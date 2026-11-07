@@ -92,7 +92,9 @@ const json = (p) => JSON.parse(readFileSync(p, 'utf8'));
 const pick = (o, path) => path.split('.').reduce((v, k) => v?.[k], o);
 
 try {
-  // A: a configured Roar.
+  // A: a configured Roar, with an agent badge well along.
+  mkdirSync(A, { recursive: true });
+  writeFileSync(join(A, 'agent-stats.json'), JSON.stringify({ since: 1700000000, days: 40, daysSeeded: true, bestRank: 3, sessions: { codex: 12 } }));
   let roar = launch(A);
   await sidebar();
   await ask({ cmd: 'settings.set', settings: { onboarded: true, archiveAfterHours: 5, pinnedColumns: 3, indexPages: false } });
@@ -143,6 +145,8 @@ try {
     for (const o of [x, y]) if (o.rulesetConfig) delete o.rulesetConfig.userScripts;
     for (const k of Object.keys(x)) if (!k.startsWith('css.') && !isDeepStrictEqual(x[k], y[k])) diffs++, console.log(`     ${n}: ${k} differs`);
   }
+  const badge = await ask({ cmd: 'agent.stats' });
+  check(badge.rank >= 3 && badge.days >= 40 && badge.sessions?.codex === 12, 'B: the agent badge came back (rank, days, sessions): ' + JSON.stringify({ rank: badge.rank, days: badge.days }));
   check(Object.keys(before).length === 3 && diffs === 0, 'B: extension storage (chrome.storage and IndexedDB) matches A, uBOL and Site tweaks included');
   await quit(roar);
   const stateB = json(join(B, 'state.json'));
