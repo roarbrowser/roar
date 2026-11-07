@@ -15,6 +15,7 @@
 #include "agent_queue.h"
 #include "dictation.h"
 #include "notify_prefs.h"
+#include "hermes_server.h"
 #include <memory>
 #include <functional>
 #include <deque>
@@ -195,7 +196,7 @@ class Controller {
   void RefreshGitHub(int attempt = 0);
   void RefreshGmail();
   void RefreshGmail(int space, int attempt = 0);
-  void HermesResult(int generation, int code, const std::string& body);  // controller_hermes.cc
+  void HermesResult(int generation, int kind, int code, const std::string& body);  // controller_hermes.cc
   void RefreshOutlook(int space);
   void FetchOutlookMail(int space, const std::string& host);
   void ImportBrowser(const std::string& browser);
@@ -372,6 +373,7 @@ class Controller {
   void HermesTick();
   void AgentStatsTick(CefRefPtr<CefListValue> sessions);  // controller_share.cc
   void HermesPoll(bool restart = false);
+  void HermesAsk(int kind, const std::string& url);
   CefRefPtr<CefListValue> claude_ = CefListValue::Create();
   std::string claude_sig_;
   std::map<std::string, std::string> claude_states_;  // Session id -> last state, for its notification.
@@ -482,10 +484,11 @@ class Controller {
   // One roar-mcp connection's space for its next createTarget (agent.space); used once.
   bool sidebar_push_pending_ = false;
   std::map<std::string, std::pair<std::filesystem::file_time_type, CefRefPtr<CefDictionaryValue>>> claude_files_;  // ClaudeTick: session file -> mtime, parsed.
-  std::vector<CefRefPtr<CefDictionaryValue>> hermes_rows_;  // Sessions on the Hermes server, as ClaudeTick lists them.
+  std::vector<CefRefPtr<CefDictionaryValue>> hermes_rows_;  // Sessions and cards on the Hermes server, as ClaudeTick lists them.
+  std::vector<HermesSession> hermes_sessions_;  // The last session list, while the board is read.
   std::string hermes_base_, hermes_status_;
   CefRefPtr<CefURLRequest> hermes_request_;
-  int hermes_generation_ = 0, hermes_failures_ = 0;
+  int hermes_generation_ = 0, hermes_failures_ = 0, hermes_board_skip_ = 0;
   double hermes_asked_ = 0;
   std::map<std::string, std::string> mcp_tokens_;  // roar-mcp owner pid -> the token it got from agent.hello.
   std::map<std::string, int> claude_idle_gen_;  // Per session, bumped on every state change: a stale close-pages timer does nothing.

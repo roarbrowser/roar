@@ -1,6 +1,7 @@
-// Sessions on a Hermes Agent server as watch-only rows among the sidebar's agent sessions. Hermes runs on its own
-// machine, so no hook here can see it: Roar reads the dashboard's session list with the cookies of the space signed in
-// to it, like Gmail's feed, so there's no key to keep. Rows stay in memory. Rules: hermes_server.h.
+// Sessions and board cards on a Hermes Agent server as watch-only rows among the sidebar's agent sessions. Hermes runs
+// on its own machine, so no hook here can see it: Roar reads the dashboard with the cookies of the space signed in to
+// it, like Gmail's feed, so there's no key to keep. Each poll reads the session list, then the kanban board Hermes ships
+// with (a dashboard without it just shows sessions). Rows stay in memory. Rules: hermes_server.h.
 #include <algorithm>
 #include <string>
 #include <utility>
@@ -20,15 +21,18 @@ namespace {
 constexpr int kPollMs = 15 * 1000;
 constexpr double kStuckSeconds = 30;      // CefURLRequest has no timeout of its own.
 constexpr int kFailuresBeforeClear = 8;   // Two minutes: a restarting server keeps its rows, a gone one loses them.
+constexpr int kBoardRetryPolls = 20;      // A dashboard with no kanban plugin is asked again every 5 minutes.
 constexpr size_t kMaxBody = 8 * 1024 * 1024;
 constexpr size_t kMaxTitle = 120;
 
+enum Kind { kSessions = 0, kBoard = 1 };
+
 class HermesFetch : public CefURLRequestClient {
  public:
-  explicit HermesFetch(int generation) : generation_(generation) {}
+  HermesFetch(int generation, int kind) : generation_(generation), kind_(kind) {}
   void OnRequestComplete(CefRefPtr<CefURLRequest> request) override {
     int code = request->GetRequestStatus() == UR_SUCCESS && request->GetResponse() ? request->GetResponse()->GetStatus() : 0;
-    Controller::Get()->HermesResult(generation_, code, body_);
+    Controller::Get()->HermesResult(generation_, kind_, code, body_);
   }
   void OnUploadProgress(CefRefPtr<CefURLRequest>, int64_t, int64_t) override {}
   void OnDownloadProgress(CefRefPtr<CefURLRequest>, int64_t, int64_t) override {}
@@ -41,7 +45,7 @@ class HermesFetch : public CefURLRequestClient {
   }
 
  private:
-  int generation_;
+  int generation_, kind_;
   std::string body_;
   IMPLEMENT_REFCOUNTING(HermesFetch);
 };
@@ -55,6 +59,10 @@ std::string Text(const CefRefPtr<CefDictionaryValue>& d, const char* key) {
   return d->GetType(key) == VTYPE_STRING ? d->GetString(key).ToString() : "";
 }
 
+bool Flag(const CefRefPtr<CefDictionaryValue>& d, const char* key) {
+  return d->GetType(key) == VTYPE_BOOL && d->GetBool(key);
+}
+
 int HermesSpace() {
   int space = State::Get().settings.hermes_space;
   return State::Get().FindSpace(space) ? space : 0;
@@ -65,20 +73,79 @@ std::string HermesSpaceName() {
   return space ? space->name : "this";
 }
 
-CefRefPtr<CefDictionaryValue> Row(const std::string& id, const std::string& name, const std::string& state,
-                                  const std::string& doing, double started, double updated, const std::string& url) {
+CefRefPtr<CefDictionaryValue> Row(const HermesRow& r) {
   auto row = CefDictionaryValue::Create();
-  row->SetString("id", id);
+  row->SetString("id", r.id);
   row->SetString("tool", "hermes");
   row->SetBool("remote", true);  // No hook, terminal or chat view: a row only opens `url`, in `space`.
-  row->SetString("project", name);
-  row->SetString("state", state);
-  row->SetString("doing", doing);
-  row->SetDouble("started", started * 1000);
-  row->SetDouble("updated", updated * 1000);
-  row->SetString("url", url);
+  row->SetString("project", r.name.substr(0, kMaxTitle));
+  row->SetString("state", r.state);
+  row->SetString("doing", r.doing);
+  row->SetDouble("started", r.started * 1000);
+  row->SetDouble("updated", r.updated * 1000);
+  row->SetString("url", r.url);
   row->SetInt("space", HermesSpace());
   return row;
+}
+
+CefRefPtr<CefDictionaryValue> Root(int code, const std::string& body) {
+  auto value = code == 200 ? CefParseJSON(body, JSON_PARSER_RFC) : nullptr;
+  return value && value->GetType() == VTYPE_DICTIONARY ? value->GetDictionary() : nullptr;
+}
+
+// /api/profiles/sessions, or false when the answer isn't one.
+bool ParseSessions(const CefRefPtr<CefDictionaryValue>& root, std::vector<HermesSession>& out) {
+  auto list = root && root->GetType("sessions") == VTYPE_LIST ? root->GetList("sessions") : nullptr;
+  if (!list) return false;
+  out.clear();
+  for (size_t i = 0; i < list->GetSize(); ++i) {
+    if (list->GetType(i) != VTYPE_DICTIONARY) continue;
+    auto s = list->GetDictionary(i);
+    HermesSession h;
+    h.profile = Text(s, "profile");
+    h.id = Text(s, "id");
+    h.title = Text(s, "title");
+    h.source = Text(s, "source");
+    h.activity = Text(s, "last_activity_description");
+    h.active = Flag(s, "is_active");
+    h.pinned = Flag(s, "pinned");
+    auto ended = s->GetType("ended_at");
+    h.ended = ended == VTYPE_DOUBLE || ended == VTYPE_INT;
+    h.started = Number(s, "started_at");
+    h.last_active = Number(s, "last_active");
+    out.push_back(std::move(h));
+  }
+  return true;
+}
+
+// The kanban plugin's /board: {columns: [{name, tasks: [...]}, ...]}. Only the columns a row can come from.
+bool ParseBoard(const CefRefPtr<CefDictionaryValue>& root, std::vector<HermesCard>& out) {
+  auto columns = root && root->GetType("columns") == VTYPE_LIST ? root->GetList("columns") : nullptr;
+  if (!columns) return false;
+  out.clear();
+  for (size_t i = 0; i < columns->GetSize(); ++i) {
+    if (columns->GetType(i) != VTYPE_DICTIONARY) continue;
+    auto column = columns->GetDictionary(i);
+    std::string name = Text(column, "name");
+    if ((name != "running" && name != "blocked") || column->GetType("tasks") != VTYPE_LIST) continue;
+    auto tasks = column->GetList("tasks");
+    for (size_t j = 0; j < tasks->GetSize(); ++j) {
+      if (tasks->GetType(j) != VTYPE_DICTIONARY) continue;
+      auto t = tasks->GetDictionary(j);
+      HermesCard c;
+      c.id = Text(t, "id");
+      c.title = Text(t, "title");
+      c.assignee = Text(t, "assignee");
+      c.status = Text(t, "status");
+      if (c.status.empty()) c.status = name;
+      c.block_kind = Text(t, "block_kind");
+      c.run_started = Number(t, "current_run_started_at");
+      if (c.run_started <= 0) c.run_started = Number(t, "started_at");
+      c.heartbeat = Number(t, "last_heartbeat_at");
+      out.push_back(std::move(c));
+    }
+  }
+  return true;
 }
 
 }  // namespace
@@ -86,6 +153,17 @@ CefRefPtr<CefDictionaryValue> Row(const std::string& id, const std::string& name
 void Controller::HermesTick() {
   HermesPoll();
   CefPostDelayedTask(TID_UI, base::BindOnce([] { Controller::Get()->HermesTick(); }), kPollMs);
+}
+
+void Controller::HermesAsk(int kind, const std::string& url) {
+  hermes_asked_ = NowSeconds();
+  auto request = CefRequest::Create();
+  request->SetURL(url);
+  request->SetFirstPartyForCookies(HermesOrigin(hermes_base_));
+  request->SetFlags(UR_FLAG_ALLOW_STORED_CREDENTIALS | UR_FLAG_DISABLE_CACHE);
+  auto context = ContextFor(HermesSpace());
+  hermes_request_ = CefURLRequest::Create(request, new HermesFetch(hermes_generation_, kind),
+                                          context ? context : CefRequestContext::GetGlobalContext());
 }
 
 void Controller::HermesPoll(bool restart) {
@@ -96,7 +174,9 @@ void Controller::HermesPoll(bool restart) {
     if (hermes_request_) hermes_request_->Cancel();
     hermes_request_ = nullptr;
     hermes_rows_.clear();
+    hermes_sessions_.clear();
     hermes_failures_ = 0;
+    hermes_board_skip_ = 0;
     hermes_base_ = base;
     hermes_status_.clear();
   }
@@ -106,59 +186,57 @@ void Controller::HermesPoll(bool restart) {
     if (status != hermes_status_) hermes_status_ = status, PushSidebar();
     return;
   }
-  double now = NowSeconds();
   if (hermes_request_) {
-    if (now - hermes_asked_ < kStuckSeconds) return;
+    if (NowSeconds() - hermes_asked_ < kStuckSeconds) return;
     hermes_request_->Cancel();  // Its OnRequestComplete counts as a failure.
     return;
   }
-  hermes_asked_ = now;
-  auto request = CefRequest::Create();
-  request->SetURL(HermesSessionsUrl(base));
-  request->SetFirstPartyForCookies(HermesOrigin(base));
-  request->SetFlags(UR_FLAG_ALLOW_STORED_CREDENTIALS | UR_FLAG_DISABLE_CACHE);
-  auto context = ContextFor(HermesSpace());
-  hermes_request_ = CefURLRequest::Create(request, new HermesFetch(hermes_generation_),
-                                          context ? context : CefRequestContext::GetGlobalContext());
+  HermesAsk(kSessions, HermesSessionsUrl(base));
 }
 
-void Controller::HermesResult(int generation, int code, const std::string& body) {
+void Controller::HermesResult(int generation, int kind, int code, const std::string& body) {
   if (generation != hermes_generation_) return;
   hermes_request_ = nullptr;
   std::string status;
-  if (code == 401 || code == 403) {
-    // One row, not just a line in Settings: a sign-in that ran out should say so where the sessions were.
-    double now = NowSeconds();
-    hermes_rows_ = {Row("hermes-signin", "Hermes", "idle", "Sign in to see your sessions", now, now, hermes_base_ + "/login")};
-    hermes_failures_ = 0;
-    status = "Sign in to Hermes in the " + HermesSpaceName() + " space.";
-  } else {
-    auto value = code == 200 ? CefParseJSON(body, JSON_PARSER_RFC) : nullptr;
-    auto root = value && value->GetType() == VTYPE_DICTIONARY ? value->GetDictionary() : nullptr;
-    auto sessions = root && root->GetType("sessions") == VTYPE_LIST ? root->GetList("sessions") : nullptr;
-    if (!sessions) {
+  if (kind == kSessions) {
+    if (code == 401 || code == 403) {
+      // One row, not just a line in Settings: a sign-in that ran out should say so where the sessions were.
+      double now = NowSeconds();
+      HermesRow r{"hermes-signin", "Hermes", "idle", "Sign in to see your sessions", hermes_base_ + "/login", now, now};
+      hermes_rows_ = {Row(r)};
+      hermes_failures_ = 0;
+      status = "Sign in to Hermes in the " + HermesSpaceName() + " space.";
+    } else if (!ParseSessions(Root(code, body), hermes_sessions_)) {
       if (++hermes_failures_ >= kFailuresBeforeClear) hermes_rows_.clear();
       status = code == 200 ? "That address doesn't answer like a Hermes server." : code ? "Hermes returned " + std::to_string(code) + "." : "Couldn't reach Hermes.";
     } else {
       hermes_failures_ = 0;
-      hermes_rows_.clear();
-      double now = NowSeconds();
-      for (size_t i = 0; i < sessions->GetSize(); ++i) {
-        if (sessions->GetType(i) != VTYPE_DICTIONARY) continue;
-        auto s = sessions->GetDictionary(i);
-        double updated = Number(s, "last_active");
-        auto ended = s->GetType("ended_at");
-        std::string profile = Text(s, "profile"), session = Text(s, "id"), id = HermesRowId(profile, session);
-        if (id.empty() || !HermesShows(ended == VTYPE_DOUBLE || ended == VTYPE_INT, updated, now)) continue;
-        std::string title = Text(s, "title").substr(0, kMaxTitle);
-        bool active = s->GetType("is_active") == VTYPE_BOOL && s->GetBool("is_active");
-        hermes_rows_.push_back(Row(id, title.empty() ? "Hermes session" : title, active ? "working" : "idle",
-                                   HermesDoing(profile, Text(s, "source")), Number(s, "started_at"), updated,
-                                   HermesChatUrl(hermes_base_, session, profile)));
+      // The board next, unless this dashboard showed it has none a moment ago.
+      if (hermes_board_skip_ > 0) {
+        hermes_board_skip_--;
+        return HermesResult(generation, kBoard, -1, "");
       }
-      size_t n = hermes_rows_.size();
-      status = "Connected. " + (n ? std::to_string(n) + (n == 1 ? " open session." : " open sessions.") : std::string("No open sessions."));
+      return HermesAsk(kBoard, HermesBoardUrl(hermes_base_));
     }
+  } else {
+    // Sessions came through; the board is extra. Not there (no kanban plugin) or unreadable: sessions only, and the
+    // board isn't asked again for a while. Skipped (code -1) or no answer at all (0, a blip): rows stay as they were.
+    if (code == 0) return;
+    std::vector<HermesCard> cards;
+    bool board = ParseBoard(Root(code, body), cards);
+    if (!board && code > 0) hermes_board_skip_ = kBoardRetryPolls;
+    hermes_rows_.clear();
+    auto rows = HermesRows(hermes_base_, hermes_sessions_, cards, board, NowSeconds());
+    size_t sessions = 0, working = 0, needs = 0;
+    for (const auto& r : rows) {
+      hermes_rows_.push_back(Row(r));
+      sessions += r.id.rfind("hermes-card-", 0) != 0;
+      working += r.id.rfind("hermes-card-", 0) == 0 && r.state == "working";
+      needs += r.state == "needs_you";
+    }
+    status = "Connected. " + (sessions ? std::to_string(sessions) + (sessions == 1 ? " open session" : " open sessions") : std::string("No open sessions"));
+    if (board) status += working || needs ? ", " + std::to_string(working) + " running on the board" + (needs ? ", " + std::to_string(needs) + " waiting on you" : "") : ", board quiet";
+    status += board ? "." : ". No kanban board, so cards don't show.";
   }
   if (status != hermes_status_) hermes_status_ = status, PushSidebar();
 }

@@ -136,6 +136,26 @@ int main() {
          "hermes honours HERMES_HOME");
   unsetenv("HERMES_HOME");
 
+  // Hermes desktop in remote mode (connection.json): Hermes runs elsewhere, so nothing is written here.
+  {
+    const std::string conn = "Library/Application Support/Hermes/connection.json";
+    Expect(roar::agents::HermesRemoteUrl(home).empty(), "no Hermes app: not remote");
+    Put(conn, "{\"mode\": \"local\", \"remote\": {\"url\": \"https://h.example\"}}");
+    Expect(roar::agents::HermesRemoteUrl(home).empty(), "local mode: not remote");
+    Put(conn, "{\"profiles\": {\"work\": {\"mode\": \"remote\", \"url\": \"https://other\"}}, \"mode\": \"remote\",\n"
+              " \"remote\": {\"authMode\": \"oauth\", \"tags\": [\"a\", {\"b\": 1}], \"url\": \"https:\\/\\/hermes.example.com\"}}");
+    Expect(roar::agents::HermesRemoteUrl(home) == "https://hermes.example.com", "remote mode: the dashboard address, not a profile override");
+    Put(conn, "{\"mode\": \"remote\", \"remote\": {\"url\": ");
+    Expect(roar::agents::HermesRemoteUrl(home).empty(), "a cut-off file reads as not remote");
+    Put(conn, "{\"mode\": \"remote\", \"remote\": {\"url\": \"https://hermes.example.com\"}}");
+    const std::string before = Get(".hermes/config.yaml");
+    Expect(!Connect("hermes", home, kServer).empty() && Get(".hermes/config.yaml") == before, "remote: Connect writes no local config");
+    Put(".hermes/config.yaml", "mcp_servers:\n  roar:\n    command: /old/roar-mcp\n    args: []\n");
+    Expect(roar::agents::RepairStale(home, kServer).empty() && Has(Get(".hermes/config.yaml"), "/old/roar-mcp"), "remote: launch repair leaves the local config alone");
+    fs::remove(home + "/" + conn);
+    fs::remove(home + "/.hermes/config.yaml");
+  }
+
   // Malformed files are reported and left untouched, with no backup.
   struct Bad { const char* id; const char* rel; const char* text; };
   for (const Bad& b : {Bad{"cursor", ".cursor/mcp.json", "{\"mcpServers\": {\"a\": }"},

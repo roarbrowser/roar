@@ -16,6 +16,7 @@
 #include <filesystem>
 #include <fstream>
 #include <functional>
+#include <map>
 #include <sstream>
 #include <utility>
 
@@ -700,11 +701,114 @@ std::string AddSoulSection(std::string& s) {
   return "";
 }
 
+
+// --- Hermes's desktop app in remote mode (connection.json) ---
+
+// String values in a JSON object's top two levels, keyed "a" or "a.b": all connection.json needs, without CEF here.
+// Anything it can't read leaves the map short, never wrong.
+class JsonStrings {
+ public:
+  explicit JsonStrings(const std::string& s) : s_(s) {}
+  std::map<std::string, std::string> Read() {
+    Ws();
+    if (Peek() == '{') Object("", 0);
+    return out_;
+  }
+
+ private:
+  char Peek() { return i_ < s_.size() ? s_[i_] : '\0'; }
+  void Ws() { while (i_ < s_.size() && std::isspace(static_cast<unsigned char>(s_[i_]))) i_++; }
+  bool String(std::string* out) {
+    if (Peek() != '"') return false;
+    for (i_++; i_ < s_.size(); i_++) {
+      char c = s_[i_];
+      if (c == '"') return i_++, true;
+      if (c != '\\') { if (out) *out += c; continue; }
+      if (++i_ >= s_.size()) return false;
+      char e = s_[i_];
+      const char* plain = strchr("\"\\/bfnrt", e);
+      if (!plain) return false;  // \u escapes: not in an address, so give up on this value.
+      if (out) *out += e == 'b' ? '\b' : e == 'f' ? '\f' : e == 'n' ? '\n' : e == 'r' ? '\r' : e == 't' ? '\t' : e;
+    }
+    return false;
+  }
+  // Skips any value, nested or not.
+  bool Skip() {
+    Ws();
+    char c = Peek();
+    if (c == '"') return String(nullptr);
+    if (c == '{' || c == '[') {
+      int depth = 0;
+      while (i_ < s_.size()) {
+        char d = s_[i_];
+        if (d == '"') { if (!String(nullptr)) return false; continue; }
+        if (d == '{' || d == '[') depth++;
+        if (d == '}' || d == ']') depth--;
+        i_++;
+        if (depth == 0) return true;
+      }
+      return false;
+    }
+    while (i_ < s_.size() && !strchr(",}] \t\r\n", s_[i_])) i_++;
+    return true;
+  }
+  void Object(const std::string& prefix, int depth) {
+    i_++;  // '{'
+    for (;;) {
+      Ws();
+      if (Peek() == '}') return void(i_++);
+      std::string key;
+      if (!String(&key)) return;
+      Ws();
+      if (Peek() != ':') return;
+      i_++;
+      Ws();
+      std::string path = prefix.empty() ? key : prefix + "." + key;
+      if (Peek() == '"') {
+        std::string value;
+        if (!String(&value)) return;
+        out_[path] = value;
+      } else if (Peek() == '{' && depth == 0) {
+        Object(path, 1);
+      } else if (!Skip()) {
+        return;
+      }
+      Ws();
+      if (Peek() == ',') i_++;
+      else if (Peek() != '}') return;
+    }
+  }
+  const std::string& s_;
+  size_t i_ = 0;
+  std::map<std::string, std::string> out_;
+};
+
 }  // namespace
+
+std::string HermesConnectionFile(const std::string& home) {
+#ifdef _WIN32
+  const char* appdata = getenv("APPDATA");
+  return appdata && *appdata ? std::string(appdata) + "\\Hermes\\connection.json" : "";
+#elif defined(__APPLE__)
+  return home + "/Library/Application Support/Hermes/connection.json";
+#else
+  const char* xdg = getenv("XDG_CONFIG_HOME");
+  return (xdg && *xdg ? std::string(xdg) : home + "/.config") + "/Hermes/connection.json";
+#endif
+}
+
+std::string HermesRemoteUrl(const std::string& home) {
+  std::string text, file = HermesConnectionFile(home);
+  if (file.empty() || !Read(file, &text) || text.size() > 1024 * 1024) return "";
+  auto values = JsonStrings(text).Read();
+  return values["mode"] == "remote" ? values["remote.url"] : "";
+}
 
 std::string Connect(const std::string& id, const std::string& home, const std::string& server) {
   std::error_code hec;
   if (home.empty() || !fs::is_directory(home, hec)) return "no home directory";
+  // Hermes on another computer never reads a config here: Roar follows it through its dashboard (Controller sets that).
+  if (id == "hermes" && !HermesRemoteUrl(home).empty()) return "Hermes runs on another computer, so Roar reads it from its dashboard.";
   for (const Spec& spec : Specs()) {
     if (id != spec.id) continue;
     if (spec.format == Format::kCopyOnly) return spec.name + std::string(" has no config file Roar can edit");
@@ -720,6 +824,7 @@ std::vector<std::string> RepairStale(const std::string& home, const std::string&
   std::vector<std::string> fixed;
   for (const Client& c : List(home, server)) {
     if (!c.stale) continue;
+    if (c.id == "hermes" && !HermesRemoteUrl(home).empty()) continue;  // A leftover local config; Hermes runs elsewhere.
     // The claude CLI may rewrite ~/.claude.json later; leave one it would mangle alone.
     if (c.id == "claude-code" && !PrepareClaudeCli(home).empty()) continue;
     if (Connect(c.id, home, server).empty()) fixed.push_back(c.id);

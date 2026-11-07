@@ -30,6 +30,12 @@ std::string Connect(const std::string& id, const std::string& home, const std::s
 // what it can't parse). Returns "" when the CLI may go ahead.
 std::string PrepareClaudeCli(const std::string& home);
 
+// Hermes's desktop app keeps its connection in connection.json (Electron's userData folder). In remote mode
+// Hermes runs on another computer: this returns that dashboard's address, or "" (local, no app, or unreadable).
+// Connect("hermes") then writes nothing here; Roar reads the dashboard instead.
+std::string HermesConnectionFile(const std::string& home);
+std::string HermesRemoteUrl(const std::string& home);
+
 // Rewrites every stale roar entry (see Client::stale) to `server`; never adds one.
 // Returns the ids it repaired.
 std::vector<std::string> RepairStale(const std::string& home, const std::string& server);
