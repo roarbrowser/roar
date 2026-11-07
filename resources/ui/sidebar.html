@@ -724,11 +724,11 @@ window.roar = {
         `<span class="label"><span class="cl-name"><b>${esc(c.project)}</b><time>${clAgo(c.updated)}</time></span><small><span class="vh">${clStates[st] || st}: </span>${esc(sub)}</small>` +
         `</span></button>` +
         `<span class="cl-acts">` +
-        aiRn('session', c.id, c.project) +
-        `<button data-clbeside="${esc(c.id)}" aria-pressed="${!!clFull[c.id]?.split}" aria-label="${clFull[c.id]?.split ? `Stop showing ${esc(c.project)} side by side` : `Show ${esc(c.project)} side by side with the page you're on`}" title="${clFull[c.id]?.split ? 'Back to one page' : 'Side by side with this page'}">${ico.beside}</button>` +
+        (c.remote ? '' : aiRn('session', c.id, c.project)) +
+        (c.remote ? '' : `<button data-clbeside="${esc(c.id)}" aria-pressed="${!!clFull[c.id]?.split}" aria-label="${clFull[c.id]?.split ? `Stop showing ${esc(c.project)} side by side` : `Show ${esc(c.project)} side by side with the page you're on`}" title="${clFull[c.id]?.split ? 'Back to one page' : 'Side by side with this page'}">${ico.beside}</button>`) +
         `${c.live ? `<button data-clfocus="${esc(c.id)}" aria-label="Show ${esc(c.project)}'s terminal" title="Bring its terminal window to the front">${ico.term}</button>` : ''}` +
         (c.live ? `<button data-clquit="${esc(c.id)}" aria-label="End ${esc(c.project)}" title="End this session (closes its terminal)">${ico.quit}</button>` : '') +
-        (c.live ? `<button data-clhide="${esc(c.id)}" title="${clIsHidden(c.id) ? 'Show this session again' : 'Hide (Show hidden brings it back)'}" aria-label="${clIsHidden(c.id) ? 'Unhide' : 'Hide'} ${esc(c.project)}">${ico.hide}</button></span></div>`
+        (c.live || c.remote ? `<button data-clhide="${esc(c.id)}" title="${clIsHidden(c.id) ? 'Show this session again' : 'Hide (Show hidden brings it back)'}" aria-label="${clIsHidden(c.id) ? 'Unhide' : 'Hide'} ${esc(c.project)}">${ico.hide}</button></span></div>`
           : `<button data-cldismiss="${esc(c.id)}" title="Hide this session" aria-label="Hide ${esc(c.project)}">${ico.hide}</button></span></div>`) +
         (open ? `<form class="clq" data-clq="${esc(c.id)}"><input placeholder="Reply to ${esc(c.project)}…" title="Empty Enter accepts the highlighted choice" autocomplete="off" spellcheck="false" aria-label="Reply to ${esc(c.project)}" value="${esc(clDraft[c.id] || '')}"><span class="clq-acts"><button type="button" data-tab aria-label="Attach this tab" ${attachAttrs}>${ico.attach}</button><button class="send" aria-label="Send">${ico.send}</button></span></form>` : '') ;
     };
@@ -785,7 +785,7 @@ window.roar = {
     // starts; a single service stays a plain list under Code and Ask.
     const clSub = (t) => `<div class="cl-sub" aria-hidden="true">${esc(t)}</div>`;
     const codeGroups = clGroups(clVis, agentTool, agentOrder(s)), chatGroups = clGroups(chatList, chatService);
-    const codeRows = codeGroups.length > 1 ? codeGroups.map((g) => clSub(AGENT_TOOLS[g.key][0]) + g.rows.map(clRow).join('')).join('') : clVis.map(clRow).join('');
+    const codeRows = codeGroups.length > 1 ? codeGroups.map((g) => clSub(AGENT_ROWS[g.key][0]) + g.rows.map(clRow).join('')).join('') : clVis.map(clRow).join('');
     const chatRows = newChats + (chatGroups.length > 1 ? chatGroups.map((g) => clSub('Ask · ' + g.key) + g.rows.map(chatRow).join('')).join('') : chatList.map(chatRow).join(''));
     const both = (starting || clVis.length) && chatRows;
     setHtml($('cl'), (both && codeGroups.length < 2 ? clSub('Code') : '') + starting + (codeRows + (both && (chatGroups.length < 2 || newChats) ? clSub('Ask') : '') + chatRows || (starting || afRow ? '' : '<div class="note">No sessions yet. Press Code to start a coding agent, or Ask to talk to a model.</div>')) + clHidRow + afRow);
@@ -1604,7 +1604,7 @@ $('ask-llm').onclick = () => {
 var AI_RN_ICO = '<svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 1.8l1.3 3.4 3.4 1.3-3.4 1.3L8 11.2 6.7 7.8 3.3 6.5l3.4-1.3z"/><path d="M12.6 10.4l.6 1.5 1.5.6-1.5.6-.6 1.5-.6-1.5-1.5-.6 1.5-.6z"/></svg>';
 var aiBusy = {};  // "kind:id" -> {old, until}: the agent is renaming it.
 // A tabs-only bulk key ("ungrouped:space") is never in aiBusy itself: its run is any of its tabs' run.
-const aiSessions = () => state.claude?.items || [];
+const aiSessions = () => (state.claude?.items || []).filter((c) => !c.remote);  // Rename asks the session itself; a remote row can't be asked.
 function aiRunning(key) { return /^(all|ungrouped|split|ghost|sessions):/.test(key) && chatCore.renameKeys(key, state.tabs, aiSessions()).map((k) => aiBusy[k]?.run).find(Boolean); }
 function aiRn(kind, id, name) {
   const k = kind + ':' + id, busy = aiBusy[k] || aiRunning(k);
@@ -1877,6 +1877,9 @@ document.addEventListener('click', (e) => {
   e.stopPropagation();
   closeFeeds();
   dropDone(r.dataset.clid);
+  // A session on a Hermes server opens in its dashboard, in the space signed in to it.
+  const far = (state.claude?.items || []).find((c) => c.id === r.dataset.clid && c.remote);
+  if (far) return ask({ cmd: 'open', text: far.url, newTab: true, space: far.space });
   // Every row opens its session: the full-view tab if it's open, else a new one.
   if (r.dataset.cltab) return ask({ cmd: 'tab.activate', id: +r.dataset.cltab });
   return ask({ cmd: 'open', text: 'roar://ui/claude.html?id=' + encodeURIComponent(r.dataset.clid), newTab: true });

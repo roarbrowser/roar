@@ -1431,6 +1431,7 @@ void Controller::Start() {
   GitHubTick();
   GmailOpenTick();
   ClaudeTick();
+  HermesTick();
   ReportExtensionCopies();
   // MCP entries left pointing at a moved or older Roar are repointed here; none are added.
   if (!platform::Headless() && !InCheckout()) agents::RepairStale(platform::HomeDir(), platform::ResourcePath("roar-mcp"));
@@ -3220,6 +3221,8 @@ void Controller::ClaudeTick() {
                                                 d->GetString("id").ToString(), tabs[i]), 1500 * (i + 1));
   }
   std::erase_if(claude_files_, [&](const auto& f) { return !files.count(f.first); });
+  // Sessions on a Hermes server: no file, so nothing above ends them; HermesResult keeps this list current.
+  for (const auto& row : hermes_rows_) list->SetDictionary(list->GetSize(), row->Copy(false));
   // Ended sessions take their notification and needs-you count with them.
   for (auto it = claude_states_.begin(); it != claude_states_.end();) {
     if (seen.count(it->first)) { ++it; continue; }
@@ -4573,6 +4576,7 @@ std::string Controller::StateJson() {
   for (size_t i = 0; i < cl_items->GetSize(); ++i)
     if (auto d = cl_items->GetDictionary(i); d && claude_acked_.count(d->GetString("id"))) d->SetBool("acked", true);
   cl->SetList("items", cl_items);
+  cl->SetString("hermes", hermes_status_);
   root->SetDictionary("claude", cl);
   if (!chats_) {
     std::ifstream in(state.Dir() + "/chats.json");
@@ -4793,6 +4797,7 @@ void Controller::ApplySettings(CefRefPtr<CefDictionaryValue> d) {
     platform::SetAutoUpdate(d->HasKey("autoUpdateChecks") ? d->GetBool("autoUpdateChecks") : platform::AutoUpdateChecks(),
                             d->HasKey("autoUpdateDownloads") ? d->GetBool("autoUpdateDownloads") : platform::AutoUpdateDownloads());
   if (d->HasKey("dockBadge")) SyncAlertBadge();
+  if (d->HasKey("hermesUrl") || d->HasKey("hermesSpace") || d->HasKey("claudeSidebar")) HermesPoll(true);
   if (d->HasKey("dictation") && !s.dictation) DictationOff();
   // Turned on: agents already on the extension go, then every worker shares. Off: each keeps the copy it has.
   if (d->HasKey("tweaksShared") && d->GetBool("tweaksShared") != tweaks_were_shared) {

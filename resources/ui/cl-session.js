@@ -46,10 +46,12 @@ const AGENT_TOOLS = {
   copilot: ['Copilot CLI', 'var(--ink-2)', '<rect x="1.8" y="5" width="5.4" height="5" rx="2.2"/><rect x="8.8" y="5" width="5.4" height="5" rx="2.2"/><path d="M7.2 7.2h1.6"/>', true],
   opencode: ['OpenCode', 'var(--ink-2)', '<path d="M5.8 4.2L2.2 8l3.6 3.8M10.2 4.2L13.8 8l-3.6 3.8"/>', true],
 };
-const agentTool = (c) => AGENT_TOOLS[c?.tool] ? c.tool : 'claude';
-const agentName = (c) => AGENT_TOOLS[agentTool(c)][0];
+// Rows with no CLI here, so not in AGENT_TOOLS: no hooks to connect and nothing New can start. Hermes: controller_hermes.cc.
+const AGENT_ROWS = { ...AGENT_TOOLS, hermes: ['Hermes', 'var(--ink-2)', '<path d="M8 1.8v12.4M3 4.6c1.6 2 3 2.6 5 2.6s3.4-.6 5-2.6M5.2 11.4c.9.7 1.7 1 2.8 1s1.9-.3 2.8-1"/>'] };
+const agentTool = (c) => AGENT_ROWS[c?.tool] ? c.tool : 'claude';
+const agentName = (c) => AGENT_ROWS[agentTool(c)][0];
 const agentIcon = (c, size = 14) => {
-  const [, tint, glyph] = AGENT_TOOLS[typeof c === 'string' ? c : agentTool(c)] || AGENT_TOOLS.claude;
+  const [, tint, glyph] = AGENT_ROWS[typeof c === 'string' ? c : agentTool(c)] || AGENT_TOOLS.claude;
   return `<svg class="agent-icon" width="${size}" height="${size}" viewBox="0 0 16 16" fill="none" stroke="${tint}" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${glyph}</svg>`;
 };
 

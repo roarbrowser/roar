@@ -130,6 +130,7 @@ port 9444) started on demand.
   session's prompt (never ghost tabs); **Side by side** splits it beside your last web page. **New** starts a session in any folder. The hook reports the
   prompt, tool and state, never the conversation.
 - **OpenCode too, even on another computer.** Connect OpenCode in Settings > Agents and each terminal reports its sessions, also with `opencode --server`. Other sessions running on that server show as watch-only rows while a terminal is open. Chat view reads them too, on request, and keeps nothing on disk. Add that server in Settings > Model chat and Ask uses its model: with no tools by default, enforced by the server, or as its agent under the server's own permission rules, with approvals shown in the chat. With more than one service listed, the AI section groups them under a heading each.
+- **Hermes Agent, on any computer.** Add its dashboard address in Settings > Agents, pick the space signed in to it, and every open session across its profiles shows in the sidebar, whatever started it. Rows are watch-only: one click opens that chat in the dashboard. Roar reads the session list with that space's sign-in, so there is no key to store, and keeps titles and status only, never the conversation.
 - **Slash commands in the reply box.** Type `/` in a session window's chat or terminal reply
   box to list the tool's built-in commands plus your own and the project's commands and skills;
   pick with the arrow keys and Tab or Enter.
