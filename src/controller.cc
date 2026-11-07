@@ -1640,6 +1640,7 @@ void Controller::CheckAgentHooks() {
         });
     SaveSoon();
   };
+  TimeAlert(a, kRoarCardPref);
   agent_alerts_.push_back(a);
 }
 
@@ -2725,6 +2726,7 @@ void Controller::AskDefaultBrowser() {
     if (r == "Make default") platform::MakeDefaultBrowser([this] { PushSidebar(); });
     if (r == "Don't ask again") { State::Get().settings.ask_default = false; State::Get().Save(); }
   };
+  TimeAlert(a, kRoarCardPref);
   agent_alerts_.push_back(a);
   PushSidebar();
 }
