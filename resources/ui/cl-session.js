@@ -44,6 +44,7 @@ const AGENT_TOOLS = {
   gemini: ['Gemini CLI', 'var(--ink-2)', '<rect x="2.5" y="2.5" width="11" height="11" rx="3"/><path d="M5.5 6.5h5M5.5 9.5h3"/>', true],
   qwen: ['Qwen Code', 'var(--ink-2)', '<circle cx="7.6" cy="7.6" r="4.8"/><path d="M10.6 10.6l3 3"/>', true],
   copilot: ['Copilot CLI', 'var(--ink-2)', '<rect x="1.8" y="5" width="5.4" height="5" rx="2.2"/><rect x="8.8" y="5" width="5.4" height="5" rx="2.2"/><path d="M7.2 7.2h1.6"/>', true],
+  opencode: ['OpenCode', 'var(--ink-2)', '<path d="M5.8 4.2L2.2 8l3.6 3.8M10.2 4.2L13.8 8l-3.6 3.8"/>', true],
 };
 const agentTool = (c) => AGENT_TOOLS[c?.tool] ? c.tool : 'claude';
 const agentName = (c) => AGENT_TOOLS[agentTool(c)][0];
@@ -89,6 +90,14 @@ const agentRank = (s, live) => {
   const o = agentOrder(s);
   return [...live].sort((a, b) => o.indexOf(agentTool(a)) - o.indexOf(agentTool(b)) || (b.updated || 0) - (a.updated || 0));
 };
+// Rows by service for the sidebar's AI section: [{key, rows}], rows keeping their order. Keys in |order| come first, in it;
+// the rest by name, so a group's place doesn't depend on what ran last.
+const clGroups = (rows, keyOf, order = []) => {
+  const by = new Map();
+  for (const r of rows) { const k = keyOf(r); if (by.has(k)) by.get(k).push(r); else by.set(k, [r]); }
+  const at = (k) => { const i = order.indexOf(k); return i < 0 ? order.length : i; };
+  return [...by].sort(([a], [b]) => at(a) - at(b) || String(a).localeCompare(String(b))).map(([key, list]) => ({ key, rows: list }));
+};
 // Names given in Roar (settings.agentNames, {sessionId: name}) win over the CLI's own.
 const agentNames = (s) => { try { const m = JSON.parse(s?.settings?.agentNames || '{}'); return m && typeof m === 'object' && !Array.isArray(m) ? m : {}; } catch { return {}; } };
 // What a done or needs-you card offers for the session that posted it (the hook card's own session, else the one
@@ -116,4 +125,4 @@ const URL_RE = /https?:\/\/[^\s<>"'`]+[^\s<>"'`.,;:!?)\]}]/g;
 const alertLink = (body) => (String(body || '').match(URL_RE) || [])[0] || '';
 const linkify = (body, e = typeof esc === 'function' ? esc : (s) => String(s).replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`)) =>
   String(body).split(/(https?:\/\/[^\s<>"'`]+[^\s<>"'`.,;:!?)\]}])/).map((p, i) => i % 2 ? `<a data-alert-link="${e(p)}">${e(p)}</a>` : e(p)).join('');
-if (typeof module === 'object') module.exports = { clHiddenMap, clHiddenPrune, agentOrder, agentRank, agentNames, alertSession, alertChat, alertWhy, alertLink, linkify };
+if (typeof module === 'object') module.exports = { clHiddenMap, clHiddenPrune, agentOrder, agentRank, clGroups, agentTool, agentNames, alertSession, alertChat, alertWhy, alertLink, linkify };

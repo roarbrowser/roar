@@ -3,11 +3,11 @@
 // Connect installs Roar's session hooks (claude.hooks) and adds Roar to its MCP config (agents.connect).
 // Needs bridge.js and cl-session.js (AGENT_TOOLS, agentIcon).
 
-// Same ids and order as kLlms (controller.cc).
-const LLMS = [['chatgpt', 'ChatGPT'], ['claude', 'Claude'], ['gemini', 'Gemini'], ['perplexity', 'Perplexity'], ['grok', 'Grok'],
+// Same ids and order as kLlms (controller.cc), plus "model": Roar's own Model chat (askModel in command.html, sidebar.html).
+const LLMS = [['model', 'Model chat'], ['chatgpt', 'ChatGPT'], ['claude', 'Claude'], ['gemini', 'Gemini'], ['perplexity', 'Perplexity'], ['grok', 'Grok'],
   ['mistral', 'Le Chat'], ['deepseek', 'DeepSeek'], ['copilot', 'Copilot'], ['kimi', 'Kimi']];
 // A hooked CLI's id in agents.list (agent_connect.cc).
-const CLI_MCP = { claude: 'claude-code', codex: 'codex', gemini: 'gemini', copilot: 'copilot-cli' };
+const CLI_MCP = { claude: 'claude-code', codex: 'codex', gemini: 'gemini', copilot: 'copilot-cli', opencode: 'opencode' };
 // Claude Desktop without the claude CLI (chat.clis "desktop-only"): every Claude Code row and button shows this instead.
 const CLAUDE_INSTALL = 'curl -fsSL https://claude.ai/install.sh | bash';
 const claudeInstallHtml = () => `<span class="as-install" role="note"><small class="status warn">The Claude app is installed, but Roar’s agent features need Claude Code, its command-line tool.</small><span class="as-fix"><code>${CLAUDE_INSTALL}</code><button type="button" class="btn" data-copytext="${CLAUDE_INSTALL}" aria-label="Copy the Claude Code install command">Copy</button></span><small>Then run claude once in Terminal to sign in.</small></span>`;
@@ -54,7 +54,7 @@ function llmPicker(sel, after) {
 // Mac in agentOrder (drag a card, or arrow keys on its handle), the rest under "More agents", and one
 // "Reconnect all" banner for outdated ones.
 function agentSetup(root, { llm = true, list: asList = false } = {}) {
-  root.innerHTML = asList ? `<div class="as-banner" role="status" hidden></div><ol class="as-list"><li class="empty">Looking for agent tools…</li></ol>
+  root.innerHTML = asList ? `<div class="as-banner" role="status" hidden></div><div class="as-banner as-cmux" role="status" hidden><span></span></div><ol class="as-list"><li class="empty">Looking for agent tools…</li></ol>
     <details class="as-more as-gone"><summary>More agents</summary><ol class="as-list as-gone-list"></ol></details>
     <details class="as-more as-apps"><summary>Other apps: set up by hand<span hidden>copy their config</span></summary><ol class="as-list as-away"></ol></details>`
     : `${llm ? llmRowHtml() : ''}
@@ -179,7 +179,14 @@ function agentSetup(root, { llm = true, list: asList = false } = {}) {
     if (had) (root.querySelector(`[data-key="${CSS.escape(had)}"]`) || sel)?.focus();
   }
 
-  const refresh = () => Promise.all([ask({ cmd: 'state' }), ask({ cmd: 'agents.list' }), claudeCliStatus()]).then(([s, l, c]) => {
+  // cmux refusing Roar leaves sessions listed but their terminals unreachable, so it's said here rather than only on opening one.
+  const cmuxNote = (out) => {
+    const why = clSession.error(out), box = root.querySelector('.as-cmux');
+    if (!box) return;
+    box.hidden = !/cmux/.test(why);
+    box.firstElementChild.textContent = why;
+  };
+  const refresh = () => Promise.all([ask({ cmd: 'state' }), ask({ cmd: 'agents.list' }), claudeCliStatus(), asList ? clSession.ctl('', 'cmux').then(cmuxNote) : 0]).then(([s, l, c]) => {
     st = typeof s === 'string' ? JSON.parse(s) : s;
     clients = l || [];
     cli = c;

@@ -39,6 +39,14 @@ const cases = [
   ['copilot', ['userPromptSubmitted'], { sessionId: 'p1', cwd: '/w/eps', timestamp: 1, prompt: 'add tests' }, 'copilot-p1', { tool: 'copilot', state: 'working', prompt: 'add tests' }],
   ['copilot', ['preToolUse'], { sessionId: 'p1', cwd: '/w/eps', toolName: 'bash', toolArgs: '{"command":"npm test","description":"Run tests"}' }, 'copilot-p1', { doing: 'Run tests' }],
   ['copilot', ['notification'], { sessionId: 'p1', cwd: '/w/eps', hook_event_name: 'Notification', notification_type: 'permission_prompt', message: 'Approve?' }, 'copilot-p1', { state: 'needs_you', doing: 'Approve?' }],
+  // OpenCode's plugin sends Claude-shaped events; the session's title names the row, not its server-side folder.
+  ['opencode', [], { session_id: 'ses_1', cwd: '/private/tmp', hook_event_name: 'SessionStart' }, 'opencode-ses_1', { tool: 'opencode', sid: 'ses_1', state: 'idle', project: 'tmp' }],
+  ['opencode', [], { session_id: 'ses_1', cwd: '/private/tmp', hook_event_name: 'Title', title: 'Fix the login' }, 'opencode-ses_1', { project: 'Fix the login', state: 'idle' }],
+  ['opencode', [], { session_id: 'ses_1', cwd: '/private/tmp', hook_event_name: 'PreToolUse', tool_name: 'read', tool_input: { filePath: '/w/a.md' } }, 'opencode-ses_1', { doing: 'Reading a.md', project: 'Fix the login' }],
+  ['opencode', [], { session_id: 'ses_1', cwd: '/private/tmp', hook_event_name: 'Notification', notification_type: 'permission_prompt', message: 'Asks to shell: rm x' }, 'opencode-ses_1', { state: 'needs_you', ask: 'Asks to shell: rm x' }],
+  ['opencode', [], { session_id: 'ses_1', cwd: '/private/tmp', hook_event_name: 'Stop', last_assistant_message: 'All done' }, 'opencode-ses_1', { state: 'idle', reply: 'All done' }],
+  // A terminal opening a finished session claims it without restarting the row.
+  ['opencode', [], { session_id: 'ses_1', cwd: '/private/tmp', hook_event_name: 'SessionStart' }, 'opencode-ses_1', { state: 'idle', doing: 'Done', reply: 'All done' }],
   // Claude's generic notifications name what they wait on: the pending call, its question, or the last thing said.
   ['claude', [], { session_id: 'w1', cwd: '/w/alpha', hook_event_name: 'PreToolUse', tool_name: 'Bash', tool_input: { command: 'scripts/release.sh 1.0' } }, 'w1', { pending: 'Approve: scripts/release.sh 1.0' }],
   ['claude', [], { session_id: 'w1', cwd: '/w/alpha', hook_event_name: 'Notification', message: 'Claude needs your permission to use Bash' }, 'w1', { state: 'needs_you', doing: 'Approve: scripts/release.sh 1.0' }],
@@ -78,16 +86,22 @@ check(readdirSync(join(DATA, 'claude-sessions')).every((f) => !/nope|evil/.test(
 // Installers.
 const st = () => mcp(['agent-hooks', 'status']);
 check(/^not installed\nclaude absent\ncodex absent/.test(st()), 'nothing set up: all absent');
-for (const d of ['.claude', '.codex', '.gemini', '.qwen', '.copilot']) mkdirSync(join(HOME, d));
+for (const d of ['.claude', '.codex', '.gemini', '.qwen', '.copilot', '.config/opencode']) mkdirSync(join(HOME, d), { recursive: true });
 // A config folder without the CLI's binary isn't "set up": no hooks warning for it.
 if (!['/opt/homebrew/bin/qwen', '/usr/local/bin/qwen'].some(existsSync)) check(st().includes('qwen absent'), 'config folder without the CLI: absent');
 mkdirSync(join(HOME, '.local/bin'), { recursive: true });
-for (const t of ['claude', 'codex', 'gemini', 'qwen', 'copilot']) writeFileSync(join(HOME, '.local/bin', t), '', { mode: 0o755 });
+for (const t of ['claude', 'codex', 'gemini', 'qwen', 'copilot', 'opencode']) writeFileSync(join(HOME, '.local/bin', t), '', { mode: 0o755 });
+writeFileSync(join(HOME, '.config/opencode/cli.json'), JSON.stringify({ theme: 'x', plugins: ['their-plugin'] }));
 const theirs = { model: 'x', hooks: { Stop: [{ matcher: '', hooks: [{ type: 'command', command: 'say done' }] }] } };
 for (const f of ['.claude/settings.json', '.codex/hooks.json', '.gemini/settings.json', '.qwen/settings.json']) writeFileSync(join(HOME, f), JSON.stringify(theirs));
 const before = readFileSync(join(HOME, '.gemini/settings.json'), 'utf8');
 const inst = mcp(['agent-hooks', 'install']);
-check(/^installed/.test(inst) && ['claude', 'codex', 'gemini', 'qwen', 'copilot'].every((t) => inst.includes(`${t} installed`)), 'install covers every CLI set up');
+check(/^installed/.test(inst) && ['claude', 'codex', 'gemini', 'qwen', 'copilot', 'opencode'].every((t) => inst.includes(`${t} installed`)), 'install covers every CLI set up');
+const ocCli = () => JSON.parse(readFileSync(join(HOME, '.config/opencode/cli.json'), 'utf8'));
+const ocDir = join(HOME, '.config/opencode/roar-plugin');
+check(ocCli().theme === 'x' && ocCli().plugins.join() === `their-plugin,${ocDir}` && existsSync(join(ocDir, 'tui.js')), 'opencode: plugin listed after theirs, theirs kept');
+writeFileSync(join(ocDir, 'tui.js'), 'old');
+check(st().includes('opencode outdated'), 'opencode: a plugin from another Roar reads as outdated');
 for (const f of ['.claude/settings.json', '.codex/hooks.json', '.gemini/settings.json', '.qwen/settings.json']) {
   const c = JSON.parse(readFileSync(join(HOME, f), 'utf8'));
   check(c.model === 'x' && c.hooks.Stop.some((m) => m.hooks.some((h) => h.command === 'say done')) && existsSync(join(HOME, f + '.roar.bak')), `${f}: merged, theirs kept, .roar.bak`);
@@ -99,6 +113,7 @@ check(cop.version === 1 && /agent-hook copilot agentStop$/.test(cop.hooks.agentS
 mcp(['agent-hooks', 'install']);
 const c2 = JSON.parse(readFileSync(join(HOME, '.codex/hooks.json'), 'utf8'));
 check(c2.hooks.Stop.length === 2 && c2.hooks.SessionStart.length === 1, 'install twice: no duplicates');
+check(ocCli().plugins.length === 2 && st().includes('opencode installed'), 'opencode: install twice lists it once and repairs the file');
 check(readFileSync(join(HOME, '.gemini/settings.json.roar.bak'), 'utf8') === before, '.roar.bak is the original');
 mcp(['agent-hooks', 'uninstall', 'codex']);
 check(st().includes('codex not installed') && st().includes('gemini installed'), 'uninstall one tool only');
@@ -106,6 +121,7 @@ mcp(['agent-hooks', 'uninstall']);
 for (const f of ['.claude/settings.json', '.codex/hooks.json', '.gemini/settings.json', '.qwen/settings.json'])
   check(JSON.stringify(JSON.parse(readFileSync(join(HOME, f), 'utf8'))) === JSON.stringify(theirs), `${f}: uninstall restores theirs`);
 check(!existsSync(join(HOME, '.copilot/hooks/roar.json')), 'copilot file removed');
+check(JSON.stringify(ocCli()) === JSON.stringify({ theme: 'x', plugins: ['their-plugin'] }) && !existsSync(ocDir), 'opencode: uninstall leaves only theirs');
 writeFileSync(join(HOME, '.qwen/settings.json'), '{bad');
 let bad = '';
 try { mcp(['agent-hooks', 'install', 'qwen']); } catch (e) { bad = e.stdout; }
@@ -139,5 +155,18 @@ let unk = '';
 try { ctl('new', WORK, '', 'nope'); } catch (e) { unk = e.stdout; }
 check(unk === 'error: unknown agent CLI', 'unknown CLI refused');
 try { execFileSync('tmux', ['-S', stub.term.tmux.socket, 'kill-server']); } catch {}
+// cmux refusing Roar, with its real wording (a Roar not started from a cmux shell, then a bad password).
+const fakeCmux = (say, code = 1) => { const f = join(HOME, 'fake-cmux'); writeFileSync(f, `#!/bin/sh\n${say ? `echo ${JSON.stringify(say)} >&2\n` : 'echo PONG\n'}exit ${code}\n`, { mode: 0o755 }); return { ...ctlEnv, ROAR_TEST_CMUX: f }; };
+const ctlWith = (e, ...a) => { try { return execFileSync(process.execPath, [EXE, 'claude-ctl', ...a], { env: e, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }); } catch (x) { return x.stdout; } };
+const denied = fakeCmux('Error: ERROR: Access denied - only processes started inside cmux can connect');
+writeFileSync(join(DATA, 'claude-sessions', 'cx1.json'), JSON.stringify({ id: 'cx1', sid: 'cx1', tool: 'claude', term: { cmux: { workspace: 'W', surface: 'S' } } }));
+check(ctlWith(denied, 'screen', 'cx1') === 'error: cmux is blocking Roar. In cmux, open Settings > Automation and set Socket control to Password.', 'cmux denied: says what to change, not its raw error');
+check(ctlWith(denied, 'cmux') === 'error: cmux is blocking Roar. In cmux, open Settings > Automation and set Socket control to Password.', 'cmux check reports the block');
+for (const say of ['Error: ERROR: Invalid password', 'Error: ERROR: Password mode is enabled but no socket password is configured in Settings.', 'ERROR: Authentication required'])
+  check(/^error: Roar can’t sign in to cmux/.test(ctlWith(fakeCmux(say), 'cmux')), `password trouble explained: ${say.slice(-24)}`);
+check(ctlWith(fakeCmux(''  , 0), 'cmux') === 'ok', 'cmux answering: ok');
+check(ctlWith(fakeCmux('Error: Socket not found at /x'), 'cmux') === 'none', 'cmux not running: no warning');
+check(ctlWith(ctlEnv, 'cmux') === 'none', 'no cmux: no warning');
+check(ctlWith(fakeCmux('Error: disk on fire'), 'screen', 'cx1') === 'error: Error: disk on fire', 'other errors pass through');
 console.log(fail ? `${fail} failure(s)` : 'ok');
 process.exit(fail ? 1 : 0);

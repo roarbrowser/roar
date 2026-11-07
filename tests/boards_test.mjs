@@ -152,6 +152,17 @@ try {
     console.log(`board screenshot: ${process.env.ROAR_BOARD_SHOT}`);
   }
 
+  // Right-click menus (empty sidebar, a tab) list the space's boards; picking one opens it.
+  const menuHas = (call) => sidebar(`(async () => { ${call}; const b = document.querySelector('#ctx [data-act=board][data-b="${id}"]');
+    const r = [!!b, !!document.querySelector('#ctx [data-act=newBoard]'), !!document.querySelector('#ctx [data-act=boards]')].join(); hideCtx(); return r; })()`);
+  check(await menuHas(`await sidebarMenu({clientX: 10, clientY: 10})`) === 'true,true,true', 'sidebar menu lists the board, New board and All boards');
+  check(await menuHas(`const t = (await ask({cmd:'state'})).tabs.find((t) => /\\/page$/.test(t.url)); await tabMenu(t, {clientX: 10, clientY: 10})`) === 'true,true,true', 'tab menu lists the board, New board and All boards');
+  await sidebar(`(async () => { const t = (await ask({cmd:'state'})).tabs.find((t) => t.url.endsWith('#${id}')); await ask({cmd:'tab.close', id: t.id}); return true; })()`);
+  for (let i = 0; i < 20 && (await list()).some((x) => x.url.endsWith('board.html#' + id)); i++) await sleep(250);
+  check(!(await list()).some((x) => x.url.endsWith('board.html#' + id)), 'the board tab closed before reopening it from the menu');
+  await sidebar(`(async () => { await sidebarMenu({clientX: 10, clientY: 10}); document.querySelector('#ctx [data-act=board][data-b="${id}"]').click(); return true; })()`);
+  check(await boardTarget(id), 'picking the board in the sidebar menu opens it');
+
   await quit();
   await launch();
   await sidebar(`ask({cmd:'run',id:'open:roar://ui/board.html#${id}'})`);

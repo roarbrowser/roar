@@ -129,6 +129,7 @@ port 9444) started on demand.
   press Esc or ⌃C. Others jump to their window. **Send tab** in that view sends a tab to the
   session's prompt (never ghost tabs); **Side by side** splits it beside your last web page. **New** starts a session in any folder. The hook reports the
   prompt, tool and state, never the conversation.
+- **OpenCode too, even on another computer.** Connect OpenCode in Settings > Agents and each terminal reports its sessions, also with `opencode --server`. Other sessions running on that server show as watch-only rows while a terminal is open. Chat view reads them too, on request, and keeps nothing on disk. Add that server in Settings > Model chat and Ask uses its model: with no tools by default, enforced by the server, or as its agent under the server's own permission rules, with approvals shown in the chat. With more than one service listed, the AI section groups them under a heading each.
 - **Slash commands in the reply box.** Type `/` in a session window's chat or terminal reply
   box to list the tool's built-in commands plus your own and the project's commands and skills;
   pick with the arrow keys and Tab or Enter.
@@ -138,8 +139,11 @@ port 9444) started on demand.
   not a stray window, so you can watch, take over, or close what the agent is doing.
 - **Agents per profile.** Right-click a space (or use Settings) to allow or block agents in
   it. Blocked spaces and ghost tabs are hidden from CDP entirely, so agents can't list or
-  attach to them; with several spaces allowed, the agent asks you which to use (or calls
-  `use_profile`), and its new pages open there.
+  attach to them, and blocking a space disconnects agents already attached to its tabs; with
+  several spaces allowed, the agent asks you which to use (or calls `use_profile`), and its new
+  pages open there.
+  Mac only for now: Windows ships stock CEF, which can't hide a space or require a token. There,
+  agents stay off until you turn them on in Settings, and then they reach every space.
 - **One click to cut it off.** The dot under the settings icon shows whether agents can
   reach the current space (hover for the port, connected agents and allowed spaces); click
   it to allow or block agents in this space. Settings > "Allow agents to connect" closes
@@ -155,13 +159,14 @@ port 9444) started on demand.
 - A vertical sidebar with pinned tabs (⌘D), pinned groups and tab groups; drag to reorder.
 - Each tab has a thin bar that shrinks while you ignore it; when it runs out the tab moves to
   Archived (after 6h, 12h, 1 day or 1 week, or never). ⇧⌘K archives now, ⇧⌘T brings one back.
-- ⌃Tab switches tabs most recently used first; ⌘1–⌘9 jumps straight to one.
+- ⌃Tab switches tabs most recently used first; ⌘1–⌘9 jumps straight to one, not counting pinned tabs.
 - A speaker on tabs playing audio; click it to mute.
 
 **Spaces and privacy**
 - Spaces keep separate tabs and a separate profile (logins, cookies, extensions): ⌃1–⌃9 or ⇧⌘[ ⇧⌘].
-- Ghost tabs (⇧⌘N) use a throwaway profile per session. Roar deletes it when the last ghost tab
-  closes; if that fails (or Roar quits first), it is deleted on the next launch. Until then it sits
+- Settings > Extensions copies an extension to another space with its data, so it arrives signed in. Roar restarts to do it. An extension's cookies on its own website, and any localStorage it keeps, stay behind.
+- Ghost tabs (⇧⌘N) use a throwaway profile per session. Roar deletes it within seconds of the last
+  ghost tab closing; if that fails (or Roar quits first), it is deleted on the next launch. Until then it sits
   in the data dir, so ghost tabs are not a guarantee against someone with access to your Mac.
 - Copy Link Address unwraps Outlook Safe Links and `.mcas.ms` wrappers.
 - uBlock Origin Lite is built in; other Chrome extensions install as usual.
@@ -181,7 +186,13 @@ port 9444) started on demand.
 **Small things that add up**
 - Copy any page as Markdown (⇧⌘C) or save it to Downloads.
 - Boards (command bar: New board): a canvas per space for tab screenshots (whole page or a region),
-  links, notes and pen drawings; click a screenshot to reopen its page.
+  links, notes and pen drawings; click a screenshot to reopen its page. Open one from the command bar
+  or by right-clicking a tab or empty sidebar space.
+- Close all tabs: right-click Tabs, a tab group, Split, Artifacts or Ghost. Pinned tabs stay, and the
+  others can come back from Recently Closed (ghost tabs leave no trace). Ghost also has an X on its
+  header that closes the whole group.
+- Settings > Model chat lists what you've set up in the order Roar tries it: drag to reorder, and remove
+  anything you don't use. Removing a coding assistant leaves it installed on your Mac.
 - Unread Gmail in the sidebar, with Read, Move and Delete per message.
 - Your open GitHub pull requests as a live folder (via `gh`).
 - Sign-in popups open as sidebar tabs, not stray windows.
@@ -197,7 +208,7 @@ port 9444) started on demand.
 | ⌘D | Pin tab |
 | ⇧⌘K / ⇧⌘T | Archive tabs now / reopen archived tab |
 | ⌃Tab / ⌃⇧Tab | Next / previous tab, most recent first |
-| ⌘1–⌘9 | Jump to tab |
+| ⌘1–⌘9 | Jump to tab (pinned tabs aren't counted) |
 | ⌃1–⌃9, ⇧⌘[ / ⇧⌘] | Switch space |
 | ⌘\\ | Split view |
 | ⌥⌘R | Reader mode |
@@ -252,7 +263,9 @@ aggregate download counts. These are the connections Roar's own code makes that 
 - **uBlock Origin Lite:** ships with its filter rules built in; Roar fetches no lists for it.
 - **Site tweaks:** scripts, styles and their stored values stay in the profile (never synced) and
   are part of Roar's backups. Agents in spaces you open to them can read and edit them, so an agent
-  can write or fix a tweak for you. Roar contacts only the URLs a tweak names: where you install it from,
+  can write or fix a tweak for you. On a Mac, Settings > Extensions can give every space the same
+  scripts and styles, on this computer only: stored values stay per space, and no agent can reach
+  Site tweaks while that's on. Roar contacts only the URLs a tweak names: where you install it from,
   its `@require`/`@resource` files, its update URL (checked daily; updates wait for you to review
   the diff), and hosts a script requests, which must be in its `@connect` list or allowed by you.
 - **AI sites in the sidebar:** the sites you open there (for example `chatgpt.com`, `claude.ai`,

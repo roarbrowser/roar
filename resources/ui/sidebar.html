@@ -81,14 +81,21 @@ body { box-shadow: inset 3px 0 0 var(--space-color, transparent); }
 .foot .space-name { color: var(--ink-2); font-size: 11.5px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 90px; }
 .scroll { flex: 1; overflow-y: auto; padding: 0 6px 12px; display: flex; flex-direction: column; gap: 14px; }
 
-.pinned { --cols: 5; display: flex; flex-wrap: wrap; gap: 6px; padding: 0 4px; }
-.pinned > .pin { flex: 0 0 calc((100% - (var(--cols) - 1) * 6px) / var(--cols)); }
-.pinned.centered { justify-content: center; }
+.pinned { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 4px; }
+/* --cols is this tile's row (layoutPins). The sliver under the exact share keeps rounding from wrapping a full row; grow takes it back. */
+.pinned > .pin { flex: 1 1 calc((100% - (var(--cols, 1) - 1) * 6px) / var(--cols, 1) - .1px); }
 .pinned:empty { display: none; }
 /* While a tab is dragged, an empty pinned strip shows as a drop zone. */
 body.drag-active .pinned:empty { display: flex; height: 38px; margin: 0 4px; padding: 0; border: 1px dashed var(--rule); border-radius: 10px; align-items: center; justify-content: center; }
 body.drag-active .pinned:empty::before { content: 'Drop to pin'; color: var(--ink-3); font-size: 12px; }
-.pin { min-width: 0; height: 38px; border-radius: 10px; background: var(--hover); display: grid; place-items: center; position: relative; }
+.pin { min-width: 0; height: 38px; border-radius: 10px; background: var(--hover); display: grid; place-items: center; position: relative; container-type: inline-size; }
+.pin-in { display: flex; align-items: center; justify-content: center; gap: 7px; width: 100%; min-width: 0; padding: 0 10px; }
+.pin-in > :not(.pin-name) { flex: none; }
+.pin:has(.snd) .pin-in { padding-right: 20px; }
+/* A tile wide enough to spare the room says what it is; a lone icon in a wide tile reads as empty. */
+.pin-name { display: none; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; font-weight: 500; color: var(--ink-2); }
+.pin.active .pin-name { color: var(--ink); }
+@container (min-width: 84px) { .pin-name { display: block; } }
 .pin:hover { background: var(--rule); }
 .pin.active { background: var(--selected); box-shadow: 0 1px 2px rgba(0,0,0,.12); }
 .pin.active::after { content: ""; position: absolute; bottom: 3px; left: 50%; width: 12px; height: 2px; margin-left: -6px; border-radius: 1px; background: var(--mane); }
@@ -153,6 +160,8 @@ body.drag-active .pinned:empty::before { content: 'Drop to pin'; color: var(--in
 /* Ghost tabs: a private, in-memory profile; their own tinted section. */
 #ghost-group { margin: 0 0 8px; padding: 2px 0 4px; border-radius: 10px; background: color-mix(in srgb, #6b5ca5 12%, transparent); }
 #ghost-group .group-head { color: #6b5ca5; gap: 6px; }
+#ghost-close { width: 20px; height: 20px; margin-right: -2px; padding: 0; display: grid; place-items: center; color: var(--ink-3); flex: none; }
+#ghost-close:hover { background: var(--rule); color: var(--ink); }
 #art-group .art-ico { width: 13px; height: 13px; margin-right: 5px; vertical-align: -2px; }
 .ghost-ico { width: 13px; height: 13px; flex: none; }
 .pin .fav { width: 18px; height: 18px; }
@@ -226,7 +235,7 @@ body.drag-active .pinned:empty::before { content: 'Drop to pin'; color: var(--in
 .cl-ic .agent-icon { display: block; }
 .cl-ic .ask-badge { position: absolute; right: -4px; bottom: -4px; width: 9px; height: 9px; border-radius: 3px; background: var(--ground); color: var(--ink-2); display: grid; place-items: center; }
 .cl-ic .ask-badge svg { width: 9px; height: 9px; }
-/* Code (agent sessions) and Ask (chats) subheads, shown only when both kinds are listed. */
+/* Subheads: Code (agent sessions) and Ask (chats) when both are listed, or one per service when several are. */
 .cl-sub { margin: 6px 10px 2px; font: 600 10.5px var(--ui); letter-spacing: .04em; text-transform: uppercase; color: var(--ink-3); }
 .cl-ic .dot { position: absolute; right: -3px; bottom: -3px; width: 7px; height: 7px; margin: 0; box-shadow: 0 0 0 2px var(--ground); }
 .cl-acts { position: absolute; top: 5px; right: 4px; display: flex; gap: 1px; padding-left: 14px; opacity: 0; pointer-events: none; transition: opacity .12s ease-out;
@@ -400,6 +409,18 @@ body.drag-active .pinned:empty::before { content: 'Drop to pin'; color: var(--in
 .feed .badge:empty, .feed.no-count .badge { display: none; }
 .feed-pop { display: none; position: fixed; z-index: 15; left: 8px; right: 8px; bottom: 96px; max-height: 60vh; overflow: auto; padding: 4px; border-radius: 10px; background: var(--ground); box-shadow: 0 0 0 1px var(--rule), 0 8px 24px rgba(0,0,0,.35); }
 .feed-pop.open { display: block; }
+/* The title and close stay put however far a long list scrolls. -4px cancels the popover's padding. */
+.feed-pop > .group-head { position: sticky; top: -4px; z-index: 2; flex-wrap: wrap; gap: 2px 4px; min-height: 32px; margin: -4px -4px 0; padding: 4px 32px 4px 12px; border-radius: 10px 10px 0 0; background: var(--ground); box-shadow: 0 1px 0 var(--rule); white-space: nowrap; }
+.feed-pop > .group-head button:not(.feed-close) { padding: 2px 5px; }
+/* Its own corner: a narrow sidebar wraps the head's buttons, and this must not go with them. */
+.group-head .feed-close { position: absolute; top: 5px; right: 6px; width: 22px; height: 22px; padding: 0; display: grid; place-items: center; color: var(--ink-2); }
+/* Account names stick just under the head, however tall it is (--pop-head, measured). */
+.feed-pop .acct-head { top: var(--pop-head, 28px); }
+/* Over the sidebar while a popover is open: a click outside closes it and can't land on a tab. The footer stays live. */
+#feed-scrim { position: fixed; inset: 0; z-index: 14; background: color-mix(in srgb, var(--ground) 60%, transparent); animation: scrim-in .14s cubic-bezier(.16, 1, .3, 1); }
+#feed-scrim[hidden] { display: none; }
+@keyframes scrim-in { from { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { #feed-scrim { animation: none; } }
 .group-head .af-btn { display: grid; place-items: center; padding: 3px 5px; } .group-head .af-btn[hidden] { display: none; } .group-head .af-btn[aria-disabled=true] { opacity: .45; } .group-head .af-btn[aria-pressed=false] { color: var(--ink-3); } .af-btn svg { width: 14px; height: 14px; } .af-btn[aria-expanded="true"] { background: var(--hover); color: var(--ink); }
 .ext-pins button { width: 28px; height: 28px; border-radius: 7px; display: grid; place-items: center; }
 .ext-pins button:hover { background: var(--hover); }
@@ -427,7 +448,7 @@ body.drag-active .pinned:empty::before { content: 'Drop to pin'; color: var(--in
   <div class="pinned" id="pinned"></div>
   <div id="pinned-groups"></div>
   <section id="ghost-group" hidden>
-    <div class="group-head"><svg class="ghost-ico" viewBox="0 0 16 16" fill="currentColor"><path d="M8 1.5a5 5 0 0 0-5 5v7.2l1.7-1.2 1.6 1.2L8 12.5l1.7 1.2 1.6-1.2 1.7 1.2V6.5a5 5 0 0 0-5-5zM6 5.6a1 1 0 1 1 0 2 1 1 0 0 1 0-2zm4 0a1 1 0 1 1 0 2 1 1 0 0 1 0-2z"/></svg><span>Ghost</span><span class="count" id="ghost-count"></span><span id="ghost-ai"></span></div>
+    <div class="group-head"><svg class="ghost-ico" viewBox="0 0 16 16" fill="currentColor"><path d="M8 1.5a5 5 0 0 0-5 5v7.2l1.7-1.2 1.6 1.2L8 12.5l1.7 1.2 1.6-1.2 1.7 1.2V6.5a5 5 0 0 0-5-5zM6 5.6a1 1 0 1 1 0 2 1 1 0 0 1 0-2zm4 0a1 1 0 1 1 0 2 1 1 0 0 1 0-2z"/></svg><span>Ghost</span><span class="count" id="ghost-count"></span><span id="ghost-ai"></span><span class="spacer"></span><button id="ghost-close" title="Close all ghost tabs" aria-label="Close all ghost tabs"><svg viewBox="0 0 12 12" width="10" height="10" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="m3 3 6 6M9 3l-6 6"/></svg></button></div>
     <div class="rows" id="ghost-tabs"></div>
   </section>
   <section id="art-group" aria-label="Artifacts" hidden>
@@ -448,17 +469,18 @@ body.drag-active .pinned:empty::before { content: 'Drop to pin'; color: var(--in
     <div class="rows" id="cl"></div>
   </section>
 </div>
+<div id="feed-scrim" hidden></div>
 <section class="feed-pop" id="gh-group" aria-label="GitHub PRs">
-  <div class="group-head"><span>GitHub PRs</span><span class="spacer"></span><button id="gh-qbtn" title="Change which pull requests show" aria-expanded="false" aria-controls="gh-q">Query</button><button id="gh-refresh" title="Refresh pull requests">Refresh</button></div>
+  <div class="group-head"><span>GitHub PRs</span><span class="spacer"></span><button id="gh-qbtn" title="Change which pull requests show" aria-expanded="false" aria-controls="gh-q">Query</button><button id="gh-refresh" title="Refresh pull requests">Refresh</button><button class="feed-close" data-feed-close title="Close" aria-label="Close GitHub PRs"><svg viewBox="0 0 12 12" width="9" height="9" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><path d="m3 3 6 6M9 3l-6 6"/></svg></button></div>
   <form class="gh-q" id="gh-q" hidden><input id="gh-qin" aria-label="GitHub search query" spellcheck="false" autocomplete="off"><button type="button" id="gh-qreset" title="Back to your open pull requests">Reset</button></form>
   <div class="rows" id="gh"></div>
 </section>
 <section class="feed-pop" id="ol-group" aria-label="Unread Outlook mail">
-  <div class="group-head"><span>Outlook</span><span class="spacer"></span><button id="ol-open" title="Open Outlook">Open</button><button id="ol-refresh" title="Refresh mail">Refresh</button></div>
+  <div class="group-head"><span>Outlook</span><span class="spacer"></span><button id="ol-open" title="Open Outlook">Open</button><button id="ol-refresh" title="Refresh mail">Refresh</button><button class="feed-close" data-feed-close title="Close" aria-label="Close Outlook"><svg viewBox="0 0 12 12" width="9" height="9" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><path d="m3 3 6 6M9 3l-6 6"/></svg></button></div>
   <div class="rows" id="olm"></div>
 </section>
 <section class="feed-pop" id="gm-group" aria-label="Unread mail">
-  <div class="group-head"><span>Unread mail</span><span class="spacer"></span><button id="gm-selall" title="Select every message">Select all</button><button id="gm-delsel" title="Delete the selected messages" hidden>Delete selected</button><button id="gm-refresh" title="Refresh mail">Refresh</button></div>
+  <div class="group-head"><span>Unread mail</span><span class="spacer"></span><button id="gm-selall" title="Select every message">Select all</button><button id="gm-delsel" title="Delete the selected messages" hidden>Delete selected</button><button id="gm-refresh" title="Refresh mail">Refresh</button><button class="feed-close" data-feed-close title="Close" aria-label="Close Unread mail"><svg viewBox="0 0 12 12" width="9" height="9" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><path d="m3 3 6 6M9 3l-6 6"/></svg></button></div>
   <div class="rows" id="gm"></div>
 </section>
 <dialog class="cld" id="cl-dlg" aria-labelledby="cl-dlg-h">
@@ -609,9 +631,9 @@ window.roar = {
     // One dot shows even with a single space: clicking it is how agent access is switched (space-dots.js).
     $('spaces').innerHTML = s.spaces.map((sp, i) => { const d = spaceDot(sp, s, i);
       return `<button data-space="${sp.id}" draggable="true" class="${[d.ring && 'agents', d.ring && d.busy && 'busy', sp.icon && 'icon'].filter(Boolean).join(' ')}" aria-current="${d.active}" style="${sp.color ? '--dot:' + sp.color : ''}" title="${esc(d.title)}" aria-label="${esc(d.label)}">${sp.icon ? esc(sp.icon) : ''}</button>`; }).join('');
-    layoutPins(s.settings);
     setHtml($('pinned'), pinned.map((t) =>
-      `<button class="pin${t.active ? ' active' : ''}" data-id="${t.id}" draggable="true" title="${esc(t.title)}" aria-label="${esc(t.title)}">${pinIcon(t)}${sndButton(t, '')}</button>`).join(''));
+      `<button class="pin${t.active ? ' active' : ''}" data-id="${t.id}" draggable="true" title="${esc(t.title)}" aria-label="${esc(t.title)}"><span class="pin-in">${pinIcon(t)}<span class="pin-name">${esc(t.name || t.title || hostOf(t.url))}</span></span>${sndButton(t, '')}</button>`).join(''));
+    layoutPins(s.settings);
     // Never leave the list blank: with no loose tabs, say how to open one (+ stays in the header).
     setHtml($('tabs'), open.map((t) => tabRow(t, limit)).join('') || `<div class="empty tabs-empty">No tabs. Press + or ${keyLabel(isMacUi ? 'Cmd+T' : 'Ctrl+T')}.</div>`);
     $('tab-count').textContent = open.length || '';
@@ -620,6 +642,7 @@ window.roar = {
     const llm = (s.settings?.askLlms || '').split(',')[0], askAct = s.tabs.find((t) => t.active);
     $('ask-llm').hidden = !llm;
     $('ask-llm').dataset.llm = llm;
+    $('ask-llm').dataset.tab = askAct?.id ?? '';
     $('ask-llm').setAttribute('aria-disabled', String(!/^https?:/.test(askAct?.url || '')));
     $('back').disabled = !s.nav.canBack;
     $('forward').disabled = !s.nav.canForward;
@@ -689,7 +712,7 @@ window.roar = {
       send: '<svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 13V3.5M4 7.2L8 3.2l4 4"/></svg>',
     };
     // "Claude is waiting for your input" → "Waiting for your input": the icon already names the tool.
-    const tidy = (t) => (t || '').replace(/^(Claude|Codex|Gemini|Qwen|Copilot)( Code| CLI)? (is|has|needs) /i, (m, a, b, v) => v.toLowerCase() === 'is' ? '' : v + ' ').replace(/^./, (x) => x.toUpperCase());
+    const tidy = (t) => (t || '').replace(/^(Claude|Codex|Gemini|Qwen|Copilot|OpenCode)( Code| CLI)? (is|has|needs) /i, (m, a, b, v) => v.toLowerCase() === 'is' ? '' : v + ' ').replace(/^./, (x) => x.toUpperCase());
     const attachAttrs = webTab ? `title="Send the tab you're looking at, with a prompt if you like: Roar saves it as Markdown and types @file into the session's prompt"` : 'aria-disabled="true" title="Switch to a web page first: only web pages can be sent"';
     const clRow = (c) => {
       const st = needs(c) ? 'needs_you' : c.state === 'needs_you' ? 'working' : (c.state || 'idle');
@@ -743,7 +766,8 @@ window.roar = {
     // Ask chats: one row each, like a session, its icon and name saying which model it was with.
     const chatTool = (c) => c.brand || (/^cli-/.test(c.model || '') ? c.model.slice(4).split('|')[0] : 'model');
     const chatIcon = (c) => AGENT_TOOLS[chatTool(c)] ? agentIcon(chatTool(c), 16) : '<svg class="agent-icon" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="var(--ink-2)" stroke-width="1.5" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 3.5h11v7h-6l-3 2.5v-2.5h-2z"/></svg>';
-    const chatWho = (c) => [c.brandName || (AGENT_TOOLS[chatTool(c)] ? agentName(chatTool(c)) : 'Model'), (c.model || '').split('|').slice(1).join('|')].filter((x) => x && x !== 'default').join(' · ');
+    const chatService = (c) => c.brandName || AGENT_TOOLS[chatTool(c)]?.[0] || 'Model';
+    const chatWho = (c) => [chatService(c), (c.model || '').split('|').slice(1).join('|')].filter((x) => x && x !== 'default').join(' · ');
     const chatTab = (c) => state.tabs.find((t) => t.url === 'roar://ui/chat.html#' + c.id);
     // A just-opened Ask tab has no chat yet: it shows here as New chat until its first message.
     // An "Ask your AI about this page" tab (askLlm) shows the same way, with the AI's name.
@@ -751,13 +775,20 @@ window.roar = {
       `<div class="row pr cl${t.active ? ' active' : ''}" data-chattab="${t.id}"><button class="clmain" aria-label="New chat${t.askLlm ? ' with ' + esc(t.askLlm) : ''}. Open"><span class="cl-ic">${chatIcon({})}</span><span class="label"><span class="cl-name"><b>New chat</b></span><small>${esc(t.askLlm || 'Ask')}</small></span></button><span class="cl-acts"><button data-chatclose="${t.id}" title="Close" aria-label="Close New chat">${x}</button></span></div>`).join('');
     // The 8 newest chats, plus any open in a tab so every Ask tab has a row.
     const chatsSorted = (s.chats || []).slice().sort((a, b) => b.updated - a.updated);
-    const chatRows = newChats + chatsSorted.filter((c, i) => i < 8 || chatTab(c)).map((c) =>
+    const chatList = chatsSorted.filter((c, i) => i < 8 || chatTab(c));
+    const chatRow = (c) =>
       `<div class="row pr cl${chatTab(c)?.active ? ' active' : ''}" data-chatid="${esc(c.id)}" title="${esc(c.title)}"><button class="clmain" aria-label="${esc(chatWho(c))}: ${esc(c.title || 'Untitled')}. Open"><span class="cl-ic">${chatIcon(c)}<span class="ask-badge" aria-hidden="true"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M1.5 2.5h13v8.5h-7l-3.5 3v-3h-2.5z"/></svg></span></span>` +
       `<span class="label"><span class="cl-name"><b>${esc(c.title || 'Untitled')}</b><time>${clAgo(c.updated)}</time></span><small>${esc(chatWho(c))}</small></span></button>` +
-      `<span class="cl-acts">${chatTab(c) ? `<button data-chatclose="${chatTab(c).id}" title="Close" aria-label="Close ${esc(c.title)}">${x}</button>` : ''}<button data-chatdel="${esc(c.id)}" title="Delete this chat" aria-label="Delete ${esc(c.title)}">${ico.hide}</button></span></div>`).join('');
+      `<span class="cl-acts">${chatTab(c) ? `<button data-chatclose="${chatTab(c).id}" title="Close" aria-label="Close ${esc(c.title)}">${x}</button>` : ''}<button data-chatdel="${esc(c.id)}" title="Delete this chat" aria-label="Delete ${esc(c.title)}">${ico.hide}</button></span></div>`;
     const clHidRow = clHid ? `<button class="note cl-hidden" data-clshowhidden>${clShowHidden ? 'Done showing' : 'Show'} ${clHid} hidden</button>` : '';
+    // One heading per service once more than one is listed. Sessions keep Agent order so a group never jumps when one
+    // starts; a single service stays a plain list under Code and Ask.
+    const clSub = (t) => `<div class="cl-sub" aria-hidden="true">${esc(t)}</div>`;
+    const codeGroups = clGroups(clVis, agentTool, agentOrder(s)), chatGroups = clGroups(chatList, chatService);
+    const codeRows = codeGroups.length > 1 ? codeGroups.map((g) => clSub(AGENT_TOOLS[g.key][0]) + g.rows.map(clRow).join('')).join('') : clVis.map(clRow).join('');
+    const chatRows = newChats + (chatGroups.length > 1 ? chatGroups.map((g) => clSub('Ask · ' + g.key) + g.rows.map(chatRow).join('')).join('') : chatList.map(chatRow).join(''));
     const both = (starting || clVis.length) && chatRows;
-    setHtml($('cl'), (both ? '<div class="cl-sub" aria-hidden="true">Code</div>' : '') + starting + (clVis.map(clRow).join('') + (both ? '<div class="cl-sub" aria-hidden="true">Ask</div>' : '') + chatRows || (starting || afRow ? '' : '<div class="note">No sessions yet. Press Code to start a coding agent, or Ask to talk to a model.</div>')) + clHidRow + afRow);
+    setHtml($('cl'), (both && codeGroups.length < 2 ? clSub('Code') : '') + starting + (codeRows + (both && (chatGroups.length < 2 || newChats) ? clSub('Ask') : '') + chatRows || (starting || afRow ? '' : '<div class="note">No sessions yet. Press Code to start a coding agent, or Ask to talk to a model.</div>')) + clHidRow + afRow);
     // An Ask tab becoming active opens AI, so its row (the only place it shows) is visible.
     const askNow = state.tabs.find((t) => t.active && askTab(t))?.id || 0;
     if (askNow && askNow !== askActive) {
@@ -883,6 +914,7 @@ document.addEventListener('click', (e) => {
   if (e.target.closest('#dl-btn')) return ask({ cmd: 'run', id: 'downloads' });
   const close = e.target.closest('[data-close]');
   if (close) { e.stopPropagation(); return ask({ cmd: 'tab.close', id: +close.dataset.close }); }
+  if (e.target.closest('#ghost-close')) { e.stopPropagation(); return ask({ cmd: 'tabs.close', ids: listedTabs($('ghost-group')) }); }
   const tab = e.target.closest('[data-id]');
   if (tab) return ask({ cmd: 'tab.activate', id: +tab.dataset.id });
   const selacct = e.target.closest('[data-selacct]');
@@ -996,6 +1028,8 @@ document.addEventListener('contextmenu', (e) => {
   }
   const head = e.target.closest('[data-group-head]');
   if (head && state) { e.preventDefault(); return groupMenu(+head.dataset.groupHead, e); }
+  const section = e.target.closest('.group-head')?.closest('#tabs-group, #split-group, #art-group, #ghost-group');
+  if (section && state) { e.preventDefault(); return sectionMenu(section, e); }
   const tab = e.target.closest('[data-id]');
   if (!state) return;
   // Text fields keep Chromium's own menu (copy, paste, spelling).
@@ -1086,13 +1120,38 @@ function iconMenu(t, e) {
 // Ask tabs (model chat, or an AI site opened by Ask about this page) show under AI, not in Tabs.
 const isMacUi = /Mac/.test(navigator.platform);
 const askTab = (t) => !t.ghost && (/^roar:\/\/ui\/chat\.html/.test(t.url || '') || !!t.askLlm);
+// The active space's boards for a right-click menu (newest first), then New board and All boards.
+const boardList = () => Promise.race([ask({ cmd: 'board.list' }), new Promise((r) => setTimeout(() => r([]), 300))]).catch(() => []);
+const boardItems = (list) => `<hr><div class="head">Boards</div>
+    ${(Array.isArray(list) ? list : []).sort((a, b) => (b.updated || 0) - (a.updated || 0)).slice(0, 8)
+      .map((b) => `<button data-act="board" data-b="${esc(b.id)}">${esc(b.name || 'Untitled board')}</button>`).join('')}
+    <button data-act="newBoard">New board</button>${list?.length ? '<button data-act="boards">All boards</button>' : ''}`;
+// True when |act| was a board item (and opened it).
+const boardAct = (act, d) => {
+  const id = act === 'board' ? 'open:roar://ui/board.html#' + d.b : act === 'newBoard' ? 'open:roar://ui/board.html#new' : act === 'boards' ? 'boards' : '';
+  if (id) ask({ cmd: 'run', id });
+  return !!id;
+};
+// Where a tab can step to from the menu: its pinned tile or its row in a group, in the order shown. null elsewhere.
+function tabPlace(t) {
+  const el = document.querySelector(`#pinned .pin[data-id="${t.id}"], .tgroup .rows > .row[data-id="${t.id}"]`);
+  if (!el) return null;
+  const ids = [...el.parentElement.children].filter((c) => c.dataset.id).map((c) => +c.dataset.id), group = el.closest('.tgroup')?.dataset.group;
+  return { ids, at: ids.indexOf(t.id), group, labels: group ? ['Move up', 'Move down'] : ['Move left', 'Move right'] };
+}
+const moveItems = (m) => !m ? '' : (m.at > 0 ? `<button data-act="movePrev">${m.labels[0]}</button>` : '') + (m.at < m.ids.length - 1 ? `<button data-act="moveNext">${m.labels[1]}</button>` : '');
+function moveTab(t, m, act) {
+  const before = act === 'movePrev' ? m.ids[m.at - 1] : m.ids[m.at + 2] || 0;
+  ask({ cmd: 'tab.move', id: t.id, before, ...(m.group && { group: +m.group }) });
+}
 async function tabMenu(t, e) {
   // uBOL can take up to 5 s to answer; past 300 ms draw the menu without the ad-block item.
   const seq = ctxSeq;
-  const ab = await Promise.race([ask({ cmd: 'tab.adblock', id: t.id }), new Promise((r) => setTimeout(r, 300))]).catch(() => null);
+  const [ab, boards] = await Promise.all([Promise.race([ask({ cmd: 'tab.adblock', id: t.id }), new Promise((r) => setTimeout(r, 300))]).catch(() => null),
+    t.ghost ? null : boardList()]);
   if (seq !== ctxSeq) return; // dismissed or another menu opened meanwhile
-  const groups = state.groups || [];
-  showCtx(`${t.pinned ? '<button data-act="unpin">Unpin tab</button><button data-act="icon">Set icon…</button>' : '<button data-act="pin">Pin tab</button>'}
+  const groups = state.groups || [], place = tabPlace(t);
+  showCtx(`${t.pinned ? '<button data-act="unpin">Unpin tab</button><button data-act="icon">Set icon…</button>' : '<button data-act="pin">Pin tab</button>'}${moveItems(place)}
     <hr><div class="head">Add to group</div>
     <button data-act="new">New group…</button>
     ${groups.filter((g) => g.id !== t.group).map((g) => `<button data-act="move" data-g="${g.id}">${dot(g.color)}${esc(g.name)}</button>`).join('')}
@@ -1101,8 +1160,10 @@ async function tabMenu(t, e) {
     <hr><button data-act="rename">Rename…</button>${t.name ? '<button data-act="unname">Reset name</button>' : ''}
     ${t.agentMark ? '<button data-act="clearAgent">Clear agent mark</button>' : ''}${t.split ? '<button data-act="unsplit">Separate tabs</button>' : ''}${t.floating ? '' : '<button data-act="float">Open in floating window</button>'}
     ${ab ? `<button data-act="adblock" role="menuitemcheckbox" aria-checked="${ab.excluded}" title="${esc(ab.site)}">${ab.excluded ? '✓ ' : ''}Don't block ads on this site</button>` : ''}
-    <button data-act="close">Close tab</button>`, e, (act, d) => {
-    if (act === 'space') ask({ cmd: 'tab.space', id: t.id, space: +d.s });
+    ${boards ? boardItems(boards) + '<hr>' : ''}<button data-act="close">Close tab</button>`, e, (act, d) => {
+    if (boardAct(act, d)) return hideCtx();
+    if (act === 'movePrev' || act === 'moveNext') moveTab(t, place, act);
+    else if (act === 'space') ask({ cmd: 'tab.space', id: t.id, space: +d.s });
     else if (act === 'float') ask({ cmd: 'tab.float', id: t.id });
     else if (act === 'adblock') ask({ cmd: 'tab.adblock', id: t.id, what: 'toggle' });
     else if (act === 'clearAgent') ask({ cmd: 'tab.clearAgent', id: t.id });
@@ -1160,13 +1221,16 @@ $('site').onclick = (e) => { e.stopPropagation(); siteMenu(); };
 // One click copies the current URL; Roar shows the "Copied link" toast.
 $('copy-url').onclick = (e) => { e.stopPropagation(); ask({ cmd: 'run', id: 'copyUrl' }); };
 // Right-click on empty sidebar space.
-function sidebarMenu(e) {
+async function sidebarMenu(e) {
+  const seq = ctxSeq, boards = await boardList();
+  if (seq !== ctxSeq) return;
   const others = state.spaces.filter((sp) => sp.id !== state.activeSpace);
   showCtx(`<button data-act="newTab">New tab</button>
     <button data-act="newGhostTab">New ghost tab</button>
     <button data-act="newWindow">New window</button>
     ${others.length ? `<hr><div class="head">Switch to space</div>${others.map((sp) => `<button data-act="space" data-s="${sp.id}">${dot(sp.color)}${esc(sp.name)}</button>`).join('')}` : '<hr>'}
-    <button data-act="newSpace">New space</button>`, e, (act, d) => {
+    <button data-act="newSpace">New space</button>${boardItems(boards)}`, e, (act, d) => {
+    if (boardAct(act, d)) return hideCtx();
     if (act === 'space') ask({ cmd: 'space.switch', id: +d.s });
     else ask({ cmd: 'run', id: act });
     hideCtx();
@@ -1183,22 +1247,41 @@ function nameMenu(value, e, done, placeholder = 'Group name') {
     else if (ev.key === 'Escape') hideCtx();
   };
 }
+// Close all tabs goes by what the sidebar lists under a header, so it covers nested groups and never reaches Ask chats or agent views.
+const listedTabs = (section) => [...section.querySelectorAll('.row[data-id]')].map((r) => +r.dataset.id);
+const closeAllItem = (ids) => `<button data-act="closeall"${ids.length ? '' : ' disabled'}>Close all tabs</button>`;
+function sectionMenu(section, e) {
+  const ids = listedTabs(section);
+  showCtx(closeAllItem(ids), e, () => { ask({ cmd: 'tabs.close', ids }); hideCtx(); });
+}
+// Once, not a mode: tabs dragged afterwards stay where they're put. Fresh state, since idle times age between pushes.
+async function sortGroup(id, byName) {
+  const label = (t) => t.name || t.title || t.url;
+  const tabs = (await ask({ cmd: 'state' })).tabs.filter((t) => t.group === id);
+  tabs.sort(byName ? (a, b) => label(a).localeCompare(label(b), undefined, { numeric: true, sensitivity: 'base' }) : (a, b) => a.idleSeconds - b.idleSeconds);
+  ask({ cmd: 'group.order', id, tabs: tabs.map((t) => t.id) });
+}
 function groupMenu(id, e) {
   const g = state.groups.find((g) => g.id === id);
   if (!g) return;
+  const ids = listedTabs(document.querySelector(`.tgroup[data-group="${id}"]`));
+  const sortable = state.tabs.filter((t) => t.group === id).length > 1;
   showCtx(`<button data-act="rename">Rename…</button><button data-act="airename" title="Shift-click: choose the agent">Rename all with AI</button>
     <div class="swatches">${COLORS.slice(1).map((c) => `<button data-act="color" data-c="${c}" aria-pressed="${g.color === c}" style="background:${c}" title="${c}" aria-label="${COLOR_NAMES[c]}"></button>`).join('')}</div>
     <button data-act="pin">${g.pinned ? 'Unpin group' : 'Pin group'}</button>
     <button data-act="sub">New group inside…</button>${g.parent ? '<button data-act="outdent">Move out of its group</button>' : ''}
+    ${sortable ? '<hr><button data-act="sortName">Sort by name</button><button data-act="sortActive" title="Most recently used first">Sort by last active</button>' : ''}
     <hr><button data-act="ungroup">Ungroup tabs</button>
-    <button data-act="close">Close group</button>`, e, (act, d) => {
+    ${closeAllItem(ids)}<button data-act="close">Close group</button>`, e, (act, d) => {
     if (act === 'rename') return nameMenu(g.name, e, (name) => ask({ cmd: 'group.update', id, name }));
     if (act === 'airename') return hideCtx(), aiRename('group:' + id, { shiftKey: lastShift, target: e.target, clientX: e.clientX, clientY: e.clientY }, true);
     if (act === 'color') ask({ cmd: 'group.update', id, color: d.c });
+    else if (act === 'sortName' || act === 'sortActive') sortGroup(id, act === 'sortName');
     else if (act === 'pin') ask({ cmd: 'group.update', id, pinned: !g.pinned });
     else if (act === 'sub') return nameMenu('', e, (name) => ask({ cmd: 'group.create', name, color: g.color, parent: id }));
     else if (act === 'outdent') ask({ cmd: 'group.update', id, parent: state.groups.find((p) => p.id === g.parent)?.parent || 0 });
     else if (act === 'ungroup') ask({ cmd: 'group.remove', id });
+    else if (act === 'closeall') ask({ cmd: 'tabs.close', ids });
     else if (act === 'close') ask({ cmd: 'group.remove', id, closeTabs: true });
     hideCtx();
   });
@@ -1207,7 +1290,7 @@ document.addEventListener('mousedown', (e) => { if (!ctx.hidden && !ctx.contains
 document.addEventListener('mousedown', (e) => { if (!$('space-menu').hidden && !$('space-menu').contains(e.target)) hideSpaceMenu(); }, true);
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { hideCtx(); hideSpaceMenu(); } });
 // Clicking into a tab never reaches the sidebar's document; close menus when it loses focus.
-window.addEventListener('blur', () => { hideCtx(); hideSpaceMenu(); });
+window.addEventListener('blur', () => { hideCtx(); hideSpaceMenu(); closeFeeds(); });
 
 // Drag a group by its header into another group, or onto Tabs for the top level.
 let dragGroup = 0;
@@ -1263,14 +1346,14 @@ document.addEventListener('dragend', (e) => {
   clearRowMarks();
 });
 const dropZone = (el) => el.closest?.('.tgroup, #tabs-group, #pinned');
-// A pinned tile dragged over another pinned tile reorders: drop before or after it.
+// A pinned tile dragged over another pinned tile reorders, anywhere on it: before its left half, after its right.
+// Holding Option splits instead (splitSpot).
 const pinSpot = (e) => {
   const pin = e.target.closest?.('#pinned .pin[data-id]');
   const t = state.tabs.find((t) => t.id === dragId);
-  if (!pin || !t?.pinned || +pin.dataset.id === dragId) return null;
-  const r = pin.getBoundingClientRect(), f = (e.clientX - r.left) / r.width;
-  if (f > 0.25 && f < 0.75) return null;  // The middle of a tile splits (splitSpot).
-  return { pin, after: f >= 0.5 };
+  if (!pin || !t?.pinned || e.altKey || +pin.dataset.id === dragId) return null;
+  const r = pin.getBoundingClientRect();
+  return { pin, after: e.clientX >= r.left + r.width / 2 };
 };
 // The top or bottom edge of a row in the Tabs list or a group puts the dragged tab above or below it; the middle splits.
 const rowSpot = (e) => {
@@ -1284,14 +1367,15 @@ const rowSpot = (e) => {
 const clearRowMarks = () => document.querySelectorAll('.row.drop-before, .row.drop-after')
   .forEach((el) => el.classList.remove('drop-before', 'drop-after'));
 // A tab row or pinned tile under the dragged tab (not itself, not floating): split target.
-// Rows: left half side by side, right half stacked. Tiles: only their middle, and always side by side.
+// Rows: left half side by side, right half stacked. Tiles: only their middle, and always side by side; a pinned tab
+// over a tile reorders (pinSpot), so it splits only with Option held.
 const splitSpot = (e) => {
   const row = e.target.closest?.('.row[data-id], .pin[data-id]');
   if (!row || +row.dataset.id === dragId) return null;
   const a = state.tabs.find((t) => t.id === dragId), b = state.tabs.find((t) => t.id === +row.dataset.id);
   if (!a || !b || a.floating || b.floating || a.ghost !== b.ghost) return null;  // Ghost splits only with ghost.
   const r = row.getBoundingClientRect(), f = (e.clientX - r.left) / r.width;
-  if (row.classList.contains('pin')) return f > 0.25 && f < 0.75 ? { row, stacked: false } : null;
+  if (row.classList.contains('pin')) return (a.pinned ? e.altKey : f > 0.25 && f < 0.75) ? { row, stacked: false } : null;
   return { row, stacked: f > 0.5 };
 };
 const clearSplitMarks = () => document.querySelectorAll('.split-drop').forEach((el) => el.classList.remove('split-drop'));
@@ -1512,7 +1596,10 @@ clForm.onsubmit = async (e) => {
 };
 $('new-tab').onclick = () => ask({ cmd: 'run', id: 'newTab' });  // Same command as the context menu's New tab and Cmd+T.
 $('ask-llm').onclick = () => {
-  if ($('ask-llm').getAttribute('aria-disabled') !== 'true') ask({ cmd: 'run', id: 'askLlm:' + $('ask-llm').dataset.llm });
+  if ($('ask-llm').getAttribute('aria-disabled') === 'true') return;
+  // "model": Roar's own Model chat with this tab attached (chat.html #ask=<tab id>); the rest are kLlms sites.
+  if ($('ask-llm').dataset.llm === 'model') ask({ cmd: 'open', text: 'roar://ui/chat.html#ask=' + $('ask-llm').dataset.tab, newTab: true });
+  else ask({ cmd: 'run', id: 'askLlm:' + $('ask-llm').dataset.llm });
 };
 var AI_RN_ICO = '<svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 1.8l1.3 3.4 3.4 1.3-3.4 1.3L8 11.2 6.7 7.8 3.3 6.5l3.4-1.3z"/><path d="M12.6 10.4l.6 1.5 1.5.6-1.5.6-.6 1.5-.6-1.5-1.5-.6 1.5-.6z"/></svg>';
 var aiBusy = {};  // "kind:id" -> {old, until}: the agent is renaming it.
@@ -1539,12 +1626,12 @@ document.addEventListener('click', (e) => { lastShift = e.shiftKey; }, true);
 const aiUndoName = (kind, id, ctxt) => kind === 'tab' ? (state.tabs.find((t) => t.id === +id)?.name || '') : kind === 'session' ? (agentNames(state)[id] || '') : ctxt.name;
 const aiIdArg = (kind, id) => kind === 'session' ? JSON.stringify(id) : id;
 // bulk (a group's key): the group and every tab in it go to the agent in one request.
-// Chat providers that may get page titles and URLs (pageRefusal), detected at most once a minute.
+// Chat providers that may get page titles and URLs in one turn (shotRefusal), detected at most once a minute.
 var aiChats = null, aiChatsAt = 0;
 async function aiChatList() {
   if (aiChats && Date.now() - aiChatsAt < 60000) return aiChats;
-  const all = await chatCore.detectProviders([...chatCore.parseProviders(state.settings.chatProviders), ...chatCore.CLI_PROVIDERS], ask);
-  aiChats = all.filter((p) => p.models.length && !chatCore.pageRefusal(p));
+  const all = chatCore.chatOrdered(await chatCore.detectProviders(chatCore.chatList(state.settings), ask), state.settings);
+  aiChats = all.filter((p) => p.models.length && !chatCore.shotRefusal(p));
   aiChatsAt = Date.now();
   return aiChats;
 }
@@ -1788,8 +1875,7 @@ document.addEventListener('click', (e) => {
   // End has its own handler: opening the session too rebuilt the row and ate End's click.
   if (!r || e.target.closest('[data-clquit]')) return;
   e.stopPropagation();
-  for (const p of document.querySelectorAll('.feed-pop')) p.classList.remove('open');
-  syncFeeds();
+  closeFeeds();
   dropDone(r.dataset.clid);
   // Every row opens its session: the full-view tab if it's open, else a new one.
   if (r.dataset.cltab) return ask({ cmd: 'tab.activate', id: +r.dataset.cltab });
@@ -1952,14 +2038,16 @@ $('hide-sidebar').onclick = () => ask({ cmd: 'run', id: 'sidebar' });
 // Pinned extensions: click opens the extension's popup page in a bubble beside
 // the button (an options-only extension opens in a tab); right-click unpins. Pin from the Extensions menu in the menu bar.
 let pinKey = null;
-// Tiles per row comes from settings, or as many 38px tiles as fit.
+// The most tiles in a row comes from settings, or as many 38px tiles as fit. Tiles split evenly across the rows they
+// need, longer rows first, so every row runs edge to edge: 7 at a limit of 5 is 4 + 3, never 5 + a stretched pair.
 let pinSettings = {};
 function layoutPins(settings) {
   if (settings) pinSettings = settings;
-  const el = $('pinned');
+  const el = $('pinned'), pins = [...el.children];
   const fit = Math.max(1, Math.floor((el.clientWidth - 8 + 6) / (38 + 6)));
-  el.style.setProperty('--cols', pinSettings.pinnedColumns || fit);
-  el.classList.toggle('centered', !!pinSettings.pinnedCentered);
+  const rows = Math.ceil(pins.length / (pinSettings.pinnedColumns || fit)) || 1;
+  const short = Math.floor(pins.length / rows), longTiles = (pins.length % rows) * (short + 1);
+  pins.forEach((p, i) => p.style.setProperty('--cols', i < longTiles ? short + 1 : short));
 }
 addEventListener('resize', () => layoutPins());
 
@@ -2081,8 +2169,7 @@ function toggleAgents() {
     .then(() => ask({ cmd: 'state' })).then(roar.render);
 }
 function openGarden() {
-  for (const p of document.querySelectorAll('.feed-pop')) p.classList.remove('open');
-  syncFeeds();
+  closeFeeds();
   ask({ cmd: 'run', id: 'open:roar://ui/garden.html' });
 }
 // GitHub PRs and Unread mail open as popovers from their footer icons.
@@ -2093,6 +2180,18 @@ function syncFeeds() {
     b.setAttribute('aria-expanded', pop.classList.contains('open'));
     pop.style.bottom = (innerHeight - bar.top + 4) + 'px';
   }
+  $('feed-scrim').hidden = !document.querySelector('.feed-pop.open');
+  $('feed-scrim').style.bottom = (innerHeight - bar.top) + 'px';
+}
+const popHeads = new ResizeObserver((all) => { for (const { target: h } of all) h.parentElement.style.setProperty('--pop-head', h.offsetHeight - 4 + 'px'); });
+document.querySelectorAll('.feed-pop > .group-head').forEach((h) => popHeads.observe(h));
+// refocus: back to the popover's icon, for whoever came by keyboard.
+function closeFeeds(refocus) {
+  const open = document.querySelector('.feed-pop.open');
+  if (!open) return;
+  open.classList.remove('open');
+  syncFeeds();
+  if (refocus) document.querySelector(`[data-feed="${open.id}"]`)?.focus();
 }
 $('ol-btn').onclick = () => state?.outlook && !state.outlookMail && ask({ cmd: 'open', text: `https://${state.outlook}/mail/`, newTab: true });
 $('bar').addEventListener('click', (e) => {
@@ -2110,17 +2209,12 @@ $('bar').addEventListener('click', (e) => {
 });
 document.addEventListener('click', (e) => {
   // A hide/delete click re-renders its row first, so its target is detached by now: keep the popover open.
-  if (!e.target.isConnected || (e.target.closest('.feed-pop') && !e.target.closest('[data-url]'))) return;
-  for (const p of document.querySelectorAll('.feed-pop')) p.classList.remove('open');
-  syncFeeds();
+  if (!e.target.isConnected) return;
+  if (e.target.closest('[data-feed-close]')) return closeFeeds(true);
+  if (e.target.closest('.feed-pop') && !e.target.closest('[data-url]')) return;
+  closeFeeds();
 });
-addEventListener('keydown', (e) => {
-  if (e.key !== 'Escape') return;
-  const open = document.querySelector('.feed-pop.open');
-  for (const p of document.querySelectorAll('.feed-pop')) p.classList.remove('open');
-  syncFeeds();
-  if (open) document.querySelector(`[data-feed="${open.id}"]`)?.focus();
-});
+addEventListener('keydown', (e) => { if (e.key === 'Escape') closeFeeds(true); });
 const COLORS = ['', '#e5484d', '#f76b15', '#ffc53d', '#46a758', '#12a594', '#0090ff', '#8e4ec6', '#d6409f'];
 const COLOR_NAMES = { '#e5484d': 'Red', '#f76b15': 'Orange', '#ffc53d': 'Yellow', '#46a758': 'Green', '#12a594': 'Teal', '#0090ff': 'Blue', '#8e4ec6': 'Purple', '#d6409f': 'Pink' };
 function renderSwatches() {

@@ -63,7 +63,7 @@ export async function installScript(code, opts = {}) {
   }
   // secret: names the script's port, so another script can't speak for it (lib/gm.js).
   const item = { position: Date.now(), connectAllow: [], secret: newId() + newId(), ...old, id: old?.id || newId(), kind: 'script', code, meta,
-    requires, resources, enabled: opts.enabled ?? old?.enabled ?? true, url: opts.url || old?.url || '', updated: Date.now() };
+    requires, resources, enabled: opts.enabled ?? old?.enabled ?? true, url: opts.url || old?.url || '', updated: Date.now(), touched: Date.now() };
   delete item.update;
   await chrome.storage.local.set({ [ITEM + item.id]: item, ...(opts.values ? { [VALUES + item.id]: opts.values } : {}) });
   return item;
@@ -81,18 +81,21 @@ export async function installStyle(code, opts = {}) {
   const sections = await compileStyle(code, vars, styleLibs());
   const url = opts.url || old?.url || '';
   const item = { position: Date.now(), ...old, id: old?.id || newId(), kind: 'style', code, meta, vars, sections,
-    enabled: opts.enabled ?? old?.enabled ?? true, url, updated: Date.now(),
+    enabled: opts.enabled ?? old?.enabled ?? true, url, updated: Date.now(), touched: Date.now(),
     updateURL: meta.updateURL || opts.updateURL || old?.updateURL || (/\.user\.css(\?|$)/.test(url) ? url : '') };
   delete item.update;
   await chrome.storage.local.set({ [ITEM + item.id]: item });
   return item;
 }
 
+export const newItemIds = () => ({ id: newId(), secret: newId() + newId(), position: Date.now() });
+
 export const removeItem = (id) => chrome.storage.local.remove([ITEM + id, VALUES + id]);
 
 export async function patchItem(id, patch) {
   const item = (await chrome.storage.local.get(ITEM + id))[ITEM + id];
-  if (item) await chrome.storage.local.set({ [ITEM + id]: { ...item, ...patch } });
+  // touched: what lib/share.js compares. An on/off switch spreads; a pending update or an allowed host stays here.
+  if (item) await chrome.storage.local.set({ [ITEM + id]: { ...item, ...patch, ...('enabled' in patch ? { touched: Date.now() } : {}) } });
 }
 
 export const isStyleSource = (code, url = '') => /\.user\.css(\?|#|$)/.test(url) || /==UserStyle==/.test(code);

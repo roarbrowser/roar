@@ -20,7 +20,28 @@ check(ps[0].kind === 'openai' && ps[0].url === 'http://localhost:11434/v1' && ps
 check(ps[1].name === 'anthropic' && ps[1].key === true, 'names default to id; key flag kept');
 const pp = core.parseProviders(JSON.stringify([{ id: 'perplexity', name: 'Perplexity', url: 'https://api.perplexity.ai', key: true }]))[0];
 check(pp.kind === 'openai' && pp.key === true && pp.url === 'https://api.perplexity.ai', 'perplexity default kept as openai kind with a key');
+const opt = core.parseProviders(JSON.stringify([{ id: 'studio', name: 'Studio', url: 'http://127.0.0.1:18000/v1', key: true, optional: true }, { id: 'o2', url: 'http://x', optional: true }]));
+check(opt[0].key === true && opt[0].optional === true && opt[1].optional === false, 'an added server keeps its optional key; optional needs key:true');
 check(core.parseProviders('{oops').length === 0 && core.parseProviders('{}').length === 0 && core.parseProviders('').length === 0, 'bad JSON gives no providers');
+
+// Settings > Model chat: what's offered, in what order, and what counts as set up.
+{
+  const saved = JSON.stringify([{ id: 'a', url: 'http://a' }, { id: 'b', url: 'http://b' }, { id: 'c', url: 'http://c' }]);
+  const ids = (l) => l.map((p) => p.id).join();
+  check(core.idList('["a",1,"b"]').join() === 'a,b' && core.idList('{oops').length === 0 && core.idList('{}').length === 0, 'id lists keep strings and survive junk');
+  check(core.chatList({ chatProviders: saved }).length === 3 + core.CLI_PROVIDERS.length, 'nothing removed: servers and assistants all offered');
+  const left = ids(core.chatList({ chatProviders: saved, chatHidden: '["b","cli-codex"]' }));
+  check(!/\bb\b/.test(left) && !left.includes('cli-codex') && left.includes('cli-claude'), 'removed servers and assistants leave the list');
+  const list = [{ id: 'a' }, { id: 'b' }, { id: 'c' }, { id: 'd' }];
+  check(ids(core.chatOrdered(list, { chatOrder: '["c","a"]' })) === 'c,a,b,d', 'the saved order leads; the rest keep theirs');
+  check(ids(core.chatOrdered(list, {})) === 'a,b,c,d' && ids(core.chatOrdered(list, { chatOrder: '["gone"]' })) === 'a,b,c,d', 'no order, or a stale id, changes nothing');
+  check(core.defaultModel(core.chatOrdered([{ id: 'a', models: ['m'] }, { id: 'b', models: ['n'] }], { chatOrder: '["b"]' }), '') === 'b|n', 'First available follows the saved order');
+  const on = core.chatOn;
+  check(on({ kind: 'cli', state: 'available' }) && !on({ kind: 'cli', state: 'missing' }), 'an assistant is set up once it is on this Mac');
+  check(on({ kind: 'openai', key: true, hasKey: true, state: 'available' }) && !on({ kind: 'openai', key: true, state: 'needs-key' }), 'an API is set up once it has a key');
+  check(on({ kind: 'openai', state: 'running' }) && !on({ kind: 'openai', state: 'installed' }) && !on({ kind: 'openai', state: 'missing' }), 'a local server is set up while it answers');
+  check(on({ kind: 'openai', optional: true, state: 'missing' }) && on({ kind: 'opencode', state: 'missing' }), 'a server you added stays up even when it is not answering');
+}
 
 // SSE, OpenAI style, split mid-event and with CRLF.
 const feed = core.sseParser();
@@ -53,6 +74,15 @@ check(pst(loc, { probe: [] }).state === 'running', 'a server that answers with n
 check(pst(loc, { installed: true }).state === 'installed' && /ollama serve/.test(pst(loc, { installed: true }).label), 'installed but silent gets a start hint');
 check(pst(loc).state === 'missing' && pst({ id: 'x', key: false }, { installed: true }).label.includes('Start its server'), 'nothing found is missing; unknown app gets a generic hint');
 check(pst(apiP, { hasKey: true }).state === 'available' && pst(apiP).state === 'needs-key', 'API provider is available only with a Keychain key');
+const OPT = { id: 'studio', key: true, optional: true };
+check(pst(OPT, { probe: ['m'] }).state === 'running' && !/Keychain/.test(pst(OPT, { probe: ['m'] }).label), 'added server with no key runs when it answers');
+check(pst(OPT, { probe: ['m'], hasKey: true }).label === 'Running · 1 model · API key in Keychain', 'added server with a key says so');
+check(pst(OPT).state === 'missing' && /Save its API key if it needs one/.test(pst(OPT).label) && /API key in Keychain/.test(pst(OPT, { hasKey: true }).label), 'silent added server suggests a key, or says one is saved');
+const optAsk = (keyed) => (m) => m.cmd === 'chat.keys' ? Promise.resolve({ studio: keyed }) : m.cmd === 'chat.installed' ? Promise.resolve({})
+  : m.provider === 'studio' ? Promise.resolve({ data: [{ id: 'qwen' }] }) : Promise.reject(new Error('refused'));
+const [o1] = await core.detectProviders([OPT], optAsk(false), 50), [o2] = await core.detectProviders([OPT], optAsk(true), 50);
+check(o1.state === 'running' && o1.models.join() === 'qwen' && o1.hasKey === false, 'detect: added server is probed without a key');
+check(o2.state === 'running' && o2.hasKey === true, 'detect: added server with a saved key reports hasKey');
 const fakeAsk = (m) => m.cmd === 'chat.installed' ? Promise.resolve({ lmstudio: true })
   : m.cmd === 'chat.keys' ? Promise.resolve({ openai: true })
   : m.provider === 'jan' ? new Promise(() => {})  // Hangs: must time out.
@@ -128,14 +158,29 @@ check(core.cliStatus(cc, 'desktop-only').state === 'missing' && /Claude app is i
 check(core.providerStatus({ id: 'ollama', key: false }).get === 'https://ollama.com/download', 'a missing local server links to its download page');
 const askCli = (m) => m.cmd === 'chat.clis' ? Promise.resolve({ claude: 'ok', codex: 'signed-out', gemini: 'missing' }) : Promise.resolve({});
 const detCli = await core.detectProviders(core.CLI_PROVIDERS, askCli, 50);
-check(detCli.map((p) => p.cli + ':' + p.state).join() === 'claude:available,codex:signed-out,gemini:missing,qwen:missing', 'detect: CLIs ranked by status');
+check(detCli.map((p) => p.cli + ':' + p.state).join() === 'claude:available,codex:signed-out,gemini:missing,qwen:missing,opencode:missing', 'detect: CLIs ranked by status');
 check(detCli[0].models.includes('sonnet') && detCli[2].models.length === 0, 'detect: installed CLIs list their models, missing ones none');
 // Untrusted page text only goes to a CLI with every tool off (src/model_chat.h ChatCliToolless: claude only).
 const byCli = Object.fromEntries(core.CLI_PROVIDERS.map((p) => [p.cli, p]));
 check(core.CLI_PROVIDERS.filter((p) => p.pages).map((p) => p.cli).join() === 'claude', 'only Claude Code may be sent a tab');
-check(core.pageRefusal(byCli.claude) === '' && ['codex', 'gemini', 'qwen'].every((c) => /won't send it web pages/.test(core.pageRefusal(byCli[c]))), 'codex, gemini and qwen refuse page attachments with a reason');
+check(core.pageRefusal(byCli.claude) === '' && ['codex', 'gemini', 'qwen', 'opencode'].every((c) => /won't send it web pages/.test(core.pageRefusal(byCli[c]))), 'codex, gemini, qwen and opencode refuse page attachments with a reason');
 check(core.pageRefusal(ps[0]) === '' && core.pageRefusal(undefined) === '', 'API and local providers are never refused');
 check(core.CLI_PROVIDERS.every((p) => /sandbox/.test(p.isolation)) && /All tools off/.test(byCli.claude.isolation) && !/tools off/i.test(byCli.qwen.isolation), 'isolation text says what applies, per CLI');
+
+const ocOut = [
+  { type: 'step_start', part: { type: 'step-start' } },
+  { type: 'text', part: { type: 'text', text: '\n\nHé 🦁' } },
+  { type: 'text', part: { type: 'text', text: 'second' } },
+  { type: 'step_finish', part: { type: 'step-finish', reason: 'stop' } },
+].map((j) => JSON.stringify(j)).join('\n') + '\n';
+r = runCli('opencode', 'INFO log line\n' + ocOut);
+check(r.text === 'Hé 🦁\n\nsecond' && r.done && !r.error, 'opencode json: text parts joined, leading blank lines dropped, stop ends');
+r = runCli('opencode', JSON.stringify({ type: 'error', error: { type: 'provider.no-route', message: 'Model unavailable: x' } }) + '\n');
+check(r.error === 'Model unavailable: x' && !r.done, 'opencode: error event surfaces its message');
+r = runCli('opencode', JSON.stringify({ type: 'text', part: { text: '\n    indented code' } }) + '\n');
+check(r.text === '    indented code', 'opencode: only leading newlines are dropped, not indentation');
+r = runCli('opencode', JSON.stringify({ type: 'step_finish', part: { reason: 'tool-calls' } }) + '\n');
+check(!r.done, 'opencode: a step that is not the last does not end the turn');
 
 // Markdown sanitizer.
 const md = core.renderMarkdown;
@@ -212,5 +257,80 @@ check(JSON.stringify(core.parseNames('no json here', ['tab:1'])) === '{}', 'pars
   check(core.autoNameKeys([page(7, 'Ghost, later'), page(18, 'Half'), page(19, 'Ghost half', { ghost: true })], seen, 0, true).length === 0, 'auto name: a skipped ghost tab stays skipped');
   check(core.autoNameKeys([page(5, 'Mine'), page(6, 'Pinned')], seen, 0, true).length === 0, 'auto name: tabs skipped once stay skipped (unnamed or unpinned later)');
   check(core.autoNameKeys([page(20, 'Other space')], seen, 1, true).length === 0, "auto name: another space's tabs on its first visit are not named"); }
+// OpenCode servers.
+{
+  const oc = core.parseProviders(JSON.stringify([{ id: 'studio', kind: 'opencode', name: 'S', url: 'http://10.0.0.2:4096/', key: true, optional: true, tools: true, dir: ' /w ' }, { id: 'p', kind: 'opencode', url: 'http://x', tools: 'yes' }, { id: 'o', url: 'http://y' }]));
+  check(oc[0].kind === 'opencode' && oc[0].tools === true && oc[0].dir === '/w' && oc[0].url === 'http://10.0.0.2:4096', 'an OpenCode server keeps its tools and folder');
+  check(oc[1].tools === false && !('tools' in oc[2]), 'tools only when truly on, and only for OpenCode');
+  check(core.searchMode(oc[0]) === '', 'no web search through it');
+  check(/can use tools/.test(core.pageRefusal(oc[0])) && core.pageRefusal(oc[1]) === '', 'pages refused with tools on, allowed with none');
+  const ev = (sid, ...list) => { const f = core.opencodeEvents(() => sid); return list.map((e) => f(JSON.stringify(e))); };
+  const s = (type, data) => ({ type, data: { sessionID: 'a', ...data } });
+  check(ev('', { type: 'server.connected', data: {} })[0].connected === true, 'connected, before any session');
+  check(ev('a', s('session.text.delta', { delta: 'hi' }))[0].text === 'hi', 'text streams');
+  check(JSON.stringify(ev('a', { type: 'session.text.delta', data: { sessionID: 'other', delta: 'x' } })[0]) === '{}', 'another session\'s text is ignored');
+  check(ev('a', s('session.execution.succeeded'))[0].done && ev('a', s('session.execution.interrupted', { reason: 'user' }))[0].done, 'finished or stopped ends the turn');
+  check(JSON.stringify(ev('a', s('session.execution.interrupted', { reason: 'superseded' }))[0]) === '{}', 'a superseded run doesn\'t');
+  check(ev('a', s('session.execution.failed', { error: { message: 'no model' } }))[0].error === 'no model', 'a failure says why');
+  const p = ev('a', { type: 'permission.asked', data: { id: 'per', sessionID: 'a', action: 'shell', resources: ['git push'] } })[0].permission;
+  check(p.id === 'per' && p.session === 'a' && p.text === 'shell: git push', 'an approval names what it wants');
+  const kid = ev('a', { type: 'session.created', data: { sessionID: 'k', parentID: 'a' } }, { type: 'permission.asked', data: { id: 'p2', sessionID: 'k', action: 'read' } }, { type: 'session.text.delta', data: { sessionID: 'k', delta: 'x' } }, { type: 'session.execution.succeeded', data: { sessionID: 'k' } });
+  check(kid[1].permission?.session === 'k' && !kid[2].text && !kid[3].done, 'a subagent asks too, but its text and finish aren\'t the reply');
+  check(ev('a', { type: 'form.created', data: { form: { sessionID: 'a', title: 'Which?' } } })[0].form === 'Which?', 'a form is reported');
+  check(JSON.stringify(core.opencodeEvents(() => 'a')('not json')) === '{}', 'bad events are skipped');
+  check(core.providerStatus(oc[1], { probe: ['default'] }).label.includes('no tools') && core.providerStatus(oc[0], { probe: ['default'] }).label.includes('tools there'), 'its status says which mode');
+  check(core.providerStatus(oc[1], {}).state === 'missing', 'not answering');
+  // A closed <select> hides its group heading, so "default" must show as the tool it means.
+  const cliOc = core.CLI_PROVIDERS.find((x) => x.id === 'cli-opencode');
+  check(core.modelLabel(cliOc, 'default') === 'opencode' && core.modelLabel(oc[0], 'default') === oc[0].name, 'a default model shows as its tool');
+  check(core.modelLabel(cliOc, 'gpt-5') === 'gpt-5' && core.modelLabel(undefined, 'default') === 'default', 'a named model keeps its name, and an unknown tool falls back to the id');
+
+  // oneShot (AI rename) through a fake server: it speaks sessions and events, and has no /chat/completions.
+  const server = ({ events = [], session = '{"data":{"id":"a"}}', sessionFail = 0 } = {}) => {
+    const log = [], cancelled = [], made = []; let stream = null, n = 0;
+    const query = (q) => {
+      const r = JSON.parse(q.request), id = ++n;
+      log.push(`${r.method || r.what} ${r.path || ''}`.trim());
+      if (r.path === '/api/event') { stream = q; setTimeout(() => q.onSuccess(`data: ${JSON.stringify({ type: 'server.connected' })}\n\n`)); return id; }
+      if (r.path === '/api/session') { made.push(r); setTimeout(() => (sessionFail ? q.onFailure(sessionFail, 'no') : q.onSuccess(session))); return id; }
+      setTimeout(() => { q.onSuccess('{}'); if (r.path.endsWith('/prompt')) for (const e of events) stream.onSuccess(`data: ${JSON.stringify(e)}\n\n`); });
+      return id;
+    };
+    return { query, log, cancelled, made, cancel: (id) => cancelled.push(id), settle: () => new Promise((r) => setTimeout(r, 20)) };
+  };
+  const shot = (f, ms = 1000, p = oc[1]) => core.oneShot(p, 'default', 'name it', f.query, f.cancel, ms).then((text) => ({ text }), (e) => ({ err: e.message }));
+  let f = server({ events: [s('session.text.delta', { delta: '{"tab:1":' }), s('session.text.delta', { delta: '"Mail"}' }), s('session.execution.succeeded')] });
+  let r = await shot(f);
+  await f.settle();
+  check(r.text === '{"tab:1":"Mail"}', 'oneShot: an OpenCode server answers over its event stream');
+  check(!f.log.some((l) => /chat/.test(l)), 'oneShot: never asks an OpenCode server for chat completions');
+  check(f.log.join() === 'GET /api/event,POST /api/session,POST /api/session/a/prompt,DELETE /api/session/a', `oneShot: stream first, then session, prompt, and the session goes (${f.log})`);
+  check(f.cancelled.length === 1 && f.cancelled[0] === 1, 'oneShot: closes its own event stream');
+  f = server({ events: [s('session.execution.failed', { error: { message: 'model down' } })] });
+  r = await shot(f);
+  await f.settle();
+  check(r.err === 'model down' && f.log.includes('DELETE /api/session/a'), 'oneShot: a failed turn reports why and still cleans up');
+  f = server({ events: [s('permission.asked', { id: 'q', message: 'rm' })] });
+  r = await shot(f);
+  await f.settle();
+  check(/ask/.test(r.err || '') && f.log.includes('DELETE /api/session/a'), 'oneShot: an approval it cannot answer fails at once');
+  f = server();
+  r = await shot(f, 30);
+  await f.settle();
+  check(/didn.t answer/.test(r.err || '') && f.log.join().endsWith('POST /api/session/a/interrupt,DELETE /api/session/a') && f.cancelled.length === 1, 'oneShot: a turn that never ends times out, is stopped and cleaned up');
+  f = server({ sessionFail: 401 });
+  r = await shot(f);
+  check(/\(401\)/.test(r.err || '') && f.cancelled.length === 1, 'oneShot: a refused session gives the status and closes the stream');
+  f = server({ session: '{}' });
+  r = await shot(f);
+  check(/no session/.test(r.err || ''), 'oneShot: a server that makes no session says so');
+  f = server({ events: [s('session.text.delta', { delta: 'named' }), s('session.execution.succeeded')] });
+  r = await shot(f, 1000, oc[0]);
+  await f.settle();
+  check(r.text === 'named' && f.made.length === 1 && f.made[0].noTools === true, 'oneShot: a server with tools on still answers, in a session that asks for none');
+  check(f.log.includes('DELETE /api/session/a'), 'oneShot: that session goes too, unlike a tools-on chat');
+  check(core.shotRefusal(oc[0]) === '' && /can use tools/.test(core.pageRefusal(oc[0])), 'tools on: names may go through it, Ask still refuses pages');
+  check(/won't send it web pages/.test(core.shotRefusal(core.CLI_PROVIDERS.find((p) => p.cli === 'codex'))), 'a CLI that cannot drop its tools is still refused');
+}
 console.log(fail ? `${fail} failure(s)` : 'ok');
 process.exit(fail ? 1 : 0);

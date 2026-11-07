@@ -14,6 +14,7 @@ set(ROAR_SRCS
   backup.h boards.h
   dictation.cc dictation.h
   library.cc library.h
+  ext_copy.h
   ext_paths.h
   link_clean.cc link_clean.h
   state.cc state.h

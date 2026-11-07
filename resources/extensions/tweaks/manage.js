@@ -22,6 +22,7 @@ async function renderList() {
   const { site } = route();
   const [items, settings, st] = await Promise.all([allItems(), getSettings(), status()]);
   $('global').checked = settings.enabled;
+  $('shared').hidden = !settings.shared;
   if (!st.api) say('Userscripts can\'t run in this profile right now (Chromium\'s "Allow User Scripts" switch is off). Restart Roar to turn it on.', true);
   const shown = site ? items.filter((i) => (i.kind === 'script' ? testMatcher(compileMatcher(i.meta), site) : !!cssFor(i.sections, site))) : items;
   view.replaceChildren(

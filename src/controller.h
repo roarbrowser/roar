@@ -146,6 +146,9 @@ class Controller {
   std::map<std::string, std::set<int>> driving_;  // Agent name -> tabs roar-mcp says it acts on (agent.drive).  // The tab CDP createTarget opened last (agent.front).
   // Whether remote CDP clients may see this browser (Roar's DevTools filter).
   bool AgentMayReach(int browser_id, const std::string& profile_path);
+  bool AgentMayReachWorker(const std::string& url, const std::string& profile_path);
+  // Site tweaks across spaces: tells a worker whether sharing is on and, when it is, passes its snapshot to the others.
+  void TweaksShareFrom(const std::string& session);
   // Where a connection's pages open by default: the active space, else the first
   // that allows agents; -1 when none does. Never shared between connections.
   int AgentSpace();
@@ -199,7 +202,10 @@ class Controller {
   void SaveToLibrary(bool read_later);
   void OpenUiPage(const std::string& url);
   void OnSpaceReady(int space);
-  std::string ExtensionsJson();
+  // |space| -1: the active one. |bundled|: with uBOL and Site tweaks, which every space already has.
+  std::string ExtensionsJson(int space = -1, bool bundled = true);
+  std::string ExtensionSpacesJson();  // Every space with its own extensions, for Settings > Extensions.
+  void ReportExtensionCopies();  // A card for what the last launch copied (ext_copy.h).
   void PushActions(const std::string& json);
   void ShowExtensionPopup(const std::string& url, int x, int y);
   void CloseExtensionPopup();
@@ -278,8 +284,8 @@ class Controller {
                           const std::vector<CefDraggableRegion>& regions);
   bool OnKey(CefRefPtr<CefBrowser> browser, const CefKeyEvent& event);
   bool OnGesture(CefRefPtr<CefBrowserView> view, cef_gesture_command_t command);
-  void CancelChat(int browser_id);
-  bool HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> frame,
+  void CancelChat(int browser_id, int64_t query_id);
+  bool HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> frame, int64_t query_id,
                    const std::string& request, CefRefPtr<Callback> callback);
   // Settings > Backup's backup.* commands (controller_backup.cc).
   bool HandleBackup(CefRefPtr<CefBrowser> browser, CefRefPtr<CefDictionaryValue> msg, CefRefPtr<Callback> callback);
@@ -363,6 +369,7 @@ class Controller {
   CefRefPtr<CefListValue> claude_ = CefListValue::Create();
   std::string claude_sig_;
   std::map<std::string, std::string> claude_states_;  // Session id -> last state, for its notification.
+  std::map<std::string, int> claude_turns_;  // Session id -> turns it had finished at the last read.
   std::set<std::string> claude_acked_;  // Sessions answered since their state last changed.
   std::set<std::string> claude_seen_;   // Sessions viewed in their full view since; they no longer count on the Dock badge.
   bool claude_hooks_ = false;
@@ -484,6 +491,7 @@ class Controller {
   void DictationEnsure();
   void DictationSet(const std::string& state, const std::string& detail = "");
   void (*cdp_http_)(int port) = nullptr;  // Roar's CEF patch: opens (port) or closes (0) it live.
+  void (*cdp_detach_hidden_)() = nullptr;  // Roar's CEF patch: drops CDP clients from targets AgentMayReach now refuses.
   void SetCdp(bool on);
   int gmail_refresh_gen_ = 0;  // Debounces refreshes while the mail tab navigates.
   int command_height_ = 0;

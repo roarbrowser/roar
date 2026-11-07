@@ -43,7 +43,7 @@ const agentsShown = async () => (await cdp((x) => x.url.includes('settings.html'
 const waitFor = async (f) => { for (let i = 0; i < 30; i++) { const v = await f(); if (v) return v; await sleep(250); } };
 const cleanup = () => { try { roar.kill('SIGKILL'); } catch {} rmSync(data, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 }); };
 try {
-  await start();
+  await start(); await sleep(2000); // the sidebar is listed before its bridge (ask) is ready
   const set = async (expr) => (await cdp((x) => x.url.includes('settings.html'), 'Runtime.evaluate', { expression: expr, awaitPromise: true, returnByValue: true }))?.result?.value;
   // Desktop-only stand-in: no claude CLI, Claude.app present (chat.clis reports it), and a leftover MCP entry claiming connected.
   const fake = `(() => { const a = window.ask; window.ask = (m) => m.cmd === 'chat.clis' ? Promise.resolve({ claude: 'desktop-only' })
@@ -81,7 +81,9 @@ try {
   check(await set(`![...document.querySelectorAll('#onb [aria-pressed=true]')].some((b) => /Claude Code/.test(b.closest('.tool-row').innerText))`), 'no aria-pressed Claude Code');
   await shot('onboarding', (x) => x.url.includes('settings.html'));
   await set(`document.getElementById('onb').remove(); showTab('chat'); ask({cmd:'state'}).then((s) => chatRefresh((typeof s === 'string' ? JSON.parse(s) : s).settings)).then(() => true)`);
-  const mc = await set(`document.querySelector('[data-p=cli-claude]')?.innerText`);
+  // Not installed (app only, no CLI) puts the row in the closed More section: open it to read the row.
+  const mc = await set(`(() => { const r = document.querySelector('[data-p=cli-claude]'); const d = r?.closest('details'); if (d) d.open = true; return r?.innerText; })()`);
+  check(await set(`!!document.querySelector('[data-p=cli-claude]')?.closest('details')`), 'Claude row without the CLI sits under More');
   check(/agent features need Claude Code/.test(mc || '') && /curl -fsSL/.test(mc), 'Model chat row: ' + mc);
   const at = (t) => (mc || '').indexOf(t);
   check(at('agent features') < at('curl -fsSL') && at('curl -fsSL') < at('Then run claude once in Terminal to sign in.'), 'Model chat order: message, command, sign-in line');
@@ -141,7 +143,7 @@ try {
   const sf = join(data, 'state.json'), sj = JSON.parse(readFileSync(sf, 'utf8'));
   sj.tabs.push({ ...sj.tabs.find((t) => /chat\.html/.test(t.url)), url: 'https://example.com/', title: 'Claude', askLlm: 'Claude' });
   writeFileSync(sf, JSON.stringify(sj));
-  await start();
+  await start(); await sleep(2000); // the sidebar is listed before its bridge (ask) is ready
   await sleep(1500);
   // Unpinned tabs come back through Reopen last session (Controller lastSession).
   await sidebar(`ask({cmd:'run',id:'lastSession'})`);

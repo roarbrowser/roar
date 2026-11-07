@@ -14,6 +14,7 @@ const { patternSource, globSource, compileMatcher, testMatcher, nativeMatches, c
 const { parseUserCSS, splitSections, sectionMatches, cssFor, withVars, compileStyle, nativeStyleMatches } = await lib('usercss.js');
 const { importBackup, vmValue, exportJSON } = await lib('importers.js');
 const { scriptCode } = await lib('gm.js');
+const { shareIdOf, snapshot, plan, adopt } = await lib('share.js');
 
 let fail = 0;
 const check = (ok, what) => { if (!ok) fail++; console.log((ok ? 'ok   ' : 'FAIL ') + what); };
@@ -224,6 +225,51 @@ for (const f of ['sw.js', 'manage.js', 'install.js', 'connect.js', 'offscreen.js
   check(r.status === 0, `${f} parses${r.status ? ': ' + r.stderr : ''}`);
 }
 check(JSON.parse(readFileSync(join(ext, 'manifest.json'), 'utf8')).key && JSON.parse(readFileSync(join(ext, 'rules.json'), 'utf8'))[0].action.redirect.regexSubstitution.includes('mfbgmphllcfijgajblnepjfgopbgmnok'), 'manifest key and install redirect agree on the extension id');
+
+// Across spaces: newest wins, deletions stick, and what's private to a profile stays there.
+{
+  const item = (name, touched, extra = {}) => ({ id: 'l-' + name, kind: 'script', meta: { name, namespace: 'n' }, code: name + touched, touched, enabled: true, secret: 's-' + name, connectAllow: ['a.example'], position: 1, ...extra });
+  const send = (items, gone) => snapshot(items, gone);
+  const snap = send([item('a', 5, { update: { version: '2' }, skip: '3' })]);
+  check(!('secret' in snap.items[0]) && !('id' in snap.items[0]) && !('connectAllow' in snap.items[0]) && !('update' in snap.items[0]) && !('skip' in snap.items[0]), 'share: secret, id, allowed hosts and a pending update stay in the profile');
+  check(snap.items[0].shareId === 'script|n|a', 'share: a script is known by kind, namespace and name');
+  check(shareIdOf(item('a', 1, { shareId: 'kept', meta: { name: 'renamed', namespace: 'n' } })) === 'kept', 'share: a stored id survives a rename');
+  check(shareIdOf({ kind: 'style', meta: { name: 'a', namespace: 'n' } }) !== shareIdOf({ kind: 'script', meta: { name: 'a', namespace: 'n' } }), 'share: a script and a style of one name stay apart');
+
+  let p = plan([], {}, send([item('a', 5)]));
+  check(p.put.length === 1 && p.put[0].into === null && !p.newer, 'share: a new item arrives');
+  p = plan([item('a', 5)], {}, send([item('a', 9)]));
+  check(p.put.length === 1 && p.put[0].into.id === 'l-a' && !p.newer, 'share: a newer copy replaces');
+  p = plan([item('a', 9)], {}, send([item('a', 5)]));
+  check(!p.put.length && p.newer, 'share: an older copy is ignored, and the sender is owed the newer one');
+  p = plan([item('a', 5)], {}, send([item('a', 5)]));
+  check(!p.put.length && !p.remove.length && !p.newer, 'share: equal copies change nothing, which ends the exchange');
+  p = plan([item('b', 5)], {}, send([item('a', 5)]));
+  check(p.put.length === 1 && !p.remove.length && p.newer, 'share: turning it on merges: nothing is dropped from either side');
+
+  const id = 'script|n|a';
+  p = plan([item('a', 5)], {}, send([], { [id]: 7 }));
+  check(p.remove.join() === 'l-a' && p.gone[id] === 7 && !p.newer, 'share: a deletion removes the older local copy');
+  p = plan([], { [id]: 7 }, send([item('a', 5)]));
+  check(!p.put.length && p.newer, 'share: an older copy can\'t bring a deleted item back, and the sender is told');
+  p = plan([item('a', 9)], {}, send([], { [id]: 7 }));
+  check(!p.remove.length && p.newer, 'share: installing it again after the deletion keeps it');
+  p = plan([], { [id]: 7 }, send([item('a', 9)]));
+  check(p.put.length === 1, 'share: and that reinstall reaches a profile that saw the deletion');
+
+  const kept = adopt({ shareId: id, code: 'new', touched: 9 }, item('a', 5), { id: 'x', secret: 'y', position: 2 });
+  check(kept.id === 'l-a' && kept.secret === 's-a' && kept.connectAllow[0] === 'a.example' && kept.code === 'new', 'share: an update keeps this profile\'s id, secret and allowed hosts');
+  const fresh = adopt({ shareId: id, code: 'new', touched: 9 }, null, { id: 'x', secret: 'y', position: 2 });
+  check(fresh.id === 'x' && fresh.secret === 'y' && fresh.connectAllow.length === 0, 'share: a new arrival gets its own id and secret, and no allowed hosts');
+
+  // Three profiles settle: each passes on until nobody has news.
+  const profiles = [{ items: [item('a', 5)], gone: {} }, { items: [item('b', 6)], gone: {} }, { items: [item('a', 8)], gone: {} }];
+  const apply = (t, s) => { const r = plan(t.items, t.gone, s); for (const { item: x, into } of r.put) { t.items = t.items.filter((i) => i !== into); t.items.push(adopt(x, into, { id: 'n' + x.shareId, secret: 'z', position: 1 })); } t.items = t.items.filter((i) => !r.remove.includes(i.id)); t.gone = r.gone; return r.newer; };
+  let rounds = 0;
+  for (let again = true; again && rounds < 10; rounds++) { again = false; for (const a of profiles) for (const b of profiles) if (a !== b) again = apply(b, send(a.items, a.gone)) || again; }
+  const sig = (t) => t.items.map((i) => i.code).sort().join();
+  check(rounds < 10 && sig(profiles[0]) === sig(profiles[1]) && sig(profiles[1]) === sig(profiles[2]) && sig(profiles[0]) === 'a8,b6', `share: three profiles settle on the same list in ${rounds} rounds (${sig(profiles[0])})`);
+}
 
 console.log(fail ? `${fail} failed` : 'all passed');
 process.exit(fail ? 1 : 0);

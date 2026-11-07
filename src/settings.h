@@ -26,6 +26,8 @@ struct Settings {
   bool pinned_centered = false;  // Centers a short last row.
   // The CDP port, on by default; the sidebar's CDP indicator opens or closes it live.
   bool cdp_enabled = true;
+  bool tweaks_shared = false;  // Site tweaks: every space gets the same scripts and styles (lib/share.js). Agents can't reach the extension while on.
+  bool cdp_win_off = false;  // Windows: agents were switched off once (State::Load). Stock CEF has no CDP token or space filter, so they're opt-in there.
   // Which Roar the bundled MCP server (roar-mcp.sh) drives: this one, or a hidden one on 9444.
   bool agent_headless = false;
   bool ask_default = true;  // Offers to become the default browser at launch until dismissed.
@@ -65,6 +67,8 @@ struct Settings {
   // Key default ids already offered to chat_providers; State::Load adds a newer one once, so removals stick.
   std::string chat_defaults_seen = "openai,anthropic,perplexity";
   std::string chat_model;
+  std::string chat_order;   // Settings > Model chat: provider ids in the order dragged there, a JSON list.
+  std::string chat_hidden;  // Provider ids removed there, a JSON list: built-ins stay offered under Add back.
   bool auto_name_tabs = false;  // New tabs get a short name from the chat_model once their first title loads (sidebar.html autoName).
   bool chat_search = false;  // New chats start with "Search the web" on; each chat keeps its own.
   bool auto_name_downloads = false;  // A finished download gets a name from the Ask default model (sidebar.html autoName).
@@ -138,6 +142,8 @@ inline const std::vector<SettingField>& SettingFields() {
       {"agentSection", &Settings::agent_section, true},
       // "cdpOpen", not 0.5.0's "cdpEnabled": that release saved false for everyone. Pages call it cdpEnabled.
       {"cdpOpen", &Settings::cdp_enabled, false},
+      {"cdpWinOff", &Settings::cdp_win_off, false},
+      {"tweaksShared", &Settings::tweaks_shared, true},
       {"agentHeadless", &Settings::agent_headless, true},
       {"askLlms", &Settings::ask_llms, true},
       {"autoNameDownloads", &Settings::auto_name_downloads, true},
@@ -148,6 +154,8 @@ inline const std::vector<SettingField>& SettingFields() {
       {"agentTerminal", &Settings::agent_terminal, true},
       {"chatProviders", &Settings::chat_providers, true},
       {"chatModel", &Settings::chat_model, true},
+      {"chatOrder", &Settings::chat_order, true},
+      {"chatHidden", &Settings::chat_hidden, true},
       {"autoNameTabs", &Settings::auto_name_tabs, true},
       {"chatDefaultsSeen", &Settings::chat_defaults_seen, false},
       {"chatSearch", &Settings::chat_search, true},

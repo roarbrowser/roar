@@ -1,0 +1,176 @@
+diff --git content/browser/devtools/devtools_agent_host_impl.cc content/browser/devtools/devtools_agent_host_impl.cc
+--- content/browser/devtools/devtools_agent_host_impl.cc
++++ content/browser/devtools/devtools_agent_host_impl.cc
+@@ -148,11 +148,21 @@
+   g_roar_target_filter = filter;
+ }
+ 
++// Roar: set by cef/libcef/browser/chrome/roar_devtools_filter.cc. Decides on a
++// service worker by its script URL and profile; without it, its profile.
++bool (*g_roar_worker_filter)(const std::string&, BrowserContext*) = nullptr;
++
++void RoarSetDevToolsWorkerFilter(bool (*filter)(const std::string&,
++                                                BrowserContext*)) {
++  g_roar_worker_filter = filter;
++}
++
+ // Roar: false hides |host| from Target.* and the HTTP endpoints. Hosts
+-// without a WebContents pass (service workers, so Roar's pipe reaches
+-// extension workers, and the browser target), except page workers: a
+-// dedicated worker follows the page that started it, and one with no known
+-// page, a shared worker or a worklet follows its profile.
++// without a WebContents pass (the browser target), except workers: a dedicated
++// worker follows the page that started it, and one with no known page, a
++// shared worker or a worklet follows its profile. A service worker follows the
++// worker filter: it holds its extension's powers over every page in the
++// profile. Roar's own pipe still reaches them (TargetHandler's RoarAllowed).
+ bool RoarDevToolsTargetAllowed(DevToolsAgentHost* host) {
+   WebContents* contents = host ? host->GetWebContents() : nullptr;
+   if (!contents && host && g_roar_target_filter) {
+@@ -163,6 +173,15 @@
+       return RoarDevToolsTargetAllowed(parent.get());
+     }
+     const std::string type = host->GetType();
++    if (type == DevToolsAgentHost::kTypeServiceWorker) {
++      BrowserContext* context = host->GetBrowserContext();
++      if (!context) {
++        return false;
++      }
++      return g_roar_worker_filter
++                 ? g_roar_worker_filter(host->GetURL().spec(), context)
++                 : g_roar_target_filter(nullptr, context);
++    }
+     if (type == DevToolsAgentHost::kTypeDedicatedWorker ||
+         type == DevToolsAgentHost::kTypeSharedWorker ||
+         type == DevToolsAgentHost::kTypeWorklet) {
+@@ -174,10 +193,10 @@
+          g_roar_target_filter(contents, contents->GetBrowserContext());
+ }
+ 
+-// Roar: detaches remote clients (HTTP/WebSocket, pipe, and their flattened
+-// Target sessions) from every target the filter now hides, e.g. after a
+-// space's agent access was switched off. CEF's own and DevTools window
+-// sessions stay. Call on the UI thread.
++// Roar: detaches remote clients (HTTP/WebSocket and their flattened Target
++// sessions) from every target the filter now hides, e.g. after a space's agent
++// access was switched off. Roar's pipe, CEF's own and DevTools window sessions
++// stay. Call on the UI thread.
+ void RoarDetachHiddenSessions() {
+   for (const auto& host : DevToolsAgentHost::GetOrCreateAll()) {
+     if (RoarDevToolsTargetAllowed(host.get())) {
+diff --git content/browser/devtools/devtools_pipe_handler.cc content/browser/devtools/devtools_pipe_handler.cc
+--- content/browser/devtools/devtools_pipe_handler.cc
++++ content/browser/devtools/devtools_pipe_handler.cc
+@@ -472,7 +472,8 @@
+ }
+ 
+ std::string DevToolsPipeHandler::GetTypeForMetrics() {
+-  return "RemoteDebugger";
++  // Roar: names Roar's own pipe, which outside clients can't open.
++  return "RoarPipe";
+ }
+ 
+ }  // namespace content
+diff --git content/browser/devtools/protocol/target_handler.cc content/browser/devtools/protocol/target_handler.cc
+--- content/browser/devtools/protocol/target_handler.cc
++++ content/browser/devtools/protocol/target_handler.cc
+@@ -48,10 +48,19 @@
+ 
+ namespace {
+ 
++// Roar: the filter, except that Roar's own pipe reaches every service worker
++// (extension badges, the site menu). Only workers: pages stay filtered for it.
++bool RoarAllowed(DevToolsSession* root, DevToolsAgentHost* host) {
++  return (host->GetType() == DevToolsAgentHost::kTypeServiceWorker &&
++          root->GetClient()->GetTypeForMetrics() == "RoarPipe") ||
++         RoarDevToolsTargetAllowed(host);
++}
++
+ // Roar: GetForId that treats a target the embedder hides as missing.
+-scoped_refptr<DevToolsAgentHost> RoarGetForId(const std::string& id) {
++scoped_refptr<DevToolsAgentHost> RoarGetForId(DevToolsSession* root,
++                                              const std::string& id) {
+   scoped_refptr<DevToolsAgentHost> host = DevToolsAgentHost::GetForId(id);
+-  return host && RoarDevToolsTargetAllowed(host.get()) ? host : nullptr;
++  return host && RoarAllowed(root, host.get()) ? host : nullptr;
+ }
+ 
+ constexpr net::NetworkTrafficAnnotationTag
+@@ -949,7 +958,8 @@
+     return false;
+   }
+   // Roar: only the browser target's auto-attach spans tabs.
+-  if (access_mode_ == AccessMode::kBrowser && !RoarDevToolsTargetAllowed(host)) {
++  if (access_mode_ == AccessMode::kBrowser &&
++      !RoarAllowed(root_session_, host)) {
+     return false;
+   }
+   if (auto_attached_sessions_.contains(host)) {
+@@ -1211,7 +1221,7 @@
+   }
+   // TODO(dgozman): only allow reported hosts.
+   scoped_refptr<DevToolsAgentHost> agent_host =
+-      RoarGetForId(target_id);
++      RoarGetForId(root_session_, target_id);
+   if (!agent_host) {
+     return Response::InvalidParams(kTargetNotFound);
+   }
+@@ -1280,8 +1290,12 @@
+     return Response::ServerError(kNotAllowedError);
+   }
+   // TODO(dgozman): only allow reported hosts.
++  // Roar: a session may always ask about its own target. Roar finds a hidden
++  // tab's profile this way, and no outside client holds that session.
+   scoped_refptr<DevToolsAgentHost> agent_host(
+-      RoarGetForId(target_id));
++      target_id == owner_target_id_
++          ? DevToolsAgentHost::GetForId(target_id)
++          : RoarGetForId(root_session_, target_id));
+   if (!agent_host) {
+     return Response::InvalidParams(kTargetNotFound);
+   }
+@@ -1295,7 +1309,7 @@
+   }
+   // TODO(dgozman): only allow reported hosts.
+   scoped_refptr<DevToolsAgentHost> agent_host(
+-      RoarGetForId(target_id));
++      RoarGetForId(root_session_, target_id));
+   if (!agent_host) {
+     return Response::InvalidParams(kTargetNotFound);
+   }
+@@ -1306,7 +1320,7 @@
+ Response TargetHandler::CloseTarget(const std::string& target_id,
+                                     bool* out_success) {
+   scoped_refptr<DevToolsAgentHost> agent_host =
+-      RoarGetForId(target_id);
++      RoarGetForId(root_session_, target_id);
+   if (!agent_host) {
+     return Response::InvalidParams(kTargetNotFound);
+   }
+@@ -1334,7 +1348,7 @@
+     return;
+   }
+   scoped_refptr<DevToolsAgentHost> agent_host =
+-      RoarGetForId(target_id);
++      RoarGetForId(root_session_, target_id);
+   if (!agent_host) {
+     callback->sendFailure(Response::InvalidParams(kTargetNotFound));
+     return;
+@@ -1471,7 +1485,7 @@
+   *target_infos = std::make_unique<protocol::Array<Target::TargetInfo>>();
+   for (const auto& host : DevToolsAgentHost::GetOrCreateAll()) {
+     if (effective_filter->Match(*host) &&
+-        RoarDevToolsTargetAllowed(host.get())) {
++        RoarAllowed(root_session_, host.get())) {
+ #if !BUILDFLAG(IS_ANDROID)
+       // Do not return initial WebUI as the DevTools targets.
+       // TODO(crbug.com/444358999): consider adding this into the `filter` when
+@@ -1496,7 +1510,7 @@
+   DCHECK(discover());
+   DCHECK(host);
+   if (!discover_target_filter_->Match(*host) ||
+-      !RoarDevToolsTargetAllowed(host)) {
++      !RoarAllowed(root_session_, host)) {
+     return;
+   }
+   // If we start discovering late, all existing agent hosts will be reported,

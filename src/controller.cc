@@ -9,6 +9,7 @@
 #include <sys/stat.h>
 #include "atomic_write.h"
 #include "download_name.h"
+#include "ext_copy.h"
 #include "ext_paths.h"
 #include "link_clean.h"
 #include "space_rules.h"
@@ -86,6 +87,15 @@ std::filesystem::path ClaudePagesDir() { return std::filesystem::temp_directory_
 constexpr int kGhostContext = -1;
 // A direct child of the root cache path, as Chrome-style CEF requires.
 std::string GhostDir(int session) { return State::Get().Dir() + "/Ghost-" + std::to_string(session); }
+
+// Deletes a throwaway profile's folder once Chromium has stopped writing to it. A profile rewrites its files for a
+// moment after its last page closes, sites' host names included, so a delete made while the page closes doesn't last.
+// Only the folder: calls on a ghost context after its last page closed crashed Roar (CLAUDE.local.md). The second
+// pass is for a slow close; launch catches anything left if Roar quits first.
+void RemoveProfileDirLater(const std::string& dir) {
+  for (int64_t ms : {5000, 30000})
+    CefPostDelayedTask(TID_FILE_USER_BLOCKING, base::BindOnce([](std::string d) { std::error_code ec; std::filesystem::remove_all(d, ec); }, dir), ms);
+}
 constexpr int kSidebarMin = 200;
 constexpr int kSidebarMax = 480;
 int SidebarWidth() {
@@ -271,6 +281,11 @@ class HiddenWindowDelegate : public CefWindowDelegate {
   CefRefPtr<CefBrowserView> view_;
   IMPLEMENT_REFCOUNTING(HiddenWindowDelegate);
 };
+
+// Pages closed to agents while Site tweaks are shared: the extension's own, and the ones that can open DevTools on it.
+bool TweaksGuarded(const std::string& url) {
+  return url.rfind(std::string("chrome-extension://") + kTweaksId + "/", 0) == 0 || url.rfind("chrome://extensions", 0) == 0 || url.rfind("devtools://", 0) == 0;
+}
 
 void SetUpSiteTweaks(CefRefPtr<CefRequestContext> ctx, bool ghost) {
   if (!ctx) return;
@@ -808,9 +823,13 @@ void ParseGmailFeed(const std::string& xml, GmailFeed& feed) {
   }
 }
 
-// Model chat's CLI children by browser (chat.cli), so a cancelled query can stop its process.
-std::vector<std::pair<int, int>>& ChatProcs() {
-  static std::vector<std::pair<int, int>> live;
+// One query from one page. A page can run several (the sidebar names things side by side), and cancelling one must
+// leave the rest running. Router query ids aren't unique across clients, so the browser is part of the key.
+using ChatQuery = std::pair<int, int64_t>;
+
+// Model chat's CLI children by query (chat.cli), so a cancelled query can stop its process.
+std::vector<std::pair<ChatQuery, int>>& ChatProcs() {
+  static std::vector<std::pair<ChatQuery, int>> live;
   return live;
 }
 
@@ -884,8 +903,8 @@ class ChatRequest : public CefURLRequestClient {
  public:
   ChatRequest(int browser_id, bool stream, CefRefPtr<CefMessageRouterBrowserSide::Callback> cb)
       : browser_id_(browser_id), stream_(stream), cb_(cb) {}
-  static std::vector<std::pair<int, CefRefPtr<CefURLRequest>>>& Live() {
-    static std::vector<std::pair<int, CefRefPtr<CefURLRequest>>> live;
+  static std::vector<std::pair<ChatQuery, CefRefPtr<CefURLRequest>>>& Live() {
+    static std::vector<std::pair<ChatQuery, CefRefPtr<CefURLRequest>>> live;
     return live;
   }
   void OnRequestComplete(CefRefPtr<CefURLRequest> request) override {
@@ -941,9 +960,7 @@ class SearchPageClient : public CefClient, public CefRenderHandler, public CefDi
   }
   void OnBeforeClose(CefRefPtr<CefBrowser>) override {
     browser_ = nullptr;
-    // The profile still writes for a moment after its page closes, so delete a little later. Only the folder:
-    // calls on a ghost context after its last page closed crashed Roar (CLAUDE.local.md). Launch catches strays.
-    CefPostDelayedTask(TID_FILE_USER_BLOCKING, base::BindOnce([](std::string d) { std::error_code ec; std::filesystem::remove_all(d, ec); }, dir_), 5000);
+    RemoveProfileDirLater(dir_);
   }
   void OnLoadingStateChange(CefRefPtr<CefBrowser> browser, bool loading, bool, bool) override {
     if (loading || done_) return;
@@ -1284,6 +1301,9 @@ static bool InCheckout() {
 void Controller::Start() {
   CEF_REQUIRE_UI_THREAD();
   client_ = new Client();
+  action_watch::OnShareSignal([](const std::string& ext, const std::string& session) {
+    if (ext == kTweaksId) Controller::Get()->TweaksShareFrom(session);
+  });
   action_watch::Start([](const std::string& json) { Controller::Get()->PushActions(json); });
   PollDriven();
   // Roar's CEF patch (scripts/cef-patches) routes CDP Target.createTarget here,
@@ -1305,10 +1325,17 @@ void Controller::Start() {
     if (auto set = reinterpret_cast<void (*)(Hook)>(sym("roar_set_create_target_hook")))
       set([](const char* url) { return Controller::Get()->OpenTargetTab(url); });
     cdp_http_ = reinterpret_cast<void (*)(int)>(sym("roar_devtools_http"));
+    cdp_detach_hidden_ = reinterpret_cast<void (*)()>(sym("roar_devtools_detach_hidden"));
+    if (!cdp_detach_hidden_) LOG(WARNING) << "CEF lacks roar_devtools_detach_hidden: agents off won't cut off attached agents";
     // Hides ghost tabs and spaces with agents off from CDP clients (scripts/cef-patches).
     using Filter = bool (*)(int, const char*);
     if (auto filter = reinterpret_cast<void (*)(Filter)>(sym("roar_set_devtools_target_filter")))
       filter([](int id, const char* path) { return Controller::Get()->AgentMayReach(id, path); });
+    // Service workers follow their profile the same way: each holds its extension's powers over the whole profile.
+    using WorkerFilter = bool (*)(const char*, const char*);
+    if (auto filter = reinterpret_cast<void (*)(WorkerFilter)>(sym("roar_set_devtools_worker_filter")))
+      filter([](const char* url, const char* path) { return Controller::Get()->AgentMayReachWorker(url, path); });
+    else LOG(WARNING) << "CEF lacks roar_set_devtools_worker_filter: agents off won't hide extension workers";
     // CDP HTTP and WebSocket clients must present this launch's token (scripts/cef-patches).
     if (auto set = reinterpret_cast<void (*)(const char*)>(sym("roar_set_devtools_token"))) set(cdp_token_.c_str());
 #ifndef _WIN32
@@ -1404,6 +1431,7 @@ void Controller::Start() {
   GitHubTick();
   GmailOpenTick();
   ClaudeTick();
+  ReportExtensionCopies();
   // MCP entries left pointing at a moved or older Roar are repointed here; none are added.
   if (!platform::Headless() && !InCheckout()) agents::RepairStale(platform::HomeDir(), platform::ResourcePath("roar-mcp"));
   platform::RoarMcp({"agent-hooks", "status"}, [this](const std::string& out) {
@@ -1546,7 +1574,7 @@ bool Controller::AgentConnected(const std::string& tool) const {
 }
 
 void Controller::CheckAgentHooks() {
-  static const std::map<std::string, std::string> kNames = {{"claude", "Claude Code"}, {"codex", "Codex"}, {"gemini", "Gemini CLI"}, {"qwen", "Qwen Code"}, {"copilot", "Copilot CLI"}};
+  static const std::map<std::string, std::string> kNames = {{"claude", "Claude Code"}, {"codex", "Codex"}, {"gemini", "Gemini CLI"}, {"qwen", "Qwen Code"}, {"copilot", "Copilot CLI"}, {"opencode", "OpenCode"}};
   if (hook_card_) ResolveAlert(std::exchange(hook_card_, 0), "");
   auto& set = State::Get().settings;
   // Onboarding has its own agent step; the warning waits until it's done.
@@ -1820,6 +1848,11 @@ bool Controller::AgentMayReach(int browser_id, const std::string& profile_path) 
     if ((t && StartsWith(t->url, "roar://")) || StartsWith(it->second->GetMainFrame()->GetURL().ToString(), "roar://"))
       return false;
   }
+  // Shared Site tweaks reach every space, so no agent may read or edit them, in a space it's allowed in or not.
+  if (it != browsers_.end() && State::Get().settings.tweaks_shared) {
+    Tab* t = FindTabByBrowser(it->second);
+    if ((t && TweaksGuarded(t->url)) || TweaksGuarded(it->second->GetMainFrame()->GetURL().ToString())) return false;
+  }
   // Decide by profile, which covers popups and pages Roar has not seen yet.
   // Ghost-<n> and anything unknown match no space and stay hidden.
   State& st = State::Get();
@@ -1827,6 +1860,28 @@ bool Controller::AgentMayReach(int browser_id, const std::string& profile_path) 
     if (profile_path == st.ProfileDir(sp.id)) return sp.agents;
   }
   return false;
+}
+
+bool Controller::AgentMayReachWorker(const std::string& url, const std::string& profile_path) {
+  if (State::Get().settings.tweaks_shared && StartsWith(url, std::string("chrome-extension://") + kTweaksId + "/")) return false;
+  return AgentMayReach(0, profile_path);
+}
+
+void Controller::TweaksShareFrom(const std::string& session) {
+  bool on = State::Get().settings.tweaks_shared;
+  action_watch::CallSession(session, std::string("roarShare('mode',") + (on ? "true" : "false") + ")", [this, on, session](std::string ok) {
+    if (!on || ok == "null") return;
+    action_watch::CallSession(session, "roarShare('snapshot')", [this, session](std::string snapshot) {
+      if (snapshot == "null") return;
+      for (const auto& other : action_watch::WorkerSessions(kTweaksId)) {
+        if (other == session) continue;
+        // A worker with news of its own answers with its snapshot, until nobody has any.
+        action_watch::CallSession(other, "roarShare('merge'," + snapshot + ")", [this, other](std::string r) {
+          if (r.find("\"newer\":true") != std::string::npos) TweaksShareFrom(other);
+        });
+      }
+    });
+  });
 }
 
 int Controller::SpaceOfProfile(CefRefPtr<CefBrowser> browser) {
@@ -2015,10 +2070,11 @@ void Controller::EndGhostSession() {
   if (it == contexts_.end()) return;
   contexts_.erase(it);
   ready_spaces_.erase(kGhostContext);
-  // Chromium may still hold files open; deleting on macOS unlinks them anyway,
-  // and launch removes any Ghost-* left behind.
+  // Now for the cookies and cache, which the open files keep only until they close (macOS unlinks them anyway).
+  // The tab is still closing here, so the profile writes its files back: delete again once it has stopped.
   std::error_code ec;
   std::filesystem::remove_all(GhostDir(ghost_session_), ec);
+  RemoveProfileDirLater(GhostDir(ghost_session_));
 }
 
 CefRefPtr<CefBrowserView> Controller::CreateTabView(const std::string& url, int space, bool ghost) {
@@ -2230,6 +2286,8 @@ void Controller::Navigate(int id, const std::string& url) {
   Tab* tab = FindTab(id);
   if (!tab || url.empty()) return;
   tab->url = url;
+  // A Roar page (reader mode) is privileged and hidden from agents: cut off any agent on this tab first.
+  if (StartsWith(url, "roar://") && cdp_detach_hidden_) cdp_detach_hidden_();
   if (auto browser = (tab->view ? tab->view->GetBrowser() : nullptr)) {
     browser->GetMainFrame()->LoadURL(url);
   } else if (!tab->window) {
@@ -2524,7 +2582,7 @@ void Controller::AgentStart(const std::string& dir, const std::string& prompt, s
   std::string tool = State::Get().settings.agent_tool;
   auto connected = [this](const std::string& t) { return agent_hooks_.find("\n" + t + " installed") != std::string::npos; };
   if (!connected(tool))
-    for (const char* t : {"claude", "codex", "gemini", "qwen", "copilot"})
+    for (const char* t : {"claude", "codex", "gemini", "qwen", "copilot", "opencode"})
       if (connected(t)) { tool = t; break; }
   platform::RoarMcp({"claude-ctl", "new", dir, prompt, tool},
                     [this, dir, tabs, open_view, done](const std::string& out) {
@@ -3030,7 +3088,13 @@ void Controller::CapDoneCard(int id) {
 void Controller::ClaudeAlert(CefRefPtr<CefDictionaryValue> d) {
   std::string id = d->GetString("id"), state = d->GetString("state");
   auto [it, fresh] = claude_states_.try_emplace(id, state);
-  if (fresh || it->second == state) return;
+  // Turns finished (the hook counts them): a quick one starts and ends between two reads, so the state never changes.
+  // Seen for the first time, only one just finished counts: a restart must not announce old sessions.
+  int turns = d->GetType("turns") == VTYPE_INT ? d->GetInt("turns") : 0;
+  auto [counted, first] = claude_turns_.try_emplace(id, turns);
+  bool quick = state == "idle" && (first ? turns > 0 && NowSeconds() - d->GetDouble("updated") / 1000 < 5 : turns > counted->second);
+  counted->second = turns;
+  if (!quick && (fresh || it->second == state)) return;
   it->second = state;
   // An agent whose turn ended and stays idle 2 minutes gets its pages closed (the roar-mcp connection named in
   // agent-mcp/<agent pid>.json); a new turn within the 2 minutes bumps the generation and keeps them.
@@ -3053,7 +3117,7 @@ void Controller::ClaudeAlert(CefRefPtr<CefDictionaryValue> d) {
   if (state != "idle" && state != "needs_you") return;
   NotifyPref pref = NotifyGet(set.notifications, state == "idle" ? "sessionDone" : "sessionNeeds");
   if (!set.claude_sidebar || !pref.on) return;
-  static const std::map<std::string, std::string> kNames = {{"codex", "Codex"}, {"gemini", "Gemini CLI"}, {"qwen", "Qwen Code"}, {"copilot", "Copilot CLI"}};
+  static const std::map<std::string, std::string> kNames = {{"codex", "Codex"}, {"gemini", "Gemini CLI"}, {"qwen", "Qwen Code"}, {"copilot", "Copilot CLI"}, {"opencode", "OpenCode"}};
   auto name = kNames.find(d->GetString("tool").ToString());
   std::string tool = name == kNames.end() ? std::string("Claude Code") : name->second;
   std::string title = d->GetString("project").ToString() + (state == "idle" ? " is done" : " needs you");
@@ -3163,6 +3227,7 @@ void Controller::ClaudeTick() {
     if (auto c = claude_cards_.find(it->first); c != claude_cards_.end()) { int card = c->second; claude_cards_.erase(c); ResolveAlert(card, ""); }
     claude_acked_.erase(it->first);
     claude_seen_.erase(it->first);
+    claude_turns_.erase(it->first);
     it = claude_states_.erase(it);
     SyncAlertBadge();
   }
@@ -3380,11 +3445,11 @@ void Controller::SaveToLibrary(bool read_later) {
   ShowHint(!added ? "Already saved" : read_later ? "Added to Read Later" : "Bookmarked");
 }
 
-// Extensions installed in the active space's profile, plus the bundled ones.
-std::string Controller::ExtensionsJson() {
+// Extensions installed in a space's profile, plus the bundled ones.
+std::string Controller::ExtensionsJson(int space, bool bundled) {
   namespace fs = std::filesystem;
   State& state = State::Get();
-  std::string profile = state.ProfileDir(state.active_space);
+  std::string profile = state.ProfileDir(space < 0 ? state.active_space : space);
   auto list = CefListValue::Create();
   auto add = [&](const std::string& id, const fs::path& dir) {
     auto manifest = ReadJsonFile((dir / "manifest.json").string());
@@ -3452,11 +3517,63 @@ std::string Controller::ExtensionsJson() {
       if (v.is_directory() && (newest.empty() || v.path() > newest)) newest = v.path();
     if (!newest.empty()) add(e.path().filename().string(), newest);
   }
-  add("", fs::path(state.Dir()) / "ubol");
-  add(kTweaksId, fs::path(state.Dir()) / "tweaks");  // Its manifest key fixes the id.
+  if (bundled) {
+    add("", fs::path(state.Dir()) / "ubol");
+    add(kTweaksId, fs::path(state.Dir()) / "tweaks");  // Its manifest key fixes the id.
+  }
   auto v = CefValue::Create();
   v->SetList(list);
   return CefWriteJSON(v, JSON_WRITER_DEFAULT).ToString();
+}
+
+std::string Controller::ExtensionSpacesJson() {
+  auto list = CefListValue::Create();
+  for (const Space& sp : State::Get().spaces) {
+    auto d = CefDictionaryValue::Create();
+    d->SetInt("id", sp.id);
+    d->SetString("name", sp.name);
+    d->SetValue("extensions", CefParseJSON(ExtensionsJson(sp.id, false), JSON_PARSER_RFC));
+    list->SetDictionary(list->GetSize(), d);
+  }
+  auto v = CefValue::Create();
+  v->SetList(list);
+  return CefWriteJSON(v, JSON_WRITER_DEFAULT).ToString();
+}
+
+void Controller::ReportExtensionCopies() {
+  namespace fs = std::filesystem;
+  State& state = State::Get();
+  auto results = ext_copy::TakeResults(backup::P(state.Dir()));
+  if (results.empty()) return;
+  // The space and the extension as the person knows them, not their folder and id.
+  std::map<std::string, std::string> spaces, names;
+  for (const Space& sp : state.spaces) {
+    spaces[fs::path(state.ProfileDir(sp.id)).filename().string()] = sp.name;
+    auto v = CefParseJSON(ExtensionsJson(sp.id, false), JSON_PARSER_RFC);
+    auto l = v ? v->GetList() : nullptr;
+    for (size_t i = 0; l && i < l->GetSize(); ++i) names[l->GetDictionary(i)->GetString("id")] = l->GetDictionary(i)->GetString("name");
+  }
+  auto name = [&](const std::string& id) { return names.count(id) ? names[id] : std::string("An extension"); };
+  int copied = 0;
+  std::string first, failed, partial;
+  for (const auto& r : results) {
+    const std::string where = spaces.count(r.job.to) ? spaces[r.job.to] : r.job.to;
+    if (!r.error.empty()) { failed += name(r.job.id) + " didn't reach " + where + ": " + r.error + ". "; continue; }
+    if (!copied++) first = name(r.job.id) + " to " + where;
+    if (r.note == "local") partial += name(r.job.id) + " also keeps data Roar can't copy, so you may need to sign in again in " + where + ". ";
+  }
+  AgentAlert a;
+  a.id = next_alert_id_++;
+  a.agent = "Roar";
+  a.level = "info";
+  a.title = !copied ? "Couldn't copy extensions" : copied == 1 ? "Copied " + first : "Copied " + std::to_string(copied) + " extensions";
+  a.body = failed + partial;
+  if (a.body.empty()) a.body = "They keep their data and sign-ins in the other space.";
+  a.choices = {"OK"};
+  a.time = NowSeconds();
+  a.on_answer = [](const std::string&) {};
+  agent_alerts_.push_back(a);
+  PushSidebar();
 }
 
 void Controller::RenameSpace(int id, const std::string& name) {
@@ -3485,6 +3602,7 @@ void Controller::RemoveSpace(int id) {
   state.groups.erase(std::remove_if(state.groups.begin(), state.groups.end(),
                                     [&](const TabGroup& g) { return g.space == id; }),
                      state.groups.end());
+  if (cdp_detach_hidden_) cdp_detach_hidden_();  // Popups of the space have no tab to archive; their profile now matches no space.
   PushSidebar();
   SaveSoon();
 }
@@ -4658,6 +4776,7 @@ void Controller::SuggestPageText(const std::string& q, CefRefPtr<CefListValue> l
 
 void Controller::ApplySettings(CefRefPtr<CefDictionaryValue> d) {
   Settings& s = State::Get().settings;
+  bool tweaks_were_shared = s.tweaks_shared;
   bool github_changed = false;
   for (const auto& f : SettingFields())
     if (f.ui && d->HasKey(f.key))
@@ -4675,6 +4794,11 @@ void Controller::ApplySettings(CefRefPtr<CefDictionaryValue> d) {
                             d->HasKey("autoUpdateDownloads") ? d->GetBool("autoUpdateDownloads") : platform::AutoUpdateDownloads());
   if (d->HasKey("dockBadge")) SyncAlertBadge();
   if (d->HasKey("dictation") && !s.dictation) DictationOff();
+  // Turned on: agents already on the extension go, then every worker shares. Off: each keeps the copy it has.
+  if (d->HasKey("tweaksShared") && d->GetBool("tweaksShared") != tweaks_were_shared) {
+    if (s.tweaks_shared && cdp_detach_hidden_) cdp_detach_hidden_();
+    for (const auto& w : action_watch::WorkerSessions(kTweaksId)) TweaksShareFrom(w);
+  }
   if (d->HasKey("cdpEnabled")) {
     s.cdp_enabled = d->GetBool("cdpEnabled");
     SetCdp(s.cdp_enabled);
@@ -4705,7 +4829,7 @@ void Controller::ApplySettings(CefRefPtr<CefDictionaryValue> d) {
 // ---------------------------------------------------------------------------
 // Message router
 
-bool Controller::HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> frame,
+bool Controller::HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> frame, int64_t query_id,
                              const std::string& request, CefRefPtr<Callback> callback) {
   auto parsed = CefParseJSON(request, JSON_PARSER_RFC);
   if (!parsed || parsed->GetType() != VTYPE_DICTIONARY) return false;
@@ -4983,6 +5107,16 @@ bool Controller::HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> 
   } else if (cmd == "tab.close") {
     CloseTab(int_arg("id"));
     callback->Success("");
+  } else if (cmd == "tabs.close") {
+    // Close all tabs on a sidebar header: pinned tabs stay and the rest can come back from Recently
+    // Closed. The active tab goes last, so its neighbours don't each wake just to be closed.
+    std::vector<int> ids;
+    if (auto list = msg->GetList("ids"))
+      for (size_t i = 0; i < list->GetSize(); ++i)
+        if (Tab* t = FindTab(list->GetInt(i)); t && !t->pinned) ids.push_back(t->id);
+    std::stable_partition(ids.begin(), ids.end(), [&](int id) { return id != win_->active_id; });
+    for (int id : ids) ArchiveTab(id);
+    callback->Success("");
   } else if (cmd == "newtab.used") {
     if (Tab* tab = FindTabByBrowser(browser); tab && tab->id == start_tab_.id) start_tab_ = {};
     callback->Success("");
@@ -5003,6 +5137,22 @@ bool Controller::HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> 
     PushSidebar();
     SaveSoon();
     callback->Success(std::to_string(g.id));
+  } else if (cmd == "group.order") {
+    // {id, tabs}: the group's tabs in this order, among the places they already hold. Any it doesn't name follow, as they were.
+    int id = int_arg("id");
+    std::map<int, size_t> rank;
+    if (auto list = msg->GetList("tabs"))
+      for (size_t i = 0; i < list->GetSize(); ++i) rank.emplace(list->GetInt(i), i);
+    std::vector<size_t> places;
+    std::vector<Tab> ordered;
+    for (size_t i = 0; id && i < tabs_.size(); ++i)
+      if (tabs_[i].group == id) places.push_back(i), ordered.push_back(tabs_[i]);
+    auto rank_of = [&](const Tab& t) { auto it = rank.find(t.id); return it == rank.end() ? rank.size() : it->second; };
+    std::stable_sort(ordered.begin(), ordered.end(), [&](const Tab& a, const Tab& b) { return rank_of(a) < rank_of(b); });
+    for (size_t i = 0; i < places.size(); ++i) tabs_[places[i]] = ordered[i];
+    PushSidebar();
+    SaveSoon();
+    callback->Success("");
   } else if (cmd == "group.update") {
     if (TabGroup* g = State::Get().FindGroup(int_arg("id"))) {
       if (msg->HasKey("name") && !msg->GetString("name").empty()) g->name = msg->GetString("name");
@@ -5322,6 +5472,8 @@ bool Controller::HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> 
     // Whether agents (CDP clients) may see and open this space's tabs.
     if (Space* sp = State::Get().FindSpace(int_arg("id"))) {
       sp->agents = msg->GetBool("on");
+      // The filter only hides targets; agents already attached must be cut off too.
+      if (!sp->agents && cdp_detach_hidden_) cdp_detach_hidden_();
       PushSidebar();
       SaveSoon();
     }
@@ -5435,6 +5587,22 @@ bool Controller::HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> 
     callback->Success(action_watch::StateJson());
   } else if (cmd == "extensions.list") {
     callback->Success(ExtensionsJson());
+  } else if (cmd == "extensions.spaces") {
+    callback->Success(ExtensionSpacesJson());
+  } else if (cmd == "extensions.copy") {
+    // Queued for the next launch (ext_copy.h): the page relaunches once this replies.
+    State& st = State::Get();
+    auto folder = [&](int space) { return std::filesystem::path(st.ProfileDir(space)).filename().string(); };
+    auto ids = msg->GetList("ids"), to = msg->GetList("to");
+    int from = int_arg("from");
+    std::vector<ext_copy::Job> jobs;
+    for (size_t i = 0; st.FindSpace(from) && ids && to && i < ids->GetSize(); ++i)
+      for (size_t k = 0; k < to->GetSize(); ++k)
+        if (st.FindSpace(to->GetInt(k))) jobs.push_back({ids->GetString(i), folder(from), folder(to->GetInt(k))});
+    std::erase_if(jobs, [](const ext_copy::Job& j) { return !ext_copy::Valid(j); });
+    if (jobs.empty()) return callback->Failure(0, "Pick an extension and a different space."), true;
+    if (!ext_copy::Queue(backup::P(st.Dir()), jobs)) return callback->Failure(0, "Couldn't save the copy."), true;
+    callback->Success(std::to_string(jobs.size()));
   } else if (cmd == "extensions.popup") {
     ShowExtensionPopup(msg->GetString("url"), int_arg("x"), int_arg("y"));
     callback->Success("");
@@ -5612,7 +5780,7 @@ bool Controller::HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> 
     // replies the per-tool status.
     bool on = msg->GetBool("on");
     std::string tool = msg->GetString("tool").ToString();
-    static const std::set<std::string> kTools = {"claude", "codex", "gemini", "qwen", "copilot"};
+    static const std::set<std::string> kTools = {"claude", "codex", "gemini", "qwen", "copilot", "opencode"};
     if (!tool.empty() && !kTools.count(tool)) return callback->Failure(0, "unknown tool"), true;
     std::vector<std::string> args = {"agent-hooks", on ? "install" : "uninstall"};
     // Turned off on purpose: don't bring these hooks back at the next launch.
@@ -5645,7 +5813,7 @@ bool Controller::HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> 
       if (msg->HasKey("scratch") && msg->GetBool("scratch")) return AgentScratch(text, tabs, false, reply), true;
       return AgentStart(msg->GetString("id").ToString(), text, tabs, false, reply), true;
     }
-    if (action == "tools") return platform::RoarMcp({"claude-ctl", "tools"}, [callback](const std::string& out) { callback->Success(out); }), true;
+    if (action == "tools" || action == "cmux" || action == "opencode-server") return platform::RoarMcp({"claude-ctl", action}, [callback](const std::string& out) { callback->Success(out); }), true;
     if (action != "focus" && action != "screen" && action != "send" && action != "chat" && action != "quit" && action != "resize" && action != "running" && action != "paste") return callback->Failure(0, "bad action"), true;
     std::vector<std::string> args = {"claude-ctl", action, msg->GetString("id").ToString()};
     if (action == "send" || action == "screen" || action == "resize" || action == "paste") args.push_back(msg->GetString("text").ToString());
@@ -5679,41 +5847,52 @@ bool Controller::HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> 
     });
   } else if (cmd == "chat.request") {
     // {provider, what: "models"|"chat", body}: see ChatRequest.
-    std::string id = msg->GetString("provider"), kind = "openai", base;
+    // what "opencode", {method, path, body}: one call to an OpenCode server (OpencodeCallAllowed).
+    std::string id = msg->GetString("provider"), kind = "openai", base, dir;
+    bool tools = false;
     if (auto list = CefParseJSON(State::Get().settings.chat_providers, JSON_PARSER_RFC); list && list->GetType() == VTYPE_LIST)
       for (size_t i = 0, n = list->GetList()->GetSize(); i < n; ++i)
         if (auto p = list->GetList()->GetDictionary(i); p && p->GetString("id") == id) {
           if (p->GetString("kind") == "anthropic") kind = "anthropic";
+          if (p->GetString("kind") == "opencode") kind = "opencode", tools = p->GetBool("tools"), dir = p->GetString("dir").ToString();
           base = p->GetString("url").ToString();
           while (!base.empty() && base.back() == '/') base.pop_back();
         }
-    std::string what = msg->GetString("what"), url = ChatEndpoint(kind, base, what);
+    std::string what = msg->GetString("what"), method = msg->GetString("method"), path = msg->GetString("path"), body = msg->GetString("body");
+    bool server = what == "opencode";
+    if (server && (kind != "opencode" || !OpencodeCallAllowed(method, path))) return callback->Failure(-1, "Not a call Model chat makes"), true;
+    // noTools: a one-off turn carrying page text, on a server whose chats may use tools. It can only ever take tools away.
+    if (server && path == "/api/session") body = OpencodeSessionBody(tools && !msg->GetBool("noTools"), dir);
+    std::string url = server && !base.empty() ? base + path : ChatEndpoint(kind, base, what);
     if (url.empty()) return callback->Failure(-1, "Unknown provider or URL"), true;
     auto http = CefRequest::Create();
     http->SetURL(url);
     http->SetFlags(UR_FLAG_DISABLE_CACHE);
     CefRequest::HeaderMap headers;
-    if (std::string key = platform::SecretGet(id); !key.empty() && ChatKeyAllowed(url)) {
-      if (kind == "anthropic") headers.insert({"x-api-key", key});
+    if (std::string key = platform::SecretGet(id); !key.empty() && (kind == "opencode" ? ChatServerAuthAllowed(url) : ChatKeyAllowed(url))) {
+      if (kind == "opencode") {
+        std::string login = "opencode:" + key;
+        headers.insert({"Authorization", "Basic " + CefBase64Encode(login.data(), login.size()).ToString()});
+      } else if (kind == "anthropic") headers.insert({"x-api-key", key});
       else headers.insert({"Authorization", "Bearer " + key});
     }
     if (kind == "anthropic") headers.insert({"anthropic-version", "2023-06-01"});
-    bool stream = what == "chat" || what == "responses";
-    if (stream) {
-      std::string body = msg->GetString("body");
+    bool stream = what == "chat" || what == "responses" || (server && path == "/api/event");
+    if (server && method != "GET") http->SetMethod(method);
+    if (!body.empty() && (what == "chat" || what == "responses" || server)) {
       auto post = CefPostData::Create();
       auto el = CefPostDataElement::Create();
       el->SetToBytes(body.size(), body.data());
       post->AddElement(el);
-      http->SetMethod("POST");
+      http->SetMethod(server ? method : "POST");
       http->SetPostData(post);
       headers.insert({"Content-Type", "application/json"});
-      headers.insert({"Accept", "text/event-stream"});
     }
+    if (stream) headers.insert({"Accept", "text/event-stream"});
     http->SetHeaderMap(headers);
     int bid = browser->GetIdentifier();
     auto req = CefURLRequest::Create(http, new ChatRequest(bid, stream, callback), CefRequestContext::GetGlobalContext());
-    ChatRequest::Live().push_back({bid, req});
+    ChatRequest::Live().push_back({{bid, query_id}, req});
   } else if (cmd == "chat.keys") {
     // Which providers have a key, never the keys.
     auto d = CefDictionaryValue::Create();
@@ -5773,7 +5952,12 @@ bool Controller::HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> 
     char real[PATH_MAX];
     std::string install = realpath(exe.c_str(), real) ? std::string(real) : exe;
     install = install.substr(0, install.rfind('/'));
-    args.insert(args.begin(), {"-p", CliSandboxProfile(cli, home, cwd, {exe.substr(0, exe.rfind('/')), install}), exe});
+    args.insert(args.begin(), exe);
+    if (auto env = CliChatEnv(cli); !env.empty()) {  // SpawnStream sets only PATH, so env goes through /usr/bin/env.
+      args.insert(args.begin(), env.begin(), env.end());
+      args.insert(args.begin(), "/usr/bin/env");
+    }
+    args.insert(args.begin(), {"-p", CliSandboxProfile(cli, home, cwd, {exe.substr(0, exe.rfind('/')), install})});
     dirs = exe.substr(0, exe.rfind('/'));  // Its own dir first: node-based CLIs find their node beside them.
     for (auto& d : ChatSearchDirs(home, path)) dirs += ":" + d;
     dirs += ":/usr/bin:/bin:/usr/sbin:/sbin";
@@ -5784,13 +5968,13 @@ bool Controller::HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> 
           *pending += chunk;
           if (std::string out = TakeCompleteUtf8(*pending); !out.empty()) callback->Success(out);
         },
-        [callback, pending, bid](int status, const std::string& err) {
+        [callback, pending, bid, query_id](int status, const std::string& err) {
           auto& live = ChatProcs();
-          live.erase(std::remove_if(live.begin(), live.end(), [&](auto& p) { return p.first == bid; }), live.end());
+          live.erase(std::remove_if(live.begin(), live.end(), [&](auto& p) { return p.first == ChatQuery{bid, query_id}; }), live.end());
           if (!pending->empty()) callback->Success(*pending);
           callback->Failure(status, status ? err.substr(err.size() > 2000 ? err.size() - 2000 : 0) : "");
         });
-    if (pid) ChatProcs().push_back({bid, pid});
+    if (pid) ChatProcs().push_back({{bid, query_id}, pid});
   } else if (cmd == "chat.login") {
     // {cli}: runs the CLI's own sign-in, which opens its sign-in page in the default browser and waits for
     // the callback on localhost. Not sandboxed: fixed argv, no page text, and it must listen and write its login.
@@ -6201,6 +6385,8 @@ void Controller::OnAddress(CefRefPtr<CefBrowser> browser, const std::string& url
   Tab* tab = FindTabByBrowser(browser);
   if (KeepAboveTabs(tab, IsUiBrowser(browser), url) && !IsExtensionPopup(browser))
     platform::KeepAbove(browser->GetHost()->GetWindowHandle());
+  // A page an agent is on can land on Site tweaks (a .user.js link opens its installer): AgentMayReach hides it, so cut it off.
+  if (State::Get().settings.tweaks_shared && TweaksGuarded(url) && cdp_detach_hidden_) cdp_detach_hidden_();
   // A window Chrome's UI opened outside Roar (an extension's chrome.tabs.create):
   // reopen its page as a Roar tab and close the stray window. Only its first
   // address decides. Pages a CDP client opened (Target.createTarget) must stay
@@ -6223,6 +6409,7 @@ void Controller::OnAddress(CefRefPtr<CefBrowser> browser, const std::string& url
     MediaWatcher::Attach(browser, &media_watchers_[browser->GetIdentifier()]);
   // A tab's own name (rename) stays across navigation until it is renamed or reset.
   tab->url = url;
+  if (StartsWith(url, "roar://") && cdp_detach_hidden_) cdp_detach_hidden_();  // Now privileged and hidden (Navigate).
   if (!tab->reader_origin.empty() && !StartsWith(url, kReaderUrl)) {
     tab->reader_origin.clear();
     tab->reader_markdown.clear();
@@ -6589,10 +6776,11 @@ bool Controller::OnKey(CefRefPtr<CefBrowser> browser, const CefKeyEvent& event) 
       case 0xBD: ZoomStep(-1); return true;  // -
     }
     if (key >= '1' && key <= '9') {
-      // Counts tabs in the active space only.
+      // Counts tabs in the active space only, and not pinned ones: those are a click away in the strip, so 1 is
+      // the first real tab.
       std::vector<int> ids;
       for (const auto& t : tabs_)
-        if (t.space == State::Get().active_space) ids.push_back(t.id);
+        if (t.space == State::Get().active_space && !t.pinned) ids.push_back(t.id);
       size_t i = key == '9' ? ids.size() - 1 : static_cast<size_t>(key - '1');
       if (i < ids.size()) ActivateTab(ids[i]);
       return true;
@@ -6832,12 +7020,13 @@ void Controller::OpenExternal(const std::string& url) {
 }  // namespace roar
 
 namespace roar {
-// The router canceled a page's query (Stop, or the page went away): drop its provider requests.
-void Controller::CancelChat(int browser_id) {
+// The router canceled a query (Stop, or the page went away, which cancels each of its queries): drop that one's work.
+void Controller::CancelChat(int browser_id, int64_t query_id) {
+  const ChatQuery query{browser_id, query_id};
   auto live = ChatRequest::Live();
-  for (auto& [bid, req] : live)
-    if (bid == browser_id) req->Cancel();
-  for (auto& [bid, pid] : ChatProcs())
-    if (bid == browser_id) platform::KillStream(pid);
+  for (auto& [q, req] : live)
+    if (q == query) req->Cancel();
+  for (auto& [q, pid] : ChatProcs())
+    if (q == query) platform::KillStream(pid);
 }
 }  // namespace roar

@@ -25,6 +25,10 @@ git fetch -q origin main
 git merge-base --is-ancestor origin/main HEAD || { echo "HEAD is not ahead of origin/main; rebase first (release.sh pushes HEAD to main)" >&2; exit 1; }
 [[ -z "$(git status --porcelain --untracked-files=no)" ]] || { echo "working tree dirty; commit first" >&2; exit 1; }
 git rev-parse -q --verify "refs/tags/$TAG" >/dev/null && { echo "$TAG already exists" >&2; exit 1; }
+# API-key notarization needs all three, checked before anything is edited or built.
+[[ -z ${ROAR_NOTARY_API_KEY:-} || ( -n ${ROAR_NOTARY_KEY_ID:-} && -n ${ROAR_NOTARY_ISSUER:-} && -f $ROAR_NOTARY_API_KEY ) ]] ||
+  { echo "release.sh: ROAR_NOTARY_API_KEY needs ROAR_NOTARY_KEY_ID, ROAR_NOTARY_ISSUER and an existing key file" >&2; exit 1; }
+[[ -z ${ROAR_SPARKLE_KEY_FILE:-} || -f $ROAR_SPARKLE_KEY_FILE ]] || { echo "release.sh: no ROAR_SPARKLE_KEY_FILE at $ROAR_SPARKLE_KEY_FILE" >&2; exit 1; }
 
 # Version lives in Info.plist.in. Sparkle compares the build number (CFBundleVersion against
 # sparkle:version), so it must rise with every release: major*10000 + minor*100 + patch (0.17.0 -> 1700).
@@ -80,12 +84,18 @@ for ARCH in "${ARCHES[@]}"; do
   fi
 
   # Notarize when the app carries a Developer ID signature and a notarytool keychain
-  # profile is named (xcrun notarytool store-credentials <name>; ROAR_NOTARY_PROFILE=<name>).
+  # profile is named (xcrun notarytool store-credentials <name>; ROAR_NOTARY_PROFILE=<name>),
+  # or an App Store Connect API key is given (ROAR_NOTARY_API_KEY=<.p8>, _KEY_ID, _ISSUER) for
+  # shells that can't reach the login keychain, such as SSH.
   # Read the signature once: under pipefail, `codesign | grep -q` fails whenever grep exits early.
   SIGN_ID="$(codesign -dvv "$APP" 2>&1 | sed -n 's/^Authority=\(Developer ID Application.*\)/\1/p' | head -1 || true)"
   if [[ -n "$SIGN_ID" && -n "${ROAR_NOTARY_PROFILE:-}" ]]; then
     codesign --force --timestamp --sign "$SIGN_ID" "$DMG"
-    xcrun notarytool submit "$DMG" --keychain-profile "$ROAR_NOTARY_PROFILE" --wait
+    if [[ -n ${ROAR_NOTARY_API_KEY:-} ]]; then
+      xcrun notarytool submit "$DMG" --key "$ROAR_NOTARY_API_KEY" --key-id "$ROAR_NOTARY_KEY_ID" --issuer "$ROAR_NOTARY_ISSUER" --wait
+    else
+      xcrun notarytool submit "$DMG" --keychain-profile "$ROAR_NOTARY_PROFILE" --wait
+    fi
     xcrun stapler staple "$DMG"
   else
     NOTARIZED=0
@@ -93,8 +103,9 @@ for ARCH in "${ARCHES[@]}"; do
   fi
   [[ $ARCH == arm64 ]] && SHA="$(shasum -a 256 "$DMG" | cut -d' ' -f1)"
 
-  # Sparkle appcast entry; sign_update reads the EdDSA private key from the login keychain.
-  SIG="$(third_party/Sparkle/bin/sign_update "$DMG")"   # sparkle:edSignature="..." length="..."
+  # Sparkle appcast entry; sign_update reads the EdDSA private key from the login keychain,
+  # or from ROAR_SPARKLE_KEY_FILE where the keychain is out of reach (SSH).
+  SIG="$(third_party/Sparkle/bin/sign_update ${ROAR_SPARKLE_KEY_FILE:+--ed-key-file "$ROAR_SPARKLE_KEY_FILE"} "$DMG")"   # sparkle:edSignature="..." length="..."
   ITEM="    <item>
       <title>$VERSION</title>
       <pubDate>$(LC_ALL=C date -u '+%a, %d %b %Y %H:%M:%S +0000')</pubDate>

@@ -1,7 +1,8 @@
 // Site tweaks' service worker: registers enabled scripts and styles with chrome.userScripts,
 // serves the GM_* calls that need the extension (values, requests, downloads, menus), checks
 // for updates, and answers Roar's site menu (globalThis.roarSite, called over DevTools).
-import { ITEM, VALUES, allItems, getSettings, setSettings, getValues, patchItem } from './lib/store.js';
+import { ITEM, VALUES, allItems, getSettings, setSettings, getValues, patchItem, newItemIds } from './lib/store.js';
+import { shareIdOf, snapshot, plan, adopt } from './lib/share.js';
 import { worldOf, parseMeta, compareVersions } from './lib/meta.js';
 import { nativeMatches, compileMatcher, testMatcher, connectAllowed } from './lib/match.js';
 import { nativeStyleMatches, parseUserCSS, cssFor } from './lib/usercss.js';
@@ -52,6 +53,57 @@ function sync() {
   });
 }
 
+// ---- Across spaces (lib/share.js) ----
+
+// Roar reads this line over its pipe, then asks for a snapshot; whether sharing is on is Roar's setting, not ours.
+const GONE = 'shareGone', applied = new Set();
+let shareTimer = 0;
+const shareSignal = () => { clearTimeout(shareTimer); shareTimer = setTimeout(() => console.debug('__roar_tweaks_share__'), 400); };
+const getGone = async () => (await chrome.storage.local.get(GONE))[GONE] || {};
+// A change made here goes to the other spaces, and a deletion is remembered. What a merge wrote came from them.
+function shareNote(ch) {
+  let mine = false;
+  const dropped = {};
+  for (const [k, c] of Object.entries(ch)) {
+    if (!k.startsWith(ITEM)) continue;
+    if (applied.delete(k)) continue;
+    mine = true;
+    if (!c.newValue && c.oldValue) dropped[shareIdOf(c.oldValue)] = Date.now();
+  }
+  if (!mine) return;
+  serial(async () => {
+    if ((await getSettings()).shared && Object.keys(dropped).length) await chrome.storage.local.set({ [GONE]: { ...(await getGone()), ...dropped } });
+    shareSignal();
+  });
+}
+// Called by Roar over DevTools. what: "mode" (on), "snapshot", "merge" (a snapshot) -> { newer }.
+globalThis.roarShare = (what, arg) => new Promise((ok, fail) => serial(async () => {
+  try {
+    if (what === 'mode') {
+      if ((await getSettings()).shared !== arg) await chrome.storage.local.set({ settings: { ...(await getSettings()), shared: arg }, ...(arg ? {} : { [GONE]: {} }) });
+      return ok(true);
+    }
+    if (what === 'snapshot') {
+      // Named once, so a later rename stays the same item everywhere.
+      const items = await allItems(), named = {};
+      for (const it of items) if (!it.shareId) { applied.add(ITEM + it.id); named[ITEM + it.id] = { ...it, shareId: shareIdOf(it) }; }
+      if (Object.keys(named).length) await chrome.storage.local.set(named);
+      return ok(snapshot(items, await getGone()));
+    }
+    const local = await allItems(), p = plan(local, await getGone(), arg), write = { [GONE]: p.gone };
+    for (const { item, into } of p.put) {
+      const it = adopt(item, into, newItemIds());
+      applied.add(ITEM + it.id);
+      write[ITEM + it.id] = it;
+    }
+    for (const id of p.remove) applied.add(ITEM + id);
+    await chrome.storage.local.set(write);
+    if (p.remove.length) await chrome.storage.local.remove(p.remove.flatMap((id) => [ITEM + id, VALUES + id]));
+    ok({ newer: p.newer });
+  } catch (e) { fail(e); }
+}));
+shareSignal();  // A worker that just started catches up.
+
 // A value change only refreshes that script's snapshot of its values.
 const refreshing = new Set();
 function refreshValues(id) {
@@ -77,6 +129,7 @@ function broadcastStyle(id, sections) {
 chrome.storage.onChanged.addListener(async (ch, area) => {
   if (area !== 'local') return;
   const keys = Object.keys(ch);
+  shareNote(ch);
   if (!keys.some((k) => k.startsWith(ITEM) || k === 'settings')) {
     for (const k of keys) if (k.startsWith(VALUES) && !ownWrites.delete(k)) externalValues(k.slice(VALUES.length), ch[k]);
     return;

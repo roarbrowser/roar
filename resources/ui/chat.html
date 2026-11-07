@@ -16,6 +16,8 @@ select { font: 13px var(--ui); padding: 5px 9px; border-radius: 7px; border: 1px
 .msg.user { align-self: flex-end; background: var(--mane-soft); border-bottom-right-radius: 4px; white-space: pre-wrap; }
 .msg.assistant { align-self: flex-start; background: var(--ground); border-bottom-left-radius: 4px; }
 .msg.error { color: var(--danger); }
+.ask-ok { align-self: flex-start; max-width: min(760px, 88%); padding: 10px 14px; border-radius: 14px; background: var(--mane-soft); overflow-wrap: anywhere; }
+.ask-ok p { margin: 0 0 8px; } .ask-ok button { margin-right: 6px; padding: 4px 12px; border-radius: 999px; font: inherit; background: var(--ground); color: var(--ink); }
 .msg > :first-child { margin-top: 0; } .msg > :last-child { margin-bottom: 0; }
 .msg p { margin: 0 0 8px; } .msg ul, .msg ol { margin: 0 0 8px; padding-left: 22px; }
 .msg blockquote { margin: 0 0 8px; padding-left: 10px; border-left: 3px solid var(--rule); color: var(--ink-2); }
@@ -92,7 +94,7 @@ textarea { flex: 1; resize: none; border: 0; background: none; color: var(--ink)
 const $ = (id) => document.getElementById(id);
 $('mic').replaceWith(dictMic($('text')));
 textSize($('tsize'), (s) => document.body.style.setProperty('--ai-zoom', s));
-const { defaultModel, SEARCH_SYSTEM, searchMode, openRequest, addSources, CLI_PROVIDERS, signedOutError, pageRefusal, cliPrompt, cliParser, parseProviders, sseParser, streamDelta, requestBody, detectProviders, renderMarkdown } = chatCore;
+const { chatList, chatOrdered, modelLabel, opencodeEvents, defaultModel, SEARCH_SYSTEM, searchMode, openRequest, addSources, CLI_PROVIDERS, signedOutError, pageRefusal, cliPrompt, cliParser, parseProviders, sseParser, streamDelta, requestBody, detectProviders, renderMarkdown } = chatCore;
 let providers = [], chats = [], chat = null, streaming = null, webTab = null, page = null, searchDefault = false;
 
 // Re-read first: another chat tab or the sidebar (delete) may have changed the list since this page loaded.
@@ -103,6 +105,7 @@ const saveChats = () => ask({ cmd: 'chat.history' }).then((all) => {
 // Who the sidebar row says this chat is with: an AGENT_TOOLS key for the icon (sidebar falls back to a bubble) and a name.
 const brandOf = (p) => {
   if (p.kind === 'cli') return { brand: p.cli, brandName: p.account };
+  if (p.kind === 'opencode') return { brand: 'opencode', brandName: p.name };
   if (p.kind === 'anthropic') return { brand: 'claude', brandName: 'Claude' };
   const s = (p.name + ' ' + p.url).toLowerCase();
   return /gemini|googleapis/.test(s) ? { brand: 'gemini', brandName: p.name } : /qwen/.test(s) ? { brand: 'qwen', brandName: p.name } : { brand: 'model', brandName: p.name };
@@ -155,10 +158,10 @@ function show(c) {
 // Models: only from providers detected now (a server that answers, or an API with a Keychain key), through
 // Roar, which adds the key. Detected providers come first.
 async function loadModels(st) {
-  providers = [...parseProviders(st.settings.chatProviders), ...CLI_PROVIDERS];
-  const all = await detectProviders(providers, ask), found = all.filter((p) => p.models.length);
+  providers = chatList(st.settings);
+  const all = chatOrdered(await detectProviders(providers, ask), st.settings), found = all.filter((p) => p.models.length);
   const sel = $('model'), want = chat?.model || st.settings.chatModel;
-  sel.innerHTML = found.map((p) => `<optgroup label="${esc(p.kind === 'cli' ? p.name + ' (your subscription)' : p.name)}">${p.models.map((m) => `<option value="${esc(p.id + '|' + m)}">${esc(m)}</option>`).join('')}</optgroup>`).join('');
+  sel.innerHTML = found.map((p) => `<optgroup label="${esc(p.kind === 'cli' ? p.name + ' (your subscription)' : p.name)}">${p.models.map((m) => `<option value="${esc(p.id + '|' + m)}">${esc(modelLabel(p, m))}</option>`).join('')}</optgroup>`).join('');
   if (!sel.options.length) sel.innerHTML = '<option value="">No models found</option>';
   if (sel.options[0].value) sel.value = defaultModel(found, want);
   sel.disabled = !sel.options[0].value;
@@ -259,16 +262,53 @@ async function send() {
 // once to open one of its search results, and only a link Roar returned (chat.search checks).
 function run(p, model, mode, user, mayOpen) {
   const reply = { role: 'assistant', text: '' };
-  const cli = p.kind === 'cli', kind = mode === 'responses' ? 'responses' : p.kind;
+  const cli = p.kind === 'cli', oc = p.kind === 'opencode', kind = mode === 'responses' ? 'responses' : p.kind;
+  // OpenCode: the server's event stream carries the reply, so it opens first; the prompt goes once it's connected.
+  let sid = '', ended = false;
+  const events = oc && opencodeEvents(() => sid);
+  const call = (method, path, body) => ask({ cmd: 'chat.request', provider: p.id, what: 'opencode', method, path, ...(body && { body: JSON.stringify(body) }) });
+  const startTurn = async () => {
+    try {
+      // With tools the session is the agent's work, kept for the next turn. Without, each turn is a fresh session holding the whole chat.
+      let keep = p.tools && chat.oc?.provider === p.id ? chat.oc.session : '';
+      for (;;) {
+        if (!keep) {
+          const made = await call('POST', '/api/session');
+          const info = typeof made === 'string' ? JSON.parse(made) : made;
+          sid = info?.data?.id || info?.id;
+          if (!sid) throw new Error('the server made no session');
+          if (p.tools) chat.oc = { provider: p.id, session: sid };
+        } else sid = keep;
+        try { await call('POST', `/api/session/${sid}/prompt`, { text: keep ? user.text : cliPrompt(chat.messages) }); return; }
+        catch (e) { if (!keep) throw e; keep = ''; chat.oc = null; }  // Deleted on the server: start again.
+      }
+    } catch (e) {
+      if (streaming?.qid) window.roarQueryCancel(streaming.qid);
+      finish(`Couldn't reach ${p.name}: ${e.message}`);
+    }
+  };
+  // Its agent stopped to ask: the rule on the server said so. Nothing runs until this is answered.
+  const askOk = (q) => {
+    const card = Object.assign(document.createElement('div'), { className: 'ask-ok' });
+    card.append(Object.assign(document.createElement('p'), { textContent: `${p.name} asks to run ${q.text}` }));
+    for (const [label, decision] of [['Allow once', 'once'], ['Always allow', 'always'], ['Deny', 'reject']]) {
+      const b = Object.assign(document.createElement('button'), { type: 'button', textContent: label });
+      b.onclick = () => { card.remove(); call('POST', `/api/session/${q.session}/permission/${q.id}/reply`, { decision }).catch((e) => note(e.message)); };
+      card.append(b);
+    }
+    $('log').append(card);
+    $('log').scrollTop = $('log').scrollHeight;
+  };
   const local = chat.messages.some((m) => m.search);
-  const request = cli
+  const request = oc ? { cmd: 'chat.request', provider: p.id, what: 'opencode', method: 'GET', path: '/api/event' }
+    : cli
     ? { cmd: 'chat.cli', cli: p.cli, model, prompt: cliPrompt(chat.messages) }
     : { cmd: 'chat.request', provider: p.id, what: kind === 'responses' ? 'responses' : 'chat',
         body: JSON.stringify(requestBody(kind, model, chat.messages, local && kind !== 'anthropic' ? SEARCH_SYSTEM : '', mode === 'anthropic')) };
   chat.messages.push(reply);
   renderLog();
   const el = $('log').lastElementChild, sse = sseParser(), lines = cli && cliParser(p.cli);
-  const feed = (chunk) => cli ? lines(chunk) : sse(chunk).map((d) => streamDelta(kind, d));
+  const feed = (chunk) => cli ? lines(chunk) : sse(chunk).map((d) => (oc ? events(d) : streamDelta(kind, d)));
   el.classList.add('cursor');
   $('log').setAttribute('aria-busy', 'true');
   $('send').textContent = 'Stop'; $('send').classList.add('stop'); $('send').setAttribute('aria-label', 'Stop');
@@ -277,6 +317,13 @@ function run(p, model, mode, user, mayOpen) {
   const finish = async (err) => {
     if (!streaming) return;
     streaming = null;
+    if (oc) {
+      note('');
+      reply.text = reply.text.trim();
+      for (const c of $('log').querySelectorAll('.ask-ok')) c.remove();
+      const stopping = sid && !ended ? call('POST', `/api/session/${sid}/interrupt`).catch(() => {}) : null;
+      if (sid && !p.tools) Promise.resolve(stopping).then(() => call('DELETE', `/api/session/${sid}`)).catch(() => {});
+    }
     if (err) { reply.text = (reply.text ? reply.text + '\n\n' : '') + err; reply.error = !reply.text || reply.text === err; if (cli && signedOutError(p.cli, err)) reply.signin = p.cli; }
     const want = !err && user.search && openRequest(reply.text);
     if (want && mayOpen) {
@@ -315,7 +362,12 @@ function run(p, model, mode, user, mayOpen) {
       for (const d of feed(chunk)) {
         if (d.text) reply.text += d.text;
         if (d.sources) addSources(reply, d);
-        if (d.error) return finish('Error: ' + d.error);
+        if (d.error) { if (oc) { ended = true; window.roarQueryCancel(qid); } return finish('Error: ' + d.error); }
+        if (d.connected) startTurn();
+        if (d.permission) askOk(d.permission);
+        if (d.form) note(`${p.name} is asking ${d.form}. Roar can't show that here, so answer it in an OpenCode terminal.`);
+        if (d.tool) note(`Using ${d.tool}…`);
+        if (d.done) { ended = true; window.roarQueryCancel(qid); return finish(''); }
       }
       if (!raf) raf = requestAnimationFrame(paint);
     },
@@ -360,6 +412,9 @@ $('log').addEventListener('click', (e) => {
 });
 
 (async () => {
+  // #ask=<tab id>: opened by "Ask a model about this page" (⌘T with Model chat chosen); attach that tab, never another.
+  const askId = /^#ask=(\d+)$/.exec(location.hash)?.[1];
+  if (askId) history.replaceState(null, '', location.href.split('#')[0]);
   try { chats = await ask({ cmd: 'chat.history' }); } catch { chats = []; }
   if (!Array.isArray(chats)) chats = [];
   show(chats.find((c) => c.id === location.hash.slice(1)) || newChat());
@@ -370,7 +425,18 @@ $('log').addEventListener('click', (e) => {
   if (!chat.messages.length) chat.search = searchDefault;
   pickWebTab(st);
   $('model').innerHTML = '<option value="">Looking for models…</option>';
-  loadModels(st);  // Detection runs in the background; the page is usable meanwhile.
+  const asked = askId && st.tabs.find((t) => t.id === +askId);
+  if (askId && (!asked || asked.ghost || !/^https?:/.test(asked.url || ''))) note(asked?.ghost ? 'Ghost tabs stay private' : 'Open a web page first');
+  // Detection runs in the background; the page is usable meanwhile.
+  loadModels(st).then(() => {
+    if (!askId) return;
+    $('text').focus();
+    if (!asked || asked.ghost || !/^https?:/.test(asked.url || '')) return;
+    webTab = asked;
+    paintAttach();
+    if (!$('attach').disabled) $('attach').click();
+    else if (pageRefusal(picked())) note(pageRefusal(picked()));
+  });
   // Tabs change while the chat is open; keep "Include this tab" pointing at the latest one.
   setInterval(() => ask({ cmd: 'state' }).then((x) => pickWebTab(typeof x === 'string' ? JSON.parse(x) : x)).catch(() => {}), 5000);
 })();

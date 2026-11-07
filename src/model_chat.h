@@ -1,6 +1,7 @@
 // Model chat's native helpers. Header-only and CEF-free so tests/model_chat_test.cc checks them standalone.
 #pragma once
 
+#include <cstdio>
 #include <algorithm>
 #include <cctype>
 #include <cstdlib>
@@ -34,7 +35,7 @@ inline std::string TakeCompleteUtf8(std::string& buf) {
 // The URL a provider request goes to, or "" when it isn't one Roar allows. `what` is "models" or "chat".
 inline std::string ChatEndpoint(const std::string& kind, const std::string& base, const std::string& what) {
   if (base.rfind("http://", 0) != 0 && base.rfind("https://", 0) != 0) return "";
-  if (what == "models") return base + "/models";
+  if (what == "models") return base + (kind == "opencode" ? "/api/session?limit=1" : "/models");
   if (what == "chat") return base + (kind == "anthropic" ? "/messages" : "/chat/completions");
   if (what == "responses" && kind != "anthropic") return base + "/responses";  // OpenAI's web search lives here.
   return "";
@@ -72,12 +73,62 @@ inline bool ChatKeyAllowed(const std::string& url) {
   return false;
 }
 
+// Whether an OpenCode server's password may go to `url`: as for a key, or over plain HTTP to a private network, where
+// these servers usually sit (`opencode serve` has no TLS). Settings says it isn't encrypted there.
+inline bool ChatServerAuthAllowed(const std::string& url) {
+  if (ChatKeyAllowed(url)) return true;
+  if (url.rfind("http://", 0) != 0) return false;
+  std::string host = url.substr(7, url.find_first_of(":/?#", 7) - 7);
+  if (host.find('@') != std::string::npos) return false;
+  auto ends = [&](const char* s) { std::string e = s; return host.size() > e.size() && host.compare(host.size() - e.size(), e.size(), e) == 0; };
+  if (ends(".local") || ends(".lan")) return true;
+  int a = -1, b = -1, c = -1, d = -1, used = 0;
+  if (std::sscanf(host.c_str(), "%d.%d.%d.%d%n", &a, &b, &c, &d, &used) != 4 || used != static_cast<int>(host.size())) return false;
+  return a == 10 || (a == 192 && b == 168) || (a == 172 && b >= 16 && b <= 31) || (a == 100 && b >= 64 && b <= 127);  // The last: Tailscale.
+}
+
+// The only calls Model chat makes to an OpenCode server. It's the user's agent, with their tools: nothing else goes through.
+inline bool OpencodeCallAllowed(const std::string& method, const std::string& path) {
+  if (path == "/api/event") return method == "GET";
+  if (path == "/api/session") return method == "POST";
+  std::vector<std::string> p;
+  for (size_t a = 1, b; a <= path.size(); a = b + 1) {
+    b = path.find('/', a);
+    if (b == std::string::npos) b = path.size();
+    p.push_back(path.substr(a, b - a));
+  }
+  auto id = [](const std::string& s) {
+    return !s.empty() && std::all_of(s.begin(), s.end(), [](unsigned char c) { return std::isalnum(c) || c == '_' || c == '-'; });
+  };
+  if (path.empty() || path[0] != '/' || p.size() < 3 || p[0] != "api" || p[1] != "session" || !id(p[2])) return false;
+  if (p.size() == 3) return method == "DELETE";
+  if (p.size() == 4) return method == "POST" && (p[3] == "prompt" || p[3] == "interrupt");
+  return p.size() == 6 && method == "POST" && p[3] == "permission" && id(p[4]) && p[5] == "reply";
+}
+
+// A new session on an OpenCode server. Written here, never by the page: with tools off the server itself offers the
+// model no tools, whatever its config or agents allow. The title saves a model call to name it.
+inline std::string OpencodeSessionBody(bool tools, const std::string& dir) {
+  std::string body = R"({"title":"Roar Ask")";
+  if (!tools) body += R"(,"permissions":[{"action":"*","resource":"*","effect":"deny"}])";
+  if (tools && !dir.empty()) {
+    std::string q;
+    for (char c : dir) {
+      if (static_cast<unsigned char>(c) < 0x20) continue;
+      if (c == '"' || c == '\\') q += '\\';
+      q += c;
+    }
+    body += R"(,"location":{"directory":")" + q + "\"}";
+  }
+  return body + "}";
+}
+
 // Where a GUI-launched Roar looks for CLIs: a Finder or LaunchAgent launch gets a short $PATH, so the
 // usual install dirs (Homebrew, ~/.local/bin, npm, fnm, nvm, Volta and pnpm globals, mise and asdf shims) are always searched too.
 inline std::vector<std::string> ChatSearchDirs(const std::string& home, const std::string& path) {
   std::vector<std::string> dirs = {"/opt/homebrew/bin", "/usr/local/bin", home + "/.local/bin", home + "/.claude/local",
                                    home + "/.npm-global/bin", home + "/.local/share/fnm/aliases/default/bin", home + "/.bun/bin",
-                                   home + "/.volta/bin", home + "/Library/pnpm", home + "/.local/share/mise/shims", home + "/.asdf/shims"};
+                                   home + "/.volta/bin", home + "/Library/pnpm", home + "/.opencode/bin", home + "/.local/share/mise/shims", home + "/.asdf/shims"};
   // nvm keeps one dir per Node version; newest first, as a shell with nvm's default would mostly pick.
   std::error_code ec;
   std::vector<std::string> nvm;
@@ -119,7 +170,7 @@ inline std::map<std::string, bool> InstalledChatApps(const std::string& home, co
 // Agent CLIs model chat runs one-shot on the user's own login (chat.cli). Each gets the conversation on
 // stdin and runs in an empty scratch folder with its tools off or read-only, so it only answers.
 inline const std::vector<std::string>& ChatClis() {
-  static const std::vector<std::string> clis = {"claude", "codex", "gemini", "qwen"};
+  static const std::vector<std::string> clis = {"claude", "codex", "gemini", "qwen", "opencode"};
   return clis;
 }
 
@@ -170,12 +221,29 @@ inline std::vector<std::string> CliChatArgs(const std::string& cli, const std::s
          "--extensions", "none", "--allowed-mcp-server-names", "roar-none"};
   } else if (cli == "qwen")
     a = {"--approval-mode", "plan"};  // Plain text output: its stream-json differs across versions.
+  else if (cli == "opencode")
+    // --standalone: a private server inside the sandbox, not the background service outside it.
+    // roar-chat: the agent CliChatEnv defines, whose own deny-all rules come after any in the user's config.
+    a = {"run", "--standalone", "--format", "json", "--agent", "roar-chat"};
   else
     return {};
   if (pick) a.insert(a.end(), {"--model", model});
   if (cli == "codex") a.push_back("-");  // Read the prompt from stdin.
   if (cli == "gemini" || cli == "qwen") a.insert(a.end(), {"-p", "Answer the conversation above."});  // Appended to stdin.
   return a;
+}
+
+// Environment entries ("K=V") a chat turn sets for `cli`, put in front of it through /usr/bin/env.
+// opencode (2.x): inline config, its last config layer, denies every tool (v2 `permissions` and the older
+// keys) and defines the roar-chat agent. Rules match last-wins, and an agent's own rules come after the
+// config's, so a user's agent-level allow on build would beat a global deny: hence a fresh agent. Its
+// `skill` tool stays listed but denied. No sharing, no git snapshots.
+inline std::vector<std::string> CliChatEnv(const std::string& cli) {
+  if (cli == "opencode")
+    return {R"(OPENCODE_CONFIG_CONTENT={"permissions":[{"action":"*","resource":"*","effect":"deny"}],"tools":{"*":false},"permission":{"*":"deny"},)"
+            R"("agents":{"roar-chat":{"mode":"primary","description":"Roar chat panel: answers only, no tools","permissions":[{"action":"*","resource":"*","effect":"deny"}]}},)"
+            R"("share":"disabled","autoupdate":false,"snapshot":false})"};
+  return {};
 }
 
 // argv after the executable for a CLI's own browser sign-in (chat.login), or {} when it has none.
@@ -197,7 +265,9 @@ inline std::string CliSandboxProfile(const std::string& cli, const std::string& 
     return o + "\"";
   };
   std::string conf = cli == "claude" ? "(prefix " + q(home + "/.claude") + ")"  // ~/.claude and ~/.claude.json*
-                                     : "(subpath " + q(home + "/." + cli) + ")";
+                     : cli == "opencode" ? "(subpath " + q(home + "/.config/opencode") + ") (subpath " + q(home + "/.local/share/opencode") +
+                                               ") (subpath " + q(home + "/.cache/opencode") + ") (subpath " + q(home + "/.local/state/opencode") + ")"
+                                         : "(subpath " + q(home + "/." + cli) + ")";
   std::string p = "(version 1)\n(allow default)\n(deny file-read-data file-write* (subpath \"/\"))\n(allow file-read-data (literal \"/\")";
   for (const char* d : {"/usr", "/bin", "/sbin", "/System", "/Library", "/private/etc", "/private/var/db", "/opt/homebrew"})
     p += " (subpath " + q(d) + ")";
@@ -211,6 +281,11 @@ inline std::string CliSandboxProfile(const std::string& cli, const std::string& 
   p += ")\n(allow file-read-data file-write* (subpath " + q(scratch) + ") " + conf +
        " (subpath \"/private/tmp\") (subpath \"/private/var/folders\") (subpath \"/dev\"))\n";
   p += "(deny network*)\n(allow network-outbound (remote tcp \"*:443\") (remote unix-socket (path-literal \"/private/var/run/mDNSResponder\")))\n";
+  // opencode talks to its own private server on localhost, and often to a local model server (Ollama, LM Studio...).
+  // Not its background service's password file: that service runs outside the sandbox with the user's tools.
+  if (cli == "opencode")
+    p += "(allow network-bind network-inbound (local ip \"localhost:*\"))\n(allow network-outbound (remote ip \"localhost:*\"))\n"
+         "(deny file-read-data (literal " + q(home + "/.config/opencode/service.json") + "))\n";
   return p;
 }
 
@@ -227,6 +302,9 @@ inline std::string CliChatStatus(const std::string& cli, const std::string& foun
   else if (cli == "codex") in = env("OPENAI_API_KEY") || exists(home + "/.codex/auth.json");
   else if (cli == "gemini") in = env("GEMINI_API_KEY") || exists(home + "/.gemini/oauth_creds.json") || exists(home + "/.gemini/gemini-credentials.json") || exists(home + "/.gemini/google_accounts.json");
   else if (cli == "qwen") in = env("OPENAI_API_KEY") || exists(home + "/.qwen/oauth_creds.json") || exists(home + "/.qwen/settings.json");
+  // opencode: its data (2.x keeps logins in opencode.db, 1.x in auth.json) or a config of its own (local providers need no login).
+  else if (cli == "opencode") in = exists(home + "/.local/share/opencode/opencode.db") || exists(home + "/.local/share/opencode/auth.json") ||
+                                   exists(home + "/.config/opencode/opencode.json") || exists(home + "/.config/opencode/opencode.jsonc");
   return in ? "ok" : "signed-out";
 }
 

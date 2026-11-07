@@ -134,6 +134,24 @@ export function runningWork(raw) {
   return [...open.values()].slice(-10).map(({ kind, label }) => ({ kind, label }));
 }
 
+// OpenCode's messages, as the plugin slims them (agent-opencode.mjs conversation), oldest first.
+export function parseOpencode(messages) {
+  const out = [];
+  for (const m of messages || []) {
+    const at = m.at ? new Date(m.at).toISOString() : '';
+    if (m.type === 'user') {
+      const text = unpaste(String(m.text || ''));
+      if (text && !injected(text)) push(out, { kind: 'user', text: cap(text), at });
+      continue;
+    }
+    for (const b of m.content || []) {
+      if (b.type === 'text' && b.text?.trim()) push(out, { kind: 'assistant', text: cap(b.text.trim()), at });
+      else if (b.type === 'tool') push(out, { kind: 'tools', calls: [{ tool: b.name || 'tool', input: b.input || {} }], at });
+    }
+  }
+  return out.slice(-MAX_ITEMS);
+}
+
 export function parseCodex(raw) {
   const out = [];
   for (const line of String(raw).split('\n')) {
@@ -161,14 +179,15 @@ export function parseCodex(raw) {
 const KIND = { Read: 'read', read_file: 'read', view: 'read', Edit: 'edit', MultiEdit: 'edit', Write: 'edit', NotebookEdit: 'edit',
   apply_patch: 'edit', write_file: 'edit', replace: 'edit', Bash: 'run', shell: 'run', exec_command: 'run', run_shell_command: 'run',
   Grep: 'search', Glob: 'search', search_file_content: 'search', glob: 'search', WebFetch: 'web', WebSearch: 'web', web_search: 'web',
-  Task: 'agent', Agent: 'agent', TodoWrite: 'plan', update_plan: 'plan' };
+  Task: 'agent', Agent: 'agent', TodoWrite: 'plan', update_plan: 'plan',
+  read: 'read', edit: 'edit', write: 'edit', grep: 'search', webfetch: 'web', websearch: 'web', subagent: 'agent', todowrite: 'plan' };
 export function summarize(calls) {
   const files = { read: new Set(), edit: new Set() }, n = {}, other = new Set();
   for (const c of calls) {
     const k = KIND[c.tool];
     if (!k) { other.add(/^mcp__([^_]+)__/.exec(c.tool)?.[1] || c.tool); continue; }
     n[k] = (n[k] || 0) + 1;
-    const f = c.input?.file_path || c.input?.notebook_path || c.input?.path;
+    const f = c.input?.file_path || c.input?.filePath || c.input?.notebook_path || c.input?.path;
     if (files[k] && f) files[k].add(basename(String(f)));
   }
   const many = (k, verb, noun) => {
@@ -215,14 +234,20 @@ export const busy = (screen) => /esc to interrupt/i.test(String(screen || '').sp
 
 // claude-ctl chat: the session as JSON for claude.html. screen: the pane's text, or '' without one.
 // describe: one call in words (claude-hook.mjs's describe); tool inputs never reach the page whole.
-export function chat(s, born, screen, describe = (t) => t) {
+// messages: OpenCode's, from the plugin in its terminal; null when none answered.
+export function chat(s, born, screen, describe = (t) => t, messages = null) {
   const tool = s.tool || 'claude';
   const base = { tool, busy: busy(screen), prompt: approvalPrompt(screen) };
+  const words = (x) => (x.kind === 'tools' ? { kind: 'tools', at: x.at, summary: summarize(x.calls), details: x.calls.map((c) => describe(c.tool, c.input)) } : x);
+  if (tool === 'opencode') {
+    // A terminal opened before this Roar still runs the older plugin, which doesn't answer.
+    if (!messages) return { ...base, supported: false, items: [], hint: 'Restart this OpenCode terminal to read it here as a chat. Until then, it shows its terminal.' };
+    return { ...base, supported: true, items: parseOpencode(messages).map(words), running: [] };
+  }
   if (tool !== 'claude' && tool !== 'codex') return { ...base, supported: false, items: [] };
   const path = transcriptFor(s, born);
   if (!path || !existsSync(path)) return { ...base, supported: true, items: [] };
   const raw = tail(path);
-  const items = (tool === 'codex' ? parseCodex : parseClaude)(raw)
-    .map((x) => (x.kind === 'tools' ? { kind: 'tools', at: x.at, summary: summarize(x.calls), details: x.calls.map((c) => describe(c.tool, c.input)) } : x));
+  const items = (tool === 'codex' ? parseCodex : parseClaude)(raw).map(words);
   return { ...base, supported: true, items, running: tool === 'claude' ? runningWork(raw) : [] };
 }

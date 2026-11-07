@@ -229,5 +229,113 @@
       <description><![CDATA[Connect Hermes Agent and opencode from Settings > Agents. opencode now shows as connected when its config is opencode.json. Agent Files lists Hermes SOUL.md and skills, and opencode agents, commands and skills.]]></description>
       <enclosure url="https://github.com/roarbrowser/roar/releases/download/v1.9.0/Roar-1.9.0.dmg" type="application/octet-stream" sparkle:edSignature="fgUjJw5vs+9sinezc4bG6oPaa5cZdxtbnVDHM6RFqztVhe8y9+CcBcQA0ioMsopj+8ZcuORTIQai6T9NemvsCA==" length="207841984"/>
     </item>
+    <item>
+      <title>1.9.1</title>
+      <pubDate>Tue, 03 Nov 2026 17:03:07 +0000</pubDate>
+      <sparkle:version>10901</sparkle:version>
+      <sparkle:shortVersionString>1.9.1</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[Switching a space's agents off now disconnects agents already attached to its tabs, not just new ones. Model chat can use opencode (opencode 2) as a provider, with every tool switched off. Right click a tab or empty sidebar space to open a board, start a new one or see all boards.]]></description>
+      <enclosure url="https://github.com/roarbrowser/roar/releases/download/v1.9.1/Roar-1.9.1.dmg" type="application/octet-stream" sparkle:edSignature="C3q0p254PzVeGiGow4ndUZHXpMMlY/51pHDf9Tma5JjG9R6Iu5cug0cxSOmyuZ6OtoJ4U1NHfjbuYUVcB9HzBw==" length="207893517"/>
+    </item>
+    <item>
+      <title>1.9.2</title>
+      <pubDate>Tue, 03 Nov 2026 21:40:05 +0000</pubDate>
+      <sparkle:version>10902</sparkle:version>
+      <sparkle:shortVersionString>1.9.2</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[Model chat: Your subscriptions lists only the assistants Roar finds, the rest sit under More. Servers you add can take an API key. Model chat can now be your Ask about this page choice.]]></description>
+      <enclosure url="https://github.com/roarbrowser/roar/releases/download/v1.9.2/Roar-1.9.2.dmg" type="application/octet-stream" sparkle:edSignature="tugzCLRa/RkHBGUhHZY74ESLB1iXGE37ipE8PZxAM3eu6VdqTsy0l9vVbFy6G+CqQK+BaR1p/ojWrwXSGbwWBg==" length="207894675"/>
+    </item>
+    <item>
+      <title>1.10.0</title>
+      <pubDate>Thu, 05 Nov 2026 00:16:55 +0000</pubDate>
+      <sparkle:version>11000</sparkle:version>
+      <sparkle:shortVersionString>1.10.0</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[Copy an extension to another space with its data, so it arrives signed in (Settings > Extensions). OpenCode sessions now show in the AI sidebar, including when OpenCode connects to a server on another computer: connect it in Settings > Agents. The AI section groups sessions and chats by service when more than one is listed, and Ask chats name the right CLI.]]></description>
+      <enclosure url="https://github.com/roarbrowser/roar/releases/download/v1.10.0/Roar-1.10.0.dmg" type="application/octet-stream" sparkle:edSignature="Z/cgxG142rt8926h9oh6NWYXBtJ8sDC0ivdRAcJheSIck6YSm84Cl2UcIFzt6fkj6xkNHsjEqimXH57BznYFCw==" length="207903116"/>
+    </item>
+    <item>
+      <title>1.11.0</title>
+      <pubDate>Thu, 05 Nov 2026 00:45:56 +0000</pubDate>
+      <sparkle:version>11100</sparkle:version>
+      <sparkle:shortVersionString>1.11.0</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[OpenCode sessions now have a Chat view, including sessions on a server on another computer. Restart any open OpenCode terminal to use it. When cmux refuses Roar, Roar now tells you what to change, in the session and in Settings > Agents.]]></description>
+      <enclosure url="https://github.com/roarbrowser/roar/releases/download/v1.11.0/Roar-1.11.0.dmg" type="application/octet-stream" sparkle:edSignature="wz6RcqNTp8PzqiJV2r8uEDTs5OKkPst63TUeaalfohMFZSfP6TvnUC9rkW/2BFqZwn2nqK64UShxLrr/Qve9BQ==" length="207926262"/>
+    </item>
+    <item>
+      <title>1.12.0</title>
+      <pubDate>Thu, 05 Nov 2026 01:26:12 +0000</pubDate>
+      <sparkle:version>11200</sparkle:version>
+      <sparkle:shortVersionString>1.12.0</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[Model chat can now use an OpenCode server, so Ask reaches the same model as your OpenCode terminals, even on another computer. Add it in Settings > Model chat. By default it only answers, with tools blocked by the server. Turn on tools to let Ask work as that server's agent, with approvals shown in the chat.]]></description>
+      <enclosure url="https://github.com/roarbrowser/roar/releases/download/v1.12.0/Roar-1.12.0.dmg" type="application/octet-stream" sparkle:edSignature="LmNyHoxybKTE3GjRosNJByQEwwl22w0Sry0AibPSfIjcsNk7elUylv0XSng2qlQOUR+MqfA118kK+s6OWTdxCw==" length="207916103"/>
+    </item>
+    <item>
+      <title>1.12.1</title>
+      <pubDate>Thu, 05 Nov 2026 01:56:50 +0000</pubDate>
+      <sparkle:version>11201</sparkle:version>
+      <sparkle:shortVersionString>1.12.1</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[In an agent session's Chat view, the message box now stays on screen. Long chats could scroll it out of the window.]]></description>
+      <enclosure url="https://github.com/roarbrowser/roar/releases/download/v1.12.1/Roar-1.12.1.dmg" type="application/octet-stream" sparkle:edSignature="r67lD0b0a1/dwCbG/P8+jHIFJhIAY7lWIW3rzq7Rp33VwqN2DHq3UixXhadxivVN/OeZenM5OvQqlvfdKu+8Ag==" length="207916192"/>
+    </item>
+    <item>
+      <title>1.13.0</title>
+      <pubDate>Thu, 05 Nov 2026 02:19:12 +0000</pubDate>
+      <sparkle:version>11300</sparkle:version>
+      <sparkle:shortVersionString>1.13.0</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[Right-click Tabs, a tab group, Split, Artifacts or Ghost to close every tab listed there. Pinned tabs stay, and the others can come back from Recently Closed. Site tweaks also has a new lion icon.]]></description>
+      <enclosure url="https://github.com/roarbrowser/roar/releases/download/v1.13.0/Roar-1.13.0.dmg" type="application/octet-stream" sparkle:edSignature="o7BFtqXlw2qnFsQq9K9w/RprAWcC/6CBLKu2G2BgYXrZLhMyaggaLuJKYbxk+u866jdPMXVDnnZze4fpqJxkCQ==" length="207930705"/>
+    </item>
+    <item>
+      <title>1.14.0</title>
+      <pubDate>Thu, 05 Nov 2026 03:15:08 +0000</pubDate>
+      <sparkle:version>11400</sparkle:version>
+      <sparkle:shortVersionString>1.14.0</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[Settings > Model chat now lists everything you've set up at the top: drag to set the order Roar tries them, and remove anything you don't use. Agent turns that finish very quickly now raise a notification, and agent messages send a macOS notification by default. The site menu's Site tweaks and ad-block items are back in spaces with agents off, and those spaces are better protected from agents. On Windows, agents now stay off until you turn on Let agents use Roar in Settings, including after this update.]]></description>
+      <enclosure url="https://github.com/roarbrowser/roar/releases/download/v1.14.0/Roar-1.14.0.dmg" type="application/octet-stream" sparkle:edSignature="/laAp38OFV5BRSZ/yfamRQU8ZEYw/I8fZBl4a8eoZ0sZZEUvw0tgAsM4ZfUnNoSrO7um3Pp8fj/2/PM6yk+EAQ==" length="207933375"/>
+    </item>
+    <item>
+      <title>1.15.0</title>
+      <pubDate>Thu, 05 Nov 2026 04:05:43 +0000</pubDate>
+      <sparkle:version>11500</sparkle:version>
+      <sparkle:shortVersionString>1.15.0</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[Site tweaks can now span every space: turn on Site tweaks in every space in Settings > Extensions and all your spaces get the same scripts and styles, with a change in one reaching them all. What scripts store stays per space, and agents can't reach Site tweaks while this is on. Mac only for now.]]></description>
+      <enclosure url="https://github.com/roarbrowser/roar/releases/download/v1.15.0/Roar-1.15.0.dmg" type="application/octet-stream" sparkle:edSignature="qPLardNJpoqXIpS7S5jIO7u+OdMaJnpj4Pqg8yvFEmvtcuBQKodAj1owixnY1Vk0PLqHaW9aZebDjRj5gLJyBw==" length="207951240"/>
+    </item>
+    <item>
+      <title>1.16.0</title>
+      <pubDate>Fri, 06 Nov 2026 10:13:19 +0000</pubDate>
+      <sparkle:version>11600</sparkle:version>
+      <sparkle:shortVersionString>1.16.0</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[Pinned tabs now fill the sidebar: they share each row evenly up to your limit in Settings, and wide ones show the tab's name. Drag a pinned tab onto another to reorder it (hold Option to split them instead), or use Move in its menu. Tabs in a group can move up and down, and a group can be sorted by name or last active. The Gmail, Outlook and GitHub popovers are easier to close: the close button stays in view, and clicking the page or anywhere outside closes them. AI rename now works with an OpenCode server, and that server keeps its tools for Ask.]]></description>
+      <enclosure url="https://github.com/roarbrowser/roar/releases/download/v1.16.0/Roar-1.16.0.dmg" type="application/octet-stream" sparkle:edSignature="rx3woCWS7YkUrrM9FYTlt3bWAhPng5Nvw00t24QJH9m/sID1GS+c7jD2JSDRaAQ3p//BiUbstRfcjCMKYn3XDw==" length="207957691"/>
+    </item>
+    <item>
+      <title>1.16.1</title>
+      <pubDate>Fri, 06 Nov 2026 11:19:10 +0000</pubDate>
+      <sparkle:version>11601</sparkle:version>
+      <sparkle:shortVersionString>1.16.1</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[The Ghost section now has an X on its header: one click closes every ghost tab, split pairs included.]]></description>
+      <enclosure url="https://github.com/roarbrowser/roar/releases/download/v1.16.1/Roar-1.16.1.dmg" type="application/octet-stream" sparkle:edSignature="VvVHxL+v6e+TatgO6Ht9TU2h9m6LMeBirzLrLOoTQwfh5VHbhxs/92X0I8D9o/wI+kUl0emlUrnsNYAGrQl0BQ==" length="207958165"/>
+    </item>
+    <item>
+      <title>1.17.0</title>
+      <pubDate>Fri, 06 Nov 2026 11:58:40 +0000</pubDate>
+      <sparkle:version>11700</sparkle:version>
+      <sparkle:shortVersionString>1.17.0</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[⌘1–⌘9 now skip pinned tabs, so ⌘1 is your first real tab and ⌘9 the last. Ghost tabs are more private: their throwaway profile is now reliably deleted seconds after the last one closes, instead of often staying on disk with site names in it until the next launch. The model pickers show the tool you chose, such as opencode, instead of a bare "default".]]></description>
+      <enclosure url="https://github.com/roarbrowser/roar/releases/download/v1.17.0/Roar-1.17.0.dmg" type="application/octet-stream" sparkle:edSignature="bLcd7m5Huf6JbO7F9kM7Vt6f+1mcSvYPFECIzOsdfJ/iTWo4/LfkGYNKMgCqbQqtF6+xSo4+7C7xAp2YXV/CAw==" length="207949879"/>
+    </item>
   </channel>
 </rss>
