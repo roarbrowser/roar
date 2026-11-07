@@ -1,7 +1,7 @@
 # Windows port
 
-Status: a Windows build path exists (CMake branch, `src/win/`, `scripts/*.ps1`) but has
-**never been compiled or run on Windows**. Everything below marked "written" is code that
+Status: the Windows build (CMake branch, `src/win/`, `scripts/*.ps1`) compiles in CI
+(`.github/workflows/windows.yml`, every push to main) and ships x64 with every release. Everything below marked "written" is code that
 exists and is believed correct; "TODO(windows)" items are stubs in the source. The macOS
 build is unchanged in behaviour.
 
@@ -65,7 +65,7 @@ SHA-1 from the CDN). That build has **no proprietary codecs and none of Roar's C
 | `SetSplitDivider` | NSView with resize cursor | thin child HWND with `IDC_SIZEWE/NS`, `SetCapture` | TODO (split view can't be resized by drag) |
 | `SetFloating` | titled, floating NSWindow | `WS_CAPTION` + `HWND_TOPMOST` | written |
 | `CopyText` | NSPasteboard | `CF_UNICODETEXT` clipboard | written |
-| `CheckForUpdates` | Sparkle | WinSparkle (reads the same appcast format) | TODO |
+| `CheckForUpdates` | Sparkle | WinSparkle (reads the same appcast format) | done (`appcast-windows-x64.xml`, EdDSA-signed) |
 | `UpdateChromium` | runs `update-cef.sh` + `deploy.sh` | message box; a `update-cef.ps1` would be needed | TODO |
 | `ChooseLookback` | NSAlert sheet with popup | popup menu of four ranges | written |
 | `ConfirmDownload` / `OpenInApp` | NSAlert sheets | `MessageBoxW`; `AssocQueryStringW(ASSOCF_IS_PROTOCOL)` finds the handler | written |
@@ -95,7 +95,7 @@ SHA-1 from the CDN). That build has **no proprietary codecs and none of Roar's C
 | TCC / `NS*UsageDescription` (`Info.plist.in`) | silent kills without the key | Windows asks per capability (camera/mic/location) through its own privacy settings; nothing to declare for a Win32 app. An `app.manifest` (DPI awareness, `supportedOS`) should be added via CEF's `ADD_WINDOWS_MANIFEST` | manifest TODO |
 | Sandbox | `cef_sandbox_mac`, helper bundles | link `cef_sandbox.lib`, `CefScopedSandboxInfo` in `wWinMain` | TODO (`no_sandbox = true`) |
 | Codesigning (`build.sh`, `release.sh`) | `codesign`, Developer ID, notarization | Authenticode with `signtool` (an OV/EV cert, or Azure Trusted Signing); unsigned builds hit SmartScreen | TODO |
-| Packaging (`release.sh` → DMG, Sparkle appcast) | DMG + Sparkle | MSIX or an Inno Setup/WiX installer that also registers the browser, the AUMID shortcut and the `roar:` handler; WinSparkle appcast | TODO |
+| Packaging (`release.sh` → DMG, Sparkle appcast) | DMG + Sparkle | MSIX or an Inno Setup/WiX installer that also registers the browser, the AUMID shortcut and the `roar:` handler; WinSparkle appcast | done: Inno Setup (`scripts/roar.iss`) with an AUMID Start-menu shortcut, WinSparkle appcast; browser and `roar:` registration TODO |
 | `scripts/deploy.sh`, `update-cef.sh`, `build-cef-codecs.sh`, `release.sh`, `fetch-sparkle.sh` | bash, `ditto`, `osascript`, `lipo` | no Windows versions yet; `build.ps1` and `fetch-cef.ps1` only | TODO |
 
 ### CEF patches (`scripts/cef-patches/`)
@@ -109,8 +109,8 @@ Media Foundation versions of `roar_platform_codecs.patch`, which covers macOS on
 or a `.def` entry so `GetProcAddress` finds them. Until then the Windows build runs on stock
 CEF, and every `sym(...)` in `Controller::Start` returns null: MCP `new_page` opens a plain
 Chrome window, the CDP toggle can't close the port live, and spaces with agents off are
-still visible to CDP clients. **That last one is a privacy gap; don't ship without the
-filter patch.**
+still visible to CDP clients. That last one is a privacy gap the project accepted: Windows
+ships without the filter patch, with agents off until Settings turns them on (since 1.14.0).
 
 ### Agent sessions (`mcp/claude-hook.mjs`, `mcp/roar-mcp.mjs`)
 
@@ -128,8 +128,8 @@ filter patch.**
 ## What has been verified
 
 - macOS: `scripts/build.sh` builds, and every `scripts/test-*.sh` passes, after these changes.
-- Windows: nothing has been compiled, linked or run. Expect a round of compile fixes
-  (MSVC warnings as errors from CEF's flags, `windows.h` macro clashes, missing includes).
+- Windows: `windows.yml` builds `Roar.exe`, checks WinSparkle and the appcast URL are packaged,
+  compiles the installer, and attaches the zip and `Roar-windows-x64-setup.exe` to each release.
 
 ## Next steps on a Windows machine
 
@@ -144,5 +144,5 @@ filter patch.**
 4. Check `Controller::OnKey` maps Cmd shortcuts to Ctrl on Windows.
 5. Wire `--remote-debugging-io-pipes` for `action_watch`.
 6. Build CEF with Roar's patches and codecs for Windows; export the `roar_*` symbols.
-7. Then the TODO stubs: notifications (AUMID), tray icon, split divider, backdrop, WinSparkle,
-   an installer that registers the browser, Authenticode signing, ConPTY agent sessions.
+7. Then the TODO stubs: notifications (AUMID), tray icon, split divider, backdrop,
+   browser registration in the installer, Authenticode signing, ConPTY agent sessions.

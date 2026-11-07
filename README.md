@@ -7,7 +7,7 @@
 <p align="center"><strong>Your AI agent, in your real browser.</strong></p>
 
 <p align="center">
-  Roar is a free, open-source browser for Mac (Apple Silicon and Intel). Claude, Cursor or Codex use it like you do,
+  Roar is a free, open-source browser for Mac (Apple Silicon; Intel builds stopped at 1.7.3). Claude, Cursor or Codex use it like you do,
   already logged in, in tabs you can watch and take over. It can ask you before it acts. One click cuts it off.
 </p>
 
@@ -15,7 +15,7 @@
 
 <p align="center">
   <b>Download for macOS:</b> <a href="https://github.com/roarbrowser/roar/releases/latest"><b>Apple Silicon</b></a> (<code>Roar-&lt;version&gt;.dmg</code>)
-  <br>Intel Macs: <code>Roar-&lt;version&gt;-intel.dmg</code> (from 1.3)
+  <br>Intel Macs: <a href="https://github.com/roarbrowser/roar/releases/tag/v1.7.3"><code>Roar-1.7.3-intel.dmg</code></a> (the last Intel build)
   <br><a href="https://roarbrowser.app/">Website</a> &nbsp;·&nbsp; Open source, MIT licensed
 </p>
 
@@ -38,7 +38,7 @@
 
 About five minutes. Needs macOS 13 or later; no Node.js.
 
-**1. Download (1 min).** Get the latest `Roar-<version>.dmg` (Apple Silicon) or `Roar-<version>-intel.dmg` (Intel, from 1.3) from [Releases](https://github.com/roarbrowser/roar/releases/latest), open it and drag Roar onto Applications. Or:
+**1. Download (1 min).** Get the latest `Roar-<version>.dmg` (Apple Silicon) from [Releases](https://github.com/roarbrowser/roar/releases/latest), or `Roar-1.7.3-intel.dmg` from [1.7.3](https://github.com/roarbrowser/roar/releases/tag/v1.7.3) on an Intel Mac (Intel builds stopped at 1.7.3), open it and drag Roar onto Applications. Or:
 
 ```bash
 brew install --cask roarbrowser/tap/roar
@@ -130,7 +130,7 @@ port 9444) started on demand.
   session's prompt (never ghost tabs); **Side by side** splits it beside your last web page. **New** starts a session in any folder. The hook reports the
   prompt, tool and state, never the conversation.
 - **OpenCode too, even on another computer.** Connect OpenCode in Settings > Agents and each terminal reports its sessions, also with `opencode --server`. Other sessions running on that server show as watch-only rows while a terminal is open. Chat view reads them too, on request, and keeps nothing on disk. Add that server in Settings > Model chat and Ask uses its model: with no tools by default, enforced by the server, or as its agent under the server's own permission rules, with approvals shown in the chat. With more than one service listed, the AI section groups them under a heading each.
-- **Hermes Agent, on any computer.** Add its dashboard address in Settings > Agents, pick the space signed in to it, and every open session across its profiles shows in the sidebar, whatever started it. Rows are watch-only: one click opens that chat in the dashboard. Roar reads the session list with that space's sign-in, so there is no key to store, and keeps titles and status only, never the conversation.
+- **Hermes Agent, on any computer.** Add its dashboard address in Settings > Agents, pick the space signed in to it, and every open session across its profiles shows in the sidebar, whatever started it, along with the cards on its kanban board (since 1.19.0): running cards show their worker's current step, and a card waiting on you raises a sidebar card. Rows are watch-only: one click opens that chat in the dashboard. Roar reads the session list with that space's sign-in, so there is no key to store, and keeps titles and status only, never the conversation.
 - **A badge for your agents.** Roar counts agent sessions and hours on this computer, ranks you from Cub to Apex Lion, and makes a card to share: **Settings > Agents > Agent badge**. Savanna has a **Share** button too. Both give you a PNG and an animated GIF with Roar's name on them, made on your computer, and nothing is sent anywhere until you post it. Counts are numbers and session ids in `agent-stats.json`, never prompts or titles.
 - **Slash commands in the reply box.** Type `/` in a session window's chat or terminal reply
   box to list the tool's built-in commands plus your own and the project's commands and skills;
@@ -258,8 +258,7 @@ aggregate download counts. These are the connections Roar's own code makes that 
   act on the pages in spaces you allow agents in, signed in as you, and what it reads goes to that
   agent's AI provider. Ghost tabs are hidden from agents. Turn a space's agent access off by clicking
   its dot in the sidebar. The agent port is on by default; turn it off in Settings > Agents if you
-  don't use agents. On Apple Silicon the port refuses clients without this launch's token;
-  the Intel build gets that protection in 1.4, so until then any app running as you can reach it there. You are responsible for what agents you connect do in your accounts; Roar is
+  don't use agents. On a Mac the port refuses clients without this launch's token. You are responsible for what agents you connect do in your accounts; Roar is
   provided as is, without warranty, under the MIT License.
 - **Dictation:** the speech model is downloaded from Hugging Face the first time you use it.
 - **uBlock Origin Lite:** ships with its filter rules built in; Roar fetches no lists for it.
