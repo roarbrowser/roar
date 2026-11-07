@@ -44,6 +44,8 @@ const list = async () => (await fetch(`http://127.0.0.1:${port}/json/list`)).jso
 async function start() {
   roar = spawn(bin, ['--headless=new', '--noerrdialogs'], { env: { ...process.env, HOME: home, ROAR_UI_CDP: '1', ROAR_CDP_PORT: port, ROAR_DATA_DIR: data, ROAR_GARDEN_MOCK: `http://127.0.0.1:${calendar.address().port}` }, stdio: 'ignore' });
   await until(async () => { try { return (await list()).some((x) => x.url.includes('sidebar.html')); } catch { return false; } }, 30000);
+  // Listed is not loaded: on a cold first launch, a call before bridge.js runs is silently lost.
+  await until(async () => { try { return (await side(`typeof ask === 'function' ? 1 : 0`)) === 1; } catch { return false; } }, 30000);
 }
 async function cdp(match, method, params) {
   const t = (await list()).find(match);
@@ -58,7 +60,8 @@ const js = async (match, expr) => (await cdp(match, 'Runtime.evaluate', { expres
 const side = (e) => js((x) => x.url.includes('sidebar.html'), e);
 const garden = (e) => js((x) => x.url.includes('garden.html'), e);
 const badge = (e) => js((x) => x.url.includes('badge.html'), e);
-const open = (url) => side(`ask({ cmd: 'open', text: ${JSON.stringify(url)}, newTab: true }).then(() => 1)`);
+// Retries until Roar answers the open: a call made while the sidebar is still loading is dropped, not queued.
+const open = (url) => until(async () => (await side(`ask({ cmd: 'open', text: ${JSON.stringify(url)}, newTab: true }).then(() => 1)`)) === 1);
 const shot = async (match, name) => { if (outDir) { const r = await cdp(match, 'Page.captureScreenshot', { format: 'png' }); if (r) writeFileSync(join(outDir, name), Buffer.from(r.data, 'base64')); } };
 const stats = async () => JSON.parse(await side(`ask({ cmd: 'agent.stats' }).then((s) => JSON.stringify(s))`));
 const session = (id, o = {}) => writeFileSync(join(data, 'claude-sessions', id + '.json'), JSON.stringify({ id, tool: 'claude', state: 'working', project: 'x', cwd: home, started: Date.now(), updated: Date.now(), ...o }));
@@ -69,15 +72,17 @@ const png = (b) => b.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 
 
 try {
   await start();
-  await side(`ask({ cmd: 'settings.set', settings: { onboarded: true } })`);
+  await until(async () => (await side(`ask({ cmd: 'settings.set', settings: { onboarded: true } }).then(() => 1)`)) === 1);
 
   // Savanna
   await open('roar://ui/garden.html');
   const offered = await until(() => garden(`!document.getElementById('share')?.hidden`));
   if (!offered) console.log('  savanna shows:', await garden(`document.getElementById('stats')?.textContent`), '| calendar asks:', calendarAsks, '| pages:', (await list()).map((x) => x.url).join(' '));
   check(!!offered, 'Savanna offers Share once it has a calendar');
-  await garden(`document.getElementById('share').click()`);
-  check(!!(await until(() => garden(`(document.querySelector('dialog img.share-card')?.naturalWidth || 0) === 1200`))), 'the dialog previews a 1200-wide card');
+  // Clicks Share again until its dialog is there: on a cold first launch the first click can land before the page listens.
+  const previewed = await until(() => garden(`(() => { const i = document.querySelector('dialog img.share-card'); if (!i) document.getElementById('share').click(); return (i?.naturalWidth || 0) === 1200; })()`));
+  if (!previewed) console.log('  share dialog:', await garden(`JSON.stringify({ open: !!document.querySelector('dialog[open]'), img: document.querySelector('dialog img.share-card')?.naturalWidth, src: (document.querySelector('dialog img.share-card')?.src || '').slice(0, 30) })`));
+  check(!!previewed, 'the dialog previews a 1200-wide card');
   const svg = await garden(`savannaSpec.card({ name: true })`), bare = await garden(`savannaSpec.card({ name: false })`);
   check(svg.includes('Made with Roar') && svg.includes('roarbrowser.app'), 'the card credits Roar and links its site');
   check(bare.includes('Made with Roar') && bare.includes('roarbrowser.app'), 'whatever the options');
