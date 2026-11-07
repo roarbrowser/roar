@@ -1,9 +1,11 @@
 // Share cards: draws a page's card as a PNG and an animated GIF, in this page, with Roar's attribution on every one.
 // Nothing leaves the computer until the person posts it. Used by garden.html and badge.html; needs bridge.js.
-// A spec is { title, file, caption(opts), card(opts), frames(opts), options?: [{ key, label, on }] }: card returns one SVG
-// from shareCard.frame and frames a list of them. The GIF encoder is here because Roar has no image library to lean on.
+// A spec is { title, file, caption(opts), card(opts), frames(opts), options?: [{ key, label, on }], dark?, live? }: card returns
+// one SVG from shareCard.frame and frames a list of them. `dark` sets opts.dark from prefers-color-scheme (the card draws a
+// dark version, and pass { dark } to frame); `live` plays the frames in the preview as the GIF would, or shows the last one
+// under prefers-reduced-motion. The GIF encoder is here because Roar has no image library to lean on.
 window.shareCard = (() => {
-  const W = 1200, H = 630, GW = 600, GH = 315, DELAY_CS = 8;
+  const W = 1200, H = 630, GW = 600, GH = 315, DELAY_CS = 8, HOLD_CS = 120;
   const SITE = 'roarbrowser.app', FONT = "ui-rounded, 'SF Pro Rounded', -apple-system, 'Segoe UI', sans-serif";
   const INK = '#4a2e18', MANE = '#ff7a00';
   const xml = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -11,26 +13,29 @@ window.shareCard = (() => {
   const LION = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024"><defs><linearGradient id="tile" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FFF6EA"/><stop offset="1" stop-color="#FFE2B8"/></linearGradient></defs><rect x="100" y="100" width="824" height="824" rx="190" fill="url(#tile)"/><g transform="translate(152 140) scale(7.2)"><circle cx="50.00" cy="23.00" r="15" fill="#FF7A00"/><circle cx="68.22" cy="28.92" r="15" fill="#FF9A2E"/><circle cx="79.48" cy="44.42" r="15" fill="#FF7A00"/><circle cx="79.48" cy="63.58" r="15" fill="#FF9A2E"/><circle cx="68.22" cy="79.08" r="15" fill="#FF7A00"/><circle cx="50.00" cy="85.00" r="15" fill="#FF9A2E"/><circle cx="31.78" cy="79.08" r="15" fill="#FF7A00"/><circle cx="20.52" cy="63.58" r="15" fill="#FF9A2E"/><circle cx="20.52" cy="44.42" r="15" fill="#FF7A00"/><circle cx="31.78" cy="28.92" r="15" fill="#FF9A2E"/><circle cx="32" cy="31" r="9" fill="#FFC72C" stroke="#4A2E18" stroke-width="3"/><circle cx="68" cy="31" r="9" fill="#FFC72C" stroke="#4A2E18" stroke-width="3"/><circle cx="32" cy="31" r="4" fill="#FF9A2E"/><circle cx="68" cy="31" r="4" fill="#FF9A2E"/><circle cx="50" cy="54" r="26" fill="#FFC72C" stroke="#4A2E18" stroke-width="3"/><path d="M33 41 L45 45 M67 41 L55 45" stroke="#4A2E18" stroke-width="3.5" stroke-linecap="round"/><ellipse cx="40" cy="50" rx="3.2" ry="3.8" fill="#4A2E18"/><ellipse cx="60" cy="50" rx="3.2" ry="3.8" fill="#4A2E18"/><ellipse cx="50" cy="65" rx="14" ry="11" fill="#FFF3E0" stroke="#4A2E18" stroke-width="2.5"/><path d="M44.5 55.5 h11 l-5.5 6 z" fill="#4A2E18" stroke="#4A2E18" stroke-width="1.5" stroke-linejoin="round"/><path d="M41 64.5 Q50 80 59 64.5 Z" fill="#7A2A12" stroke="#4A2E18" stroke-width="2.5" stroke-linejoin="round"/><path d="M43.5 65 l2.5 4.5 l2-4.5 z M52 65 l2 4.5 l2.5-4.5 z" fill="#FFFFFF"/></g></svg>`;
   const lionAt = (x, y, size) => LION.replace('<svg ', `<svg x="${x}" y="${y}" width="${size}" height="${size}" `);
 
-  // The whole card: `body` drawn over a cream field, above a footer no caller can leave out.
-  const frame = (body, { background = '#fff4e4', style = '' } = {}) => {
+  // The footer's colors, light and dark. The lion keeps its cream tile either way, so it reads on both.
+  const FOOT = { light: { field: '#fff9f0', rule: '#f2dcc0', ink: INK, sub: '#8a6a4e', site: MANE }, dark: { field: '#2a1d12', rule: '#3d2b1c', ink: '#fbeedd', sub: '#c3a688', site: '#ff9a2e' } };
+  // The whole card: `body` drawn over a cream (or, with dark, a deep brown) field, above a footer no caller can leave out.
+  const frame = (body, { background, style = '', dark = false } = {}) => {
+    const f = dark ? FOOT.dark : FOOT.light;
     return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}"><style>text { font-family: ${FONT}; } ${style}</style>` +
-      `<rect width="${W}" height="${H}" fill="${background}"/>${body}<rect y="536" width="${W}" height="94" fill="#fff9f0"/><rect y="536" width="${W}" height="1.5" fill="#f2dcc0"/>` +
-      `${lionAt(44, 552, 56)}<text x="114" y="578" font-size="25" font-weight="800" fill="${INK}">Made with Roar</text><text x="114" y="602" font-size="16" fill="#8a6a4e">The open-source browser your agent can drive</text>` +
-      `<text x="1156" y="589" font-size="26" font-weight="800" fill="${MANE}" text-anchor="end">${SITE}</text></svg>`;
+      `<rect width="${W}" height="${H}" fill="${background || (dark ? '#1e140c' : '#fff4e4')}"/>${body}<rect y="536" width="${W}" height="94" fill="${f.field}"/><rect y="536" width="${W}" height="1.5" fill="${f.rule}"/>` +
+      `${lionAt(44, 552, 56)}<text x="114" y="578" font-size="25" font-weight="800" fill="${f.ink}">Made with Roar</text><text x="114" y="602" font-size="16" fill="${f.sub}">The open-source browser your agent can drive</text>` +
+      `<text x="1156" y="589" font-size="26" font-weight="800" fill="${f.site}" text-anchor="end">${SITE}</text></svg>`;
   };
 
-  const raster = (svg, w, h) => new Promise((ok, fail) => {
+  const picture = (svg) => new Promise((ok, fail) => {
     const image = new Image();
-    image.onload = () => {
-      const c = document.createElement('canvas');
-      c.width = w; c.height = h;
-      const x = c.getContext('2d', { willReadFrequently: true });
-      x.drawImage(image, 0, 0, w, h);
-      ok(c);
-    };
+    image.onload = () => ok(image);
     image.onerror = () => fail(new Error('The card could not be drawn'));
     image.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
   });
+  const raster = async (svg, w, h) => {
+    const image = await picture(svg), c = document.createElement('canvas');
+    c.width = w; c.height = h;
+    c.getContext('2d', { willReadFrequently: true }).drawImage(image, 0, 0, w, h);
+    return c;
+  };
 
   // The 255 commonest colors across every frame (flat art has few, so this beats a fixed palette), then nearest-match.
   function palette(frames) {
@@ -90,7 +95,7 @@ window.shareCard = (() => {
     out.push(0);
   }
 
-  function gif(frames, w, h, holdLast = 120) {
+  function gif(frames, w, h, holdLast = HOLD_CS) {
     const { rgb, nearest } = palette(frames);
     const out = [...'GIF89a'].map((c) => c.charCodeAt(0));
     const u16 = (n) => out.push(n & 255, n >> 8 & 255);
@@ -124,13 +129,36 @@ window.shareCard = (() => {
   // The preview and its buttons, into `root`. Resolves once the first preview is drawn.
   async function mount(root, spec) {
     const opts = Object.fromEntries((spec.options || []).map((o) => [o.key, o.on !== false]));
+    const scheme = matchMedia('(prefers-color-scheme: dark)'), still = matchMedia('(prefers-reduced-motion: reduce)');
+    if (spec.dark) opts.dark = scheme.matches;
     root.classList.add('share');
-    root.innerHTML = `<img class="share-card" alt="${xml(spec.title)}"><div class="share-opts"></div>
+    root.innerHTML = `${spec.live ? `<canvas class="share-card" width="${W}" height="${H}" role="img" aria-label="${xml(spec.title)}"></canvas>` : `<img class="share-card" alt="${xml(spec.title)}">`}<div class="share-opts"></div>
       <div class="share-acts"><button class="btn primary" data-a="copy">Copy image</button><button class="btn" data-a="png">Save image</button><button class="btn" data-a="gif">Save GIF</button><button class="btn" data-a="caption">Copy caption</button><span class="share-note" role="status"></span></div>`;
-    const img = root.querySelector('img'), note = root.querySelector('.share-note');
+    const img = root.querySelector('.share-card'), note = root.querySelector('.share-note');
     const say = (t) => { note.textContent = t; };
-    let canvas = null;
-    const draw = async () => { canvas = await render(spec, opts); img.src = canvas.toDataURL('image/png'); };
+    let canvas = null, run = 0;
+    // A live preview plays the GIF's frames at the GIF's timing, full size; each draw starts a new run and ends the last.
+    const play = (pics, n) => {
+      const x = img.getContext('2d'), show = (i) => x.drawImage(pics[i], 0, 0, W, H);
+      if (still.matches) return show(pics.length - 1);
+      let i = 0, due = 0;
+      const tick = (now) => {
+        if (n !== run) return;
+        if (now >= due) { show(i); due = now + 10 * (i === pics.length - 1 ? HOLD_CS : DELAY_CS); i = (i + 1) % pics.length; }
+        requestAnimationFrame(tick);
+      };
+      requestAnimationFrame(tick);
+    };
+    const draw = async () => {
+      const n = ++run;
+      if (!spec.live) { canvas = await render(spec, opts); img.src = canvas.toDataURL('image/png'); return; }
+      const [card, pics] = await Promise.all([render(spec, opts), Promise.all(spec.frames(opts).map(picture))]);
+      if (n !== run) return;
+      canvas = card;
+      play(pics, n);
+    };
+    if (spec.dark) scheme.addEventListener('change', () => { opts.dark = scheme.matches; draw(); });
+    if (spec.live) still.addEventListener('change', () => draw());
     for (const o of spec.options || []) {
       const label = document.createElement('label');
       label.innerHTML = `<input type="checkbox" class="switch" ${opts[o.key] ? 'checked' : ''}> ${xml(o.label)}`;

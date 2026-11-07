@@ -125,11 +125,16 @@ try {
 
   await side(`location.reload()`);
   await js((x) => x.url.includes('badge.html'), `location.reload()`);
-  check(!!(await until(() => badge(`(document.querySelector('img.share-card')?.naturalWidth || 0) === 1200`))), 'with a session counted the badge draws its card');
+  // The badge previews on a canvas that plays the GIF's frames; a drawn pixel means it has started.
+  check(!!(await until(() => badge(`(document.querySelector('canvas.share-card')?.getContext('2d').getImageData(600, 100, 1, 1).data[3] || 0) === 255`))), 'with a session counted the badge plays its card');
   check(await badge(`document.getElementById('rank').textContent`) === 'Cub', 'two sessions is a Cub');
   const badgeSvg = await badge(`spec.card()`);
   check(badgeSvg.includes('Made with Roar') && badgeSvg.includes(mark), 'the badge credits Roar, lion and all');
   check((await badge(`spec.caption()`)).includes('https://roarbrowser.app'), 'and links back');
+  const darkSvg = await badge(`spec.card({ dark: true })`);
+  check(darkSvg.includes('#1e140c') && !badgeSvg.includes('#1e140c') && darkSvg.includes(mark) && darkSvg.includes('Made with Roar'), 'the badge has a dark card, lion and credit still on it');
+  check((await badge(`spec.frames({ dark: true })`)).every((f) => f.includes('#1e140c')), 'and dark GIF frames');
+  check(!svg.includes('#1e140c') && !svg.includes('#2a1d12'), 'the Savanna card stays light');
   check(badgeSvg.includes('&lt;1') && !(await badge(`spec.caption()`)).includes('hour'), 'under an hour reads as <1, and stays out of the caption');
   const ranks = await badge(`JSON.stringify([0, 9, 10, 49, 50, 199, 200, 999, 1000].map((n) => rankOf(n)[1]))`);
   check(ranks === JSON.stringify(['Cub', 'Cub', 'Scout', 'Scout', 'Hunter', 'Hunter', 'Pride Leader', 'Pride Leader', 'Apex Lion']), 'ranks: ' + ranks);

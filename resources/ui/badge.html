@@ -33,20 +33,25 @@ const nextOf = (n) => RANKS.find((r) => n < r[0]);
 const nameOf = (tool) => AGENT_ROWS[tool]?.[0] || tool;
 const plural = (n, w) => `${n.toLocaleString()} ${w}${n === 1 ? '' : 's'}`;
 const ease = (t) => 1 - Math.pow(1 - t, 3);
+// The card's colors, light and dark; the lion keeps its cream tile on both.
+const INKS = {
+  light: { field: '#fff4e4', disc: '#fff9f0', label: '#8a6a4e', rank: '#4a2e18', count: '#ff7a00', sub: '#6b4e36' },
+  dark: { field: '#1e140c', disc: '#2a1d12', label: '#c3a688', rank: '#fbeedd', count: '#ff9a2e', sub: '#d2b89c' },
+};
 
-function art(s, t = 1, ring = 0) {
-  const [, rank, color] = rankOf(s.total);
+function art(s, t = 1, ring = 0, dark = false) {
+  const [, rank, color] = rankOf(s.total), k = dark ? INKS.dark : INKS.light;
   const pop = t < 1 ? .72 + .28 * ease(t) + Math.sin(t * Math.PI) * .08 : 1;
   const shown = (n) => Math.round(n * ease(t)).toLocaleString();
   const rings = ring ? [0, 1].map((i) => { const r = 150 + ((ring + i * .5) % 1) * 90; return `<circle cx="228" cy="268" r="${r}" fill="none" stroke="${color}" stroke-width="6" opacity="${(1 - ((ring + i * .5) % 1)) * .6}"/>`; }).join('') : '';
   return shareCard.frame(`${rings}
-    <g transform="translate(228 268) scale(${pop})"><circle r="150" fill="#fff9f0" stroke="${color}" stroke-width="14"/>${shareCard.lionAt(-112, -112, 224)}</g>
+    <g transform="translate(228 268) scale(${pop})"><circle r="150" fill="${k.disc}" stroke="${color}" stroke-width="14"/>${shareCard.lionAt(-112, -112, 224)}</g>
     ${ring ? `<text x="228" y="${72 + (1 - ring) * 6}" font-size="44" font-weight="900" fill="${color}" text-anchor="middle">ROAR!</text>` : ''}
-    <text x="440" y="130" font-size="24" font-weight="700" letter-spacing="3" fill="#8a6a4e">AGENT BADGE</text>
-    <text x="440" y="208" font-size="76" font-weight="900" fill="#4a2e18">${xml(rank)}</text>
-    <text x="440" y="300" font-size="58" font-weight="800" fill="#ff7a00">${shown(s.total)}</text><text x="440" y="334" font-size="22" fill="#6b4e36">agent sessions</text>
-    <text x="760" y="300" font-size="58" font-weight="800" fill="#ff7a00">${s.hours ? shown(s.hours) : '&lt;1'}</text><text x="760" y="334" font-size="22" fill="#6b4e36">agent hours</text>
-    <text x="440" y="412" font-size="24" fill="#6b4e36">${xml(s.names.join(' · '))}</text>`, { background: '#fff4e4' });
+    <text x="440" y="130" font-size="24" font-weight="700" letter-spacing="3" fill="${k.label}">AGENT BADGE</text>
+    <text x="440" y="208" font-size="76" font-weight="900" fill="${k.rank}">${xml(rank)}</text>
+    <text x="440" y="300" font-size="58" font-weight="800" fill="${k.count}">${shown(s.total)}</text><text x="440" y="334" font-size="22" fill="${k.sub}">agent sessions</text>
+    <text x="760" y="300" font-size="58" font-weight="800" fill="${k.count}">${s.hours ? shown(s.hours) : '&lt;1'}</text><text x="760" y="334" font-size="22" fill="${k.sub}">agent hours</text>
+    <text x="440" y="412" font-size="24" fill="${k.sub}">${xml(s.names.join(' · '))}</text>`, { background: k.field, dark });
 }
 
 async function start() {
@@ -62,9 +67,9 @@ async function start() {
   $('rank').textContent = rank;
   $('lede').innerHTML = `<b>${plural(s.total, 'session')}</b> since ${esc(since)}.` + (next ? ` ${esc(next[1])} at ${next[0].toLocaleString()}.` : ' The top of the pride.');
   window.spec = {
-    title: 'Your agent badge', file: 'Roar agent badge',
-    card: () => art(s),
-    frames: () => [...Array.from({ length: 18 }, (_, i) => art(s, (i + 1) / 18)), ...Array.from({ length: 12 }, (_, i) => art(s, 1, (i + 1) / 12))],
+    title: 'Your agent badge', file: 'Roar agent badge', dark: true, live: true,
+    card: (o = {}) => art(s, 1, 0, o.dark),
+    frames: (o = {}) => [...Array.from({ length: 18 }, (_, i) => art(s, (i + 1) / 18, 0, o.dark)), ...Array.from({ length: 12 }, (_, i) => art(s, 1, (i + 1) / 12, o.dark))],
     caption: () => `${rank} on Roar: ${plural(s.total, 'agent session')}${s.hours ? ', ' + plural(s.hours, 'agent hour') : ''}. The open-source browser your agent can drive. https://${shareCard.SITE}`,
   };
   await shareCard.mount($('share'), window.spec);
