@@ -350,12 +350,28 @@ async function shutdown(code) {
   await sidebarAsk({ cmd: 'agent.expire', owner: OWNER }, 3000).catch(() => {});  // Every card of this connection.
   rmSync(toolsFile, { force: true });
   rmSync(cdpConfig, { force: true });
+  await stop(inner, true);
   process.exit(code);
 }
-for (const sig of ['SIGTERM', 'SIGINT', 'SIGHUP']) process.on(sig, () => shutdown(0));
+// A refreshed roar-mcp is only signalled by the one above it, which still owns the connection and cleans it up.
+const INNER = !!process.env.ROAR_MCP_INNER;
+for (const sig of ['SIGTERM', 'SIGINT', 'SIGHUP']) process.on(sig, () => INNER ? (rmSync(cdpConfig, { force: true }), process.exit(0)) : shutdown(0));
+// Stops a process this one started, and with group its whole tree (its own process group; /T on Windows):
+// SIGTERM, then SIGKILL for whatever is left after 3 s.
+async function stop(p, group) {
+  if (!p?.pid) return;
+  p.removeAllListeners('exit');
+  p.stdin?.on('error', () => {});  // A write racing the stop.
+  const kill = (sig) => { try { WIN ? execFileSync('taskkill', ['/pid', String(p.pid), '/T', '/F'], { stdio: 'ignore' }) : group ? process.kill(-p.pid, sig) : p.kill(sig); } catch {} };
+  kill('SIGTERM');
+  if (p.exitCode === null && p.signalCode === null) await Promise.race([new Promise((r) => p.once('exit', r)), sleep(3000)]);
+  if (!WIN) kill('SIGKILL');
+}
 
 // Compiled: modules sit beside the executable. From source (bun/node roar-mcp.mjs): mcp/node_modules.
 const compiled = process.argv[1]?.startsWith('/$bunfs/');
+// The client's arguments (e.g. --no-usage-statistics) are chrome-devtools-mcp's options.
+const args = process.argv.slice(2);
 const modules = compiled ? join(dirname(process.execPath), 'roar-mcp-modules') : join(import.meta.dirname, 'node_modules');
 // The browser's WebSocket with Roar's token: --browserUrl can't send it. A new Roar launch changes both, so refresh() below.
 const launchToken = cdpToken();
@@ -367,7 +383,7 @@ try {
   writeFileSync(cdpConfig + '.tmp', JSON.stringify({ wsEndpoint: browserWs, wsHeaders: JSON.stringify({ 'X-Roar-Token': launchToken }) }), { mode: 0o600 });
   renameSync(cdpConfig + '.tmp', cdpConfig);
 } catch {}
-const child = spawn(process.execPath, [join(modules, 'chrome-devtools-mcp/build/src/bin/chrome-devtools-mcp.js'), '--config', cdpConfig],
+const child = spawn(process.execPath, [join(modules, 'chrome-devtools-mcp/build/src/bin/chrome-devtools-mcp.js'), ...args, '--config', cdpConfig],
   { stdio: ['pipe', 'pipe', 'inherit'], env: { ...process.env, BUN_BE_BUN: '1' } });
 child.on('exit', (code) => shutdown(code ?? 0));
 
@@ -379,14 +395,19 @@ try { mkdirSync(dirname(toolsFile), { recursive: true }); writeFileSync(toolsFil
 // A Roar update (Sparkle) swaps the bundle under a running session: hand the session to the new
 // roar-mcp (replayed initialize, proxied stdio) and tell the client to refetch its tools.
 const stamp = () => { try { const s = statSync(process.execPath); return `${s.ino}:${s.mtimeMs}`; } catch { return ''; } };
-const born = stamp();
+let born = stamp(), bornToken = launchToken;
 let inner = null, initLine = '';
-// Also polled: after an update the client's next request may already be a call to a tool only the new build has.
 // A relaunched Roar has a new CDP token, which the child's connection can't pick up: hand over the same way.
-setInterval(() => { if (!inner && initLine && ((born && stamp() !== born) || (launchToken && cdpToken() && cdpToken() !== launchToken))) refresh(); }, 15000).unref();
+const stale = () => (born && stamp() !== born) || (bornToken && cdpToken() && cdpToken() !== bornToken);
+// Also polled: after an update the client's next request may already be a call to a tool only the new build has.
+// Only the first roar-mcp refreshes: each refresh replaces its one inner process, so they never nest.
+if (!INNER) setInterval(() => { if (initLine && stale()) refresh(); }, 15000).unref();
 function refresh() {
-  inner = spawn(process.execPath, [], { stdio: ['pipe', 'pipe', 'inherit'], env: { ...process.env, ROAR_MCP_PPID: PPID, ROAR_MCP_OWNER: OWNER, ROAR_MCP_TOKEN: TOKEN } });
-  child.removeAllListeners('exit');  // The old child still answers calls in flight.
+  born = stamp(), bornToken = cdpToken() || bornToken;
+  // The old inner (or, the first time, this one's own child) works for the Roar that went away: its tree goes.
+  if (inner) stop(inner, true); else stop(child);
+  // Detached: its own process group, so stop() reaches its chrome-devtools-mcp too.
+  inner = spawn(process.execPath, compiled ? args : [process.argv[1], ...args], { stdio: ['pipe', 'pipe', 'inherit'], detached: !WIN, env: { ...process.env, ROAR_MCP_PPID: PPID, ROAR_MCP_OWNER: OWNER, ROAR_MCP_TOKEN: TOKEN, ROAR_MCP_INNER: '1' } });
   inner.on('exit', (code) => shutdown(code ?? 0));
   const init = { ...JSON.parse(initLine), id: '__roar_refresh' };
   inner.stdin.write(JSON.stringify(init) + '\n' + JSON.stringify({ jsonrpc: '2.0', method: 'notifications/initialized' }) + '\n');
@@ -435,7 +456,7 @@ createInterface({ input: child.stdout }).on('line', (line) => {
 });
 
 createInterface({ input: process.stdin }).on('line', (line) => {
-  if (!inner && initLine && born && stamp() !== born) refresh();
+  if (!INNER && initLine && stale()) refresh();
   if (inner) return void inner.stdin.write(line + '\n');
   let msg;
   try { msg = JSON.parse(line); } catch { return void child.stdin.write(line + '\n'); }
