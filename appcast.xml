@@ -367,5 +367,14 @@
       <description><![CDATA[Settings are easier to follow. Chat models (formerly Model chat) gives each provider one card with every way to connect: OpenAI and Anthropic by API key or plan, and Hermes, OpenCode and oMLX on this Mac or another machine. Extensions shows which space has which extension in one grid; click a spot to copy it there. Agents is simpler, and Hermes sessions can come from this Mac or another machine. Right-click the AI header to open your agent badge, which now animates and has a dark version. Name tabs with AI now renames a tab when it goes to another page.]]></description>
       <enclosure url="https://github.com/roarbrowser/roar/releases/download/v1.20.0/Roar-1.20.0.dmg" type="application/octet-stream" sparkle:edSignature="5s6jjKv0u2hlBVJSlYFjpSYq0TTbFltxPLZkFnnILCH4SEXEHdgVdBEbdiyHMm9iIkxj/ETjr71btuo9gPWeCg==" length="208033885"/>
     </item>
+    <item>
+      <title>1.21.0</title>
+      <pubDate>Sat, 07 Nov 2026 22:11:29 +0000</pubDate>
+      <sparkle:version>12100</sparkle:version>
+      <sparkle:shortVersionString>1.21.0</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[Your rank in Roar. Everyone now climbs an eight-rank lion ladder, from Cub to Apex Lion: the first ranks come from the days you use Roar, no AI needed, and the higher ones from agent work too. Your rank shows under Roar in the sidebar; click it to open your badge, which shows the whole ladder and what each rank needs, has its own light and dark switch, and a card whose mane grows as you climb. Ranks never go down and come with you through Settings › Backup. You can hide your rank from the badge page. Also: Chat models is now its name in the Ask picker and command bar.]]></description>
+      <enclosure url="https://github.com/roarbrowser/roar/releases/download/v1.21.0/Roar-1.21.0.dmg" type="application/octet-stream" sparkle:edSignature="+sisxxBaK+i5JtliHRReDTLWr0/Myh4EOi01o3XVkuAGAnEE0V6JsZ/8XWefZHQK59aTTwngq0zKUp9yFcC/BA==" length="208032092"/>
+    </item>
   </channel>
 </rss>
