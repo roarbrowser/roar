@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Agent badge</title>
+<link rel="stylesheet" href="roar.css">
+<!-- The agent badge: what Roar has counted of your agents' work (agent.stats), as a card to share. -->
+<style>
+body { background: var(--panel); }
+main { max-width: 760px; margin: 0 auto; padding: 44px 28px 72px; }
+h1 { margin: 0 0 6px; font: 800 36px/1.1 var(--round); letter-spacing: -.02em; }
+.lede { margin: 0 0 22px; color: var(--ink-2); font-size: 14px; }
+.lede b { color: var(--ink); font-weight: 650; }
+.empty { padding: 28px; border-radius: 16px; background: var(--ground); color: var(--ink-2); text-align: center; }
+</style>
+</head>
+<body>
+<main>
+  <h1 id="rank">Your agent badge</h1>
+  <p class="lede" id="lede"></p>
+  <div id="share"></div>
+</main>
+<script src="bridge.js"></script>
+<script src="cl-session.js"></script>
+<script src="share-card.js"></script>
+<script>
+const $ = (id) => document.getElementById(id);
+const { xml } = shareCard;
+// Sessions it takes to reach each rank, and the color of its ring.
+const RANKS = [[0, 'Cub', '#e8b87a'], [10, 'Scout', '#ffc72c'], [50, 'Hunter', '#ff9a2e'], [200, 'Pride Leader', '#ff7a00'], [1000, 'Apex Lion', '#e5484d']];
+const rankOf = (n) => RANKS.filter((r) => n >= r[0]).pop();
+const nextOf = (n) => RANKS.find((r) => n < r[0]);
+const nameOf = (tool) => AGENT_ROWS[tool]?.[0] || tool;
+const plural = (n, w) => `${n.toLocaleString()} ${w}${n === 1 ? '' : 's'}`;
+const ease = (t) => 1 - Math.pow(1 - t, 3);
+
+function art(s, t = 1, ring = 0) {
+  const [, rank, color] = rankOf(s.total);
+  const pop = t < 1 ? .72 + .28 * ease(t) + Math.sin(t * Math.PI) * .08 : 1;
+  const shown = (n) => Math.round(n * ease(t)).toLocaleString();
+  const rings = ring ? [0, 1].map((i) => { const r = 150 + ((ring + i * .5) % 1) * 90; return `<circle cx="228" cy="268" r="${r}" fill="none" stroke="${color}" stroke-width="6" opacity="${(1 - ((ring + i * .5) % 1)) * .6}"/>`; }).join('') : '';
+  return shareCard.frame(`${rings}
+    <g transform="translate(228 268) scale(${pop})"><circle r="150" fill="#fff9f0" stroke="${color}" stroke-width="14"/>${shareCard.lionAt(-112, -112, 224)}</g>
+    ${ring ? `<text x="228" y="${72 + (1 - ring) * 6}" font-size="44" font-weight="900" fill="${color}" text-anchor="middle">ROAR!</text>` : ''}
+    <text x="440" y="130" font-size="24" font-weight="700" letter-spacing="3" fill="#8a6a4e">AGENT BADGE</text>
+    <text x="440" y="208" font-size="76" font-weight="900" fill="#4a2e18">${xml(rank)}</text>
+    <text x="440" y="300" font-size="58" font-weight="800" fill="#ff7a00">${shown(s.total)}</text><text x="440" y="334" font-size="22" fill="#6b4e36">agent sessions</text>
+    <text x="760" y="300" font-size="58" font-weight="800" fill="#ff7a00">${s.hours ? shown(s.hours) : '&lt;1'}</text><text x="760" y="334" font-size="22" fill="#6b4e36">agent hours</text>
+    <text x="440" y="412" font-size="24" fill="#6b4e36">${xml(s.names.join(' · '))}</text>`, { background: '#fff4e4' });
+}
+
+async function start() {
+  const raw = await ask({ cmd: 'agent.stats' });
+  const s = { total: raw.total, hours: Math.round(raw.agentSeconds / 3600), names: Object.entries(raw.sessions).sort((a, b) => b[1] - a[1]).map((e) => nameOf(e[0])) };
+  const since = raw.since ? new Date(raw.since * 1000).toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' }) : '';
+  if (!s.total) {
+    $('lede').textContent = 'Roar counts your agents’ sessions from today, on this computer only.';
+    $('share').innerHTML = '<p class="empty">No sessions yet. Run an agent and your badge will start here.</p>';
+    return;
+  }
+  const [, rank] = rankOf(s.total), next = nextOf(s.total);
+  $('rank').textContent = rank;
+  $('lede').innerHTML = `<b>${plural(s.total, 'session')}</b> since ${esc(since)}.` + (next ? ` ${esc(next[1])} at ${next[0].toLocaleString()}.` : ' The top of the pride.');
+  window.spec = {
+    title: 'Your agent badge', file: 'Roar agent badge',
+    card: () => art(s),
+    frames: () => [...Array.from({ length: 18 }, (_, i) => art(s, (i + 1) / 18)), ...Array.from({ length: 12 }, (_, i) => art(s, 1, (i + 1) / 12))],
+    caption: () => `${rank} on Roar: ${plural(s.total, 'agent session')}${s.hours ? ', ' + plural(s.hours, 'agent hour') : ''}. The open-source browser your agent can drive. https://${shareCard.SITE}`,
+  };
+  await shareCard.mount($('share'), window.spec);
+}
+start();
+</script>
+</body>
+</html>

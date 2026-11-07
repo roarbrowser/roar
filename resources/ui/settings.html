@@ -213,6 +213,7 @@ p.reason a { color: inherit; }
         <div class="row"><label class="name" for="cl-side">Sessions in the sidebar<small>When off, Ask chats still show under AI.</small><span hidden>Agent sessions in the sidebar</span></label><input type="checkbox" class="switch" id="cl-side" data-set="claudeSidebar"></div>
         <div class="row"><label class="name" for="hermes-url">Hermes server<small id="hermes-note"></small><span hidden>Hermes Agent dashboard sessions</span></label>
           <span class="end"><input type="text" id="hermes-url" class="query" data-set="hermesUrl" placeholder="https://hermes.example.com" aria-label="Hermes dashboard address" spellcheck="false" style="width:230px"><select id="hermes-space" data-set="hermesSpace" data-kind="number" aria-label="Space signed in to Hermes"></select></span></div>
+        <div class="row"><span class="name">Agent badge<small>Sessions and hours Roar has counted, as a card to share. The counts stay on this computer.</small></span><span class="end"><button class="btn" id="open-badge">Open</button></span></div>
         <div class="row"><label class="name" for="af-on">Agent files row<small>Opens CLAUDE.md, AGENTS.md and rules in one click.</small></label><input type="checkbox" class="switch" id="af-on" data-set="agentFilesRow"></div>
       </div>
       <div class="blk"><h3>Browsing</h3>
@@ -466,6 +467,7 @@ $('dict-key').onkeydown = (e) => {
 };
 
 setInterval(() => { if (!$('agents').hidden && $('hermes-url').value) ask({ cmd: 'state' }).then(hermesRow); }, 3000);
+$('open-badge').onclick = () => ask({ cmd: 'open', text: 'roar://ui/badge.html', newTab: true });
 document.querySelectorAll('[data-set]').forEach((i) => i.onchange = () => set({
   [i.dataset.set]: i.type === 'checkbox' ? i.checked : i.dataset.kind === 'number' ? +i.value : i.value }));
 // Fill codes from Messages reads ~/Library/Messages, which only Full Disk Access opens (macOS only).

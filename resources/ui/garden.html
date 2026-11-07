@@ -83,12 +83,14 @@ svg#grid { display: block; width: 100%; height: auto; overflow: visible; }
   <div class="bar">
     <span class="label" id="animal-label">Roaming</span>
     <div class="segmented" role="group" aria-labelledby="animal-label" id="picker"></div>
+    <button class="btn" id="share" hidden>Share</button>
     <div class="legend" aria-hidden="true">Bare
       <svg viewBox="0 0 14 14" data-legend="0"></svg><svg viewBox="0 0 14 14" data-legend="1"></svg><svg viewBox="0 0 14 14" data-legend="2"></svg><svg viewBox="0 0 14 14" data-legend="3"></svg><svg viewBox="0 0 14 14" data-legend="4"></svg>
     Watering hole</div>
   </div>
 </main>
 <script src="bridge.js"></script>
+<script src="share-card.js"></script>
 <script>
 const $ = (id) => document.getElementById(id);
 const NS = 'http://www.w3.org/2000/svg';
@@ -272,6 +274,38 @@ function tooltips() {
   $('grid').addEventListener('mouseleave', () => (tip.hidden = true));
 }
 
+// The share card, in the daytime colors whatever the theme: the scene above leans on CSS variables an image can't see.
+const CARD_CSS = `.base{fill:#ecd3ab}.t2 .base,.t3 .base,.t4 .base{fill:#bccb6c}.crack{stroke:#dcb98b;stroke-width:.9;fill:none;stroke-linecap:round}.tuft{stroke:#bccb6c;stroke-width:1.4;fill:none;stroke-linecap:round}
+.blade{stroke:#6f8a2c;stroke-width:1.3;fill:none;stroke-linecap:round}.trunk{stroke:#7a5a40;stroke-width:1.4;fill:none;stroke-linecap:round}.canopy{fill:#5f7f2f}.canopy-2{fill:#7b9a3d}.pool{fill:#6db5c8}.glint{fill:#b9e3ec}`;
+const CARD_SCALE = 1.25, CARD_X = 48, CARD_Y = 362, HERO = 3.5;  // HERO: the animal, far bigger than a tile. It's the picture.
+function savannaArt(share, walk, roared) {
+  const { login, s } = share, xml = shareCard.xml;
+  const tiles = cells.map((c) => `<g class="t${c.tier}" transform="translate(${c.col * P} ${c.row * P})">${tileSvg(c.tier)}</g>`).join('');
+  // It walks in from the left and stops over the busiest week, kept clear of the card's edges and of its own roar.
+  const stop = Math.max(90, Math.min(860, CARD_X + s.busiest.col * P * CARD_SCALE - 20 * HERO));
+  const x = -150 + (stop + 150) * walk, step = walk < 1 ? Math.abs(Math.sin(walk * 26)) * 7 : 0;
+  const feet = CARD_Y - 12 - 32 * HERO;
+  const animal = `<g transform="translate(${x} ${feet - step}) scale(${HERO})">${ANIMALS[animalKey].svg}</g>`;
+  const word = roared ? `<text x="${stop + 40 * HERO + 18}" y="${feet + 62}" font-size="${34 + roared * 30}" font-weight="900" fill="#ff7a00">ROAR!</text>` : '';
+  return shareCard.frame(`<defs><linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffd9a8"/><stop offset="1" stop-color="#ffeacb"/></linearGradient></defs>
+    <rect width="1200" height="536" fill="url(#sky)"/><circle cx="1050" cy="112" r="62" fill="#ffb43a"/>
+    <path d="M0 356q300-34 600-10t600-14V536H0z" fill="#f4dcb2"/>
+    <text x="48" y="74" font-size="21" font-weight="700" letter-spacing="3" fill="#8a6a4e">${xml(login ? '@' + login + ' · ' : '')}LAST 52 WEEKS</text>
+    <text x="48" y="146" font-size="68" font-weight="900" fill="#4a2e18">${xml(plural(s.total, 'contribution'))}</text>
+    <text x="48" y="188" font-size="25" fill="#6b4e36">Longest streak ${xml(plural(s.best, 'day'))}</text>
+    <g transform="translate(${CARD_X} ${CARD_Y}) scale(${CARD_SCALE})">${tiles}</g>${animal}${word}`, { background: '#ffeacb', style: CARD_CSS });
+}
+function shareSpec(login, s) {
+  const share = (o) => ({ login: o.name ? login : '', s });
+  return {
+    title: 'Share your savanna', file: 'My Roar savanna',
+    options: [{ key: 'name', label: 'Show my GitHub name', on: true }],
+    card: (o) => savannaArt(share(o), 1, 1),
+    frames: (o) => [...Array.from({ length: 22 }, (_, i) => savannaArt(share(o), (i + 1) / 22, 0)), ...Array.from({ length: 8 }, (_, i) => savannaArt(share(o), 1, (i + 1) / 8))],
+    caption: () => `My year on GitHub as a savanna: ${plural(s.total, 'contribution')}. Made with Roar, the open-source browser your agent can drive. https://${shareCard.SITE}`,
+  };
+}
+
 async function start() {
   legend(); picker(); sky(); tooltips();
   let data = null;
@@ -285,6 +319,9 @@ async function start() {
   busiest = s.busiest;
   if (ok) {
     $('who').textContent = '@' + data.login + ' · last 52 weeks';
+    window.savannaSpec = shareSpec(data.login, s);
+    $('share').hidden = false;
+    $('share').onclick = () => shareCard.open(window.savannaSpec);
     $('stats').innerHTML = `<b>${plural(s.total, 'contribution')}</b> · longest streak <b>${plural(s.best, 'day')}</b> · busiest <b>${esc(fmt(s.busiest.d))}</b> (${s.busiest.c.toLocaleString()})`;
   } else {
     $('who').textContent = 'Not signed in';

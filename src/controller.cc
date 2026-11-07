@@ -3243,6 +3243,7 @@ void Controller::ClaudeTick() {
     if (!sid.empty() && sid.rfind("new-", 0) != 0 && !seen.count(sid)) ended.push_back(t.id);
   }
   for (int id : ended) CloseTab(id);
+  AgentStatsTick(list);
   std::string sig = ToJson([&] { auto x = CefValue::Create(); x->SetList(list); return x; }());
   if (sig != claude_sig_) {
     claude_sig_ = sig;
@@ -6330,6 +6331,8 @@ bool Controller::HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> 
     return HandleBackup(browser, msg, callback);
   } else if (StartsWith(cmd, "board.")) {
     return HandleBoards(browser, msg, callback);
+  } else if (cmd == "agent.stats" || cmd == "share.save") {
+    return HandleShare(browser, msg, callback);
   } else {
     return false;
   }

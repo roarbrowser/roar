@@ -293,6 +293,7 @@ class Controller {
   bool HandleBackup(CefRefPtr<CefBrowser> browser, CefRefPtr<CefDictionaryValue> msg, CefRefPtr<Callback> callback);
   // Boards' board.* commands (controller_boards.cc).
   bool HandleBoards(CefRefPtr<CefBrowser> browser, CefRefPtr<CefDictionaryValue> msg, CefRefPtr<Callback> callback);
+  bool HandleShare(CefRefPtr<CefBrowser> browser, CefRefPtr<CefDictionaryValue> msg, CefRefPtr<Callback> callback);
   bool CanCloseShell(CefRefPtr<CefWindow> shell);
   void OnShellDestroyed(CefRefPtr<CefWindow> shell);
   bool CanCloseTabWindow(CefRefPtr<CefWindow> window);
@@ -369,6 +370,7 @@ class Controller {
   // Claude Code sessions reported by the roar-mcp claude-hook (<data>/claude-sessions/*.json).
   void ClaudeTick();
   void HermesTick();
+  void AgentStatsTick(CefRefPtr<CefListValue> sessions);  // controller_share.cc
   void HermesPoll(bool restart = false);
   CefRefPtr<CefListValue> claude_ = CefListValue::Create();
   std::string claude_sig_;

@@ -10,7 +10,7 @@ set(ROAR_SRCS
   arc_import.cc arc_import.h
   browser_app.cc browser_app.h
   client.cc client.h
-  controller.cc controller.h controller_backup.cc controller_boards.cc controller_dictation.cc controller_hermes.cc
+  controller.cc controller.h controller_backup.cc controller_boards.cc controller_dictation.cc controller_hermes.cc controller_share.cc
   backup.h boards.h
   dictation.cc dictation.h
   library.cc library.h
