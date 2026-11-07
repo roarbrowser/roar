@@ -17,6 +17,10 @@ struct AgentStats {
   std::map<std::string, int> sessions;  // Per tool.
   double agent_seconds = 0;          // Summed over sessions, so two at once count twice.
   std::deque<std::string> seen;      // Session ids already counted, oldest first.
+  int days = 0;                      // Local days with a page the person opened (AgentStatsDay).
+  std::string last_day;              // The last day counted, "YYYY-MM-DD". No other dates are kept.
+  bool days_seeded = false;          // Past days were taken from history once (AgentStatsSeed).
+  int best_rank = 0;                 // Highest rank reached: the shown rank never goes below it.
 };
 
 // Stand-ins for a session that hasn't reported yet, and rows that aren't sessions at all.
@@ -43,6 +47,73 @@ inline int AgentStatsTotal(const AgentStats& s) {
   int total = 0;
   for (const auto& [tool, n] : s.sessions) total += n;
   return total;
+}
+
+// ---- The rank ladder (docs/plans/2026-11-07-badge-ranks.md) ----
+// Days of Roar use first, then agent work. A rank needs all of its numbers.
+struct AgentRank {
+  const char* name;
+  int days;
+  int sessions;
+  int hours;
+};
+inline constexpr AgentRank kAgentRanks[] = {
+    {"Cub", 0, 0, 0},           {"Prowler", 7, 0, 0},       {"Scout", 30, 0, 0},           {"Hunter", 30, 10, 0},
+    {"Pride Guard", 60, 50, 0}, {"Maned", 90, 200, 25},     {"Pride Leader", 180, 500, 100}, {"Apex Lion", 365, 1000, 250},
+};
+inline constexpr int kAgentRankCount = sizeof(kAgentRanks) / sizeof(kAgentRanks[0]);
+
+inline int AgentRankFor(int days, int sessions, double hours) {
+  int rank = 0;
+  for (int i = 0; i < kAgentRankCount; ++i)
+    if (days >= kAgentRanks[i].days && sessions >= kAgentRanks[i].sessions && hours >= kAgentRanks[i].hours) rank = i;
+    else break;
+  return rank;
+}
+
+// Never lower than the best rank reached (no demotion after an update or an import).
+inline int AgentRankShown(const AgentStats& s) {
+  return std::max(s.best_rank, AgentRankFor(s.days, AgentStatsTotal(s), s.agent_seconds / 3600));
+}
+
+// The rank before days existed (sessions only), mapped onto the same names.
+inline int AgentOldRank(int total_sessions) {
+  return total_sessions >= 1000 ? 7 : total_sessions >= 200 ? 6 : total_sessions >= 50 ? 3 : total_sessions >= 10 ? 2 : 0;
+}
+
+// |today| is a local "YYYY-MM-DD". A day counts once; a clock moved back adds nothing.
+inline bool AgentStatsDay(AgentStats& s, const std::string& today) {
+  if (today.empty() || today <= s.last_day) return false;
+  s.last_day = today;
+  s.days++;
+  return true;
+}
+
+// Once, on the first launch with days: past days from history, and today's rank kept.
+inline void AgentStatsSeed(AgentStats& s, int history_days) {
+  if (s.days_seeded) return;
+  s.days = std::max(s.days, history_days);
+  s.best_rank = std::max(s.best_rank, AgentOldRank(AgentStatsTotal(s)));
+  s.days_seeded = true;
+}
+
+// An imported backup: the higher of each count, the earliest start. Never sums, so restoring your own backup is safe.
+inline void AgentStatsMerge(AgentStats& into, const AgentStats& from) {
+  into.days = std::max(into.days, from.days);
+  for (const auto& [tool, n] : from.sessions) into.sessions[tool] = std::max(into.sessions[tool], n);
+  into.agent_seconds = std::max(into.agent_seconds, from.agent_seconds);
+  into.best_rank = std::max(into.best_rank, from.best_rank);
+  if (from.since > 0 && (into.since <= 0 || from.since < into.since)) into.since = from.since;
+  into.last_day = std::max(into.last_day, from.last_day);
+  into.days_seeded = into.days_seeded || from.days_seeded;
+  for (const auto& id : from.seen)
+    if (std::find(into.seen.begin(), into.seen.end(), id) == into.seen.end()) into.seen.push_back(id);
+  while (into.seen.size() > kAgentStatsSeen) into.seen.pop_front();
+}
+
+// A page load is the person using Roar: not a ghost tab, not an agent's, not a tab restored at launch.
+inline bool AgentVisitCounts(bool ghost, bool driven, bool agent_active, bool restored_first_load) {
+  return !ghost && !driven && !agent_active && !restored_first_load;
 }
 
 }  // namespace roar
