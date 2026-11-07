@@ -13,7 +13,6 @@ body { background: var(--panel); }
 main { max-width: 760px; margin: 0 auto; padding: 40px 28px 72px; }
 .top { display: flex; align-items: flex-start; gap: 16px; margin-bottom: 18px; }
 .top > div:first-child { flex: 1; min-width: 0; }
-.eyebrow { margin: 0 0 4px; font: 700 11px var(--ui); letter-spacing: .12em; text-transform: uppercase; color: var(--ink-3); }
 h1 { margin: 0 0 6px; font: 800 36px/1.1 var(--round); letter-spacing: -.02em; }
 h2 { margin: 36px 0 10px; font: 700 16px var(--round); }
 .lede { margin: 0; color: var(--ink-2); font-size: 14px; }
@@ -40,7 +39,7 @@ h2 { margin: 36px 0 10px; font: 700 16px var(--round); }
 <body>
 <main>
   <header class="top">
-    <div><p class="eyebrow">Your rank</p><h1 id="rank">Cub</h1><p class="lede" id="lede"></p></div>
+    <div><h1 id="rank">Cub</h1><p class="lede" id="lede"></p></div>
     <div class="segmented" id="theme" role="group" aria-label="Page theme"><button data-theme="system">System</button><button data-theme="light">Light</button><button data-theme="dark">Dark</button></div>
   </header>
   <div id="share"></div>
@@ -61,12 +60,23 @@ const nameOf = (tool) => AGENT_ROWS[tool]?.[0] || tool;
 const plural = (n, w) => `${n.toLocaleString()} ${w}${n === 1 ? '' : 's'}`;
 const ease = (t) => 1 - Math.pow(1 - t, 3);
 // Each rank's ring color, Cub to Apex Lion.
-const RING = ['#e8b87a', '#f0b05a', '#ffc72c', '#ffb02e', '#ff9a2e', '#ff8a1a', '#ff7a00', '#e5484d'];
+const RING = ['#e8b87a', '#f0b05a', '#ffc72c', '#ffb02e', '#ff9a2e', '#ff8a1a', '#ff7a00', '#ffc72c'];
 // The card's colors, light and dark; the lion keeps its cream tile on both.
 const INKS = {
-  light: { field: '#fff4e4', disc: '#fff9f0', label: '#8a6a4e', rank: '#4a2e18', count: '#ff7a00', sub: '#6b4e36' },
-  dark: { field: '#1e140c', disc: '#2a1d12', label: '#c3a688', rank: '#fbeedd', count: '#ff9a2e', sub: '#d2b89c' },
+  light: { field: '#fff4e4', hill: '#ffe8cc', hill2: '#ffdfba', disc: '#fff9f0', rank: '#4a2e18', count: '#c25a00', sub: '#6b4e36', pip: '#ecd3b4', star: '' },
+  dark: { field: '#1e140c', hill: '#26190f', hill2: '#2d1e12', disc: '#2a1d12', rank: '#fbeedd', count: '#ff9a2e', sub: '#d2b89c', pip: '#4a3422', star: '#fbeedd' },
 };
+// Four looks as the rank rises: the mane grows around the lion in overlapping lobes, the way the lion mark's own
+// petal mane does, one layer per look. Each layer: [lobes, distance from the center, length, width, color].
+const LOOK_OF = ['cub', 'cub', 'young', 'young', 'maned', 'maned', 'maned', 'apex'];
+const LOOKS = {
+  cub: { rings: [], stroke: 6, disc: 116 },
+  young: { rings: [[14, 136, 52, 46, '#ffc72c']], stroke: 8, disc: 120 },
+  maned: { rings: [[16, 160, 60, 50, '#ff7a00'], [14, 134, 50, 44, '#ffb02e']], stroke: 10, disc: 122 },
+  apex: { rings: [[20, 182, 62, 48, '#c2410c'], [16, 158, 58, 48, '#ff7a00'], [14, 134, 50, 44, '#ffc72c']], stroke: 12, disc: 124 },
+};
+// Fixed stars for the dark card's night sky (positions only, nothing random, so every frame matches).
+const STARS = [[512, 64, 1.6], [604, 38, 1.1], [742, 82, 1.4], [868, 44, 1], [996, 70, 1.7], [1112, 40, 1.2], [1150, 120, .9], [470, 150, .9], [92, 60, 1.2], [36, 170, .9]];
 
 // The page's theme: System (the default), Light or Dark, remembered on this computer.
 const THEME_KEY = 'badgeTheme';
@@ -88,33 +98,56 @@ $('theme').onclick = (e) => {
 const needs = (r) => [r.days && `${plural(r.days, 'day')}`, r.sessions && `${plural(r.sessions, 'session')}`, r.hours && `${plural(r.hours, 'agent hour')}`].filter(Boolean).join(' · ') || 'Start using Roar';
 const progress = (r, s) => [[s.days, r.days, 'days'], [s.total, r.sessions, 'sessions'], [s.hours, r.hours, 'agent hours']]
   .filter(([have, need]) => need && have < need).map(([have, need, w]) => `${have.toLocaleString()} of ${need.toLocaleString()} ${w}`).join(' · ');
+const CHECK = '<svg viewBox="0 0 12 12" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 6.3 5 8.6l4.6-5.2"/></svg>';
 function ladder(s) {
   $('ladder').innerHTML = s.ladder.map((r, i) => {
     const state = i < s.rank ? 'earned' : i === s.rank ? 'earned current' : 'locked';
-    return `<li data-rank="${i}" class="${state}"><span class="mark" aria-hidden="true">${i <= s.rank ? '✓' : i + 1}</span>`
+    return `<li data-rank="${i}" class="${state}"><span class="mark" aria-hidden="true">${i <= s.rank ? CHECK : i + 1}</span>`
       + `<span class="name">${esc(r.name)}${i === s.rank ? '<span class="here">You are here</span>' : ''}</span><span class="needs">${esc(needs(r))}</span>`
       + `<span class="prog">${i > s.rank ? esc(progress(r, s)) : ''}</span></li>`;
   }).join('');
 }
 
+// The card. |t| 0→1 grows the mane in and counts the numbers up; |ring| 0→1 sends a ripple out from the mane (the roar).
 function art(s, t = 1, ring = 0, dark = false) {
-  const rank = s.ladder[s.rank].name, color = RING[s.rank], k = dark ? INKS.dark : INKS.light;
-  const pop = t < 1 ? .72 + .28 * ease(t) + Math.sin(t * Math.PI) * .08 : 1;
+  const k = dark ? INKS.dark : INKS.light, color = RING[s.rank], look = LOOKS[LOOK_OF[s.rank]], cx = 252, cy = 262;
+  const clamp = (x) => Math.max(0, Math.min(1, x));
   const shown = (n) => Math.round(n * ease(t)).toLocaleString();
-  const rings = ring ? [0, 1].map((i) => { const r = 150 + ((ring + i * .5) % 1) * 90; return `<circle cx="228" cy="268" r="${r}" fill="none" stroke="${color}" stroke-width="6" opacity="${(1 - ((ring + i * .5) % 1)) * .6}"/>`; }).join('') : '';
-  return shareCard.frame(`${rings}
-    <g transform="translate(228 268) scale(${pop})"><circle r="150" fill="${k.disc}" stroke="${color}" stroke-width="14"/>${shareCard.lionAt(-112, -112, 224)}</g>
-    ${ring ? `<text x="228" y="${72 + (1 - ring) * 6}" font-size="44" font-weight="900" fill="${color}" text-anchor="middle">ROAR!</text>` : ''}
-    <text x="440" y="130" font-size="24" font-weight="700" letter-spacing="3" fill="${k.label}">AGENT BADGE</text>
-    <text x="440" y="208" font-size="76" font-weight="900" fill="${k.rank}">${xml(rank)}</text>
-    <text x="440" y="300" font-size="58" font-weight="800" fill="${k.count}">${shown(s.total)}</text><text x="440" y="334" font-size="22" fill="${k.sub}">agent sessions</text>
-    <text x="760" y="300" font-size="58" font-weight="800" fill="${k.count}">${s.hours ? shown(s.hours) : '&lt;1'}</text><text x="760" y="334" font-size="22" fill="${k.sub}">agent hours</text>
-    <text x="440" y="412" font-size="24" fill="${k.sub}">${xml(s.names.join(' · '))}</text>`, { background: k.field, dark });
+  const reach = look.rings.length ? look.rings[0][1] + look.rings[0][2] / 2 : look.disc + look.stroke;
+  // Mane: outer rings first so the inner ones sit on top; each ring opens a beat after the one inside it.
+  const mane = look.rings.map(([n, d, len, wid, fill], li) => {
+    const grow = ease(clamp(t * 1.5 - (look.rings.length - 1 - li) * .18));
+    if (!grow) return '';
+    return Array.from({ length: n }, (_, i) => `<ellipse cx="0" cy="${-d}" rx="${wid / 2}" ry="${(len / 2) * grow}" fill="${fill}" transform="rotate(${(360 / n) * (i + li * .5)})"/>`).join('');
+  }).join('');
+  const ripple = ring ? [0, 1].map((i) => { const p = (ring + i * .5) % 1; return `<circle cx="${cx}" cy="${cy}" r="${reach + 6 + p * 70}" fill="none" stroke="${color}" stroke-width="5" opacity="${((1 - p) * .55).toFixed(3)}"/>`; }).join('') : '';
+  const pop = t < 1 ? .86 + .14 * ease(t) : 1;
+  // The ladder as pips: every rank earned so far filled, yours ringed, the rest waiting.
+  const pips = s.ladder.map((_, i) => {
+    const x = 618 + i * 30, st = i < s.rank ? 'earned' : i === s.rank ? 'earned' : 'future';
+    return `<circle data-pip="${st}" cx="${x}" cy="246" r="${i === s.rank ? 8 : 6}" fill="${st === 'earned' ? RING[i] : 'none'}" stroke="${st === 'earned' ? 'none' : k.pip}" stroke-width="2.5"/>`
+      + (i === s.rank ? `<circle cx="${x}" cy="246" r="13" fill="none" stroke="${color}" stroke-width="2"/>` : '');
+  }).join('');
+  const next = s.ladder[s.rank + 1];
+  const stat = (x, n, label) => `<text x="${x}" y="398" font-size="50" font-weight="800" fill="${k.count}" style="font-variant-numeric: tabular-nums">${n}</text><text x="${x}" y="430" font-size="20" fill="${k.sub}">${label}</text>`;
+  return shareCard.frame(`
+    ${dark ? STARS.map(([x, y, r]) => `<circle cx="${x}" cy="${y}" r="${r}" fill="${k.star}" opacity=".55"/>`).join('') : ''}
+    <path d="M0 452 C 260 404 520 470 780 438 S 1100 418 1200 444 V 536 H 0 Z" fill="${k.hill}"/>
+    <path d="M0 494 C 300 462 640 508 920 482 S 1140 476 1200 490 V 536 H 0 Z" fill="${k.hill2}"/>
+    ${ripple}
+    <g transform="translate(${cx} ${cy})">${mane}<g transform="scale(${pop})"><circle r="${look.disc}" fill="${k.disc}" stroke="${color}" stroke-width="${look.stroke}"/>${shareCard.lionAt(-look.disc * .74, -look.disc * .74, look.disc * 1.48)}</g></g>
+    <text x="600" y="190" font-size="84" font-weight="900" letter-spacing="-1.5" fill="${k.rank}">${xml(s.ladder[s.rank].name)}</text>
+    ${pips}
+    <text x="${618 + 8 * 30 + 8}" y="253" font-size="19" fill="${k.sub}">${next ? `Next: ${xml(next.name)}` : 'Top of the pride'}</text>
+    ${stat(600, shown(s.days), s.days === 1 ? 'day with Roar' : 'days with Roar')}
+    ${stat(800, shown(s.total), s.total === 1 ? 'agent session' : 'agent sessions')}
+    ${stat(1000, s.hours ? shown(s.hours) : '&lt;1', 'agent hours')}`, { background: k.field, dark });
 }
 
 async function start() {
   const raw = await ask({ cmd: 'agent.stats' });
   const s = { ...raw, hours: Math.round(raw.agentSeconds / 3600), names: Object.entries(raw.sessions).sort((a, b) => b[1] - a[1]).map((e) => nameOf(e[0])) };
+  window.badgeData = s;  // art() reads it; the tests draw other ranks from it.
   const rank = s.ladder[s.rank].name, next = s.ladder[s.rank + 1];
   $('rank').textContent = rank;
   $('lede').innerHTML = `<b>${plural(s.days, 'day')}</b> with Roar` + (s.total ? `, <b>${plural(s.total, 'agent session')}</b>` : '') + '. '

@@ -194,6 +194,13 @@ try {
   check((await badge(`spec.frames({ dark: true })`)).every((f) => f.includes('#1e140c')), 'and dark GIF frames');
   check(!svg.includes('#1e140c') && !svg.includes('#2a1d12'), 'the Savanna card stays light');
   check(badgeSvg.includes('&lt;1') && !(await badge(`spec.caption()`)).includes('hour'), 'under an hour reads as <1, and stays out of the caption');
+  // The card grows with the rank: four looks (cub, young lion, maned, apex), one per group of ranks, in both themes.
+  const petals = (rank, dark) => badge(`(art({ ...window.badgeData, rank: ${rank} }, 1, 0, ${dark}).match(/<ellipse /g) || []).length`);
+  const looks = await Promise.all([0, 1, 2, 3, 4, 6, 7].map((r) => petals(r, false)));
+  check(looks[0] === looks[1] && looks[2] === looks[3] && looks[4] === looks[5] && new Set([looks[0], looks[2], looks[4], looks[6]]).size === 4 && looks[0] < looks[2] && looks[2] < looks[4] && looks[4] < looks[6],
+    'card evolves: four looks, each a step up: ' + looks.join(','));
+  check((await petals(7, true)) === looks[6] && (await badge(`art({ ...window.badgeData, rank: 7 }, 1, 0, true)`)).includes('Made with Roar'), 'and the same look in dark, credit still on it');
+  check((await badge(`(art({ ...window.badgeData, rank: 3 }, 1, 0, false).match(/data-pip="earned"/g) || []).length`)) === 4, 'the card shows your place on the ladder');
   const badgePng = await badge(`shareCard.render(spec, {}).then((c) => c.toDataURL('image/png').split(',')[1])`);
   const badgeGif = await badge(`shareCard.animate(spec, {}).then((u) => { let s = ''; for (let i = 0; i < u.length; i += 32768) s += String.fromCharCode(...u.subarray(i, i + 32768)); return btoa(s); })`);
   const bi = JSON.parse(await badge(`(${gifInfo})(${JSON.stringify(badgeGif)})`));
