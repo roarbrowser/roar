@@ -3,10 +3,10 @@
   <channel>
     <title>Roar for Windows (x64)</title>
     <item>
-      <title>Roar 1.17.0</title>
-      <sparkle:releaseNotesLink>https://github.com/roarbrowser/roar/releases/tag/v1.17.0</sparkle:releaseNotesLink>
-      <pubDate>Fri, 06 Nov 2026 12:16:25 +0000</pubDate>
-      <enclosure url="https://github.com/roarbrowser/roar/releases/download/v1.17.0/Roar-windows-x64-setup.exe" sparkle:version="11700" sparkle:shortVersionString="1.17.0" sparkle:os="windows" sparkle:installerArguments="/SILENT /SP- /NOCANCEL /NORESTART" sparkle:edSignature="0AADst0yG0SnGp3TbpYWvMsuUhAEDv0GPlLmI8q2gE4goqtwvxNNK75bqj3uzqwWA21MFrgy9igpmjB5Mz3FDA==" length="181903517" type="application/octet-stream"/>
+      <title>Roar 1.18.0</title>
+      <sparkle:releaseNotesLink>https://github.com/roarbrowser/roar/releases/tag/v1.18.0</sparkle:releaseNotesLink>
+      <pubDate>Sat, 07 Nov 2026 04:54:02 +0000</pubDate>
+      <enclosure url="https://github.com/roarbrowser/roar/releases/download/v1.18.0/Roar-windows-x64-setup.exe" sparkle:version="11800" sparkle:shortVersionString="1.18.0" sparkle:os="windows" sparkle:installerArguments="/SILENT /SP- /NOCANCEL /NORESTART" sparkle:edSignature="GA5eNFo+XwHBMOL3EqBd8V4AHnY7b+L4ftuNN26H8tj8ZGIHQggXkJfJHVkdf9ylx2qUX5ClUpekT9NGSzifDA==" length="181926439" type="application/octet-stream"/>
     </item>
   </channel>
 </rss>
