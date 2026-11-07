@@ -37,6 +37,14 @@ int main() {
   { AgentStats d;
     check(AgentStatsDay(d, "2026-11-07") && !AgentStatsDay(d, "2026-11-07") && AgentStatsDay(d, "2026-11-08") && d.days == 2, "day: counts once");
     check(!AgentStatsDay(d, "2026-11-07") && d.days == 2 && d.last_day == "2026-11-08", "day: clock moved back adds nothing"); }
+  { AgentStats f;  // A clock set far ahead once must not stop the count until that date comes round.
+    AgentStatsDay(f, "2027-06-01");
+    check(!AgentStatsDay(f, "2026-11-07") && f.last_day == "2026-11-07" && AgentStatsDay(f, "2026-11-08") && f.days == 2, "day: a date far ahead is let go"); }
+  check(AgentDayNumber("2026-11-08") - AgentDayNumber("2026-11-07") == 1 && AgentDayNumber("2027-01-01") - AgentDayNumber("2026-12-31") == 1, "day numbers");
+  { AgentStats into, from;  // The day mark follows the side whose days won.
+    into.days = 9; into.last_day = "2026-11-07"; from.days = 3; from.last_day = "2027-06-01";
+    AgentStatsMerge(into, from);
+    check(into.last_day == "2026-11-07", "merge: a losing side's day mark doesn't come along"); }
   { AgentStats e; e.sessions["claude"] = 60;
     AgentStatsSeed(e, 12);
     check(e.days == 12 && e.best_rank == 3 && e.days_seeded, "seed: days from history, old rank kept");

@@ -84,16 +84,17 @@ void LoadStats() {
   g_stats = ReadStats(StatsPath());
   std::error_code ec;
   bool changed = false;
-  if (fs::exists(ImportedStatsPath(), ec)) {
-    AgentStatsMerge(g_stats, ReadStats(ImportedStatsPath()));
-    fs::remove(ImportedStatsPath(), ec);
-    changed = true;
-  }
+  // Seed this computer's own counts first, so its old rank is kept even when a backup merges in at the same launch.
   if (!g_stats.days_seeded) {  // Once: past days from history (each URL's last visit, so a lower bound).
     std::set<std::string> days;
     for (const auto& [key, e] : State::Get().history)
       if (e.last_visit > 0) days.insert(LocalDay(e.last_visit));
     AgentStatsSeed(g_stats, static_cast<int>(days.size()));
+    changed = true;
+  }
+  if (fs::exists(ImportedStatsPath(), ec)) {
+    AgentStatsMerge(g_stats, ReadStats(ImportedStatsPath()));
+    fs::remove(ImportedStatsPath(), ec);
     changed = true;
   }
   if (changed) SaveStats();
@@ -169,7 +170,14 @@ void Controller::AgentStatsTick(CefRefPtr<CefListValue> sessions) {
     if (row->GetString("state") == "working" && AgentStatsCounts(row->GetString("id").ToString())) working++;
   }
   if (working) AgentStatsWork(g_stats, working, step), g_stats_dirty = true;
-  if (g_stats_dirty && now - g_stats_saved >= kSaveEverySeconds) g_stats_saved = now, SaveStats();
+  // A new rank is saved at once: a quit or crash in the next minute must not take it back.
+  bool rank_up = AgentRankShown(g_stats) > g_stats.best_rank;
+  if (g_stats_dirty && (rank_up || now - g_stats_saved >= kSaveEverySeconds)) g_stats_saved = now, SaveStats();
+}
+
+// Unsaved counts to disk: on every state save (quit included) and before a backup export reads the file.
+void Controller::AgentStatsFlush() {
+  if (g_stats_loaded && g_stats_dirty) g_stats_saved = NowSeconds(), SaveStats();
 }
 
 void Controller::AgentStatsVisit(Tab& tab) {

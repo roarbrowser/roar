@@ -144,9 +144,14 @@ function art(s, t = 1, ring = 0, dark = false) {
     ${stat(1000, s.hours ? shown(s.hours) : '&lt;1', 'agent hours')}`, { background: k.field, dark });
 }
 
+// What a shared card says: days for everyone, agent work only when there is some.
+const captionFor = (s) => `${s.ladder[s.rank].name} on Roar: ${plural(s.days, 'day')} with Roar`
+  + (s.total ? `, ${plural(s.total, 'agent session')}` : '') + (s.hours ? `, ${plural(s.hours, 'agent hour')}` : '')
+  + `. The open-source browser your agent can drive. https://${shareCard.SITE}`;
+
 async function start() {
   const raw = await ask({ cmd: 'agent.stats' });
-  const s = { ...raw, hours: Math.round(raw.agentSeconds / 3600), names: Object.entries(raw.sessions).sort((a, b) => b[1] - a[1]).map((e) => nameOf(e[0])) };
+  const s = { ...raw, names: Object.entries(raw.sessions).sort((a, b) => b[1] - a[1]).map((e) => nameOf(e[0])) };
   window.badgeData = s;  // art() reads it; the tests draw other ranks from it.
   const rank = s.ladder[s.rank].name, next = s.ladder[s.rank + 1];
   $('rank').textContent = rank;
@@ -158,7 +163,7 @@ async function start() {
     theme: () => { const t = themeNow(); return t === 'system' ? null : t; },
     card: (o = {}) => art(s, 1, 0, o.dark),
     frames: (o = {}) => [...Array.from({ length: 18 }, (_, i) => art(s, (i + 1) / 18, 0, o.dark)), ...Array.from({ length: 12 }, (_, i) => art(s, 1, (i + 1) / 12, o.dark))],
-    caption: () => `${rank} on Roar: ${plural(s.total, 'agent session')}${s.hours ? ', ' + plural(s.hours, 'agent hour') : ''}. The open-source browser your agent can drive. https://${shareCard.SITE}`,
+    caption: () => captionFor(s),
   };
   await shareCard.mount($('share'), window.spec);
 }

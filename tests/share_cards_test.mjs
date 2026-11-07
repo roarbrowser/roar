@@ -224,11 +224,37 @@ try {
   roar.kill();
   await sleep(1500);
   const imported = join(data, 'agent-stats.imported.json');
-  writeFileSync(imported, JSON.stringify({ days: 40, bestRank: 3, sessions: { codex: 12 } }));
+  writeFileSync(imported, JSON.stringify({ days: 60, bestRank: 3, agentSeconds: 9360, sessions: { codex: 12 } }));
   await start();
   const s3 = await until(async () => { const s = await stats(); return s.days >= 40 && s; });
   check(!!s3 && s3.rank >= 3 && s3.sessions.codex === 12 && s3.sessions.claude >= 1, 'stats: an imported file merges, keeping the higher counts: ' + JSON.stringify(s3 && { days: s3.days, rank: s3.rank, sessions: s3.sessions }));
   check(!existsSync(imported), 'stats: and the imported file is used up');
+  // Hours the page shows are whole hours, as the rank counts them.
+  check(s3.hours === 2, 'stats: hours round down: ' + s3.hours);
+  await open('roar://ui/badge.html');
+  check(!!(await until(async () => (await badge(`window.badgeData?.hours`)) === 2)), 'the badge page uses the same whole hours');
+  check(/^Hunter on Roar: \d+ days with Roar, \d+ agent sessions/.test(await badge(`captionFor(window.badgeData)`) || '') &&
+    !/agent session/.test(await badge(`captionFor({ ...window.badgeData, total: 0, hours: 0 })`) || 'agent session'), 'the caption leads with days and leaves out zero sessions: ' + await badge(`captionFor(window.badgeData)`));
+
+  // A rank reached is saved at once: a crash right after it doesn't take it back.
+  mkdirSync(join(data, 'claude-sessions'), { recursive: true });
+  for (let i = 0; i < 160; i++) session('rankup-' + i, { state: 'idle' });
+  check(!!(await until(async () => (await stats()).rank >= 4, 30000)), 'stats: enough sessions reach Pride Guard');
+  roar.kill('SIGKILL');
+  await sleep(1500);
+  rmSync(join(data, 'claude-sessions'), { recursive: true, force: true });
+  await start();
+  const s4 = await stats();
+  check(s4.rank >= 4, 'stats: and it survives a crash right after: rank ' + s4.rank);
+
+  // Upgrading with a backup waiting: the old rank (sessions only) still carries over before the backup merges in.
+  await Promise.race([side(`ask({ cmd: 'run', id: 'quit' })`).catch(() => {}), sleep(1500)]);
+  roar.kill();
+  await sleep(1500);
+  writeFileSync(join(data, 'agent-stats.json'), JSON.stringify({ since: 1700000000, agentSeconds: 0, sessions: { claude: 200 } }));
+  writeFileSync(imported, JSON.stringify({ days: 5, daysSeeded: true, bestRank: 1 }));
+  await start();
+  check((await stats()).rank === 6, 'stats: an old Pride Leader stays one when a backup merges at the same launch: ' + (await stats()).rank);
 } catch (e) {
   check(false, 'stopped: ' + (e?.stack || e));
 } finally {

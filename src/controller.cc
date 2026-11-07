@@ -6883,6 +6883,7 @@ void Controller::SaveSoon() {
 }
 
 void Controller::SaveNow() {
+  AgentStatsFlush();
   State& state = State::Get();
   state.tabs.clear();
   state.active_index = 0;

@@ -3,6 +3,7 @@
 #pragma once
 
 #include <algorithm>
+#include <cstdio>
 #include <deque>
 #include <map>
 #include <string>
@@ -81,9 +82,23 @@ inline int AgentOldRank(int total_sessions) {
   return total_sessions >= 1000 ? 7 : total_sessions >= 200 ? 6 : total_sessions >= 50 ? 3 : total_sessions >= 10 ? 2 : 0;
 }
 
-// |today| is a local "YYYY-MM-DD". A day counts once; a clock moved back adds nothing.
+// Days since 1970-01-01 for a "YYYY-MM-DD" (civil calendar, H. Hinnant's days_from_civil); 0 when it isn't one.
+inline int AgentDayNumber(const std::string& ymd) {
+  int y = 0, m = 0, d = 0;
+  if (ymd.size() != 10 || std::sscanf(ymd.c_str(), "%4d-%2d-%2d", &y, &m, &d) != 3 || m < 1 || m > 12 || d < 1 || d > 31) return 0;
+  y -= m <= 2;
+  const int era = (y >= 0 ? y : y - 399) / 400, yoe = y - era * 400, doy = (153 * (m + (m > 2 ? -3 : 9)) + 2) / 5 + d - 1;
+  return era * 146097 + yoe * 365 + yoe / 4 - yoe / 100 + doy - 719468;
+}
+
+// |today| is a local "YYYY-MM-DD". A day counts once; a clock moved back adds nothing. A day mark more than two days
+// ahead of today came from a clock set wrong (or a backup from one): let it go rather than wait for that date.
 inline bool AgentStatsDay(AgentStats& s, const std::string& today) {
-  if (today.empty() || today <= s.last_day) return false;
+  if (today.empty()) return false;
+  if (today <= s.last_day) {
+    if (AgentDayNumber(s.last_day) - AgentDayNumber(today) > 2) s.last_day = today;
+    return false;
+  }
   s.last_day = today;
   s.days++;
   return true;
@@ -99,12 +114,12 @@ inline void AgentStatsSeed(AgentStats& s, int history_days) {
 
 // An imported backup: the higher of each count, the earliest start. Never sums, so restoring your own backup is safe.
 inline void AgentStatsMerge(AgentStats& into, const AgentStats& from) {
-  into.days = std::max(into.days, from.days);
   for (const auto& [tool, n] : from.sessions) into.sessions[tool] = std::max(into.sessions[tool], n);
   into.agent_seconds = std::max(into.agent_seconds, from.agent_seconds);
   into.best_rank = std::max(into.best_rank, from.best_rank);
   if (from.since > 0 && (into.since <= 0 || from.since < into.since)) into.since = from.since;
-  into.last_day = std::max(into.last_day, from.last_day);
+  if (from.days > into.days || (from.days == into.days && from.last_day > into.last_day)) into.last_day = from.last_day;  // The mark follows the days that win.
+  into.days = std::max(into.days, from.days);
   into.days_seeded = into.days_seeded || from.days_seeded;
   for (const auto& id : from.seen)
     if (std::find(into.seen.begin(), into.seen.end(), id) == into.seen.end()) into.seen.push_back(id);

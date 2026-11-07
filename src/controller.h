@@ -373,7 +373,8 @@ class Controller {
   void ClaudeTick();
   void HermesTick();
   void AgentStatsTick(CefRefPtr<CefListValue> sessions);  // controller_share.cc
-  void AgentStatsVisit(Tab& tab);  // controller_share.cc: a page the person opened counts today for the badge.
+  void AgentStatsVisit(Tab& tab);
+  void AgentStatsFlush();  // controller_share.cc: unsaved badge counts to disk now.  // controller_share.cc: a page the person opened counts today for the badge.
   void HermesPoll(bool restart = false);
   void HermesAsk(int kind, const std::string& url);
   CefRefPtr<CefListValue> claude_ = CefListValue::Create();

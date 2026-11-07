@@ -108,6 +108,7 @@ bool Controller::HandleBackup(CefRefPtr<CefBrowser> browser, CefRefPtr<CefDictio
   std::string cmd = msg->GetString("cmd");
   const std::string dir = State::Get().Dir();
   if (cmd == "backup.export") {
+    AgentStatsFlush();  // The file on disk is what goes in.
     SaveNow();  // state.json on disk matches what is on screen.
     auto cats = Cats(msg->GetList("categories"));
     if (cats.count(backup::kExtensions)) cats.insert(backup::kSettings);  // Preferences registers the extensions.
