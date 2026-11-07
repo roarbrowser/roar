@@ -1055,6 +1055,7 @@ document.addEventListener('contextmenu', (e) => {
   if (head && state) { e.preventDefault(); return groupMenu(+head.dataset.groupHead, e); }
   const section = e.target.closest('.group-head')?.closest('#tabs-group, #split-group, #art-group, #ghost-group');
   if (section && state) { e.preventDefault(); return sectionMenu(section, e); }
+  if (e.target.closest('#cl-group > .group-head') && state) { e.preventDefault(); return aiHeadMenu(e); }
   const tab = e.target.closest('[data-id]');
   if (!state) return;
   // Text fields keep Chromium's own menu (copy, paste, spelling).
@@ -1278,6 +1279,10 @@ const closeAllItem = (ids) => `<button data-act="closeall"${ids.length ? '' : ' 
 function sectionMenu(section, e) {
   const ids = listedTabs(section);
   showCtx(closeAllItem(ids), e, () => { ask({ cmd: 'tabs.close', ids }); hideCtx(); });
+}
+// The AI header's menu. One short item, so the HTML menu fits inside the sidebar.
+function aiHeadMenu(e) {
+  showCtx('<button data-act="badge">Agent badge</button>', e, () => { hideCtx(); ask({ cmd: 'open', text: 'roar://ui/badge.html', newTab: true }); });
 }
 // Once, not a mode: tabs dragged afterwards stay where they're put. Fresh state, since idle times age between pushes.
 async function sortGroup(id, byName) {
