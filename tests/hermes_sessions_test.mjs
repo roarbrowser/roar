@@ -1,5 +1,6 @@
 // Hermes server rows (src/controller_hermes.cc) against a fake dashboard and a headless scratch Roar: reads with the
-// chosen space's sign-in, shows only open recent sessions, keeps rows through a blip, opens the dashboard in that space.
+// chosen space's sign-in, shows open sessions and the kanban board's running and waiting cards, drops what ended,
+// keeps rows through a blip, works without the board, opens the dashboard in that space.
 // Usage: node tests/hermes_sessions_test.mjs <Roar binary> [screenshot dir]
 import { spawn } from 'node:child_process';
 import { createServer } from 'node:http';
@@ -20,10 +21,27 @@ const until = async (fn, ms = 25000) => { for (const end = Date.now() + ms; Date
 const now = () => Date.now() / 1000;
 const session = (o) => ({ id: 's1', profile: 'default', source: 'desktop', title: 'Plan the trip', preview: 'SECRET PREVIEW', started_at: now() - 600,
   last_active: now() - 30, ended_at: null, is_active: true, archived: false, pinned: false, ...o });
-let mode = 'ok', asks = 0, cookies = new Set(), first = '';
+let mode = 'ok', board = 'on', asks = 0, boardAsks = 0, cookies = new Set(), first = '';
+// The kanban plugin's /board, cut down to what Roar reads. `ask` starts out running so its move to blocked is news.
+let askStatus = 'running', s1Ended = false;
+const card = (o) => ({ id: 't_x', title: 'Card', assignee: 'coder', status: 'running', block_kind: null, current_run_started_at: Math.floor(now()) - 200,
+  last_heartbeat_at: Math.floor(now()) - 5, body: 'SECRET BODY', ...o });
+const boardJson = () => ({ columns: [
+  { name: 'ready', tasks: [card({ id: 't_ready', status: 'ready', title: 'Later' })] },
+  { name: 'running', tasks: [card({ id: 't_run', title: 'Fix the login page' }), ...(askStatus === 'running' ? [card({ id: 't_ask', title: 'Pick a colour', assignee: 'researcher' })] : [])] },
+  { name: 'blocked', tasks: [card({ id: 't_dep', status: 'blocked', block_kind: 'dependency' }),
+    ...(askStatus === 'blocked' ? [card({ id: 't_ask', title: 'Pick a colour', assignee: 'researcher', status: 'blocked', block_kind: 'needs_input' })] : [])] },
+  { name: 'done', tasks: [] }], latest_event_id: 1, now: Math.floor(now()) });
 const dash = createServer((q, r) => {
   const url = new URL(q.url, 'http://x');
   if (url.pathname === '/signin') { r.writeHead(200, { 'Set-Cookie': 'hermes_session_at=good; Path=/; HttpOnly; SameSite=Lax', 'Content-Type': 'text/html' }); return r.end('<title>signed in</title>'); }
+  if (url.pathname === '/api/plugins/kanban/board') {
+    boardAsks++;
+    if (board === 'off') { r.writeHead(404, { 'Content-Type': 'application/json' }); return r.end('{"detail":"Not Found"}'); }
+    if (!/hermes_session_at=good/.test(q.headers.cookie || '')) { r.writeHead(401); return r.end('{}'); }
+    r.writeHead(200, { 'Content-Type': 'application/json' });
+    return r.end(JSON.stringify(boardJson()));
+  }
   if (url.pathname !== '/api/profiles/sessions') { r.writeHead(200, { 'Content-Type': 'text/html' }); return r.end('<title>dashboard</title>'); }
   asks++;
   first ||= q.url;
@@ -33,13 +51,16 @@ const dash = createServer((q, r) => {
   if (!/hermes_session_at=good/.test(q.headers.cookie || '')) { r.writeHead(401, { 'Content-Type': 'application/json' }); return r.end('{"error":"unauthenticated"}'); }
   r.writeHead(200, { 'Content-Type': 'application/json' });
   r.end(JSON.stringify({ sessions: [
-    session({}),
-    session({ id: 'local-idle', profile: 'coder', source: 'kanban', title: '<img src=x onerror=alert(1)>', is_active: false, last_active: now() - 1200 }),
+    session({ last_activity_description: 'terminal command running', ...(s1Ended ? { ended_at: now() - 1, is_active: false } : {}) }),
+    session({ id: 'quiet', title: '<img src=x onerror=alert(1)>', is_active: false, last_active: now() - 1200, last_activity_description: null }),
     session({ id: 'gone', title: 'Ended', ended_at: now() - 5 }),
-    session({ id: 'old', title: 'Stale', last_active: now() - 7 * 3600 }),
+    session({ id: 'old', title: 'Stale', is_active: false, last_active: now() - 7 * 3600 }),
+    session({ id: 'pin', title: 'Pinned', is_active: false, pinned: true, last_active: now() - 9 * 3600 }),
     session({ id: 'bad/id', title: 'Bad id' }),
     session({ id: 'untitled', title: null }),
-  ], total: 6 }));
+    session({ id: 'local-w1', profile: 'coder', source: 'kanban', title: 'worker', started_at: now() - 100, last_activity_description: 'receiving stream response' }),
+    session({ id: 'local-dead', profile: 'coder', source: 'kanban', title: 'dead worker', is_active: false, started_at: now() - 7200, last_active: now() - 1800 }),
+  ], total: 9 }));
 });
 await new Promise((ok) => dash.listen(0, '127.0.0.1', ok));
 const base = `http://127.0.0.1:${dash.address().port}`;
@@ -91,21 +112,52 @@ try {
   await side(`ask({ cmd: 'open', text: ${JSON.stringify(base + '/signin')}, newTab: true })`);
   await until(async () => (await list()).some((x) => x.title === 'signed in'));
   await set({ hermesSpace: 0 });  // Polls now rather than in up to 15 seconds.
-  const got = await until(async () => { const r = await rows(); return r.length > 1 && r; });
-  check(!!got, 'signed in, the sessions come through');
+  const got = await until(async () => { const r = await rows(); return r.length > 4 && r; });
+  check(!!got, 'signed in, the sessions and cards come through');
   check([...cookies].some((c) => /hermes_session_at=good/.test(c)), 'read with the space\'s cookie');
   const ids = (got || []).map((c) => c.id).sort();
-  check(JSON.stringify(ids) === JSON.stringify(['hermes-coder-local-idle', 'hermes-default-s1', 'hermes-default-untitled']), 'only open, recent, plainly named sessions: ' + ids);
-  const a = got?.find((c) => c.id === 'hermes-default-s1'), b = got?.find((c) => c.id === 'hermes-coder-local-idle');
-  check(a?.state === 'working' && a?.doing === 'Desktop' && a?.project === 'Plan the trip', 'an active chat reads as working');
-  check(b?.state === 'idle' && b?.doing === 'coder · Board card', 'a quiet worker reads as idle, with its profile');
+  check(JSON.stringify(ids) === JSON.stringify(['hermes-card-t_ask', 'hermes-card-t_run', 'hermes-default-pin', 'hermes-default-quiet', 'hermes-default-s1', 'hermes-default-untitled']),
+    'running cards, then open chats: recent, pinned or working, plainly named; no ended, stale, worker or queued rows: ' + ids);
+  const a = got?.find((c) => c.id === 'hermes-default-s1'), b = got?.find((c) => c.id === 'hermes-default-quiet');
+  check(a?.state === 'working' && a?.doing === 'Desktop · Terminal command running' && a?.project === 'Plan the trip', 'an active chat reads as working, with what it\'s doing');
+  check(b?.state === 'idle' && b?.doing === 'Desktop', 'a quiet chat reads as idle');
+  const run = got?.find((c) => c.id === 'hermes-card-t_run');
+  check(run?.state === 'working' && run?.project === 'Fix the login page' && run?.doing === 'coder · Receiving stream response', 'a running card shows its worker\'s current step');
+  check(run?.url === `${base}/kanban`, 'and opens the board');
   check(got?.find((c) => c.id === 'hermes-default-untitled')?.project === 'Hermes session', 'an untitled session gets a name');
-  check(!JSON.stringify(got).includes('SECRET PREVIEW'), 'the conversation preview never reaches a row');
+  check(!JSON.stringify(got).includes('SECRET'), 'neither the conversation preview nor a card body reaches a row');
   check(a?.url === `${base}/chat?resume=s1&profile=default`, 'a row links to its chat');
+  check(/1 waiting on you|running on the board/.test((await items()).status || ''), 'Settings counts the board: ' + (await items()).status);
+
+  // A card that stops for input: a needs-you row, a sidebar card, and the dock badge's count.
+  // The next regular read, not a forced one: starting over clears the rows, and a row seen fresh only sets a baseline.
+  askStatus = 'blocked';
+  const ask = await until(async () => (await rows()).find((c) => c.id === 'hermes-card-t_ask' && c.state === 'needs_you'), 35000);
+  check(ask?.doing === 'researcher needs you', 'a card waiting on input needs you, without its question');
+  const alert = await until(async () => (await side(`ask({ cmd: 'state' }).then((s) => JSON.stringify((s.alerts || []).find((a) => a.level === 'needs_you' && /Pick a colour/.test(a.title)) || null))`).then((j) => JSON.parse(j || 'null'))));
+  check(!!alert && alert.url === `${base}/kanban` && alert.agent === 'Hermes', 'and raises a needs-you card that opens the board: ' + JSON.stringify(alert));
+
+  // A session that ends goes at the next read.
+  s1Ended = true;
+  check(!!(await until(async () => { const r = await rows(); return r.length > 2 && !r.some((c) => c.id === 'hermes-default-s1'); }, 35000)), 'an ended session disappears at the next read');
+  s1Ended = false;
+
+  // No kanban plugin: sessions only, workers by their own activity, and the board isn't asked every poll.
+  board = 'off';
+  const plain = await until(async () => { const r = await rows(); return !r.some((c) => c.id.startsWith('hermes-card-')) && r.length > 1 && r; }, 35000);
+  const pids = (plain || []).map((c) => c.id);
+  check(!!plain && pids.includes('hermes-coder-local-w1') && !pids.includes('hermes-coder-local-dead'), 'no board: a working worker shows as a session, a dead one doesn\'t: ' + pids);
+  check(/No kanban board/.test((await items()).status || ''), 'and Settings says why cards don\'t show');
+  const asked = boardAsks;
+  await sleep(16000);
+  check(boardAsks === asked, 'and a missing board isn\'t asked again every poll');
+  board = 'on';
+  await set({ hermesSpace: 0 });
+  await until(async () => (await rows()).some((c) => c.id.startsWith('hermes-card-')));
 
   await until(() => side(`!!document.querySelector('[data-clid="hermes-default-s1"]')`));
-  const html = await side(`document.querySelector('[data-clid="hermes-coder-local-idle"]')?.outerHTML || ''`);
-  check(html.includes('&lt;img') && !(await side(`!!document.querySelector('[data-clid="hermes-coder-local-idle"] img')`)), 'a title is text, not markup');
+  const html = await side(`document.querySelector('[data-clid="hermes-default-quiet"]')?.outerHTML || ''`);
+  check(html.includes('&lt;img') && !(await side(`!!document.querySelector('[data-clid="hermes-default-quiet"] img')`)), 'a title is text, not markup');
   check(!html.includes('data-clbeside') && !html.includes('data-clfocus') && !html.includes('data-clquit') && !html.includes('data-clq'), 'no side by side, terminal, end or reply on a watch-only row');
   check(html.includes('data-clhide'), 'but it can be hidden');
 
