@@ -264,8 +264,35 @@ body.drag-active .pinned:empty::before { content: 'Drop to pin'; color: var(--in
 .clq button:disabled, .clq button[aria-disabled=true] { opacity: .5; cursor: default; }
 .group-head button[aria-disabled=true] { opacity: .45; cursor: default; }
 #cl-group { margin-top: 8px; }
-#cl-group .group-head { gap: 2px; } #cl-group .group-head button { white-space: nowrap; flex: none; }
-#cl-group .group-head .toggle { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; } #cl-group .group-head .count { margin-left: 4px; } #cl-group .toggle .chev { flex: none; }
+/* AI header: the label never gives way; the actions do. Below ~290px Ask and Code drop to icons,
+   below ~236px the tool icons tighten. Every control is 24px tall on one centre line. */
+#cl-group { container: cl-head / inline-size; }
+#cl-group .group-head { gap: 2px; min-height: 28px; padding-bottom: 2px; }
+#cl-group .group-head > * { flex: none; }
+#cl-group .group-head .spacer { flex: 1; min-width: 4px; }
+#cl-group .group-head .toggle { height: 24px; }
+#cl-group .group-head .count { margin-left: 4px; }
+#cl-group .group-head .af-btn { width: 24px; height: 24px; padding: 0; border-radius: 6px; }
+#cl-group .group-head .af-btn svg { width: 14px; height: 14px; }
+#cl-group .group-head button:not(.toggle):active { background: color-mix(in srgb, var(--hover), var(--ink) 9%); }
+.cl-pair { display: inline-flex; align-items: center; margin-left: 4px; padding: 1px; border-radius: 7px; box-shadow: inset 0 0 0 1px var(--rule); }
+#cl-group .cl-pair button { position: relative; display: inline-flex; align-items: center; justify-content: center; gap: 5px; height: 22px; padding: 0 8px 0 7px; border-radius: 6px; white-space: nowrap; color: var(--ink-2); }
+#cl-group .cl-pair button:hover { color: var(--ink); }
+.cl-pair button + button::before { content: ""; position: absolute; left: -.5px; top: 5px; bottom: 5px; width: 1px; background: var(--rule); pointer-events: none; }
+.cl-pair button:hover::before, .cl-pair button:hover + button::before { opacity: 0; }
+.cl-pair svg { width: 14px; height: 14px; flex: none; }
+@container cl-head (max-width: 290px) {
+  #cl-group .cl-pair button { width: 25px; padding: 0; }
+  .cl-pair .lbl { display: none; }
+}
+@container cl-head (max-width: 236px) {
+  #cl-group .group-head { gap: 1px; padding-right: 4px; }
+  #cl-group .group-head .spacer { min-width: 0; }
+  #cl-group .group-head .count { margin-left: 3px; }
+  #cl-group .group-head .af-btn { width: 20px; }
+  .cl-pair { margin-left: 2px; }
+  #cl-group .cl-pair button { width: 23px; }
+}
 .feed[aria-pressed="true"] { background: var(--hover); }
 /* New session: a centered modal, type first, then where. */
 .cld { width: calc(100% - 24px); max-width: 320px; padding: 14px; border: 0; border-radius: 12px; background: var(--ground); color: var(--ink); box-shadow: 0 0 0 1px var(--rule), 0 12px 32px rgba(0,0,0,.4); font-size: 12.5px; }
@@ -428,8 +455,6 @@ body.drag-active .pinned:empty::before { content: 'Drop to pin'; color: var(--in
 .ext-pins button { position: relative; }
 .ext-pins .badge { position: absolute; right: 0; bottom: 0; min-width: 12px; height: 12px; padding: 0 2px; border-radius: 6px; background: var(--mane); color: #fff; font-size: 8px; font-weight: 700; line-height: 12px; text-align: center; pointer-events: none; }
 .ext-pins .letter { font-size: 12px; font-weight: 600; color: var(--ink-2); }
-#cl-model.cl-chat { display: inline-flex; align-items: center; gap: 4px; margin-right: 6px; padding-right: 8px; border-right: 1px solid var(--rule); }
-#cl-model.cl-chat svg { width: 13px; height: 13px; }
 </style>
 </head>
 <body>
@@ -465,7 +490,7 @@ body.drag-active .pinned:empty::before { content: 'Drop to pin'; color: var(--in
     <div class="rows" id="tabs"></div>
   </section>
   <section id="cl-group" aria-label="AI" hidden>
-    <div class="group-head"><button class="toggle" data-collapse="cl-group" aria-expanded="true" aria-controls="cl" aria-label="Collapse AI"><svg class="chev" viewBox="0 0 10 10" fill="currentColor"><path d="M1 3h8L5 8z"/></svg>AI</button><span class="count" id="cl-n"></span><span id="cl-ai"></span><span class="spacer"></span><button id="cl-board" class="af-btn" aria-label="Agents board" title="Agents: every agent, what it's doing, its helpers and tabs"><svg aria-hidden="true" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="1.8" y="2.3" width="12.4" height="11.4" rx="2"/><path d="M4.6 5.6h1.2M7.6 5.6h3.8M4.6 8h1.2M7.6 8h3.8M4.6 10.4h1.2M7.6 10.4h3.8"/></svg></button><button id="cl-refresh" class="af-btn" aria-label="Refresh agent sessions" title="Refresh: read the agent sessions again"><svg aria-hidden="true" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M13.2 8a5.2 5.2 0 11-1.5-3.7M13.2 2.6v2.8h-2.8"/></svg></button><button id="af-btn" class="af-btn" aria-label="Agent files row" aria-pressed="true"><svg aria-hidden="true" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2.5c-1.4 0-2 .6-2 2v1.6c0 .9-.5 1.6-1.5 1.9 1 .3 1.5 1 1.5 1.9v1.6c0 1.4.6 2 2 2M10 2.5c1.4 0 2 .6 2 2v1.6c0 .9.5 1.6 1.5 1.9-1 .3-1.5 1-1.5 1.9v1.6c0 1.4-.6 2-2 2"/></svg></button><button id="cl-model" class="cl-chat" title="Ask a model directly (Claude, ChatGPT, a local server…), no coding agent"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 3.5h11v7h-6l-3 2.5v-2.5h-2z"/></svg>Ask</button><button id="cl-new" aria-haspopup="dialog" title="Start a coding agent (Claude Code, Codex…) in a folder you pick or a scratch folder">Code</button></div>
+    <div class="group-head"><button class="toggle" data-collapse="cl-group" aria-expanded="true" aria-controls="cl" aria-label="Collapse AI"><svg class="chev" viewBox="0 0 10 10" fill="currentColor"><path d="M1 3h8L5 8z"/></svg>AI</button><span class="count" id="cl-n"></span><span id="cl-ai"></span><span class="spacer"></span><button id="cl-board" class="af-btn" aria-label="Agents board" title="Agents: every agent, what it's doing, its helpers and tabs"><svg aria-hidden="true" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="1.8" y="2.3" width="12.4" height="11.4" rx="2"/><path d="M4.6 5.6h1.2M7.6 5.6h3.8M4.6 8h1.2M7.6 8h3.8M4.6 10.4h1.2M7.6 10.4h3.8"/></svg></button><button id="cl-refresh" class="af-btn" aria-label="Refresh agent sessions" title="Refresh: read the agent sessions again"><svg aria-hidden="true" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M13.2 8a5.2 5.2 0 11-1.5-3.7M13.2 2.6v2.8h-2.8"/></svg></button><button id="af-btn" class="af-btn" aria-label="Agent files row" aria-pressed="true"><svg aria-hidden="true" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2.5c-1.4 0-2 .6-2 2v1.6c0 .9-.5 1.6-1.5 1.9 1 .3 1.5 1 1.5 1.9v1.6c0 1.4.6 2 2 2M10 2.5c1.4 0 2 .6 2 2v1.6c0 .9.5 1.6 1.5 1.9-1 .3-1.5 1-1.5 1.9v1.6c0 1.4-.6 2-2 2"/></svg></button><span class="cl-pair"><button id="cl-model" class="cl-chat" aria-label="Ask" title="Ask a model directly (Claude, ChatGPT, a local server…), no coding agent"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 3.5h11v7h-6l-3 2.5v-2.5h-2z"/></svg><span class="lbl">Ask</span></button><button id="cl-new" aria-label="Code" aria-haspopup="dialog" title="Start a coding agent (Claude Code, Codex…) in a folder you pick or a scratch folder"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 4.5 6.5 7.5 3.5 10.5M8.5 11h4"/></svg><span class="lbl">Code</span></button></span></div>
     <div class="rows" id="cl"></div>
   </section>
 </div>
