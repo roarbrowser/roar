@@ -67,6 +67,7 @@ struct Tab {
   bool ghost = false;
   bool driven = false;   // An outside CDP client (an agent) is attached to its page.
   AgentMark agent;       // Saved: an agent opened or acted on it (agent_mark.h).
+  bool restored_first_load = false;  // Reopened at launch: its first load is not the person using Roar (badge days).
   bool agent_active = false;  // AgentActive, refreshed by PollDriven.
   std::string ask_llm;  // The AI site an Ask opened it for ("Claude"): listed under AI; saved with the tab.
   std::string mcp_owner;  // The roar-mcp connection that opened it (agent.space claim); not saved.
@@ -372,6 +373,7 @@ class Controller {
   void ClaudeTick();
   void HermesTick();
   void AgentStatsTick(CefRefPtr<CefListValue> sessions);  // controller_share.cc
+  void AgentStatsVisit(Tab& tab);  // controller_share.cc: a page the person opened counts today for the badge.
   void HermesPoll(bool restart = false);
   void HermesAsk(int kind, const std::string& url);
   CefRefPtr<CefListValue> claude_ = CefListValue::Create();

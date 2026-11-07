@@ -1,8 +1,11 @@
 // Share cards: the agent badge's counts, and saving a card a page drew (share-card.js). Cards are made on this computer
 // and go nowhere until the person posts one.
+#include <algorithm>
+#include <ctime>
 #include <filesystem>
 #include <fstream>
 #include <functional>
+#include <set>
 #include <string>
 #include <system_error>
 #include <utility>
@@ -33,35 +36,77 @@ bool g_stats_loaded = false, g_stats_dirty = false;
 double g_stats_saved = 0, g_stats_tick = 0;
 
 fs::path StatsPath() { return fs::path(State::Get().Dir()) / "agent-stats.json"; }
+// A backup's stats, staged by restore (backup.h): merged in at the next load, never copied over the live file.
+fs::path ImportedStatsPath() { return fs::path(State::Get().Dir()) / "agent-stats.imported.json"; }
 
-void LoadStats() {
-  if (g_stats_loaded) return;
-  g_stats_loaded = true;
-  std::ifstream in(StatsPath());
+// Today as a local "YYYY-MM-DD", the only date the stats keep.
+std::string LocalDay(double now) {
+  std::time_t t = static_cast<std::time_t>(now);
+  char day[16] = "";
+  if (std::tm* tm = std::localtime(&t)) std::strftime(day, sizeof day, "%Y-%m-%d", tm);
+  return day;
+}
+
+// One stats file; missing fields stay 0, so files from before days and ranks read fine.
+AgentStats ReadStats(const fs::path& path) {
+  AgentStats out;
+  std::ifstream in(path);
   auto v = CefParseJSON(std::string((std::istreambuf_iterator<char>(in)), {}), JSON_PARSER_RFC);
-  if (!v || v->GetType() != VTYPE_DICTIONARY) return;
+  if (!v || v->GetType() != VTYPE_DICTIONARY) return out;
   auto d = v->GetDictionary();
   auto number = [&](const char* k) { return d->GetType(k) == VTYPE_INT ? d->GetInt(k) : d->GetType(k) == VTYPE_DOUBLE ? d->GetDouble(k) : 0.0; };
-  g_stats.since = number("since");
-  g_stats.agent_seconds = number("agentSeconds");
+  out.since = number("since");
+  out.agent_seconds = number("agentSeconds");
+  out.days = static_cast<int>(number("days"));
+  out.best_rank = std::clamp(static_cast<int>(number("bestRank")), 0, kAgentRankCount - 1);
+  out.days_seeded = d->GetType("daysSeeded") == VTYPE_BOOL && d->GetBool("daysSeeded");
+  if (d->GetType("lastDay") == VTYPE_STRING) out.last_day = d->GetString("lastDay").ToString().substr(0, 10);
   if (d->GetType("sessions") == VTYPE_DICTIONARY) {
     auto sessions = d->GetDictionary("sessions");
     CefDictionaryValue::KeyList keys;
     sessions->GetKeys(keys);
     for (const auto& k : keys)
-      if (sessions->GetType(k) == VTYPE_INT) g_stats.sessions[k.ToString()] = sessions->GetInt(k);
+      if (sessions->GetType(k) == VTYPE_INT) out.sessions[k.ToString()] = sessions->GetInt(k);
   }
   if (d->GetType("seen") == VTYPE_LIST) {
     auto seen = d->GetList("seen");
     for (size_t i = 0; i < seen->GetSize(); ++i)
-      if (seen->GetType(i) == VTYPE_STRING) g_stats.seen.push_back(seen->GetString(i).ToString());
+      if (seen->GetType(i) == VTYPE_STRING) out.seen.push_back(seen->GetString(i).ToString());
   }
+  return out;
+}
+
+void SaveStats();
+
+void LoadStats() {
+  if (g_stats_loaded) return;
+  g_stats_loaded = true;
+  g_stats = ReadStats(StatsPath());
+  std::error_code ec;
+  bool changed = false;
+  if (fs::exists(ImportedStatsPath(), ec)) {
+    AgentStatsMerge(g_stats, ReadStats(ImportedStatsPath()));
+    fs::remove(ImportedStatsPath(), ec);
+    changed = true;
+  }
+  if (!g_stats.days_seeded) {  // Once: past days from history (each URL's last visit, so a lower bound).
+    std::set<std::string> days;
+    for (const auto& [key, e] : State::Get().history)
+      if (e.last_visit > 0) days.insert(LocalDay(e.last_visit));
+    AgentStatsSeed(g_stats, static_cast<int>(days.size()));
+    changed = true;
+  }
+  if (changed) SaveStats();
 }
 
 CefRefPtr<CefDictionaryValue> StatsDict(bool with_seen) {
   auto d = CefDictionaryValue::Create();
   d->SetDouble("since", g_stats.since);
   d->SetDouble("agentSeconds", g_stats.agent_seconds);
+  d->SetInt("days", g_stats.days);
+  d->SetString("lastDay", g_stats.last_day);
+  d->SetBool("daysSeeded", g_stats.days_seeded);
+  d->SetInt("bestRank", g_stats.best_rank);
   auto sessions = CefDictionaryValue::Create();
   for (const auto& [tool, n] : g_stats.sessions) sessions->SetInt(tool, n);
   d->SetDictionary("sessions", sessions);
@@ -80,6 +125,7 @@ std::string Json(CefRefPtr<CefDictionaryValue> d) {
 }
 
 void SaveStats() {
+  g_stats.best_rank = AgentRankShown(g_stats);  // What's shown now is never taken back.
   std::error_code ec;
   fs::path path = StatsPath(), tmp = path;
   tmp += ".tmp";
@@ -126,12 +172,33 @@ void Controller::AgentStatsTick(CefRefPtr<CefListValue> sessions) {
   if (g_stats_dirty && now - g_stats_saved >= kSaveEverySeconds) g_stats_saved = now, SaveStats();
 }
 
+void Controller::AgentStatsVisit(Tab& tab) {
+  bool restored = tab.restored_first_load;
+  tab.restored_first_load = false;
+  double now = NowSeconds();
+  if (!AgentVisitCounts(tab.ghost, tab.driven, AgentActive(tab.agent, tab.driven, now), restored)) return;
+  LoadStats();
+  if (AgentStatsDay(g_stats, LocalDay(now))) SaveStats();  // Once a day, so no need to wait for the tick.
+}
+
 bool Controller::HandleShare(CefRefPtr<CefBrowser> browser, CefRefPtr<CefDictionaryValue> msg, CefRefPtr<Callback> callback) {
   std::string cmd = msg->GetString("cmd");
   if (cmd == "agent.stats") {
     LoadStats();
     auto d = StatsDict(false);
     d->SetInt("total", AgentStatsTotal(g_stats));
+    d->SetInt("hours", static_cast<int>(g_stats.agent_seconds / 3600));
+    d->SetInt("rank", AgentRankShown(g_stats));
+    auto ladder = CefListValue::Create();
+    for (const AgentRank& r : kAgentRanks) {
+      auto step = CefDictionaryValue::Create();
+      step->SetString("name", r.name);
+      step->SetInt("days", r.days);
+      step->SetInt("sessions", r.sessions);
+      step->SetInt("hours", r.hours);
+      ladder->SetDictionary(ladder->GetSize(), step);
+    }
+    d->SetList("ladder", ladder);
     callback->Success(Json(d));
     return true;
   }

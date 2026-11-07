@@ -1386,6 +1386,7 @@ void Controller::Start() {
       int id = NewTab(saved.url, false, false, saved.last_active, saved.space);
       FindTab(id)->favicon = saved.favicon;
       FindTab(id)->agent = {saved.agent, saved.agent_last};
+      FindTab(id)->restored_first_load = true;
       // An update restore brings back every window; the windows past the first are built here.
       int slot = RestoreSlot(saved.win);
       while (static_cast<int>(wins_.size()) <= slot) MakeWin(saved.space), Focused(wins_.front().get());
@@ -1405,6 +1406,7 @@ void Controller::Start() {
     FindTab(id)->name = saved.name;
     FindTab(id)->favicon = saved.favicon;
     FindTab(id)->agent = {saved.agent, saved.agent_last};
+    FindTab(id)->restored_first_load = true;
   }
   for (size_t i = 1; i < wins_.size(); ++i) {  // Restored windows show their most recent tab.
     Win* w = wins_[i].get();
@@ -6707,6 +6709,7 @@ void Controller::OnLoading(CefRefPtr<CefBrowser> browser, bool loading, bool can
     }
     if (!tab->ghost) {
       State::Get().RecordVisit(tab->space, tab->url, tab->title);
+      if (StartsWith(tab->url, "http")) AgentStatsVisit(*tab);
       SaveSlowSoon();
       IndexPage(tab);
     }

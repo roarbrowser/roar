@@ -74,6 +74,16 @@ try {
   await start();
   await until(async () => (await side(`ask({ cmd: 'settings.set', settings: { onboarded: true } }).then(() => 1)`)) === 1);
 
+  // Days of Roar use: a page the person opens counts today, once. The ladder comes with the counts.
+  const s0 = await stats();
+  check(s0.days === 0 && s0.rank === 0 && s0.ladder?.length === 8 && s0.ladder[3].name === 'Hunter' && s0.ladder[3].days === 30 && s0.ladder[3].sessions === 10,
+    'stats: a fresh Roar is a Cub with the whole ladder: ' + JSON.stringify(s0.ladder?.[3]));
+  await open(`http://127.0.0.1:${calendar.address().port}/day`);
+  check(!!(await until(async () => (await stats()).days === 1)), 'stats: a page you open counts today');
+  await open(`http://127.0.0.1:${calendar.address().port}/again`);
+  await sleep(1500);
+  check((await stats()).days === 1, 'stats: and today counts once');
+
   // Savanna
   await open('roar://ui/garden.html');
   const offered = await until(() => garden(`!document.getElementById('share')?.hidden`));
@@ -159,6 +169,18 @@ try {
   await sleep(3000);
   const s2 = await stats();
   check(s2.total === 2, 'after a restart the counts are still there, and live sessions aren\'t counted again: ' + s2.total);
+  check(s2.days === 1, 'stats: days survive a restart, and restored tabs add none: ' + s2.days);
+
+  // An imported backup (staged by restore as agent-stats.imported.json) merges in at the next launch: higher of each.
+  await Promise.race([side(`ask({ cmd: 'run', id: 'quit' })`).catch(() => {}), sleep(1500)]);
+  roar.kill();
+  await sleep(1500);
+  const imported = join(data, 'agent-stats.imported.json');
+  writeFileSync(imported, JSON.stringify({ days: 40, bestRank: 3, sessions: { codex: 12 } }));
+  await start();
+  const s3 = await until(async () => { const s = await stats(); return s.days >= 40 && s; });
+  check(!!s3 && s3.rank >= 3 && s3.sessions.codex === 12 && s3.sessions.claude >= 1, 'stats: an imported file merges, keeping the higher counts: ' + JSON.stringify(s3 && { days: s3.days, rank: s3.rank, sessions: s3.sessions }));
+  check(!existsSync(imported), 'stats: and the imported file is used up');
 } catch (e) {
   check(false, 'stopped: ' + (e?.stack || e));
 } finally {
