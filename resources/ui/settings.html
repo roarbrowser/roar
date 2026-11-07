@@ -352,7 +352,7 @@ const $ = (id) => document.getElementById(id);
 const GH_DEFAULT = 'is:open is:pr author:@me archived:false';  // Matches Settings::github_query.
 let last = null;
 const setup = agentSetup($('agent-setup'), { llm: false, list: true });
-$('ask-llm-row').innerHTML = llmRowHtml();  // ⌘T's AI lives with Model chat; onboarding keeps it with agents.
+$('ask-llm-row').innerHTML = llmRowHtml();  // ⌘T's AI lives with Chat models; onboarding keeps it with agents.
 const showLlm = llmPicker($('as-llm'), () => refresh());
 $('reset-all').onclick = () => { if (confirm('Reset every setting to its default? Tabs, spaces, bookmarks, extensions and logins stay.')) ask({ cmd: 'settings.reset' }).then(apply); };
 $('licenses').onclick = () => ask({ cmd: 'open', text: 'roar://ui/THIRD_PARTY_NOTICES.txt', newTab: true });
@@ -730,7 +730,7 @@ $('tips').onclick = (e) => { e.preventDefault(); ask({ cmd: 'open', text: 'roar:
 // Tabs: one section shown at a time; the last one opened comes back next time.
 const tabs = [...document.querySelectorAll('nav a[href^="#"]:not(.tips)')];
 function showTab(id) {
-  if (id === 'ask') id = 'chat';  // Ask's settings live in Model chat, not a tab of their own.
+  if (id === 'ask') id = 'chat';  // Ask's settings live in Chat models, not a tab of their own.
   if (!document.getElementById(id)?.matches('main section')) id = 'general';
   for (const sec of document.querySelectorAll('main section')) sec.hidden = sec.id !== id;
   if (id === 'extensions') exLoad().catch((e) => { $('ex-none').hidden = false; $('ex-none').textContent = 'Couldn’t list extensions: ' + e.message; });

@@ -65,7 +65,7 @@ try {
   const shot = async (p, name) => { if (!out) return; mkdirSync(out, { recursive: true }); const r = await p.send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: true }); writeFileSync(join(out, name), Buffer.from(r.data, 'base64')); };
   await shot(settings, 'e2e-settings-key.png');
   // 2) Ask about this page with = Model chat, default model = the stub.
-  check(await settings.ev(`[...document.querySelectorAll('#as-llm option')].some((o) => o.value === 'model' && o.textContent === 'Model chat')`), 'Ask about this page with lists Model chat');
+  check(await settings.ev(`[...document.querySelectorAll('#as-llm option')].some((o) => o.value === 'model' && o.textContent === 'Chat models')`), 'Ask about this page with lists Chat models');
   await sb.ev(`ask({cmd:'settings.set', settings:{askLlms:'model', chatModel:'stub-server|stub-model'}}).then(() => true)`);
   await sb.ev(`ask({cmd:'open', text:'${base}/page', newTab:true}).then(() => true)`);
   await find((x) => x.url.includes('/page'));
