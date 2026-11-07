@@ -3116,9 +3116,12 @@ void Controller::ClaudeAlert(CefRefPtr<CefDictionaryValue> d) {
   SyncAlertBadge();
   const auto& set = State::Get().settings;
   if (state != "idle" && state != "needs_you") return;
+  // A remote row (Hermes) goes idle by a timer on its server, not as a turn ends: only needing someone is news.
+  bool remote = d->GetType("remote") == VTYPE_BOOL && d->GetBool("remote");
+  if (remote && state != "needs_you") return;
   NotifyPref pref = NotifyGet(set.notifications, state == "idle" ? "sessionDone" : "sessionNeeds");
   if (!set.claude_sidebar || !pref.on) return;
-  static const std::map<std::string, std::string> kNames = {{"codex", "Codex"}, {"gemini", "Gemini CLI"}, {"qwen", "Qwen Code"}, {"copilot", "Copilot CLI"}, {"opencode", "OpenCode"}};
+  static const std::map<std::string, std::string> kNames = {{"codex", "Codex"}, {"gemini", "Gemini CLI"}, {"qwen", "Qwen Code"}, {"copilot", "Copilot CLI"}, {"opencode", "OpenCode"}, {"hermes", "Hermes"}};
   auto name = kNames.find(d->GetString("tool").ToString());
   std::string tool = name == kNames.end() ? std::string("Claude Code") : name->second;
   std::string title = d->GetString("project").ToString() + (state == "idle" ? " is done" : " needs you");
@@ -3131,7 +3134,8 @@ void Controller::ClaudeAlert(CefRefPtr<CefDictionaryValue> d) {
   a.title = title;
   a.body = body;
   a.level = state == "idle" ? "done" : "needs_you";
-  a.url = std::string(kClaudeUrl) + "?id=" + CefURIEncode(id, false).ToString();
+  a.url = remote ? d->GetString("url").ToString() : std::string(kClaudeUrl) + "?id=" + CefURIEncode(id, false).ToString();
+  if (remote && d->GetType("space") == VTYPE_INT) a.space = d->GetInt("space");
   a.time = NowSeconds();
   a.session = id;
   a.on_answer = [this, id](const std::string&) { claude_cards_.erase(id); };
@@ -3221,8 +3225,13 @@ void Controller::ClaudeTick() {
                                                 d->GetString("id").ToString(), tabs[i]), 1500 * (i + 1));
   }
   std::erase_if(claude_files_, [&](const auto& f) { return !files.count(f.first); });
-  // Sessions on a Hermes server: no file, so nothing above ends them; HermesResult keeps this list current.
-  for (const auto& row : hermes_rows_) list->SetDictionary(list->GetSize(), row->Copy(false));
+  // Sessions and cards on a Hermes server: no file, so nothing above ends them; HermesResult keeps this list current.
+  // Their states still count, so a card that starts waiting on a person raises a card and the dock badge.
+  for (const auto& row : hermes_rows_) {
+    list->SetDictionary(list->GetSize(), row->Copy(false));
+    seen.insert(row->GetString("id"));
+    ClaudeAlert(row->Copy(false));
+  }
   // Ended sessions take their notification and needs-you count with them.
   for (auto it = claude_states_.begin(); it != claude_states_.end();) {
     if (seen.count(it->first)) { ++it; continue; }
@@ -6143,6 +6152,17 @@ bool Controller::HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> 
       d->SetBool("detected", clients[i].detected);
       d->SetBool("connected", clients[i].connected);
       d->SetBool("stale", clients[i].stale);
+      // Hermes in remote mode: "connected" means Roar reads its dashboard, which Connect sets (below).
+      if (clients[i].id == "hermes") {
+        std::string remote = HermesBase(agents::HermesRemoteUrl(platform::HomeDir()));
+        if (!remote.empty()) {
+          d->SetString("file", agents::HermesConnectionFile(platform::HomeDir()));
+          d->SetString("error", "");
+          d->SetBool("detected", true);
+          d->SetBool("stale", false);
+          d->SetBool("connected", HermesBase(State::Get().settings.hermes_url) == remote);
+        }
+      }
       list->SetDictionary(i, d);
     }
     auto v = CefValue::Create();
@@ -6153,7 +6173,15 @@ bool Controller::HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> 
     std::string id = msg->GetString("id").ToString(), server = platform::ResourcePath("roar-mcp");
     std::string home = platform::HomeDir();
     auto write = [id, home, server, callback] { callback->Success(agents::Connect(id, home, server)); };
-    if (id == "claude-code") {
+    if (std::string remote = id == "hermes" ? HermesBase(agents::HermesRemoteUrl(home)) : ""; !remote.empty()) {
+      // Hermes runs on another computer: show its sessions from the dashboard its app talks to, in the space set for it.
+      State::Get().settings.hermes_url = remote;
+      State::Get().settings.claude_sidebar = true;
+      SaveSoon();
+      HermesPoll(true);
+      PushSidebar();
+      callback->Success("");
+    } else if (id == "claude-code") {
       // The CLI rewrites ~/.claude.json wholesale; back it up and refuse a file it would mangle.
       std::string err = agents::PrepareClaudeCli(home);
       if (!err.empty()) return callback->Success(err), true;
