@@ -1,4 +1,4 @@
-// Settings > Model chat: what's set up lists above More, in an order you set, and every row can be removed.
+// Settings > Chat models: what's set up lists in an order you set, each provider has its own card, and every row can be removed.
 // Stub model servers, a headless scratch Roar.
 // Usage: node tests/model_chat_settings_test.mjs <Roar binary>
 import { spawn } from 'node:child_process';
@@ -55,11 +55,13 @@ try {
   await until(async () => (await set(`document.querySelectorAll('#chat-on [data-item]').length`)) >= 3);
   await set(`document.querySelector('nav a[href="#chat"]').click()`); await sleep(300);  // Settings shows one section at a time.
 
-  // Set up sits above More, the rest below it.
+  // Set up is in the order list; the rest only in their providers' cards.
   let ids = await on();
-  check(['one', 'two', 'ollama'].every((x) => ids.includes(x)), `servers you added and one that answers list above More (${mine(ids)})`);
-  check(!ids.includes('openai') && !ids.includes('jan'), 'an API with no key and a server that is not answering stay in More');
-  check(await set(`!!document.querySelector('#chat-api [data-item="openai"] [data-remove]')`), 'a built-in without a key can be removed too');
+  check(['one', 'two', 'ollama'].every((x) => ids.includes(x)), `servers you added and one that answers are in the order list (${mine(ids)})`);
+  check(!ids.includes('openai') && !ids.includes('jan'), 'an API with no key and a server that is not answering stay out of it');
+  await set(`document.querySelector('[data-way="openai:api"]').click()`); await sleep(200);
+  check(await set(`!!document.querySelector('#chat-vendors [data-vendor="openai"] [data-p="openai"] [data-remove]')`), 'a built-in without a key can be turned off too, from its card');
+  check(await set(`['one', 'two'].every((id) => document.querySelector('[data-vendor="other"] [data-p="' + id + '"]')) && !!document.querySelector('[data-vendor="apps"] [data-p="jan"]')`), 'servers you added sit under Other servers, local apps together');
   check(await set(`[...document.querySelectorAll('[data-item]')].every((x) => x.querySelectorAll('[data-remove]').length === 1)`), 'every row has one Remove');
 
   // Keyboard order.
@@ -107,16 +109,34 @@ try {
   const names = { one: 'One', two: 'Two', ollama: 'Ollama' }, order = mine(want).filter((x) => names[x]).map((x) => names[x]);
   check(groups && order.join() === groups.filter((g) => order.includes(g)).join(), `Ask lists models in that order (${groups})`);
 
-  // Remove a built-in: it goes to Removed, with a way back.
-  await set(`document.querySelector('[data-item="openai"] [data-remove]').click()`);
-  check(await until(async () => (await set(`[...document.querySelectorAll('#chat-api [data-restore]')].some((b) => b.closest('[data-p]').dataset.p === 'openai')`))), 'a removed built-in waits under Removed');
-  check(!(await set(`!!document.querySelector('[data-item="openai"]')`)), 'it leaves the lists');
+  // Turn off a built-in: its card keeps a way back.
+  await set(`document.querySelector('[data-vendor="openai"] [data-p="openai"] [data-remove]').click()`);
+  check(await until(async () => (await set(`!!document.querySelector('[data-vendor="openai"] [data-p="openai"] [data-restore]')`))), 'a built-in turned off waits in its card');
+  check(!(await set(`!!document.querySelector('[data-p="openai"] [data-remove]')`)), 'it is off everywhere');
   await set(`document.querySelector('[data-p="openai"] [data-restore]').click()`);
-  check(await until(() => set(`!!document.querySelector('#chat-api [data-item="openai"]')`)), 'Add back returns it to More');
+  check(await until(() => set(`!!document.querySelector('[data-vendor="openai"] [data-p="openai"] [data-remove]')`)), 'Turn on brings it back');
+
+  // Hermes and oMLX: Connect adds the server on this Mac; Remove takes it away again.
+  await set(`document.querySelector('[data-vendor="omlx"] [data-connect]').click()`);
+  check(await until(async () => JSON.parse((await settings()).chatProviders).some((p) => p.id === 'omlx' && p.url === 'http://127.0.0.1:8000/v1')), 'oMLX connects on this Mac');
+  check(await until(() => set(`document.querySelector('[data-vendor="omlx"] [data-where-set="local"]')?.getAttribute('aria-pressed') === 'true'`)), 'and its card says This Mac');
+  await set(`document.querySelector('[data-vendor="hermes"] [data-where="remote"]').click()`); await sleep(200);
+  await set(`(() => { document.querySelector('[data-vendor="hermes"] [data-conn-url]').value = 'https://hermes.test/v1'; document.querySelector('[data-vendor="hermes"] [data-connect]').click(); })()`);
+  check(await until(async () => JSON.parse((await settings()).chatProviders).some((p) => p.id === 'hermes' && p.url === 'https://hermes.test/v1')), 'Hermes connects on another machine');
+  check(await until(() => set(`document.querySelector('[data-vendor="hermes"] [data-where-set="remote"]')?.getAttribute('aria-pressed') === 'true'`)), 'and its card says Another machine');
+  await set(`document.querySelector('[data-vendor="omlx"] [data-p="omlx"] [data-remove]').click()`);
+  check(await until(async () => !JSON.parse((await settings()).chatProviders).some((p) => p.id === 'omlx')), 'Remove deletes a connected server');
+
+  // Agents › Hermes sessions: Off, This Mac or another machine is the dashboard address.
+  await set(`document.querySelector('[data-hw="local"]').click()`);
+  check(await until(async () => (await settings()).hermesUrl === 'http://127.0.0.1:9119'), 'Hermes sessions: This Mac reads the local dashboard');
+  await set(`document.querySelector('[data-hw="off"]').click()`);
+  check(await until(async () => (await settings()).hermesUrl === ''), 'Hermes sessions: Off clears it');
 
   // Remove an assistant: Roar forgets it, the app stays.
   const cli = await set(`document.querySelector('[data-item^="cli-"]')?.dataset.item`);
   if (cli) {
+    await set(`document.querySelector('[data-way="' + chatCore.vendorOf({ id: '${cli}', kind: 'cli' }).join(':') + '"]')?.click()`); await sleep(200);
     await set(`document.querySelector('[data-item="${cli}"] [data-remove]').click()`);
     check(await until(() => set(`!!document.querySelector('[data-p="${cli}"] [data-restore]')`)), `an assistant can be removed (${cli})`);
     check(JSON.parse((await settings()).chatHidden).includes(cli), 'and stays removed in settings');

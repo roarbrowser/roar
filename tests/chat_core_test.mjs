@@ -268,6 +268,16 @@ check(JSON.stringify(core.parseNames('no json here', ['tab:1'])) === '{}', 'pars
   check(core.autoNameKeys([tab2], seen, 0, true).length === 0, 'auto name: a tab on a new page waits for it to load');
   check(core.autoNameKeys([{ ...tab2, loading: false, title: 'Next' }], seen, 0, true).join() === 'tab:2', 'auto name: ...then is named');
   check(core.autoNameKeys([go(all[2], '3/off', { name: 'Pricing plans' })], { ids: { 3: { page: 'x', name: 'Pricing plans' } }, spaces: { 0: true } }, 0, false).length === 0, 'auto name: setting off -> no renames on navigation'); }
+// Settings › Chat models: every provider lands in exactly one vendor card.
+{ const v = (p) => core.vendorOf(p).join('/');
+  check(v({ id: 'openai' }) === 'openai/api' && v({ id: 'cli-codex', kind: 'cli' }) === 'openai/plan', 'vendors: OpenAI holds its API key and the ChatGPT plan');
+  check(v({ id: 'anthropic', kind: 'anthropic' }) === 'anthropic/api' && v({ id: 'cli-claude', kind: 'cli' }) === 'anthropic/plan', 'vendors: Anthropic holds its API key and Claude Code');
+  check(v({ id: 'opencode-server', kind: 'opencode' }) === 'opencode/opencode' && v({ id: 'cli-opencode', kind: 'cli' }) === 'opencode/cli', 'vendors: OpenCode holds its CLI and every server');
+  check(v({ id: 'hermes' }) === 'hermes/server' && v({ id: 'omlx' }) === 'omlx/server', 'vendors: Hermes and oMLX are one server each');
+  check(v({ id: 'jan' }) === 'apps/apps' && v({ id: 'my-vllm', optional: true }) === 'other/other', 'vendors: local apps together, anything else under Other servers');
+  const all = [...core.parseProviders('[{"id":"ollama","url":"http://localhost:11434/v1"},{"id":"openai","url":"https://api.openai.com/v1","key":true}]'), ...core.CLI_PROVIDERS];
+  check(all.every((p) => core.VENDORS.some((x) => x.id === core.vendorOf(p)[0])), 'vendors: every built-in and assistant has a card');
+  check(core.urlWhere('http://127.0.0.1:8642/v1') === 'local' && core.urlWhere('http://localhost') === 'local' && core.urlWhere('https://hermes.example.com/v1') === 'remote', 'vendors: a URL on this Mac is local'); }
 // OpenCode servers.
 {
   const oc = core.parseProviders(JSON.stringify([{ id: 'studio', kind: 'opencode', name: 'S', url: 'http://10.0.0.2:4096/', key: true, optional: true, tools: true, dir: ' /w ' }, { id: 'p', kind: 'opencode', url: 'http://x', tools: 'yes' }, { id: 'o', url: 'http://y' }]));

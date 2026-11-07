@@ -107,6 +107,49 @@ details.as-more .as-list { margin-top: 4px; }
 .row.nt input[data-nt-mac] { width: 16px; height: 16px; margin: 0; accent-color: var(--mane); }
 .row.nt.off .name { color: var(--ink-2); }
 p.reason a { color: inherit; }
+.ex-wrap { overflow-x: auto; }
+.ex-grid { display: grid; align-items: center; min-width: min-content; }
+.ex-grid > * { padding: 7px 6px; border-bottom: 1px solid var(--rule); min-height: 40px; display: flex; align-items: center; }
+.ex-grid .ex-head { font: 600 12px var(--ui); color: var(--ink-3); justify-content: center; text-align: center; min-height: 0; }
+.ex-grid .ex-head:first-child { justify-content: flex-start; }
+.ex-name { gap: 8px; min-width: 0; flex-wrap: wrap; }
+.ex-name img { width: 16px; height: 16px; flex: none; }
+.ex-name select { font-size: 12px; padding: 2px 6px; }
+.ex-grid .ex-c { justify-content: center; }
+.ex-cell { display: inline-grid; place-items: center; width: 26px; height: 26px; border-radius: 7px; border: 1px dashed var(--rule); background: none; color: var(--ink-3); font: 600 14px/1 var(--ui); padding: 0; vertical-align: middle; }
+.ex-cell[data-s="empty"]::after { content: "+"; opacity: 0; }
+button.ex-cell[data-s="empty"]:hover::after, button.ex-cell[data-s="empty"]:focus-visible::after { opacity: 1; }
+.ex-cell[data-s="in"] { border: 0; background: color-mix(in srgb, var(--ok) 16%, transparent); color: var(--ok); }
+.ex-cell[data-s="in"]::after { content: "✓"; }
+.ex-cell[data-s="add"] { border: 0; background: var(--mane); color: #2a1604; }
+.ex-cell[data-s="add"]::after { content: "+"; }
+.ex-cell[data-s="replace"] { border: 0; background: var(--mane); color: #2a1604; }
+.ex-cell[data-s="replace"]::after { content: "↻"; }
+button.ex-cell:disabled { cursor: default; }
+.ex-key { font-size: 12px; color: var(--ink-3); display: flex; gap: 6px; align-items: center; flex-wrap: wrap; margin: 10px 0 0; }
+.ex-key .ex-cell { width: 18px; height: 18px; font-size: 11px; border-radius: 5px; margin-left: 8px; }
+.ex-key .ex-cell:first-child { margin-left: 0; }
+.ex-plan { margin-top: 14px; padding: 12px 14px; border: 1px solid var(--rule); border-radius: 10px; background: var(--ground); }
+.ex-plan p { margin: 0 0 8px; }
+.vendors { display: grid; gap: 8px; }
+details.vendor { border: 1px solid var(--rule); border-radius: 10px; padding: 0 14px; }
+details.vendor[open] { padding-bottom: 10px; }
+details.vendor > summary { display: flex; align-items: center; gap: 10px; padding: 11px 0; color: var(--ink); list-style: none; }
+details.vendor > summary::-webkit-details-marker { display: none; }
+details.vendor > summary::before { content: ""; width: 6px; height: 6px; border-right: 1.5px solid var(--ink-3); border-bottom: 1.5px solid var(--ink-3); transform: rotate(-45deg); transition: transform .15s; flex: none; margin-right: 2px; }
+details.vendor[open] > summary::before { transform: rotate(45deg); }
+.v-name { font: 600 14px var(--round); flex: 1; }
+.v-st { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--ink-3); }
+.v-st::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--rule); }
+.v-st[data-state=running], .v-st[data-state=available] { color: var(--ok); }
+.v-st[data-state=running]::before, .v-st[data-state=available]::before { background: var(--ok); }
+.v-st[data-state=warn]::before { background: var(--mane); }
+.vendor .segmented { margin: 2px 0 6px; }
+.vendor .segmented i { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--ok); margin-left: 6px; vertical-align: 1px; }
+.vendor .reason { margin: 0 0 6px; font-size: 12px; }
+.v-p { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 6px; }
+.v-add { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; padding: 10px 0 2px; }
+.ch-order .row { min-height: 34px; }
 </style>
 </head>
 <body>
@@ -114,7 +157,7 @@ p.reason a { color: inherit; }
   <div class="top"><h1>Settings</h1><input id="search" type="search" placeholder="Search settings" aria-label="Search settings" spellcheck="false"><button class="btn" id="close">Close</button></div>
   <nav aria-label="Settings categories">
     <a href="#general">General</a><a href="#tabs">Tabs &amp; Sidebar</a><a href="#modules">Sidebar modules</a><a href="#extensions">Extensions</a>
-    <a href="#dictation">Dictation</a><a href="#chat">Model chat</a><a href="#agents">Agents</a><a href="#notifications">Notifications</a><a href="#privacy">Privacy</a><a href="#backup">Backup</a><a href="#advanced">Advanced</a>
+    <a href="#dictation">Dictation</a><a href="#chat">Chat models</a><a href="#agents">Agents</a><a href="#notifications">Notifications</a><a href="#privacy">Privacy</a><a href="#backup">Backup</a><a href="#advanced">Advanced</a>
     <a href="#" class="tips" id="tips">Tips &amp; shortcuts</a>
   </nav>
   <main>
@@ -170,15 +213,18 @@ p.reason a { color: inherit; }
     </section>
 
     <section id="extensions"><h2>Extensions</h2>
-      <p class="reason">Each space keeps its own extensions and sign-ins. Copy one to another space with its data, so it arrives signed in instead of starting over.</p>
+      <p class="reason">Each space has its own extensions, signed in on their own. To put one in another space, click its empty spot below: it's copied with its data, so it arrives signed in.</p>
       <div class="row" id="tweaks-share-row"><label class="name" for="tweaks-shared">Site tweaks in every space<small>Every space gets the same scripts and styles, and a change in one reaches them all. What they store stays per space. Agents can't read or edit Site tweaks while this is on. Off, each space has its own.</small></label><input type="checkbox" class="switch" id="tweaks-shared"></div>
       <p class="status" id="ex-none" hidden></p>
       <div id="ex-form" hidden>
-        <div class="row"><label class="name" for="ex-from">Copy from</label><select id="ex-from"></select></div>
-        <h3>Extensions</h3><div id="ex-list"></div>
-        <h3>Copy to</h3><div id="ex-to"></div>
-        <p class="status" id="ex-warn" hidden></p>
-        <div class="end"><button class="btn" id="ex-go" disabled>Copy and restart</button></div>
+        <h3>Which space has which</h3>
+        <div class="ex-wrap"><div class="ex-grid" id="ex-grid" role="table" aria-label="Extensions in each space"></div></div>
+        <p class="ex-key"><span class="ex-cell" data-s="in" aria-hidden="true"></span> installed <span class="ex-cell" data-s="add" aria-hidden="true"></span> will be copied <span class="ex-cell" data-s="replace" aria-hidden="true"></span> will be replaced by a copy</p>
+        <div id="ex-plan" class="ex-plan" hidden>
+          <p id="ex-plan-text"></p>
+          <p class="status" id="ex-warn"></p>
+          <div class="end"><button class="btn" id="ex-clear">Clear</button><button class="btn primary" id="ex-go">Copy and restart</button></div>
+        </div>
       </div>
       <p class="status" id="ex-result" hidden></p>
     </section>
@@ -191,16 +237,12 @@ p.reason a { color: inherit; }
       </fieldset>
     </section>
 
-    <section id="chat"><h2>Model chat</h2>
-      <p class="reason">Chat with a model on this Mac, or OpenAI, Anthropic and Perplexity with your own API key. Keys stay in your Keychain.</p>
-      <div id="ask-llm-row"></div>
+    <section id="chat"><h2>Chat models</h2>
+      <p class="reason">The models behind Ask and naming tabs and downloads. Open a provider below to set it up. Keys and passwords stay in your Keychain.<span hidden>Model chat</span></p>
       <div class="row"><label class="name" for="chat-default">Default model<small id="chat-default-note">Models from the servers that answer now.</small></label><select id="chat-default"></select></div>
       <div class="row"><label class="name" for="auto-name-dl">Name downloads with AI<small>When a download finishes, the default model gives it a clearer file name. Sends the file name, the page title and the download's address to that model. Never for ghost tabs.</small></label><input type="checkbox" class="switch" id="auto-name-dl" data-set="autoNameDownloads"></div>
-      <h3>Your models</h3>
-      <p class="reason" id="code-copy">Everything you've set up, in the order Roar tries it: First available is the top one that answers. Drag to reorder. Coding assistants use your own plan, no API key. Each runs in a macOS sandbox: it reads only its own folders and reaches the network over HTTPS. Only Claude Code can be sent a tab.</p>
+      <div id="ask-llm-row"></div>
       <div id="chat-providers"></div>
-      <div class="row" id="chat-add-row"><span class="name">Add a server<small>Any server with /v1/chat/completions, like vLLM or LiteLLM, or an OpenCode server, which answers with its own default model.</small><span hidden>Add an OpenAI-compatible server</span></span>
-        <span class="end"><select id="chat-add-kind" aria-label="Server type"><option value="openai">OpenAI-compatible</option><option value="opencode">OpenCode server</option></select><input type="text" id="chat-add-name" placeholder="Name" aria-label="New server name" style="width:110px"><input type="text" id="chat-add-url" class="query" placeholder="http://localhost:8000/v1" aria-label="New server URL" style="width:220px"><button class="btn" id="chat-add">Add</button></span></div>
     </section>
 
     <section id="agents"><h2>Agents</h2>
@@ -211,10 +253,14 @@ p.reason a { color: inherit; }
           <div class="segmented" role="group" aria-labelledby="view-label" data-seg="agentTerminal">
             <button data-v="false">Chat</button><button data-v="true">Terminal</button></div></div>
         <div class="row"><label class="name" for="cl-side">Sessions in the sidebar<small>When off, Ask chats still show under AI.</small><span hidden>Agent sessions in the sidebar</span></label><input type="checkbox" class="switch" id="cl-side" data-set="claudeSidebar"></div>
-        <div class="row"><label class="name" for="hermes-url">Hermes server<small id="hermes-note"></small><span hidden>Hermes Agent dashboard sessions</span></label>
-          <span class="end"><input type="text" id="hermes-url" class="query" data-set="hermesUrl" placeholder="https://hermes.example.com" aria-label="Hermes dashboard address" spellcheck="false" style="width:230px"><select id="hermes-space" data-set="hermesSpace" data-kind="number" aria-label="Space signed in to Hermes"></select></span></div>
-        <div class="row"><span class="name">Agent badge<small>Sessions and hours Roar has counted, as a card to share. The counts stay on this computer.</small></span><span class="end"><button class="btn" id="open-badge">Open</button></span></div>
-        <div class="row"><label class="name" for="af-on">Agent files row<small>Opens CLAUDE.md, AGENTS.md and rules in one click.</small></label><input type="checkbox" class="switch" id="af-on" data-set="agentFilesRow"></div>
+        <p class="reason">Session alerts live in <a href="#notifications" data-goto="notifications">Notifications</a>.</p>
+      </div>
+      <div class="blk"><h3>Hermes</h3>
+        <div class="row"><span class="name" id="hermes-label">Hermes sessions<small id="hermes-note"></small><span hidden>Hermes server Hermes Agent dashboard sessions</span></span>
+          <div class="segmented" role="group" aria-labelledby="hermes-label" id="hermes-where"><button data-hw="off">Off</button><button data-hw="local">This Mac</button><button data-hw="remote">Another machine</button></div></div>
+        <div class="row" id="hermes-addr"><label class="name" for="hermes-url">Dashboard<small id="hermes-addr-note"></small></label>
+          <span class="end"><input type="text" id="hermes-url" class="query" placeholder="https://hermes.example.com" aria-label="Hermes dashboard address" spellcheck="false" style="width:230px"><select id="hermes-space" data-set="hermesSpace" data-kind="number" aria-label="Space signed in to Hermes"></select></span></div>
+        <p class="reason">To chat with Hermes in Ask, connect it in <a href="#chat" data-goto="chat">Chat models</a>.</p>
       </div>
       <div class="blk"><h3>Browsing</h3>
         <div class="row"><label class="name" for="cdp-on" title="Close it before a site that flags automated browsers">Let agents use Roar<small id="cdp-win" hidden>On Windows, agents reach every space whatever its agent setting says, and any program on this PC can use the same port.</small><span hidden>Agents can browse with Roar</span></label><span class="end"><button class="btn" id="cdp-relaunch" hidden>Relaunch to apply</button><input type="checkbox" class="switch" id="cdp-on" data-set="cdpEnabled"></span></div>
@@ -225,8 +271,10 @@ p.reason a { color: inherit; }
           <div class="row sp-row"><span class="name">Spaces agents can reach<small>Or click a space’s dot in the sidebar; a ring means agents can reach it. Ghost tabs always stay private.</small><span hidden>Spaces agents can see</span></span><div id="agent-spaces" class="sp-chips"></div></div>
         </fieldset>
       </div>
-      <p class="reason">Session alerts live in <a href="#notifications" data-goto="notifications">Notifications</a>.</p>
-      <details class="group" id="card-diag"><summary>Cards in the sidebar now</summary>
+      <details class="group" id="card-diag"><summary>More</summary>
+        <div class="row"><span class="name">Agent badge<small>Sessions and hours Roar has counted, as a card to share. The counts stay on this computer.</small></span><span class="end"><button class="btn" id="open-badge">Open</button></span></div>
+        <div class="row"><label class="name" for="af-on">Agent files row<small>Opens CLAUDE.md, AGENTS.md and rules in one click.</small></label><input type="checkbox" class="switch" id="af-on" data-set="agentFilesRow"></div>
+        <h3>Cards in the sidebar now</h3>
         <div class="row"><span class="name">Where each card came from and why it's still up<small>Dismiss answers a waiting question with “dismissed”.</small></span><span class="end"><button class="btn" id="cards-refresh">Refresh</button></span></div>
         <div id="agent-cards"></div>
       </details>
@@ -358,16 +406,40 @@ for (const el of document.querySelectorAll('[data-icon]')) el.innerHTML = MODULE
 
 // Updates controls in place, so focus never moves (no container is rebuilt here).
 // Its status changes after the fetch, so the note is refreshed while it's on screen (see the timer below).
-const HERMES_NOTE = 'A Hermes dashboard: its open sessions show in the sidebar to watch, using the sign-in in this space.';
+const HERMES_NOTE = 'Open sessions on a Hermes dashboard show in the sidebar to watch.';
+const HERMES_LOCAL = 'http://127.0.0.1:9119';  // The dashboard's own default (hermes dashboard).
+let hermesWhere = '';  // "remote" picked but no address typed yet
 function hermesRow(s) {
-  const pick = $('hermes-space');
+  const pick = $('hermes-space'), url = s.settings.hermesUrl || '';
   if (document.activeElement !== pick) {
     pick.replaceChildren(...s.spaces.map((sp) => new Option(sp.name, sp.id)));
     pick.value = String(s.settings.hermesSpace ?? 0);
   }
   pick.hidden = s.spaces.length < 2;
-  $('hermes-note').textContent = s.claude?.hermes || HERMES_NOTE;
+  const where = url ? chatCore.urlWhere(url) : hermesWhere || 'off';
+  for (const b of $('hermes-where').querySelectorAll('button')) b.setAttribute('aria-pressed', String(b.dataset.hw === where));
+  $('hermes-addr').hidden = where === 'off';
+  const u = $('hermes-url');
+  if (document.activeElement !== u) u.value = url;
+  u.readOnly = where === 'local';
+  $('hermes-addr-note').textContent = where === 'local' ? 'The dashboard on this Mac.' : s.spaces.length > 1 ? 'Roar reads it with the sign-in in the space you pick.' : 'Roar reads it with your sign-in there.';
+  $('hermes-note').textContent = url ? s.claude?.hermes || HERMES_NOTE : HERMES_NOTE;
 }
+$('hermes-where').onclick = (e) => {
+  const w = e.target.closest('[data-hw]')?.dataset.hw;
+  if (!w) return;
+  hermesWhere = w === 'remote' ? 'remote' : '';
+  const url = last.settings.hermesUrl || '';
+  if (w === 'off') return set({ hermesUrl: '' });
+  if (w === 'local') return set({ hermesUrl: HERMES_LOCAL });
+  if (chatCore.urlWhere(url) === 'local' || !url) { $('hermes-url').value = ''; if (url) set({ hermesUrl: '' }); else hermesRow(last); }
+  $('hermes-url').focus();
+};
+$('hermes-url').onchange = (e) => {
+  const v = e.target.value.trim();
+  if (v && !/^https?:\/\/\S+$/.test(v)) return void (e.target.value = last.settings.hermesUrl || '');
+  set({ hermesUrl: v });
+};
 function apply(s) {
   if (typeof s === 'string') s = JSON.parse(s);
   last = s;
@@ -557,55 +629,96 @@ $('bk-confirm').onclick = async () => {
   } catch (e) { bkResult('Import failed, nothing changed: ' + e.message, true); }
 };
 // Extensions: copy between spaces with their data. Roar does it at the next launch, before any profile opens (ext_copy.h).
-let exSpaces = [];
-const exFrom = () => exSpaces.find((s) => s.id === +$('ex-from').value);
-const exChecked = (box) => [...$(box).querySelectorAll('input:checked')].map((i) => i.value);
-function exRow(label, value, icon) {
-  const row = document.createElement('label');
-  row.className = 'row';
-  const name = Object.assign(document.createElement('span'), { className: 'name', textContent: label });
-  if (/^data:image\//.test(icon || '')) name.prepend(Object.assign(document.createElement('img'), { src: icon, width: 16, height: 16, alt: '', style: 'vertical-align:-3px;margin-right:8px' }));
-  const box = Object.assign(document.createElement('input'), { type: 'checkbox', className: 'switch', value });
-  box.onchange = exCheck;
-  row.append(name, box);
-  return row;
+// One grid: an extension per row, a space per column. Click an empty cell to copy it there, or an installed one
+// to replace that install with a copy. exPlan[extension id] = {from: space id, to: Set of space ids}.
+let exSpaces = [], exPlan = {};
+const exSpace = (id) => exSpaces.find((s) => s.id === id);
+function exAll() {
+  const m = new Map();
+  for (const s of exSpaces) for (const e of s.extensions) {
+    if (!m.has(e.id)) m.set(e.id, { id: e.id, name: e.name, icon: e.icon, in: [] });
+    m.get(e.id).in.push(s.id);
+  }
+  return [...m.values()].sort((a, b) => a.name.localeCompare(b.name));
 }
-function exCheck() {
-  const ids = exChecked('ex-list'), to = exChecked('ex-to').map(Number), from = exFrom();
-  $('ex-go').disabled = !ids.length || !to.length;
-  // Copying over an install replaces that space's own data, and with it any sign-in there.
-  const hit = to.flatMap((id) => { const s = exSpaces.find((x) => x.id === id); return s.extensions.filter((e) => ids.includes(e.id)).map((e) => `${e.name} in ${s.name}`); });
-  const name = (id) => from.extensions.find((e) => e.id === id)?.name;
-  $('ex-warn').hidden = !ids.length || !to.length;
-  $('ex-warn').textContent = `The copy carries ${ids.length === 1 ? name(ids[0]) + '’s' : 'their'} sign-in with it, and some services sign out one copy when both are used.`
-    + (hit.length ? ` This replaces ${hit.join(' and ')}, along with any account signed in there.` : '') + ' Roar restarts to do it, and your tabs come back.';
+// The space a copy of e comes from: the one picked, else the first that has it and isn't the target.
+const exSource = (e, target) => (exPlan[e.id]?.from ?? e.in.find((id) => id !== target) ?? e.in[0]);
+function exToggle(e, space) {
+  const p = exPlan[e.id] || (exPlan[e.id] = { from: exSource(e, space), to: new Set() });
+  if (p.to.has(space)) p.to.delete(space);
+  else if (space !== p.from) p.to.add(space);
+  if (!p.to.size) delete exPlan[e.id];
+  exFill();
 }
 function exFill() {
-  const from = exFrom();
-  $('ex-list').replaceChildren(...from.extensions.map((e) => exRow(e.name, e.id, e.icon)));
-  $('ex-to').replaceChildren(...exSpaces.filter((s) => s !== from).map((s) => exRow(s.name, s.id)));
-  if (!from.extensions.length) $('ex-list').textContent = 'No extensions in this space.';
-  exCheck();
+  const all = exAll(), grid = $('ex-grid'), keep = document.activeElement?.dataset?.cell;
+  grid.style.gridTemplateColumns = `minmax(170px, 1fr) repeat(${exSpaces.length}, minmax(76px, auto))`;
+  const cells = [Object.assign(document.createElement('div'), { className: 'ex-head', textContent: 'Extension' }),
+    ...exSpaces.map((s) => Object.assign(document.createElement('div'), { className: 'ex-head', textContent: s.name }))];
+  for (const e of all) {
+    const p = exPlan[e.id], name = document.createElement('div');
+    name.className = 'ex-name';
+    if (/^data:image\//.test(e.icon || '')) name.append(Object.assign(document.createElement('img'), { src: e.icon, alt: '' }));
+    name.append(Object.assign(document.createElement('span'), { textContent: e.name }));
+    if (p && e.in.length > 1) {  // Several spaces have it: say which one's data goes.
+      const sel = document.createElement('select');
+      sel.setAttribute('aria-label', `Copy ${e.name} from`);
+      sel.append(...e.in.map((id) => new Option('from ' + exSpace(id).name, id)));
+      sel.value = p.from;
+      sel.onchange = () => { p.from = +sel.value; p.to.delete(p.from); if (!p.to.size) delete exPlan[e.id]; exFill(); };
+      name.append(sel);
+    }
+    cells.push(name);
+    for (const s of exSpaces) {
+      const has = e.in.includes(s.id), planned = p?.to.has(s.id), from = exSource(e, s.id);
+      const b = Object.assign(document.createElement('button'), { className: 'ex-cell' });
+      b.dataset.s = planned ? (has ? 'replace' : 'add') : has ? 'in' : 'empty';
+      b.dataset.cell = e.id + ':' + s.id;
+      const src = exSpace(from)?.name;
+      b.disabled = from === s.id;  // its only copy, or the source picked
+      b.title = planned ? `Won't copy ${e.name} to ${s.name}` : b.disabled ? `${e.name} is in ${s.name}${p ? ', copied from here' : ''}`
+        : has ? `${e.name} is in ${s.name}. Click to replace it with a copy from ${src}` : `Copy ${e.name} from ${src} to ${s.name}`;
+      b.setAttribute('aria-label', b.title);
+      b.onclick = () => exToggle(e, s.id);
+      const c = Object.assign(document.createElement('div'), { className: 'ex-c' });
+      c.append(b);
+      cells.push(c);
+    }
+  }
+  if (!all.length) cells.push(Object.assign(document.createElement('div'), { className: 'empty', textContent: 'No extensions in any space yet.', style: `grid-column: 1 / -1` }));
+  grid.replaceChildren(...cells);
+  document.querySelector('#extensions .ex-key').hidden = !all.length;
+  if (keep) grid.querySelector(`[data-cell="${CSS.escape(keep)}"]`)?.focus();
+  exCheck(all);
+}
+// The plan in words, and what it costs: sign-ins travel with the copy, and a replaced install loses its own.
+function exCheck(all = exAll()) {
+  const jobs = Object.entries(exPlan).map(([id, p]) => ({ e: all.find((x) => x.id === id), p })).filter((j) => j.e);
+  $('ex-plan').hidden = !jobs.length;
+  if (!jobs.length) return;
+  const list = (a) => a.length < 3 ? a.join(' and ') : a.slice(0, -1).join(', ') + ' and ' + a.at(-1);
+  $('ex-plan-text').textContent = 'Copy ' + jobs.map(({ e, p }) => `${e.name} from ${exSpace(p.from).name} to ${list([...p.to].map((id) => exSpace(id).name))}`).join('; ') + '.';
+  const hit = jobs.flatMap(({ e, p }) => [...p.to].filter((id) => e.in.includes(id)).map((id) => `${e.name} in ${exSpace(id).name}`));
+  $('ex-warn').textContent = `Each copy carries its sign-in with it, and some services sign out one copy when both are used.`
+    + (hit.length ? ` This replaces ${list(hit)}, along with any account signed in there.` : '') + ' Roar restarts to do it, and your tabs come back.';
+  $('ex-go').disabled = false;
 }
 async function exLoad() {
   const r = await ask({ cmd: 'extensions.spaces' });
   exSpaces = typeof r === 'string' ? JSON.parse(r) : r;
-  const many = exSpaces.length > 1, keep = $('ex-from').value;
+  const many = exSpaces.length > 1;
   $('ex-form').hidden = !many;
   $('ex-none').hidden = many;
   $('ex-none').textContent = 'You have one space, so there’s nowhere to copy to yet.';
-  if (!many) return;
-  $('ex-from').replaceChildren(...exSpaces.map((s) => new Option(s.name, s.id)));
-  // Start from the space with the most to copy.
-  $('ex-from').value = exSpaces.some((s) => String(s.id) === keep) ? keep : [...exSpaces].sort((a, b) => b.extensions.length - a.extensions.length)[0].id;
-  exFill();
+  for (const id in exPlan) if (!exAll().some((e) => e.id === id)) delete exPlan[id];
+  if (many) exFill();
 }
-$('ex-from').onchange = exFill;
+$('ex-clear').onclick = () => { exPlan = {}; exFill(); };
 $('ex-go').onclick = async () => {
   $('ex-go').disabled = true;
   const show = (t) => { $('ex-result').hidden = false; $('ex-result').textContent = t; };
   try {
-    await ask({ cmd: 'extensions.copy', from: exFrom().id, ids: exChecked('ex-list'), to: exChecked('ex-to').map(Number) });
+    for (const [id, p] of Object.entries(exPlan)) await ask({ cmd: 'extensions.copy', from: p.from, ids: [id], to: [...p.to] });
     show('Restarting to copy…');
     setTimeout(() => ask({ cmd: 'run', id: 'relaunch' }), 800);
   } catch (e) { show('Nothing was copied: ' + e.message); exCheck(); }
@@ -660,7 +773,8 @@ $('search').oninput = () => {
 // Model chat providers: the list is the chatProviders setting; keys go straight to the Keychain.
 // Each provider is probed in the background (chatCore.detectProviders); rows show "Checking…" until then,
 // and detected providers move to the top.
-let chatFound = [];
+// Cards: which are open, which way each shows, where a new server runs; kept across repaints.
+let chatFound = [], chatRows = [], chatPaint = () => {}, chatOpen = new Set(), chatWay = {}, chatWhere = {}, chatOcUrl = '';
 async function chatRefresh(st) {
   const list = chatCore.chatList(st), box = $('chat-providers'), sel = $('chat-default');
   // An OpenCode server: a password instead of a key, and whether its agent may use tools.
@@ -675,25 +789,52 @@ async function chatRefresh(st) {
     <span class="end"><input type="text" class="query" data-url value="${esc(p.url)}" aria-label="${esc(p.name)} URL" spellcheck="false" style="width:240px">
     ${p.get ? `<button class="btn" data-get="${esc(p.get)}">Get ${esc(p.name)}</button>` : ''}
     ${p.key ? `<input type="password" data-key placeholder="${p.hasKey ? '••••••••' : p.optional ? 'API key (optional)' : 'API key'}" aria-label="${esc(p.name)} API key" autocomplete="off" style="width:150px"><button class="btn" data-savekey>Save key</button>${p.hasKey ? '<button class="btn" data-delkey>Remove key</button>' : ''}` : ''}</span></div>`;
-  // Every row can go: a server you added for good, a built-in or an assistant to Add back in More.
-  const removeBtn = (p) => `<button class="btn" data-remove title="${p.kind === 'cli' ? `Takes it out of Model chat. ${esc(p.name)} itself stays on this Mac.` : 'Takes it out of Model chat'}" aria-label="Remove ${esc(p.name)}">Remove</button>`;
-  const item = (p, i, of) => `<li class="ch-item${of ? '' : ' fixed'}" data-item="${esc(p.id)}" data-p="${esc(p.id)}">${of ? `<button class="grip" draggable="true" data-grip="${esc(p.id)}" title="Drag to reorder" aria-label="${esc(p.name)}, ${i + 1} of ${of}. Arrow keys move it.">${'<i></i>'.repeat(3)}</button>` : ''}<div class="ch-body">${row(p)}</div>${removeBtn(p)}</li>`;
+  // Every row can go: a server you added for good, a built-in or an assistant until Turn on.
+  const added = (p) => p.optional || p.kind === 'opencode';
+  const removeBtn = (p) => `<button class="btn" data-remove title="${p.kind === 'cli' ? `Takes it out of Chat models. ${esc(p.name)} itself stays on this Mac.` : added(p) ? 'Deletes it from Chat models' : 'Takes it out of Chat models'}" aria-label="${added(p) ? 'Remove' : 'Turn off'} ${esc(p.name)}">${added(p) ? 'Remove' : 'Turn off'}</button>`;
+  // In this order: what's set up, one line each; its settings live in its provider's card.
+  const item = (p, i, of) => `<li class="ch-item" data-item="${esc(p.id)}" data-p="${esc(p.id)}"><button class="grip" draggable="true" data-grip="${esc(p.id)}" title="Drag to reorder" aria-label="${esc(p.name)}, ${i + 1} of ${of}. Arrow keys move it.">${'<i></i>'.repeat(3)}</button><div class="ch-body"><div class="row"><span class="name">${esc(p.name)}<small data-state="${p.state || ''}">${esc(p.label || 'Checking…')}</small></span><button class="btn" data-open-vendor="${chatCore.vendorOf(p)[0]}">Settings</button></div></div>${removeBtn(p)}</li>`;
   const gone = [...chatCore.parseProviders(st.chatProviders), ...chatCore.CLI_PROVIDERS].filter((p) => chatCore.idList(st.chatHidden).includes(p.id));
-  const addRow = $('chat-add-row');  // Lives in More: moved back in after every repaint.
-  const paint = (rows) => {
+  const inWay = (v, w) => (p) => { const [vi, wi] = chatCore.vendorOf(p); return vi === v.id && wi === w.id; };
+  const onDot = (ps) => ps.some(chatCore.chatOn) ? '<i aria-label="set up"></i>' : '';
+  // One provider in a card: its settings and a way out; one that was turned off: a way back.
+  const one = (p) => `<div class="v-p" data-p="${esc(p.id)}"><div>${row(p)}</div>${removeBtn(p)}</div>`;
+  const off = (p) => `<div class="row" data-p="${esc(p.id)}"><span class="name">${esc(p.name)}<small>Off</small></span><button class="btn" data-restore aria-label="Turn ${esc(p.name)} back on">Turn on</button></div>`;
+  const whereSeg = (v, where, attr) => `<div class="segmented" role="group" aria-label="Where ${esc(v.name)} runs"><button ${attr}="local" aria-pressed="${where === 'local'}">This Mac</button><button ${attr}="remote" aria-pressed="${where === 'remote'}">Another machine</button></div>`;
+  const panel = (v, w, rows) => {
+    const ps = rows.filter(inWay(v, w)), was = gone.filter(inWay(v, w));
+    if (w.server) {  // Hermes, oMLX: one server, on this Mac or another machine.
+      const p = ps[0], sv = w.server;
+      if (p) return whereSeg(v, chatCore.urlWhere(p.url), 'data-where-set') + one(p);
+      const where = chatWhere[v.id] || 'local';
+      return whereSeg(v, where, 'data-where') + `<div class="v-add">${where === 'local' ? `<small>${esc(sv.local)}</small>` : `<input type="text" class="query" data-conn-url placeholder="${esc(sv.remote)}" aria-label="${esc(v.name)} address" spellcheck="false">`}<button class="btn primary" data-connect="${v.id}">Connect</button></div>`;
+    }
+    const add = w.id === 'opencode' ? `<div class="v-add"><input type="text" class="query" data-add-url placeholder="http://127.0.0.1:4096" aria-label="OpenCode server address" spellcheck="false"${chatOcUrl ? ` value="${esc(chatOcUrl)}"` : ''}><button class="btn" data-add="opencode">Add server</button></div><p class="reason">An OpenCode server on this Mac or another machine (opencode serve), answering with its own default model.</p>`
+      : w.id === 'other' ? `<div class="v-add"><input type="text" data-add-name placeholder="Name" aria-label="New server name" style="width:110px"><input type="text" class="query" data-add-url placeholder="http://localhost:8000/v1" aria-label="New server address" spellcheck="false"><button class="btn" data-add="openai">Add a server</button></div>` : '';
+    return ps.map(one).join('') + was.map(off).join('') + add;
+  };
+  const card = (v, rows) => {
+    const ways = v.ways, all = ways.flatMap((w) => rows.filter(inWay(v, w))), on = all.filter(chatCore.chatOn);
+    const best = on.find((p) => p.state === 'running' || p.state === 'available') || on[0];
+    const what = on.map((p) => { const w = ways.find((x) => inWay(v, x)(p)); return w.server ? (chatCore.urlWhere(p.url) === 'local' ? 'This Mac' : 'Another machine') : w.label && ways.length > 1 ? w.label : p.name; });
+    const st = !on.length ? 'Not set up' : best?.label === undefined ? 'Checking…' : [...new Set(what)].join(' · ');
+    const state = !on.length ? '' : ['running', 'available'].includes(best?.state) ? best.state : 'warn';
+    const pick = ways.find((w) => w.id === chatWay[v.id]) || ways.find((w) => rows.some((p) => inWay(v, w)(p) && chatCore.chatOn(p))) || ways[0];
+    const seg = ways.length > 1 ? `<div class="segmented" role="group" aria-label="${esc(v.name)}: how to connect">${ways.map((w) => `<button data-way="${v.id}:${w.id}" aria-pressed="${w === pick}">${esc(w.label)}${onDot(rows.filter(inWay(v, w)))}</button>`).join('')}</div>` : '';
+    return `<details class="vendor" data-vendor="${v.id}"${chatOpen.has(v.id) ? ' open' : ''}><summary><span class="v-name">${esc(v.name)}</span><span class="v-st" data-state="${state}">${esc(st)}</span></summary>`
+      + (v.note ? `<p class="reason">${esc(v.note)}</p>` : '') + seg + panel(v, pick, rows) + '</details>';
+  };
+  const paint = (rows, force) => {
     const grip = document.activeElement?.dataset?.grip;  // Arrow keys on a handle repaint; focus follows it below.
-    if (box.contains(document.activeElement) && !grip) return;  // Don't rebuild under the cursor.
-    const open = box.querySelector('#chat-api')?.open ? ' open' : '';  // Collapsed by default; a repaint keeps it as the user left it.
-    // Your models lists what's set up, in the saved order; More holds what isn't yet, and what was removed.
-    const on = chatCore.chatOrdered(rows.filter(chatCore.chatOn), st), rest = rows.filter((p) => !chatCore.chatOn(p));
-    const missing = rest.filter((p) => p.kind === 'cli');
-    box.innerHTML = `<ol class="ch-list" id="chat-on">${on.map((p, i) => item(p, i, on.length)).join('')}</ol><details class="group" id="chat-api"${open}><summary>More</summary><h3>API keys and local servers</h3>`
-      + `<ol class="ch-list">${rest.filter((p) => p.kind !== 'cli').map((p) => item(p)).join('')}</ol><div id="chat-add-slot"></div>`
-      + (missing.length ? `<h3>Coding assistants not installed</h3><ol class="ch-list">${missing.map((p) => item(p)).join('')}</ol>` : '')
-      + (gone.length ? `<h3>Removed</h3>${gone.map((p) => `<div class="row" data-p="${esc(p.id)}"><span class="name">${esc(p.name)}</span><button class="btn" data-restore aria-label="Add ${esc(p.name)} back">Add back</button></div>`).join('')}` : '') + '</details>';
-    box.querySelector('#chat-add-slot').replaceWith(addRow);
+    if (!force && box.contains(document.activeElement) && !grip) return;  // Don't rebuild under the cursor.
+    chatRows = rows;
+    const on = chatCore.chatOrdered(rows.filter(chatCore.chatOn), st);
+    box.innerHTML = (on.length ? `<h3>In this order</h3><p class="as-hint">Ask's “First available” is the top one that answers. Drag to reorder.</p><ol class="ch-list ch-order" id="chat-on">${on.map((p, i) => item(p, i, on.length)).join('')}</ol>`
+      : '<p class="empty">Nothing set up yet. Pick a provider below.</p>')
+      + `<h3>Providers</h3><div class="vendors" id="chat-vendors">${chatCore.VENDORS.map((v) => card(v, rows)).join('')}</div>`;
     if (grip) box.querySelector(`[data-grip="${CSS.escape(grip)}"]`)?.focus();
   };
+  chatPaint = (force) => paint(chatRows, force);
   const gen = (chatRefresh.gen = (chatRefresh.gen || 0) + 1);
   if (!box.children.length) paint(list);
   const found = chatCore.chatOrdered(await chatCore.detectProviders(list, ask), st);
@@ -804,24 +945,56 @@ $('chat-providers').addEventListener('click', async (e) => {
     chatRefresh(last.settings);
   } catch (err) { alert(err.message); }
 });
-// OpenCode keeps no setting for its server, so offer the one a running terminal uses.
-$('chat-add-kind').onchange = async () => {
-  const oc = $('chat-add-kind').value === 'opencode';
-  $('chat-add-url').placeholder = oc ? 'http://192.168.1.10:4096' : 'http://localhost:8000/v1';
-  if (!oc || $('chat-add-url').value) return;
-  const url = await clSession.ctl('', 'opencode-server');
-  if (/^https?:\/\//.test(url)) { $('chat-add-url').value = url.trim(); $('chat-add-name').value ||= 'OpenCode server'; }
-};
-$('chat-add').onclick = () => {
-  const name = $('chat-add-name').value.trim(), url = $('chat-add-url').value.trim(), list = chatCore.parseProviders(last.settings.chatProviders);
-  if (!name || !/^https?:\/\/\S+$/.test(url)) return $('chat-add-url').focus();
-  let id = name.toLowerCase().replace(/[^\w-]+/g, '-').slice(0, 30) || 'server';
-  while (list.some((p) => p.id === id)) id += '-2';
-  list.push({ id, name, url, key: true, optional: true, ...($('chat-add-kind').value === 'opencode' && { kind: 'opencode', tools: false }) });
-  $('chat-add-name').value = $('chat-add-url').value = '';
-  $('chat-add').blur();  // The row sits inside #chat-providers now; paint skips while focus is in there.
-  chatSave(list);
-};
+// Cards: open state, ways, where a server runs, Connect and Add.
+$('chat-providers').addEventListener('toggle', (e) => {
+  const d = e.target.closest?.('details.vendor');
+  if (d) d.open ? chatOpen.add(d.dataset.vendor) : chatOpen.delete(d.dataset.vendor);
+}, true);
+$('chat-providers').addEventListener('click', async (e) => {
+  const t = e.target.closest('button');
+  if (!t) return;
+  const v = t.closest('[data-vendor]')?.dataset.vendor, list = chatCore.parseProviders(last.settings.chatProviders);
+  if (t.dataset.openVendor) {
+    chatOpen.add(t.dataset.openVendor);
+    t.blur(); chatPaint(true);
+    return $('chat-vendors').querySelector(`[data-vendor="${t.dataset.openVendor}"]`)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  }
+  if (t.dataset.way) {
+    const [vi, wi] = t.dataset.way.split(':');
+    chatWay[vi] = wi;
+    // OpenCode keeps no setting for its server, so offer the one a running terminal uses.
+    if (wi === 'opencode' && !chatOcUrl) clSession.ctl('', 'opencode-server').then((u) => { if (/^https?:\/\//.test(u || '')) chatOcUrl = u.trim(), chatPaint(); }).catch(() => {});
+    t.blur(); return chatPaint(true);
+  }
+  if (t.dataset.where) { chatWhere[v] = t.dataset.where; t.blur(); chatPaint(true); return t.dataset.where === 'remote' && $('chat-vendors').querySelector(`[data-vendor="${v}"] [data-conn-url]`)?.focus(); }
+  const sv = chatCore.VENDORS.find((x) => x.id === v)?.ways.find((w) => w.server)?.server;
+  if (t.dataset.whereSet && sv) {
+    const p = list.find((x) => x.id === sv.id);
+    if (t.dataset.whereSet === 'local') { if (p.url === sv.local) return; p.url = sv.local; t.blur(); return chatSave(list); }
+    const u = t.closest('details').querySelector('[data-url]');
+    if (chatCore.urlWhere(u.value) === 'local') u.value = '';
+    u.placeholder = sv.remote;
+    return u.focus();
+  }
+  if (t.dataset.connect && sv) {
+    const card = t.closest('details'), where = chatWhere[v] || 'local', url = where === 'local' ? sv.local : card.querySelector('[data-conn-url]').value.trim();
+    if (!/^https?:\/\/\S+$/.test(url)) return card.querySelector('[data-conn-url]')?.focus();
+    if (list.some((x) => x.id === sv.id)) return;
+    list.push({ id: sv.id, name: sv.name, url, key: true, optional: true });
+    t.blur(); return chatSave(list);
+  }
+  if (t.dataset.add) {
+    const card = t.closest('details'), url = card.querySelector('[data-add-url]').value.trim();
+    const name = card.querySelector('[data-add-name]')?.value.trim() || (t.dataset.add === 'opencode' ? 'OpenCode server' : '');
+    if (!name) return card.querySelector('[data-add-name]').focus();
+    if (!/^https?:\/\/\S+$/.test(url)) return card.querySelector('[data-add-url]').focus();
+    let id = name.toLowerCase().replace(/[^\w-]+/g, '-').slice(0, 30) || 'server';
+    while (list.some((p) => p.id === id) || chatCore.VENDORS.some((x) => x.ways.some((w) => w.server?.id === id))) id += '-2';
+    list.push({ id, name, url, key: true, optional: true, ...(t.dataset.add === 'opencode' && { kind: 'opencode', tools: false }) });
+    if (t.dataset.add === 'opencode') chatOcUrl = '';
+    t.blur(); return chatSave(list);
+  }
+});
 
 refresh();
 ask({ cmd: 'github.status' }).then((status) => {

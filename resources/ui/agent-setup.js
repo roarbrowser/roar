@@ -55,8 +55,8 @@ function llmPicker(sel, after) {
 // "Reconnect all" banner for outdated ones.
 function agentSetup(root, { llm = true, list: asList = false } = {}) {
   root.innerHTML = asList ? `<div class="as-banner" role="status" hidden></div><div class="as-banner as-cmux" role="status" hidden><span></span></div><ol class="as-list"><li class="empty">Looking for agent tools…</li></ol>
-    <details class="as-more as-gone"><summary>More agents</summary><ol class="as-list as-gone-list"></ol></details>
-    <details class="as-more as-apps"><summary>Other apps: set up by hand<span hidden>copy their config</span></summary><ol class="as-list as-away"></ol></details>`
+    <details class="as-more as-gone"><summary>More agents</summary><h3 class="as-gone-h">Not on this Mac</h3><ol class="as-list as-gone-list"></ol>
+      <h3 class="as-apps">Other apps: set up by hand<span hidden>copy their config</span></h3><ol class="as-list as-away"></ol></details>`
     : `${llm ? llmRowHtml() : ''}
     <h3>Tools you use</h3><div class="as-tools"><span class="empty">Looking for agent tools…</span></div>
     <details class="as-more"><summary>Show more / copy config</summary><div class="as-away"></div></details>`;
@@ -115,7 +115,8 @@ function agentSetup(root, { llm = true, list: asList = false } = {}) {
     root.querySelector('.as-list').innerHTML = here.map((r, i) => card(r, i, here.length)).join('') + others.map((r) => card(r)).join('')
       || '<li class="empty">No agent tools found on this Mac.</li>';
     root.querySelector('.as-gone-list').innerHTML = gone.map((r, i) => card(r, here.length + i, tools.length)).join('');
-    root.querySelector('.as-gone').hidden = !gone.length;
+    root.querySelector('.as-gone-h').hidden = !gone.length;
+    root.querySelector('.as-gone').hidden = !gone.length && !away.length;
     root.querySelector('.as-away').innerHTML = away.map((r) => card(r)).join('');
     root.querySelector('.as-apps').hidden = !away.length;
     if (had) root.querySelector(had)?.focus();

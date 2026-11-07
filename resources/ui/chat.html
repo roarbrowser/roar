@@ -168,7 +168,7 @@ async function loadModels(st) {
   const idle = all.find((p) => p.state === 'installed');
   // Claude Desktop alone: say Claude Code is what's missing, with its install command.
   const desk = all.find((p) => p.id === 'cli-claude' && p.state === 'missing' && /Claude app/.test(p.label || ''));
-  note(!sel.disabled ? '' : idle ? `${idle.name}: ${idle.label}` : desk ? '' : 'Start a local model server, or add an API key in Settings > Model chat.');
+  note(!sel.disabled ? '' : idle ? `${idle.name}: ${idle.label}` : desk ? '' : 'Start a local model server, or add an API key in Settings > Chat models.');
   if (sel.disabled && !idle && desk) $('note').innerHTML = claudeInstallHtml();
   paintAttach();
   if (!chat.messages.length) renderLog();

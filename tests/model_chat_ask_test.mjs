@@ -42,12 +42,12 @@ let settings;
 try {
   const sb = await cdp((await find((x) => x.url.includes('sidebar.html'), 120)).webSocketDebuggerUrl);
   await sleep(1500);
-  // 1) Settings > Model chat: add the server, save a key in its row.
+  // 1) Settings > Chat models: add the server under Other servers, save a key in its row.
   await sb.ev(`ask({cmd:'open', text:'roar://ui/settings.html#chat', newTab:true})`);
   settings = await cdp((await find((x) => x.url.includes('settings.html'))).webSocketDebuggerUrl);
   await sleep(2000);
-  await settings.ev(`showTab('chat'); document.getElementById('chat-add-name').value = 'Stub Server'; document.getElementById('chat-add-url').value = '${base}/v1'; document.getElementById('chat-add').click(); true`);
-  const row = (q) => settings.ev(`(() => { const r = document.querySelector('[data-p=stub-server]'); return r ? ${q} : null; })()`);
+  await settings.ev(`showTab('chat'); const c = document.querySelector('[data-vendor=other]'); c.open = true; c.querySelector('[data-add-name]').value = 'Stub Server'; c.querySelector('[data-add-url]').value = '${base}/v1'; c.querySelector('[data-add=openai]').click(); true`);
+  const row = (q) => settings.ev(`(() => { const r = document.querySelector('#chat-vendors [data-p=stub-server]'); return r ? ${q} : null; })()`);
   const before = await waitFor(() => row(`r.querySelector('small').dataset.state && r.querySelector('small').textContent`));
   check(/Save its API key if it needs one/.test(before || ''), 'added server without its key: ' + before);
   check(await row(`!!r.querySelector('[data-key]') && !!r.querySelector('[data-remove]') && !r.querySelector('[data-delkey]')`), 'added row has an optional key box and Remove');
@@ -55,7 +55,7 @@ try {
   const keychain = await settings.ev(`ask({cmd:'chat.keySet', provider:'stub-server', key:''}).then(() => true, () => false)`);
   if (!keychain) console.log('skip  saving a key: the login Keychain is locked (SSH session)');
   else {
-  await settings.ev(`(() => { const r = document.querySelector('[data-p=stub-server]'); r.querySelector('[data-key]').value = '${KEY}'; r.querySelector('[data-savekey]').click(); return true; })()`);
+  await settings.ev(`(() => { const r = document.querySelector('#chat-vendors [data-p=stub-server]'); r.querySelector('[data-key]').value = '${KEY}'; r.querySelector('[data-savekey]').click(); return true; })()`);
   const after = await waitFor(() => row(`/Running/.test(r.querySelector('small').textContent) && r.querySelector('small').textContent`));
   check(after === 'Running · 1 model · API key in Keychain', 'with its key it answers: ' + after);
   check(await row(`!!r.querySelector('[data-delkey]')`), 'Remove key shown once saved');
@@ -83,7 +83,7 @@ try {
   await shot(chat, 'e2e-chat-attached.png');
   // Clean up the Keychain item this test made.
   if (keychain) {
-  await settings.ev(`(() => { const r = document.querySelector('[data-p=stub-server]'); r?.querySelector('[data-delkey]')?.click(); return true; })()`);
+  await settings.ev(`(() => { const r = document.querySelector('#chat-vendors [data-p=stub-server]'); r?.querySelector('[data-delkey]')?.click(); return true; })()`);
   await sleep(800);
   check(await settings.ev(`ask({cmd:'chat.keys'}).then((k) => (typeof k === 'string' ? JSON.parse(k) : k)['stub-server'] === false)`), 'Remove key deletes it from the Keychain');
   }

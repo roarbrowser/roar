@@ -488,7 +488,34 @@
   const modelLabel = (p, m) => (m === 'default' && p?.name) || m;
   const chatOn = (p) => (p.kind === 'cli' ? p.state !== 'missing' : p.optional || p.kind === 'opencode' || !!p.hasKey || p.state === 'running');
 
-  const api = { idList, chatList, chatOrdered, chatOn, modelLabel, opencodeEvents, defaultModel, renamePrompt, renameKeys, autoNameKeys, parseNames, oneShot, SEARCH_SYSTEM, searchMode, openRequest, addSources, webSearchTool, CLI_PROVIDERS, CLI_LOGIN, signedOutError, pageRefusal, shotRefusal, cliStatus, cliPrompt, cliParser, parseProviders, sseParser, streamDelta, requestBody, modelIds, providerStatus, detectProviders, renderMarkdown };
+  // Settings › Chat models groups providers by who makes them: one card per vendor, holding each way to reach it
+  // (an API key, a plan through its CLI, this Mac or another machine). `ways[].ids`: the providers it holds; `server`
+  // ways (Hermes, oMLX) are one provider whose URL says where, added with Connect. Order is the order on screen.
+  const VENDORS = [
+    { id: 'hermes', name: 'Hermes', ways: [{ id: 'server', server: { id: 'hermes', name: 'Hermes', local: 'http://127.0.0.1:8642/v1', remote: 'https://hermes.example.com/v1' } }],
+      note: 'Talks to the Hermes agent through its API server (OpenAI-compatible). Turn it on with API_SERVER_ENABLED=true in ~/.hermes/.env and restart the gateway; its key is API_SERVER_KEY.' },
+    { id: 'opencode', name: 'OpenCode', ways: [{ id: 'cli', label: 'This Mac', ids: ['cli-opencode'] }, { id: 'opencode', label: 'Server', ids: [] }] },
+    { id: 'omlx', name: 'oMLX', ways: [{ id: 'server', server: { id: 'omlx', name: 'oMLX', local: 'http://127.0.0.1:8000/v1', remote: 'http://192.168.1.10:8000/v1' } }],
+      note: 'Local models on Apple silicon, straight from the oMLX server. If you set an API key in oMLX, save it here.' },
+    { id: 'openai', name: 'OpenAI', ways: [{ id: 'api', label: 'API key', ids: ['openai'] }, { id: 'plan', label: 'ChatGPT plan', ids: ['cli-codex'] }] },
+    { id: 'anthropic', name: 'Anthropic', ways: [{ id: 'api', label: 'API key', ids: ['anthropic'] }, { id: 'plan', label: 'Claude plan', ids: ['cli-claude'] }] },
+    { id: 'google', name: 'Google', ways: [{ id: 'plan', label: 'Gemini plan', ids: ['cli-gemini'] }] },
+    { id: 'qwen', name: 'Qwen', ways: [{ id: 'plan', label: 'Qwen plan', ids: ['cli-qwen'] }] },
+    { id: 'perplexity', name: 'Perplexity', ways: [{ id: 'api', label: 'API key', ids: ['perplexity'] }] },
+    { id: 'apps', name: 'Other apps on this Mac', ways: [{ id: 'apps', ids: ['ollama', 'lmstudio', 'llamacpp', 'jan'] }] },
+    { id: 'other', name: 'Other servers', ways: [{ id: 'other', ids: [] }],
+      note: 'Any server with /v1/chat/completions, like vLLM or LiteLLM.' },
+  ];
+  // The vendor card and way a provider belongs to: [vendorId, wayId].
+  const vendorOf = (p) => {
+    if (p.kind === 'opencode') return ['opencode', 'opencode'];
+    for (const v of VENDORS) for (const w of v.ways) if (w.server ? w.server.id === p.id : w.ids.includes(p.id)) return [v.id, w.id];
+    return ['other', 'other'];
+  };
+  // "local" when a URL points at this Mac, else "remote".
+  const urlWhere = (u) => /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:|\/|$)/i.test(String(u || '')) ? 'local' : 'remote';
+
+  const api = { VENDORS, vendorOf, urlWhere, idList, chatList, chatOrdered, chatOn, modelLabel, opencodeEvents, defaultModel, renamePrompt, renameKeys, autoNameKeys, parseNames, oneShot, SEARCH_SYSTEM, searchMode, openRequest, addSources, webSearchTool, CLI_PROVIDERS, CLI_LOGIN, signedOutError, pageRefusal, shotRefusal, cliStatus, cliPrompt, cliParser, parseProviders, sseParser, streamDelta, requestBody, modelIds, providerStatus, detectProviders, renderMarkdown };
   if (typeof module === 'object') module.exports = api;
   else globalThis.chatCore = api;
 })();
