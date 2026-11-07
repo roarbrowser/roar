@@ -1772,16 +1772,17 @@ async function aiRename(key, e, bulk = false) {
   }
 }
 var AI_RENAME_MS = 30000, AI_RENAME_WAIT_MS = 120000;
-// Settings › Name new tabs with AI: new tabs whose first title loaded within AUTO_NAME_MS of each other go to
-// the default chat model in one request (the Rename with AI prompt). No model connected: nothing happens.
+// Settings › Name tabs with AI: tabs that reached a new page within AUTO_NAME_MS of each other go to the default
+// chat model in one request (the Rename with AI prompt), and again on each later page while they keep the model's
+// name (chatCore.autoNameKeys). No model connected: nothing happens.
 var autoSeen = { ids: {}, spaces: {} }, autoQueue = [], autoTimer = 0, AUTO_NAME_MS = 2000;
 function autoName(s) {
   autoQueue.push(...chatCore.autoNameKeys(s.tabs, autoSeen, s.activeSpace, !!s.settings.autoNameTabs));
   if (autoQueue.length && !autoTimer) autoTimer = setTimeout(autoNameRun, AUTO_NAME_MS);
 }
 async function autoNameRun() {
-  // Still open, in this space and unnamed (the person may have renamed or pinned it meanwhile).
-  const open = (k) => state.tabs.find((t) => 'tab:' + t.id === k && !t.name && !t.ghost && (!t.pinned || t.group));
+  // Still open, in this space and not named by the person (they may have renamed or pinned it meanwhile).
+  const open = (k) => state.tabs.find((t) => 'tab:' + t.id === k && (!t.name || t.name === autoSeen.ids[t.id]?.name) && !t.ghost && (!t.pinned || t.group));
   const keys = autoQueue.splice(0).filter(open);
   autoTimer = 0;
   if (!keys.length || !state.settings.autoNameTabs) return;
@@ -1790,7 +1791,12 @@ async function autoNameRun() {
     const p = chats.find((c) => pick.startsWith(c.id + '|'));
     if (!p) return;
     const names = chatCore.parseNames(await chatCore.oneShot(p, pick.slice(p.id.length + 1), chatCore.renamePrompt(keys.map(aiItem)), window.roarQuery), keys);
-    for (const k in names) if (open(k)) await ask({ cmd: 'agent.rename', kind: 'tab', id: +k.slice(4), name: names[k] });
+    for (const k in names) {
+      const id = +k.slice(4), name = String(names[k]).slice(0, 80);  // agent.rename keeps 80
+      if (!open(k)) continue;
+      if (typeof autoSeen.ids[id] === 'object') autoSeen.ids[id].name = name;  // the model's: renamed again on its next page
+      await ask({ cmd: 'agent.rename', kind: 'tab', id, name });
+    }
   } catch {}  // A model that fails or is offline just leaves the titles.
 }
 // A rename landed while we waited: stop that item's spinner and offer one Undo for its whole batch.

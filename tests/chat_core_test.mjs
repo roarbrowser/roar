@@ -256,7 +256,18 @@ check(JSON.stringify(core.parseNames('no json here', ['tab:1'])) === '{}', 'pars
   check(core.autoNameKeys([page(18, 'Half', { split: true, splitWith: 19 }), page(19, 'Ghost half', { ghost: true, split: true, splitWith: 18 })], seen, 0, true).length === 0, 'auto name: never a ghost tab, nor a pair holding one');
   check(core.autoNameKeys([page(7, 'Ghost, later'), page(18, 'Half'), page(19, 'Ghost half', { ghost: true })], seen, 0, true).length === 0, 'auto name: a skipped ghost tab stays skipped');
   check(core.autoNameKeys([page(5, 'Mine'), page(6, 'Pinned')], seen, 0, true).length === 0, 'auto name: tabs skipped once stay skipped (unnamed or unpinned later)');
-  check(core.autoNameKeys([page(20, 'Other space')], seen, 1, true).length === 0, "auto name: another space's tabs on its first visit are not named"); }
+  check(core.autoNameKeys([page(20, 'Other space')], seen, 1, true).length === 0, "auto name: another space's tabs on its first visit are not named");
+  // A new page: the model's name is replaced, the person's name stays, restored tabs get their first name.
+  const go = (t, path, more) => ({ ...t, url: 'https://site.test/' + path, ...more });
+  seen.ids[3].name = 'Pricing plans';
+  const moved = [go(all[2], '3/next', { name: 'Pricing plans', title: 'Checkout' }), go(all[3], '4?tab=2'), go(all[0], '1/later'), go(all[4], '5/elsewhere', { name: 'My name' })];
+  check(core.autoNameKeys(moved, seen, 0, true).join() === 'tab:3,tab:1', "auto name: on a new page the model's name and a restored tab are named; a query string or the person's name are not");
+  check(core.autoNameKeys([go(moved[0], '3/again', { name: 'My own' })], seen, 0, true).length === 0, 'auto name: a name the person gave stops renaming');
+  check(core.autoNameKeys([go(moved[0], '3/again', { name: 'My own' })], seen, 0, true).length === 0 && seen.ids[3] === true, 'auto name: ...for good');
+  const tab2 = { id: 2, title: 'Opened while off', url: 'https://site.test/2/next', loading: true };
+  check(core.autoNameKeys([tab2], seen, 0, true).length === 0, 'auto name: a tab on a new page waits for it to load');
+  check(core.autoNameKeys([{ ...tab2, loading: false, title: 'Next' }], seen, 0, true).join() === 'tab:2', 'auto name: ...then is named');
+  check(core.autoNameKeys([go(all[2], '3/off', { name: 'Pricing plans' })], { ids: { 3: { page: 'x', name: 'Pricing plans' } }, spaces: { 0: true } }, 0, false).length === 0, 'auto name: setting off -> no renames on navigation'); }
 // OpenCode servers.
 {
   const oc = core.parseProviders(JSON.stringify([{ id: 'studio', kind: 'opencode', name: 'S', url: 'http://10.0.0.2:4096/', key: true, optional: true, tools: true, dir: ' /w ' }, { id: 'p', kind: 'opencode', url: 'http://x', tools: 'yes' }, { id: 'o', url: 'http://y' }]));

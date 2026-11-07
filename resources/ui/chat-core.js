@@ -374,22 +374,28 @@
     if (kind === 'group') return [key, ...real.filter((t) => t.group === +id).map((t) => 'tab:' + t.id)];
     return real.filter((t) => kind === 'all' || (!t.group && !t.pinned)).map((t) => 'tab:' + t.id);
   };
-  // Naming new tabs (settings.autoNameTabs): the "tab:<id>" keys to name now. seen ({ids: {}, spaces: {}}) is kept
-  // by the caller: tabs there before (restored tabs, a space's tabs on its first visit, any tab while off) and
-  // tabs already handled are never named, so each tab is named at most once. Named tabs, pinned tabs outside a
-  // group and ghost tabs (and pairs holding one: their titles never leave without a click) are skipped; others
-  // wait for a real title (not loading, not a roar:// or about: page, not the URL shown as title).
+  // Naming tabs (settings.autoNameTabs): the "tab:<id>" keys to name now. seen ({ids: {}, spaces: {}}) is kept by
+  // the caller; seen.ids[id] is true (never name it) or {page, name}: the page (origin + path) it was last looked at
+  // on and the name the model gave it, which the caller fills in. A tab is named when it reaches a new page: tabs
+  // there before (restored tabs, a space's tabs on its first visit, any tab while off) wait for their next page,
+  // and a tab still wearing the model's name is named again on each new page. A name the person gave, pinned tabs
+  // outside a group and ghost tabs (and pairs holding one: their titles never leave without a click) are never
+  // named. Others wait for a real title (not loading, not a roar:// or about: page, not the URL shown as title).
+  const tabPage = (u) => { const m = String(u || '').match(/^([\w-]+:\/\/[^/?#]*)([^?#]*)/); return (m ? m[1] + m[2] : String(u || '')).toLowerCase(); };
   const autoNameKeys = (tabs, seen, space, on) => {
     const first = !seen.spaces[space], out = [];
     seen.spaces[space] = true;
     for (const t of tabs) {
-      if (seen.ids[t.id]) continue;
+      const was = seen.ids[t.id], page = tabPage(t.url);
+      if (was === true || (was && was.page === page)) continue;
       const ghostly = t.ghost || (t.split && tabs.some((o) => o.id === t.splitWith && o.ghost));
-      if (!on || first || (t.pinned && !t.group) || t.name || ghostly) { seen.ids[t.id] = true; continue; }
+      const theirs = t.name && !(was && t.name === was.name);
+      if ((t.pinned && !t.group) || theirs || ghostly) { seen.ids[t.id] = true; continue; }
+      if (!on || (first && !was)) { seen.ids[t.id] = { page, name: was && was.name }; continue; }
       const title = String(t.title || '').trim().toLowerCase(), url = String(t.url || '').toLowerCase();
       const bare = (u) => u.replace(/^[\w-]+:\/\//, '').replace(/^www\./, '').replace(/\/$/, '');
       if (t.loading || !title || /^(roar|about|chrome|devtools):/.test(url) || title.includes('://') || url.startsWith(title) || bare(url) === bare(title)) continue;
-      seen.ids[t.id] = true;
+      seen.ids[t.id] = { page, name: was && was.name };
       out.push('tab:' + t.id);
     }
     return out;
