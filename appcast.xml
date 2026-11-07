@@ -358,5 +358,14 @@
 - Fixed old roar-mcp processes piling up each time Roar relaunched.]]></description>
       <enclosure url="https://github.com/roarbrowser/roar/releases/download/v1.19.0/Roar-1.19.0.dmg" type="application/octet-stream" sparkle:edSignature="0XX55VlEotko+fZOECznS3unbhX04ba14lGA9KIeg4asbPBd8CKr1hp5md4o1mLJr5ZM4dYiLu+pkj1KNYdmBQ==" length="208013914"/>
     </item>
+    <item>
+      <title>1.20.0</title>
+      <pubDate>Sat, 07 Nov 2026 19:22:18 +0000</pubDate>
+      <sparkle:version>12000</sparkle:version>
+      <sparkle:shortVersionString>1.20.0</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[Settings are easier to follow. Chat models (formerly Model chat) gives each provider one card with every way to connect: OpenAI and Anthropic by API key or plan, and Hermes, OpenCode and oMLX on this Mac or another machine. Extensions shows which space has which extension in one grid; click a spot to copy it there. Agents is simpler, and Hermes sessions can come from this Mac or another machine. Right-click the AI header to open your agent badge, which now animates and has a dark version. Name tabs with AI now renames a tab when it goes to another page.]]></description>
+      <enclosure url="https://github.com/roarbrowser/roar/releases/download/v1.20.0/Roar-1.20.0.dmg" type="application/octet-stream" sparkle:edSignature="5s6jjKv0u2hlBVJSlYFjpSYq0TTbFltxPLZkFnnILCH4SEXEHdgVdBEbdiyHMm9iIkxj/ETjr71btuo9gPWeCg==" length="208033885"/>
+    </item>
   </channel>
 </rss>
