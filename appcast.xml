@@ -337,5 +337,14 @@
       <description><![CDATA[⌘1–⌘9 now skip pinned tabs, so ⌘1 is your first real tab and ⌘9 the last. Ghost tabs are more private: their throwaway profile is now reliably deleted seconds after the last one closes, instead of often staying on disk with site names in it until the next launch. The model pickers show the tool you chose, such as opencode, instead of a bare "default".]]></description>
       <enclosure url="https://github.com/roarbrowser/roar/releases/download/v1.17.0/Roar-1.17.0.dmg" type="application/octet-stream" sparkle:edSignature="bLcd7m5Huf6JbO7F9kM7Vt6f+1mcSvYPFECIzOsdfJ/iTWo4/LfkGYNKMgCqbQqtF6+xSo4+7C7xAp2YXV/CAw==" length="207949879"/>
     </item>
+    <item>
+      <title>1.18.0</title>
+      <pubDate>Sat, 07 Nov 2026 04:34:15 +0000</pubDate>
+      <sparkle:version>11800</sparkle:version>
+      <sparkle:shortVersionString>1.18.0</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[Hermes Agent in the sidebar: add a Hermes dashboard in Settings > Agents and its open sessions show up to watch, from any computer. Share your Savanna, or a new agent badge that ranks your agents' work from Cub to Apex Lion, as an image or animated GIF.]]></description>
+      <enclosure url="https://github.com/roarbrowser/roar/releases/download/v1.18.0/Roar-1.18.0.dmg" type="application/octet-stream" sparkle:edSignature="8CYiVG9orBEQHPtvHvrzZNILPg9rcENaFPVqsN0rEci2t8t50Djqvo0u2RezQJHXP3G3PrYkcK5TroZR/HB/BQ==" length="208003560"/>
+    </item>
   </channel>
 </rss>
