@@ -356,6 +356,10 @@ body.drag-active .pinned:empty::before { content: 'Drop to pin'; color: var(--in
 .foot .wordmark { font-size: 15px; color: var(--ink-2); }
 .foot .brand { display: grid; grid-template-columns: auto auto; align-items: center; column-gap: 7px; }
 .foot .brand .space-name { grid-column: 1 / -1; line-height: 1.2; margin-top: 2px; }
+.foot .brand-text { display: flex; flex-direction: column; line-height: 1.05; }
+/* Your rank (badge.html): a quiet line under the wordmark, a way to the badge, never a prompt. */
+.foot .brand .brand-rank { width: auto; height: auto; display: block; padding: 0; margin-top: 1px; border-radius: 0; background: none; font-size: 10.5px; letter-spacing: .02em; color: var(--ink-3); text-align: left; }
+.foot .brand .brand-rank:hover, .foot .brand .brand-rank:focus-visible { color: var(--mane-ink, var(--ink-2)); }
 .foot .tools { display: flex; flex-direction: column; align-items: center; gap: 4px; }
 .foot .brand .space-name:empty { display: none; }
 .foot .spacer { flex: 1; }
@@ -542,7 +546,7 @@ body.drag-active .pinned:empty::before { content: 'Drop to pin'; color: var(--in
 <div class="ctx" id="ctx" hidden></div>
 <div class="dict" id="dict" role="status" aria-live="polite" hidden></div>
 <div class="foot">
-  <span class="brand"><span class="lion" style="width:22px;height:22px" aria-hidden="true"></span><span class="wordmark">Roar</span>
+  <span class="brand"><span class="lion" style="width:22px;height:22px" aria-hidden="true"></span><span class="brand-text"><span class="wordmark">Roar</span><button class="brand-rank" id="brand-rank" hidden></button></span>
   <span class="space-name" id="space-name"></span></span>
   <span class="spaces" id="spaces" role="group" aria-label="Spaces"></span>
   <div class="space-menu" id="space-menu" hidden><input id="space-rename" maxlength="40" aria-label="Space name" spellcheck="false"><input id="space-icon" maxlength="8" placeholder="Icon (emoji), Enter" aria-label="Space icon" spellcheck="false"><button id="space-ai" title="Ask your agent to name this space (Shift-click: choose the agent)">Name with AI</button><button id="space-ai-all" title="Rename every tab in this space with AI; groups keep their names (Shift-click: choose the agent)">Rename all tabs with AI</button><button id="space-ai-loose" title="Rename the tabs not in a group or pinned (Shift-click: choose the agent)">Rename ungrouped tabs with AI</button><button id="space-remove" title="Archive its tabs and remove the space">Remove</button><button id="space-close" title="Close this space's tabs (pinned stay) and switch to the next space">Close all tabs</button><button id="space-agents" role="menuitemcheckbox" aria-checked="true" title="Let AI agents (CDP clients) see and open this space's tabs. A small green light on the space's dot means they can.">Allow agents <span class="ring-key" aria-hidden="true"></span></button><div class="swatches" id="swatches" role="group" aria-label="Space color"></div></div>
@@ -1055,7 +1059,7 @@ document.addEventListener('contextmenu', (e) => {
   if (head && state) { e.preventDefault(); return groupMenu(+head.dataset.groupHead, e); }
   const section = e.target.closest('.group-head')?.closest('#tabs-group, #split-group, #art-group, #ghost-group');
   if (section && state) { e.preventDefault(); return sectionMenu(section, e); }
-  if (e.target.closest('#cl-group > .group-head') && state) { e.preventDefault(); return aiHeadMenu(e); }
+  if (e.target.closest('#cl-group > .group-head') && state && state.settings?.badgeShown !== false) { e.preventDefault(); return aiHeadMenu(e); }
   const tab = e.target.closest('[data-id]');
   if (!state) return;
   // Text fields keep Chromium's own menu (copy, paste, spelling).
@@ -2115,7 +2119,37 @@ roar.actions = (all) => {
   }
 };
 const render0 = roar.render;
-roar.render = (s) => { render0(s); loadPins(); ringCoach(s); footerTour(s); if (s.dictation) roar.dictation(s.dictation); };
+roar.render = (s) => { render0(s); loadPins(); ringCoach(s); footerTour(s); paintBrandRank(); clearTimeout(brandRankSoon); brandRankSoon = setTimeout(brandRank, Math.max(0, 5000 - (Date.now() - brandRankRead))); if (s.dictation) roar.dictation(s.dictation); };
+// Your rank under Roar (badge.html explains the ladder). Counts change slowly: read on load and once a minute.
+let badgeStats = null, brandRankRead = 0, brandRankSoon = 0;  // Also re-read after state pushes, at most every 5 s, so a new day shows soon.
+const rankPlural = (n, w) => n.toLocaleString() + ' ' + w + (n === 1 ? '' : 's');
+function rankNext(s) {
+  const next = s.ladder[s.rank + 1];
+  if (!next) return 'Top of the pride';
+  const need = [[next.days - s.days, 'day'], [next.sessions - s.total, 'session'], [next.hours - s.hours, 'agent hour']].filter(([n]) => n > 0).map(([n, w]) => rankPlural(n, w));
+  return (need.length > 1 ? need.slice(0, -1).join(', ') + ' and ' + need.at(-1) : need[0] || 'Almost there') + ' to ' + next.name;
+}
+function paintBrandRank() {
+  const b = $('brand-rank'), s = badgeStats;
+  b.hidden = !s?.ladder || state?.settings?.badgeShown === false;
+  if (b.hidden) return;
+  b.textContent = s.ladder[s.rank].name;
+  b.title = rankNext(s);
+  b.setAttribute('aria-label', `Your rank: ${b.textContent}. ${b.title}. Opens your agent badge.`);
+}
+async function brandRank() {
+  brandRankRead = Date.now();
+  try { const s = await ask({ cmd: 'agent.stats' }); badgeStats = typeof s === 'string' ? JSON.parse(s) : s; } catch {}
+  paintBrandRank();
+}
+$('brand-rank').onclick = async (e) => {
+  e.stopPropagation();
+  const now = await ask({ cmd: 'state' }).then((x) => (typeof x === 'string' ? JSON.parse(x) : x), () => state);  // A tab opened a moment ago may not be in |state| yet.
+  const t = now?.tabs.find((x) => (x.url || '').startsWith('roar://ui/badge.html'));
+  t ? ask({ cmd: 'tab.activate', id: t.id }) : ask({ cmd: 'open', text: 'roar://ui/badge.html', newTab: true });
+};
+brandRank();
+setInterval(brandRank, 60000);
 // Name downloads with AI (Settings › Model chat): Roar sends each finished download here; the Ask default model
 // suggests a name and downloads.rename cleans it (DownloadName) and renames the file. No model, no rename.
 roar.autoName = async (d) => {

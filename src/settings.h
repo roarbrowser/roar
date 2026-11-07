@@ -71,6 +71,7 @@ struct Settings {
   std::string chat_model;
   std::string chat_order;   // Settings > Model chat: provider ids in the order dragged there, a JSON list.
   std::string chat_hidden;  // Provider ids removed there, a JSON list: built-ins stay offered under Add back.
+  bool badge_shown = true;  // Your rank under Roar in the footer and Agent badge in the AI header menu (badge.html switch).
   bool auto_name_tabs = false;  // New tabs get a short name from the chat_model once their first title loads (sidebar.html autoName).
   bool chat_search = false;  // New chats start with "Search the web" on; each chat keeps its own.
   bool auto_name_downloads = false;  // A finished download gets a name from the Ask default model (sidebar.html autoName).
@@ -160,6 +161,7 @@ inline const std::vector<SettingField>& SettingFields() {
       {"chatModel", &Settings::chat_model, true},
       {"chatOrder", &Settings::chat_order, true},
       {"chatHidden", &Settings::chat_hidden, true},
+      {"badgeShown", &Settings::badge_shown, true},
       {"autoNameTabs", &Settings::auto_name_tabs, true},
       {"chatDefaultsSeen", &Settings::chat_defaults_seen, false},
       {"chatSearch", &Settings::chat_search, true},

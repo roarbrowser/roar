@@ -84,6 +84,28 @@ try {
   await sleep(1500);
   check((await stats()).days === 1, 'stats: and today counts once');
 
+  // The footer: your rank under Roar, opening the badge; a switch hides it and the AI header's menu item.
+  check(!!(await until(() => side(`document.getElementById('brand-rank')?.textContent === 'Cub' && !document.getElementById('brand-rank').hidden`))), 'footer shows the rank');
+  check(!!(await until(async () => /6 days to Prowler/.test(await side(`document.getElementById('brand-rank').title`) || ''))), 'footer says what the next rank needs: ' + await side(`document.getElementById('brand-rank').title`));
+  const badgeTabs = async () => (await list()).filter((x) => x.url.includes('badge.html')).length;
+  await side(`document.getElementById('brand-rank').click()`);
+  check(!!(await until(async () => (await badgeTabs()) === 1)), 'footer opens the badge');
+  await side(`document.getElementById('brand-rank').click()`);
+  await sleep(800);
+  check((await badgeTabs()) === 1, 'and a second click goes to that tab, not a new one');
+  await side(`ask({ cmd: 'state' }).then((s) => ask({ cmd: 'tabs.close', ids: s.tabs.filter((t) => t.url.includes('badge.html')).map((t) => t.id) }))`);
+  await until(async () => (await badgeTabs()) === 0);
+  const aiMenu = `(() => { document.querySelector('#cl-group > .group-head').dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: 30, clientY: 200 }));
+    const has = !!document.querySelector('#ctx:not([hidden]) [data-act="badge"]'); hideCtx(); return has; })()`;
+  check(await side(aiMenu) === true, 'the AI header menu offers the badge');
+  await side(`ask({ cmd: 'settings.set', settings: { badgeShown: false } })`);
+  await cdp((x) => x.url.includes('sidebar.html'), 'Page.reload', {});
+  await sleep(1500);
+  await until(async () => (await side(`typeof ask === 'function' && !!state ? 1 : 0`)) === 1);
+  check(!!(await until(() => side(`document.getElementById('brand-rank').hidden`))) && (await side(aiMenu)) === false, 'hidden survives reload: no footer rank, no menu item');
+  await side(`ask({ cmd: 'settings.set', settings: { badgeShown: true } })`);
+  check(!!(await until(() => side(`!document.getElementById('brand-rank').hidden`))) && (await side(aiMenu)) === true, 'shown again: both come back');
+
   // Savanna
   await open('roar://ui/garden.html');
   const offered = await until(() => garden(`!document.getElementById('share')?.hidden`));
