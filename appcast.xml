@@ -376,5 +376,14 @@
       <description><![CDATA[Your rank in Roar. Everyone now climbs an eight-rank lion ladder, from Cub to Apex Lion: the first ranks come from the days you use Roar, no AI needed, and the higher ones from agent work too. Your rank shows under Roar in the sidebar; click it to open your badge, which shows the whole ladder and what each rank needs, has its own light and dark switch, and a card whose mane grows as you climb. Ranks never go down and come with you through Settings › Backup. You can hide your rank from the badge page. Also: Chat models is now its name in the Ask picker and command bar.]]></description>
       <enclosure url="https://github.com/roarbrowser/roar/releases/download/v1.21.0/Roar-1.21.0.dmg" type="application/octet-stream" sparkle:edSignature="+sisxxBaK+i5JtliHRReDTLWr0/Myh4EOi01o3XVkuAGAnEE0V6JsZ/8XWefZHQK59aTTwngq0zKUp9yFcC/BA==" length="208032092"/>
     </item>
+    <item>
+      <title>1.21.1</title>
+      <pubDate>Sun, 08 Nov 2026 02:36:03 +0000</pubDate>
+      <sparkle:version>12101</sparkle:version>
+      <sparkle:shortVersionString>1.21.1</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[Agents can no longer cut themselves off from Roar by navigating or closing its hidden helper page; if it does close, Roar makes a new one.]]></description>
+      <enclosure url="https://github.com/roarbrowser/roar/releases/download/v1.21.1/Roar-1.21.1.dmg" type="application/octet-stream" sparkle:edSignature="3j2xovsKvAjfCZ+lJkzbBKT0PCpLPh9W32LMJutn6QDUx4QtQibmy9ID4Uhk9AgW7DS6zA/Fd5x0dbxJjQP3Bw==" length="208033056"/>
+    </item>
   </channel>
 </rss>
