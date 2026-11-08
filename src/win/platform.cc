@@ -405,6 +405,8 @@ void AttachChild(void* parent, void* child) {
 }
 
 void DetachChild(void* parent, void* child) { ShowWindow(Hwnd(child), SW_HIDE); }
+// TODO(windows): check whether a never-shown hidden tab captures; nothing needed so far.
+void PaintHidden(void* window, int ms) {}
 
 // TODO(windows): a layered child holding the decoded JPEG (window previews).
 void AddBackdrop(void* parent, void* child, const std::string& jpeg) {}
