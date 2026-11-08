@@ -1358,10 +1358,7 @@ void Controller::Start() {
   command_bar_ = CreateUiView(client_, "command.html");
   command_window_ = CefWindow::CreateTopLevelWindow(new PopupDelegate(command_bar_));
   platform::StyleWindow(command_window_->GetWindowHandle(), 14, true);
-  hint_ = CreateUiView(client_, "hint.html");
-  hint_window_ = CefWindow::CreateTopLevelWindow(new PopupDelegate(hint_));
-  platform::StyleWindow(hint_window_->GetWindowHandle(), 22, true);
-  platform::SetIgnoresMouse(hint_window_->GetWindowHandle(), true);
+  MakeHint();
   find_ = CreateUiView(client_, "find.html");
   find_window_ = CefWindow::CreateTopLevelWindow(new PopupDelegate(find_));
   platform::StyleWindow(find_window_->GetWindowHandle(), 12, true);
@@ -1831,6 +1828,22 @@ bool Controller::UiCdpForTests() {
 
 // A tab sent to a Roar page by anything but Roar itself (CDP Page.navigate, a script): Roar
 // records the address on the tab before it loads one of its own pages (Navigate, NewTab).
+// The hint overlay: toasts for the person and the bridge roar-mcp talks to Roar through.
+void Controller::MakeHint() {
+  hint_ = CreateUiView(client_, "hint.html");
+  hint_window_ = CefWindow::CreateTopLevelWindow(new PopupDelegate(hint_));
+  platform::StyleWindow(hint_window_->GetWindowHandle(), 22, true);
+  platform::SetIgnoresMouse(hint_window_->GetWindowHandle(), true);
+}
+
+// Agents can reach the hint overlay (it is their bridge), and a CDP client's page tools act on the selected page,
+// which is the hint until the agent opens one: navigating it away left Roar running with no bridge, so every
+// roar-mcp call failed with "Roar is not reachable" until Roar was restarted. It only ever shows roar://ui/hint.html.
+bool Controller::HintNavigation(CefRefPtr<CefBrowser> browser, const std::string& url) {
+  auto hint = hint_ ? hint_->GetBrowser() : nullptr;
+  return hint && hint->IsSame(browser) && !StartsWith(url, std::string(kUiOrigin) + "hint.html");
+}
+
 bool Controller::ForeignUiNavigation(CefRefPtr<CefBrowser> browser, const std::string& url) {
   if (!StartsWith(url, kUiOrigin) || IsUiBrowser(browser) || UiCdpForTests()) return false;
   Tab* t = FindTabByBrowser(browser);
@@ -6381,6 +6394,20 @@ void Controller::OnBrowserClosed(CefRefPtr<CefBrowser> browser) {
   --live_browsers_;
   browsers_.erase(browser->GetIdentifier());
   media_watchers_.erase(browser->GetIdentifier());
+  // A CDP client closed the hint overlay (agents see it as a page): without it roar-mcp can't reach Roar, so make a new one.
+  // The view has usually let go of its browser by now, so know it by its page (HintNavigation keeps it there).
+  auto frame = browser->GetMainFrame();
+  auto current = hint_ ? hint_->GetBrowser() : nullptr;
+  if (!closing_ && hint_ && frame && StartsWith(frame->GetURL().ToString(), std::string(kUiOrigin) + "hint.html") &&
+      !FindTabByBrowser(browser) && (!current || current->IsSame(browser))) {
+    if (hint_window_) hint_window_->Close();
+    hint_ = nullptr;
+    hint_window_ = nullptr;
+    CefPostTask(TID_UI, base::BindOnce([] {
+      auto* c = Controller::Get();
+      if (!c->closing_ && !c->hint_) c->MakeHint();
+    }));
+  }
   MaybeQuit();
 }
 

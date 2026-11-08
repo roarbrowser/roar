@@ -465,6 +465,8 @@ class Controller {
   static bool UiCdpForTests();
   void PaneNav(int tab, bool forward);
   bool ForeignUiNavigation(CefRefPtr<CefBrowser> browser, const std::string& url);
+  bool HintNavigation(CefRefPtr<CefBrowser> browser, const std::string& url);
+  void MakeHint();
  private:
   // Split view pairs: each pair of tabs shows side by side whenever either is active.
   struct SplitPair { int a = 0, b = 0; bool stacked = false; double ratio = 0.5; };
