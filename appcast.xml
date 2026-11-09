@@ -385,5 +385,14 @@
       <description><![CDATA[Agents can no longer cut themselves off from Roar by navigating or closing its hidden helper page; if it does close, Roar makes a new one.]]></description>
       <enclosure url="https://github.com/roarbrowser/roar/releases/download/v1.21.1/Roar-1.21.1.dmg" type="application/octet-stream" sparkle:edSignature="3j2xovsKvAjfCZ+lJkzbBKT0PCpLPh9W32LMJutn6QDUx4QtQibmy9ID4Uhk9AgW7DS6zA/Fd5x0dbxJjQP3Bw==" length="208033056"/>
     </item>
+    <item>
+      <title>1.21.2</title>
+      <pubDate>Mon, 09 Nov 2026 00:12:56 +0000</pubDate>
+      <sparkle:version>12102</sparkle:version>
+      <sparkle:shortVersionString>1.21.2</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[Agents can take screenshots of background tabs again. Before, a screenshot of a tab that was not on screen could hang for minutes.]]></description>
+      <enclosure url="https://github.com/roarbrowser/roar/releases/download/v1.21.2/Roar-1.21.2.dmg" type="application/octet-stream" sparkle:edSignature="JMWCbeH/+p/n7n3bsCzzcs7GnWvbpufQDKux8Tw+W+VwiIDkoHFoYoB6qhJFVMqrUkANkRYrPMksv3k4VrUvAQ==" length="208034374"/>
+    </item>
   </channel>
 </rss>
