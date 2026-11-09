@@ -4882,14 +4882,14 @@ bool Controller::HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> 
   // The bridge page runs only what roar-mcp needs, none of which lists tabs.
   if (trusted && hint_ && hint_->GetBrowser() && hint_->GetBrowser()->IsSame(browser) && cmd != "agent.notify" &&
       cmd != "agent.expire" && cmd != "agent.spaces" && cmd != "agent.space" && cmd != "agent.group" && cmd != "agent.release" && cmd != "agent.front" &&
-      cmd != "agent.drive" && cmd != "agent.rename" && cmd != "agent.hello") {
+      cmd != "agent.drive" && cmd != "agent.paint" && cmd != "agent.rename" && cmd != "agent.hello") {
     callback->Failure(403, "not available to agents");
     return true;
   }
   // Owner pids are guessable: a roar-mcp connection proves its owner with the token Roar handed it first.
   if (trusted && hint_ && hint_->GetBrowser() && hint_->GetBrowser()->IsSame(browser) &&
       (cmd == "agent.hello" || cmd == "agent.spaces" || cmd == "agent.space" || cmd == "agent.group" || cmd == "agent.release" ||
-       cmd == "agent.expire" || cmd == "agent.drive" || cmd == "agent.front" || cmd == "agent.rename")) {
+       cmd == "agent.expire" || cmd == "agent.drive" || cmd == "agent.paint" || cmd == "agent.front" || cmd == "agent.rename")) {
     std::string owner = msg->GetString("owner").ToString();
     if (owner.empty()) return callback->Failure(403, "owner is required: update roar-mcp"), true;
     auto it = mcp_tokens_.find(owner);
@@ -5577,6 +5577,15 @@ bool Controller::HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> 
         TouchAgentMark(hit->agent, NowSeconds());
         SaveSoon();
       }
+    }
+    callback->Success("");
+  } else if (cmd == "agent.paint") {
+    // roar-mcp's take_screenshot of a page: a hidden tab may have no frame to capture, and the
+    // capture would never return. Its tab paints, unseen, while roar-mcp repeats this (every second).
+    std::string url = msg->GetString("url").ToString();
+    for (auto& t : tabs_) {
+      Space* sp = State::Get().FindSpace(t.space);
+      if (t.url == url && t.window && !t.ghost && sp && sp->agents) platform::PaintHidden(t.window->GetWindowHandle(), 1500);
     }
     callback->Success("");
   } else if (cmd == "agent.space") {

@@ -879,10 +879,53 @@ void SetSidebarButton(void* window, bool visible) {
   button.hidden = !visible;
 }
 
+// A hidden tab's page has no frame for Page.captureScreenshot to copy when its window never went
+// on screen (an agent's background tab) or it loaded a new document while hidden, and the capture
+// then waits forever. On screen it paints, so it goes there for a while: transparent, click-through
+// and behind every window. The capture also works once it is ordered out again.
+static char kPaintGen, kPaintAlpha, kPaintMouse;
+static NSInteger g_paint_seq = 0;
+static void EndPaint(NSWindow* w) {
+  if (!objc_getAssociatedObject(w, &kPaintGen)) return;
+  objc_setAssociatedObject(w, &kPaintGen, nil, OBJC_ASSOCIATION_RETAIN);
+  if (NSNumber* alpha = objc_getAssociatedObject(w, &kPaintAlpha)) {
+    w.alphaValue = alpha.doubleValue;
+    w.ignoresMouseEvents = [objc_getAssociatedObject(w, &kPaintMouse) boolValue];
+  }
+  objc_setAssociatedObject(w, &kPaintAlpha, nil, OBJC_ASSOCIATION_RETAIN);
+}
+
+void PaintHidden(void* window, int ms) {
+  NSWindow* w = Win(window);
+  if (!w) return;
+  NSNumber* gen = objc_getAssociatedObject(w, &kPaintGen);
+  if (!gen) {
+    // Shown (or a child of a shell window, even a minimized one): its window decides.
+    if (w.visible || w.parentWindow) return;
+    // Headless: OrderWindow veils it already, and keeps what Show Roar restores.
+    if (!g_keep_hidden) {
+      objc_setAssociatedObject(w, &kPaintAlpha, @(w.alphaValue), OBJC_ASSOCIATION_RETAIN);
+      objc_setAssociatedObject(w, &kPaintMouse, @(w.ignoresMouseEvents), OBJC_ASSOCIATION_RETAIN);
+      w.alphaValue = 0;
+      w.ignoresMouseEvents = YES;
+    }
+    [w orderBack:nil];  // Leaves the key and main windows alone.
+  }
+  NSNumber* mine = @(++g_paint_seq);
+  objc_setAssociatedObject(w, &kPaintGen, mine, OBJC_ASSOCIATION_RETAIN);
+  dispatch_after(dispatch_time(DISPATCH_TIME_NOW, int64_t(ms) * NSEC_PER_MSEC), dispatch_get_main_queue(), ^{
+    // A later call keeps it up; AttachChild (the tab was shown meanwhile) ended it.
+    if (![objc_getAssociatedObject(w, &kPaintGen) isEqual:mine]) return;
+    EndPaint(w);
+    if (!w.parentWindow) [w orderOut:nil];
+  });
+}
+
 void AttachChild(void* parent, void* child) {
   NSWindow* p = Win(parent);
   NSWindow* c = Win(child);
   if (!p || !c) return;
+  EndPaint(c);  // Painting while hidden (PaintHidden): now it shows for real.
   // Re-adding moves it to the top of the parent's children.
   if (c.parentWindow) [c.parentWindow removeChildWindow:c];  // Also moves it off another shell window.
   [p addChildWindow:c ordered:NSWindowAbove];

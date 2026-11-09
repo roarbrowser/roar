@@ -105,6 +105,15 @@ const PAGE_LINE = /^(\d+): (?:.*\((\S+)\)|(\S+))( \[selected\])?(?: isolatedCont
 const afterIds = new Set();  // new_page/select_page: the page exists (and is selected) once the child answers.
 // Keyed per connection: every Claude Code session has the same clientInfo name.
 const drive = (url) => url && sidebarAsk({ cmd: 'agent.drive', agent, owner: OWNER, url }, 3000).catch(() => {});
+// A hidden tab may have no frame for Page.captureScreenshot to copy, and take_screenshot then waits for
+// minutes: Roar paints the page's tab, unseen, for 1.5 s per agent.paint, so it is asked again every
+// second until the child answers.
+const painting = new Map();  // take_screenshot call id -> its repeat timer.
+const paint = (url) => url ? sidebarAsk({ cmd: 'agent.paint', owner: OWNER, url }, 3000).catch(() => {}) : Promise.resolve();
+async function keepPainted(id, url) {
+  await paint(url);
+  painting.set(id, setInterval(() => paint(url), 1000));
+}
 const listIds = new Set(), initIds = new Set();
 // Sent with the initialize reply: clients that support server instructions (Claude Code and others) put
 // them in the agent's context, so the person never has to say "use Roar".
@@ -420,6 +429,7 @@ function refresh() {
 createInterface({ input: child.stdout }).on('line', (line) => {
   let msg;
   try { msg = JSON.parse(line); } catch { return void process.stdout.write(line + '\n'); }
+  if (msg.id !== undefined && painting.has(msg.id)) clearInterval(painting.get(msg.id)), painting.delete(msg.id);
   if (msg.id !== undefined && listIds.delete(msg.id) && msg.result?.tools) {
     const bg = msg.result.tools.find((t) => t.name === 'new_page')?.inputSchema?.properties?.background;
     if (bg) bg.description = 'Open without showing it to the person. Default true; pass false only when they ask to see the page: it becomes the selected tab in Roar, and if Roar is in the background it stays there and a sidebar card points to the page.';
@@ -498,6 +508,7 @@ createInterface({ input: process.stdin }).on('line', (line) => {
       if (!owned.has(id) && !mayUse(id, await foreignUrls())) throw new Error(Number.isNaN(id)
         ? 'No page selected yet: open one with new_page, or pick one from list_pages with select_page.'
         : `Page ${id} is not yours to use: open your own with new_page (see list_pages).`);
+      if (msg.params.name === 'take_screenshot') await keepPainted(msg.id, pages.get(id));
       child.stdin.write(line + '\n');
     }).catch((e) => fail(msg.id, e));
   }

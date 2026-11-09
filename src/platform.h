@@ -60,6 +60,10 @@ void SetSidebarButton(void* window, bool visible);
 // Window plumbing. |window| arguments are CefWindow::GetWindowHandle() values.
 void AttachChild(void* parent, void* child);  // Shows |child| above |parent|.
 void DetachChild(void* parent, void* child);  // Hides |child|.
+// Puts a hidden tab |window| on screen for |ms|, invisible and behind everything, so its page
+// paints: CDP Page.captureScreenshot of a page that has no frame yet never returns. A later
+// call extends the time; AttachChild ends it.
+void PaintHidden(void* window, int ms);
 // Shows |jpeg| in |parent| under the area |child| covers, for window previews
 // that capture |parent| alone. ClearBackdrop removes every such image.
 void AddBackdrop(void* parent, void* child, const std::string& jpeg);
