@@ -394,5 +394,14 @@
       <description><![CDATA[Agents can take screenshots of background tabs again. Before, a screenshot of a tab that was not on screen could hang for minutes.]]></description>
       <enclosure url="https://github.com/roarbrowser/roar/releases/download/v1.21.2/Roar-1.21.2.dmg" type="application/octet-stream" sparkle:edSignature="JMWCbeH/+p/n7n3bsCzzcs7GnWvbpufQDKux8Tw+W+VwiIDkoHFoYoB6qhJFVMqrUkANkRYrPMksv3k4VrUvAQ==" length="208034374"/>
     </item>
+    <item>
+      <title>1.22.0</title>
+      <pubDate>Wed, 11 Nov 2026 05:55:27 +0000</pubDate>
+      <sparkle:version>12200</sparkle:version>
+      <sparkle:shortVersionString>1.22.0</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[Site tweaks can now run in ghost tabs. In the Site tweaks manager, switch on "Run in ghost tabs" for any script or style you want there. Each ghost session gets a copy of just those, along with their saved data, so a script that hides things or remembers settings works the same in a ghost tab. Nothing a ghost tab changes goes back to your space: the copy is thrown away when the last ghost tab closes. Scripts stay off in ghost tabs unless you switch them on, and you can't install new ones from a ghost tab.]]></description>
+      <enclosure url="https://github.com/roarbrowser/roar/releases/download/v1.22.0/Roar-1.22.0.dmg" type="application/octet-stream" sparkle:edSignature="1XnnrJTAHFcOPehX4wS0sPXFks9gYbozdKK2L1uUAe+K+dIFiJRQOYTSkOMrOIOC2tVkTVCLmw86r1h8aUdnBw==" length="208066412"/>
+    </item>
   </channel>
 </rss>
