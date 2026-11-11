@@ -7,6 +7,7 @@ import { worldOf, parseMeta, compareVersions } from './lib/meta.js';
 import { nativeMatches, compileMatcher, testMatcher, connectAllowed } from './lib/match.js';
 import { nativeStyleMatches, parseUserCSS, cssFor } from './lib/usercss.js';
 import { scriptCode, bridgeCode, styleCode } from './lib/gm.js';
+import { seedWrites } from './lib/ghost.js';
 
 const RUN_AT = { 'document-start': 'document_start', 'document-end': 'document_end', 'document-idle': 'document_idle', 'document-body': 'document_end' };
 // eval and inline code stay available to scripts, as in other userscript managers.
@@ -79,6 +80,8 @@ function shareNote(ch) {
 // Called by Roar over DevTools. what: "mode" (on), "snapshot", "merge" (a snapshot) -> { newer }.
 globalThis.roarShare = (what, arg) => new Promise((ok, fail) => serial(async () => {
   try {
+    // A ghost session's copy takes part in nothing: what changes there must never reach a space.
+    if ((await getSettings()).ghost) throw new Error('A ghost copy does not share');
     if (what === 'mode') {
       if ((await getSettings()).shared !== arg) await chrome.storage.local.set({ settings: { ...(await getSettings()), shared: arg }, ...(arg ? {} : { [GONE]: {} }) });
       return ok(true);
@@ -330,6 +333,7 @@ async function fetchText(url) {
 // here: the manager shows the diff and the person applies it).
 async function checkUpdates(ids) {
   const out = { checked: 0, found: 0, failed: 0 };
+  if ((await getSettings()).ghost) return out;  // A ghost copy is gone before an update would matter.
   for (const it of await allItems()) {
     if (ids && !ids.includes(it.id)) continue;
     const isScript = it.kind === 'script';
@@ -370,8 +374,31 @@ chrome.runtime.onMessage.addListener((m, sender, respond) => {
     return true;
   } else if (m.t === 'status') {
     respond({ api: !!chrome.userScripts, errors });
+  } else if (m.t === 'ghostSeed') {
+    ghostSeed(m.bundle).then(() => respond({ ok: true }), (e) => respond({ ok: false, error: String(e.message || e) }));
+    return true;
+  } else if (m.t === 'ghostReady') {
+    sync().then(() => respond({ ready: !!chrome.userScripts }));
+    return true;
   }
 });
+
+// ---- Ghost sessions (lib/ghost.js) ----
+
+// Roar's ghost.html, in a new ghost profile, with the copies from the space the ghost tab came from.
+// In the worker's queue, so a share that reached this profile first can't land after it.
+const ghostSeed = (bundle) => new Promise((ok, fail) => serial(async () => {
+  try {
+    const all = await chrome.storage.local.get(null);
+    // Only ever a fresh profile: one with stored values or already seeded is somebody's real data.
+    if (all.settings?.ghost || Object.keys(all).some((k) => k.startsWith(VALUES))) throw new Error('This profile already has Site tweaks data');
+    const write = seedWrites(bundle, bundle?.from, () => newItemIds().secret);
+    const stale = Object.keys(all).filter((k) => (k.startsWith(ITEM) && !(k in write)) || k === GONE);
+    if (stale.length) await chrome.storage.local.remove(stale);
+    await chrome.storage.local.set(write);
+    ok();
+  } catch (e) { fail(e); }
+}));
 
 // ---- Roar's site menu ----
 

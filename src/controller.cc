@@ -218,42 +218,69 @@ class MailPageClient : public CefClient, public CefRenderHandler, public CefDisp
 // which Chromium 138+ only allows after the per-extension "Allow User Scripts" switch
 // (extensions.settings.<id>.user_scripts_enabled) is on. That pref sits in Secure
 // Preferences and is read once when the extension loads, so it can only be flipped the
-// way chrome://extensions does it. Ghost profiles get the extension switched off instead:
-// their scripts would vanish with the session anyway.
+// way chrome://extensions does it. Ghost profiles get the extension switched off instead,
+// unless scripts were set to run in ghost tabs (Controller::SeedGhostTweaks).
 constexpr char kTweaksId[] = "mfbgmphllcfijgajblnepjfgopbgmnok";
 
-// chrome.developerPrivate exists only in a Chrome-style chrome://extensions page, so this
-// one lives in a window that is never shown and closes itself once the call is done.
-class ExtensionsPageClient : public CefClient, public CefDisplayHandler, public CefLoadHandler {
+// Browser ids of the hidden pages below: agents never reach them, whatever their profile.
+std::set<int> g_hidden_pages;
+
+// A page Roar drives in a window that is never shown, and that closes itself when done: the
+// chrome://extensions step above (chrome.developerPrivate exists only in a Chrome-style
+// chrome://extensions page) and Site tweaks' ghost.html. Once the page at url_prefix has loaded,
+// js runs in it; the page answers with console lines "<marker> …", each passed (without the
+// marker) to on_line, which returns true when the page is done. on_end runs once, when it is
+// done, failed to load or timed out.
+class HiddenPageClient : public CefClient, public CefDisplayHandler, public CefLoadHandler, public CefLifeSpanHandler {
  public:
-  explicit ExtensionsPageClient(std::string js) : js_(std::move(js)) {}
+  HiddenPageClient(std::string url_prefix, std::string js, std::string marker, int timeout_ms,
+                   std::function<bool(const std::string&)> on_line, std::function<void()> on_end = nullptr)
+      : prefix_(std::move(url_prefix)), js_(std::move(js)), marker_(std::move(marker) + " "), timeout_ms_(timeout_ms),
+        on_line_(std::move(on_line)), on_end_(std::move(on_end)) {}
   CefRefPtr<CefDisplayHandler> GetDisplayHandler() override { return this; }
   CefRefPtr<CefLoadHandler> GetLoadHandler() override { return this; }
+  CefRefPtr<CefLifeSpanHandler> GetLifeSpanHandler() override { return this; }
+  void OnAfterCreated(CefRefPtr<CefBrowser> browser) override { g_hidden_pages.insert(browser->GetIdentifier()); }
+  void OnBeforeClose(CefRefPtr<CefBrowser> browser) override { g_hidden_pages.erase(browser->GetIdentifier()); }
   void OnLoadEnd(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> frame, int) override {
-    if (!frame->IsMain() || ran_ || !StartsWith(frame->GetURL().ToString(), "chrome://extensions")) return;
+    if (!frame->IsMain() || ran_ || !StartsWith(frame->GetURL().ToString(), prefix_)) return;
     ran_ = true;
     frame->ExecuteJavaScript(js_, frame->GetURL(), 0);
     // Closes even if the page never reports back.
-    CefPostDelayedTask(TID_UI, base::BindOnce(&ExtensionsPageClient::Done, CefRefPtr<ExtensionsPageClient>(this)), 15000);
+    CefPostDelayedTask(TID_UI, base::BindOnce(&HiddenPageClient::Done, CefRefPtr<HiddenPageClient>(this)), timeout_ms_);
+  }
+  void OnLoadError(CefRefPtr<CefBrowser>, CefRefPtr<CefFrame> frame, ErrorCode code, const CefString&,
+                   const CefString& url) override {
+    if (!frame->IsMain() || code == ERR_ABORTED) return;
+    LOG(WARNING) << "Hidden page " << url.ToString() << " failed to load: " << code;
+    // Posted: closing the window from inside its own load callback is not safe.
+    CefPostTask(TID_UI, base::BindOnce(&HiddenPageClient::Done, CefRefPtr<HiddenPageClient>(this)));
   }
   bool OnConsoleMessage(CefRefPtr<CefBrowser>, cef_log_severity_t, const CefString& message,
                         const CefString&, int) override {
     std::string m = message.ToString();
-    if (m.rfind("__roar_tweaks__", 0) != 0) return false;
-    if (m != "__roar_tweaks__ done") LOG(WARNING) << "Site tweaks setup: " << m;
-    Done();
+    if (m.rfind(marker_, 0) != 0) return false;
+    if (!done_ && on_line_ && on_line_(m.substr(marker_.size())))
+      CefPostTask(TID_UI, base::BindOnce(&HiddenPageClient::Done, CefRefPtr<HiddenPageClient>(this)));
     return true;
   }
   void Done() {
     if (window_) window_->Close();
     window_ = nullptr;
+    if (done_) return;
+    done_ = true;
+    if (auto f = std::move(on_end_)) f();
   }
+  int timeout_ms() const { return timeout_ms_; }
   CefRefPtr<CefWindow> window_;
 
  private:
-  std::string js_;
-  bool ran_ = false;
-  IMPLEMENT_REFCOUNTING(ExtensionsPageClient);
+  std::string prefix_, js_, marker_;
+  int timeout_ms_;
+  std::function<bool(const std::string&)> on_line_;
+  std::function<void()> on_end_;
+  bool ran_ = false, done_ = false;
+  IMPLEMENT_REFCOUNTING(HiddenPageClient);
 };
 
 class HiddenChromeViewDelegate : public CefBrowserViewDelegate {
@@ -287,6 +314,13 @@ bool TweaksGuarded(const std::string& url) {
   return url.rfind(std::string("chrome-extension://") + kTweaksId + "/", 0) == 0 || url.rfind("chrome://extensions", 0) == 0 || url.rfind("devtools://", 0) == 0;
 }
 
+void OpenHiddenPage(CefRefPtr<CefRequestContext> ctx, const std::string& url, CefRefPtr<HiddenPageClient> client) {
+  auto view = CefBrowserView::CreateBrowserView(client, url, CefBrowserSettings(), nullptr, ctx, new HiddenChromeViewDelegate());
+  client->window_ = CefWindow::CreateTopLevelWindow(new HiddenWindowDelegate(view));  // Never shown.
+  // And ends even if the page never loads.
+  CefPostDelayedTask(TID_UI, base::BindOnce(&HiddenPageClient::Done, client), 2 * client->timeout_ms());
+}
+
 void SetUpSiteTweaks(CefRefPtr<CefRequestContext> ctx, bool ghost) {
   if (!ctx) return;
   auto all = ctx->GetPreference("extensions.settings");
@@ -302,10 +336,11 @@ void SetUpSiteTweaks(CefRefPtr<CefRequestContext> ctx, bool ghost) {
                                 ", userScriptsAccess: true});";
   std::string js = "(async () => { try { " + act + " console.log('__roar_tweaks__ done'); } catch (e) {"
                    " console.log('__roar_tweaks__ ' + e); } })();";
-  CefRefPtr<ExtensionsPageClient> client = new ExtensionsPageClient(js);
-  auto view = CefBrowserView::CreateBrowserView(client, "chrome://extensions/", CefBrowserSettings(), nullptr, ctx,
-                                                new HiddenChromeViewDelegate());
-  client->window_ = CefWindow::CreateTopLevelWindow(new HiddenWindowDelegate(view));  // Never shown.
+  OpenHiddenPage(ctx, "chrome://extensions/", new HiddenPageClient("chrome://extensions", js, "__roar_tweaks__", 15000,
+      [](const std::string& m) {
+        if (m != "done") LOG(WARNING) << "Site tweaks setup: " << m;
+        return true;
+      }));
 }
 
 // Delegate for the sidebar, command bar and hint views (Alloy style).
@@ -1851,6 +1886,7 @@ bool Controller::ForeignUiNavigation(CefRefPtr<CefBrowser> browser, const std::s
 }
 
 bool Controller::AgentMayReach(int browser_id, const std::string& profile_path) {
+  if (g_hidden_pages.count(browser_id)) return false;  // Roar's own hidden pages, such as the ghost seed's export.
   auto it = browsers_.find(browser_id);
   // Of Roar's own pages, agents reach only the hint overlay, their bridge for alerts (roar-mcp):
   // the sidebar and the rest hold every tab, ghost ones and agent-blocked spaces included.
@@ -2069,12 +2105,83 @@ CefRefPtr<CefRequestContext> Controller::ContextFor(int space) {
 }
 
 void Controller::OnSpaceReady(int space) {
+  // A ghost profile's tabs wait for its Site tweaks, so the first page already runs the copies.
+  if (space == kGhostContext && ghost_tweaks_session_ != ghost_session_) return SeedGhostTweaks();
   ready_spaces_.insert(space);
-  SetUpSiteTweaks(contexts_[space], space == kGhostContext);
+  if (space != kGhostContext) SetUpSiteTweaks(contexts_[space], false);
   for (auto& t : tabs_)
     if ((t.ghost ? kGhostContext : t.space) == space && !t.view) t.view = CreateTabView(t.url, t.space, t.ghost);
   SyncWindows();
   if (Tab* t = ActiveTab(); t && (t->ghost ? kGhostContext : t->space) == space) FocusTab(t);
+}
+
+// Site tweaks in a new ghost session (resources/extensions/tweaks/lib/ghost.js). Off, as before, unless
+// the space the ghost tab was opened from (else the active one) has scripts set to "Run in ghost
+// tabs": then its copy writes them and their GM values to a hidden ghost.html (console only, never a
+// web page or an agent), and the ghost profile's copy is seeded from that, its "Allow User Scripts"
+// switch turned on like a space's. Nothing goes back: the ghost copy refuses to share or export, and
+// is deleted with the profile. Every step looks the ghost context up again and gives up if the
+// session ended: calls on a ghost context after its last page closed crashed Roar.
+void Controller::SeedGhostTweaks() {
+  int session = ghost_session_;
+  auto ghost_ctx = [this, session]() -> CefRefPtr<CefRequestContext> {
+    auto it = contexts_.find(kGhostContext);
+    return ghost_session_ == session && it != contexts_.end() ? it->second : nullptr;
+  };
+  // Lets the ghost tabs load; with no copies the extension is switched off there.
+  auto finish = [this, session, ghost_ctx](bool seeded) {
+    auto ctx = ghost_ctx();
+    if (!ctx) return;
+    if (!seeded) SetUpSiteTweaks(ctx, true);
+    ghost_tweaks_session_ = session;
+    OnSpaceReady(kGhostContext);
+  };
+  int from = State::Get().active_space;
+  for (const auto& t : tabs_)
+    if (t.ghost && !t.view) { from = t.space; break; }
+  const Space* sp = State::Get().FindSpace(from);
+  CefRefPtr<CefRequestContext> source = from == 0 ? CefRequestContext::GetGlobalContext()
+      : ready_spaces_.count(from) && contexts_.count(from) ? contexts_[from] : nullptr;
+  if (!sp || !source) return finish(false);
+  std::string name = sp->name.empty() ? "your space" : sp->name;
+  const std::string page = std::string("chrome-extension://") + kTweaksId + "/ghost.html";
+  // The page's module may still be loading when the load ends.
+  auto call = [](const std::string& expr) {
+    return "(async () => { for (let i = 0; i < 50 && !globalThis.roarGhostSeed; i++) await new Promise((r) => setTimeout(r, 100));"
+           " try { await " + expr + "; } catch (e) { console.log('__roar_ghost__ error ' + e); } })();";
+  };
+  auto text = std::make_shared<std::string>();
+  auto complete = std::make_shared<bool>(false);
+  OpenHiddenPage(source, page, new HiddenPageClient(page, call("roarGhostExport()"), "__roar_ghost__", 5000,
+      [text, complete](const std::string& line) {
+        if (StartsWith(line, "part ")) {
+          text->append(line, 5);
+          return false;
+        }
+        *complete = line == "end";
+        if (!*complete) LOG(WARNING) << "Site tweaks ghost export: " << line;
+        return true;
+      },
+      [text, complete, name, page, call, ghost_ctx, finish] {
+        // Only data goes on to the ghost profile: parsed here and written out again.
+        auto v = *complete ? CefParseJSON(*text, JSON_PARSER_RFC) : nullptr;
+        auto bundle = v && v->GetType() == VTYPE_DICTIONARY ? v->GetDictionary() : nullptr;
+        auto items = bundle ? bundle->GetList("items") : nullptr;
+        if (!items || !items->GetSize()) return finish(false);
+        auto ctx = ghost_ctx();
+        if (!ctx) return;
+        bundle->SetString("from", name);
+        std::string json = CefWriteJSON(v, JSON_WRITER_DEFAULT).ToString();
+        SetUpSiteTweaks(ctx, false);
+        auto seeded = std::make_shared<bool>(false);
+        OpenHiddenPage(ctx, page, new HiddenPageClient(page, call("roarGhostSeed(" + json + ")"), "__roar_ghost__", 10000,
+            [seeded](const std::string& line) {
+              *seeded = line == "done";
+              if (!*seeded) LOG(WARNING) << "Site tweaks ghost seed: " << line;
+              return true;
+            },
+            [finish, seeded] { finish(*seeded); }));
+      }));
 }
 
 // Ends the ghost session once its last tab closes: the next ghost tab starts

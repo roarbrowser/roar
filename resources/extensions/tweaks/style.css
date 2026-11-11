@@ -25,3 +25,5 @@ textarea.code { width: 100%; min-height: 60vh; tab-size: 2; white-space: pre; }
 .diff .del { background: color-mix(in srgb, var(--bad) 18%, transparent); }
 dl { display: grid; grid-template-columns: max-content 1fr; gap: 4px 14px; margin: 0; }
 dt { color: var(--muted); } dd { margin: 0; word-break: break-word; }
+.note { padding: 10px 14px; border-radius: 8px; background: color-mix(in srgb, var(--accent) 14%, transparent); margin: 12px 0; }
+.ghost-switch { font-size: 12.5px; gap: 5px; cursor: pointer; }

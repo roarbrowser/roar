@@ -175,7 +175,8 @@ port 9444) started on demand.
 - Site tweaks: built-in userscripts (GM_* and GM.* APIs) and userstyles (UserCSS with settings,
   less and stylus). Open any `.user.js` or `.user.css` link to install one; each site's tweaks and
   their menu commands are in the address bar's site menu. Imports Violentmonkey and Tampermonkey
-  backup zips and Stylus exports. Not loaded in ghost tabs.
+  backup zips and Stylus exports. Off in ghost tabs, except scripts you switch to "Run in ghost tabs":
+  each ghost session gets a copy of those and their stored data, and nothing it changes comes back.
 
 **Getting around**
 - One command bar (⌘T, ⌘L) for addresses, search, open tabs, history and the text of pages

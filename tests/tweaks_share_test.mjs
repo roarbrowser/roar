@@ -1,5 +1,6 @@
 // Site tweaks across spaces, in a real Roar with two profiles: a script reaches the other space and a change comes
-// back, stored values and secrets stay put, and no agent can reach the extension while sharing is on.
+// back, stored values and secrets stay put, and no agent can reach the extension while sharing is on. A ghost
+// session gets only the scripts set to run in ghost tabs, even with sharing on, and its copy stays out of the exchange.
 // Usage: node tests/tweaks_share_test.mjs <Roar binary>
 import { spawn } from 'node:child_process';
 import { createServer } from 'node:http';
@@ -79,6 +80,11 @@ try {
   const managePage = page(await targets());
   check(!!managePage, 'off: an agent in an allowed space can open the manager, as before');
   const pageS = await attach(managePage);
+  // Two scripts that mark the title (ghost tabs are hidden from CDP, the sidebar shows their titles); one runs in ghost tabs.
+  const script = (name, mark) => `// ==UserScript==\n// @name ${name}\n// @namespace test\n// @match http://127.0.0.1/g*\n// @grant none\n// ==/UserScript==\ndocument.title += ' ${mark}';\n`;
+  const installed = await inW(pageS, `import('./lib/store.js').then(async (s) => { const g = await s.installScript(${JSON.stringify(script('Ghost only', '+G'))});
+    await s.installScript(${JSON.stringify(script('Plain', '+P'))}); await s.patchItem(g.id, { ghost: true }); return true; })`);
+  check(installed === true, 'off: two scripts installed in Home, one set to run in ghost tabs');
 
   // On.
   agent.events.length = 0;
@@ -126,12 +132,38 @@ try {
   const tabH = await ask(`state.tabs.find((t) => t.title === 'h1')?.id`);
   check(await until(async () => (await menu(tabH))?.items?.find((i) => i.name === 'Shared style')?.enabled === false), 'on: switching it off in one space switches it off in the other');
 
+  // A ghost tab opened from Home while sharing is on: the ghost profile's copy may take part in a share before it
+  // is seeded, so this is where anything else would get in.
+  const ghostOpen = async (url) => {
+    await ask(`ask({cmd:'run',id:'newGhostTab'})`); await sleep(500);
+    const s = await cdp((await list()).find((x) => x.url.includes('command.html')).webSocketDebuggerUrl);
+    await s.send('Runtime.evaluate', { expression: `ask({cmd:'open', text: ${JSON.stringify(url)}, newTab: true})`, awaitPromise: true });
+    s.ws.close();
+  };
+  const ghostTitle = () => ask(`JSON.stringify(state.tabs.filter((t) => t.ghost).map((t) => t.title))`).then((x) => JSON.parse(typeof x === 'string' ? x : JSON.stringify(x || [])));
+  await ghostOpen(`${site}/g1`);
+  const gt = await until(async () => (await ghostTitle()).find((x) => x.includes('+G')), 20000);
+  await sleep(1500);
+  const gFinal = (await ghostTitle()).join();
+  check(!!gt && !gFinal.includes('+P'), `ghost with sharing on: only the ghost script runs there (${gFinal})`);
+  await ask(`ask({cmd:'run',id:'open:${site}/g2'})`);
+  const homeTab = await until(() => ask(`state.tabs.find((t) => !t.ghost && t.url.endsWith('/g2') && t.title.includes('+'))?.id`));
+  const homeMenu = await until(async () => (await menu(homeTab))?.items?.length >= 2 && await menu(homeTab));
+  const homeTitle = await ask(`state.tabs.find((t) => t.id === ${homeTab})?.title`);
+  check(homeMenu?.items?.filter((i) => i.kind === 'script').map((i) => i.name + ':' + i.enabled).sort().join() === 'Ghost only:true,Plain:true' && /\+G/.test(homeTitle) && /\+P/.test(homeTitle),
+    `ghost with sharing on: Home still runs both (${homeTitle}; ${homeMenu?.items?.map((i) => i.name + ':' + i.enabled).join(', ')})`);
+  for (const id of await ask(`JSON.stringify(state.tabs.filter((t) => t.ghost).map((t) => t.id))`).then((x) => JSON.parse(x))) await ask(`ask({cmd:'tab.close',id:${id}})`);
+  await sleep(1000);
+
   // Off again: the agent is back, and it can see what stayed private.
   await ask(`ask({cmd:'settings.set',settings:{tweaksShared:false}})`); await sleep(800);
   const again = await until(async () => { const x = await space(); return x.home && x.work && x; });
   check(!!again, 'off: agents can reach the workers again');
   const h2 = await attach(again.home), w2 = await attach(again.work);
-  const inWork = (await items(w2))[0], inHome = (await items(h2))[0];
+  const byName = async (s) => (await items(s)).find((i) => i.meta?.name === 'Shared style');
+  const inWork = await byName(w2), inHome = await byName(h2);
+  check((await items(w2)).map((i) => i.meta.name).sort().join() === 'Ghost only,Plain,Shared style' && (await items(w2)).find((i) => i.meta.name === 'Ghost only')?.ghost === true,
+    'the ghost-tab switch crossed with its script, and no ghost copy came back');
   check(inWork?.meta?.name === 'Shared style', 'off: each space keeps the copy it has');
   check(inWork?.secret && inWork.secret !== 'home-secret', 'the port secret was never shared');
   check((inWork?.connectAllow || []).length === 0 && inHome?.connectAllow?.[0] === 'only.home', 'allowed hosts stay per space');
@@ -139,7 +171,7 @@ try {
   check((await inW(h2, `chrome.storage.local.get('values:home1').then((a) => a['values:home1']?.token)`)) === 'home only', 'and the original keeps them');
   await inW(h2, `chrome.storage.local.get('item:home1').then((a) => chrome.storage.local.set({ 'item:home1': { ...a['item:home1'], enabled: true, touched: Date.now() } }))`);
   await sleep(1800);
-  check((await items(w2))[0]?.enabled === false, 'off: a change no longer crosses');
+  check((await byName(w2))?.enabled === false, 'off: a change no longer crosses');
 } catch (e) { check(false, 'test run: ' + e.message); } finally { cleanup(); }
 console.log(failed ? `${failed} failed` : 'all passed');
 process.exit(failed ? 1 : 0);

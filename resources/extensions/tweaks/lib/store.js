@@ -94,8 +94,8 @@ export const removeItem = (id) => chrome.storage.local.remove([ITEM + id, VALUES
 
 export async function patchItem(id, patch) {
   const item = (await chrome.storage.local.get(ITEM + id))[ITEM + id];
-  // touched: what lib/share.js compares. An on/off switch spreads; a pending update or an allowed host stays here.
-  if (item) await chrome.storage.local.set({ [ITEM + id]: { ...item, ...patch, ...('enabled' in patch ? { touched: Date.now() } : {}) } });
+  // touched: what lib/share.js compares. The on/off and ghost-tab switches spread; a pending update or an allowed host stays here.
+  if (item) await chrome.storage.local.set({ [ITEM + id]: { ...item, ...patch, ...('enabled' in patch || 'ghost' in patch ? { touched: Date.now() } : {}) } });
 }
 
 export const isStyleSource = (code, url = '') => /\.user\.css(\?|#|$)/.test(url) || /==UserStyle==/.test(code);

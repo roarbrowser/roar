@@ -4,9 +4,12 @@ import { compileMatcher, testMatcher } from './lib/match.js';
 import { cssFor } from './lib/usercss.js';
 import { importBackup, exportJSON } from './lib/importers.js';
 import { h, varsForm, diffView } from './lib/ui.js';
+import { ghostNote } from './lib/ghost.js';
 
 const $ = (id) => document.getElementById(id);
 const view = $('view');
+// Skips the empty slots (a bare null would show as the text "null").
+const fill = (...kids) => view.replaceChildren(...kids.filter((k) => k != null));
 const say = (msg, bad) => { $('banner').hidden = !msg; $('banner').textContent = msg || ''; $('banner').style.background = bad ? '' : 'color-mix(in srgb, var(--ok) 14%, transparent)'; };
 const route = () => Object.fromEntries(new URLSearchParams(location.hash.slice(1)));
 const go = (params) => { location.hash = new URLSearchParams(params).toString(); };
@@ -22,10 +25,11 @@ async function renderList() {
   const { site } = route();
   const [items, settings, st] = await Promise.all([allItems(), getSettings(), status()]);
   $('global').checked = settings.enabled;
-  $('shared').hidden = !settings.shared;
+  $('shared').hidden = !settings.shared || !!settings.ghost;
+  ghostMode(settings);
   if (!st.api) say('Userscripts can\'t run in this profile right now (Chromium\'s "Allow User Scripts" switch is off). Restart Roar to turn it on.', true);
   const shown = site ? items.filter((i) => (i.kind === 'script' ? testMatcher(compileMatcher(i.meta), site) : !!cssFor(i.sections, site))) : items;
-  view.replaceChildren(
+  fill(
     site ? h('p', {}, `Showing the tweaks for ${new URL(site).hostname}. `, h('a', { href: '#', textContent: 'Show all', onclick: (e) => { e.preventDefault(); go({}); } })) : null,
     shown.length ? null : h('p', { className: 'muted', textContent: items.length ? 'None of your tweaks run on this site.' : 'No scripts or styles yet. Open a .user.js or .user.css link to install one, or import a backup.' }),
     ...shown.map((it) => h('div', { className: 'card row', style: 'margin:8px 0' },
@@ -35,6 +39,8 @@ async function renderList() {
           it.meta.version ? h('span', { className: 'muted', textContent: 'v' + it.meta.version }) : null),
         it.meta.description ? h('div', { className: 'muted', textContent: it.meta.description }) : null,
         st.errors?.[it.id] ? h('div', { className: 'bad', textContent: st.errors[it.id] }) : null),
+      settings.ghost ? null : h('label', { className: 'row muted ghost-switch', title: 'Ghost tabs get a copy of it and its stored data when they open. Nothing a ghost tab changes comes back.' },
+        h('input', { type: 'checkbox', checked: !!it.ghost, onchange: (e) => patchItem(it.id, { ghost: e.target.checked }) }), 'Run in ghost tabs'),
       it.update ? h('button', { className: 'primary', textContent: `Review update to v${it.update.version}`, onclick: () => go({ update: it.id }) }) : null,
       h('button', { textContent: 'Edit', onclick: () => go({ edit: it.id }) }),
       h('button', { className: 'danger', textContent: 'Delete', onclick: async () => { if (confirm(`Delete “${it.meta.name}” and its stored data?`)) { await removeItem(it.id); renderList(); } } }))));
@@ -46,7 +52,7 @@ async function save(kind, code, id, vars) {
 
 async function renderEditor({ edit, new: kind, site }) {
   const it = edit && (await chrome.storage.local.get(ITEM + edit))[ITEM + edit];
-  if (edit && !it) return go({});
+  if ((edit && !it) || (!it && (await getSettings()).ghost)) return go({});
   kind = it ? it.kind : kind === 'style' ? 'style' : 'script';
   const ta = h('textarea', { className: 'code', spellcheck: false, value: it ? it.code : TEMPLATES[kind](site) });
   const form = it?.kind === 'style' && Object.keys(it.meta.vars || {}).length ? varsForm(it.meta.vars, it.vars || {}) : null;
@@ -68,7 +74,7 @@ async function renderEditor({ edit, new: kind, site }) {
     if (e.key === 'Tab' && !e.metaKey && !e.ctrlKey && !e.altKey) { e.preventDefault(); document.execCommand('insertText', false, '  '); }
     if (e.key === 's' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); doSave(); }
   };
-  view.replaceChildren(
+  fill(
     h('div', { className: 'row', style: 'margin:12px 0' }, h('h2', { style: 'margin:0', textContent: it ? it.meta.name : kind === 'script' ? 'New script' : 'New style' }),
       h('span', { className: 'spacer' }), msg, h('button', { className: 'primary', textContent: 'Save', onclick: doSave }), h('button', { textContent: 'Back', onclick: () => go({}) })),
     form ? h('div', {}, h('h2', { textContent: 'Settings' }), form.el, h('div', { className: 'row', style: 'margin-top:8px' },
@@ -83,7 +89,7 @@ async function renderUpdate({ update }) {
   const it = (await chrome.storage.local.get(ITEM + update))[ITEM + update];
   if (!it?.update) return go({});
   const msg = h('span', { className: 'muted' });
-  view.replaceChildren(
+  fill(
     h('div', { className: 'row', style: 'margin:12px 0' }, h('h2', { style: 'margin:0', textContent: `${it.meta.name}: v${it.meta.version || '?'} → v${it.update.version}` }),
       h('span', { className: 'spacer' }), msg,
       h('button', { className: 'primary', textContent: 'Apply update', onclick: async () => {
@@ -96,9 +102,19 @@ async function renderUpdate({ update }) {
     diffView(it.code, it.update.code));
 }
 
+// A ghost session's copy: says so, and offers nothing that adds tweaks (they would go with the session).
+function ghostMode(settings) {
+  $('ghost').hidden = !settings.ghost;
+  $('ghost').textContent = ghostNote(settings);
+  for (const id of ['new-script', 'new-style', 'import', 'updates']) $(id).hidden = !!settings.ghost;
+  document.title = settings.ghost ? `Site tweaks: ghost copy from ${settings.ghost.from}` : 'Site tweaks';
+}
+
 async function render() {
   say('');
-  $('global').checked = (await getSettings()).enabled;
+  const settings = await getSettings();
+  $('global').checked = settings.enabled;
+  ghostMode(settings);
   const r = route();
   if (r.edit || r.new) return renderEditor(r);
   if (r.update) return renderUpdate(r);
@@ -131,6 +147,7 @@ $('file').onchange = async (e) => {
 
 // Installs everything in a backup; returns a summary line.
 export async function importFile(buf) {
+  if ((await getSettings()).ghost) throw new Error('Importing is off in ghost tabs');
   const { scripts, styles } = await importBackup(buf);
   let ok = 0;
   const failed = [];

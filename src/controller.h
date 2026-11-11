@@ -353,6 +353,7 @@ class Controller {
   void SyncWindows();
   CefRefPtr<CefBrowserView> CreateTabView(const std::string& url, int space, bool ghost = false);
   void EndGhostSession();
+  void SeedGhostTweaks();
   void IndexPage(Tab* tab);
   void SaveSlowSoon();
   void ShowTabWindow(Tab* tab);
@@ -437,6 +438,7 @@ class Controller {
   std::vector<Tab> tabs_;
   int next_id_ = 1;
   int ghost_session_ = 0;  // Names the Ghost-<n> profile of the current ghost session.
+  int ghost_tweaks_session_ = 0;  // The ghost session whose Site tweaks are set up (SeedGhostTweaks).
   std::set<int> stray_seen_;  // Browsers outside Roar whose first address was seen.
   std::vector<CefRefPtr<CefBrowser>> strays_held_;  // Strays a CDP client was attached to; PollDriven retries them.
   // Alerts agents sent through the MCP server (notify_user / ask_user), this session only.

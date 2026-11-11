@@ -15,6 +15,7 @@ const { parseUserCSS, splitSections, sectionMatches, cssFor, withVars, compileSt
 const { importBackup, vmValue, exportJSON } = await lib('importers.js');
 const { scriptCode } = await lib('gm.js');
 const { shareIdOf, snapshot, plan, adopt } = await lib('share.js');
+const { ghostBundle, seedWrites, ghostNote } = await lib('ghost.js');
 
 let fail = 0;
 const check = (ok, what) => { if (!ok) fail++; console.log((ok ? 'ok   ' : 'FAIL ') + what); };
@@ -220,7 +221,7 @@ check(broken.errors.some((e) => e.includes('[B]') && e.includes('boom')), 'GM: a
 // Every extension script at least parses (pages and the worker aren't imported above).
 const { spawnSync } = await import('node:child_process');
 const ext = join(root, 'resources/extensions/tweaks');
-for (const f of ['sw.js', 'manage.js', 'install.js', 'connect.js', 'offscreen.js']) {
+for (const f of ['sw.js', 'manage.js', 'install.js', 'connect.js', 'offscreen.js', 'ghost.js']) {
   const r = spawnSync(process.execPath, ['--check', '--input-type=module'], { input: readFileSync(join(ext, f)) });
   check(r.status === 0, `${f} parses${r.status ? ': ' + r.stderr : ''}`);
 }
@@ -269,6 +270,29 @@ check(JSON.parse(readFileSync(join(ext, 'manifest.json'), 'utf8')).key && JSON.p
   for (let again = true; again && rounds < 10; rounds++) { again = false; for (const a of profiles) for (const b of profiles) if (a !== b) again = apply(b, send(a.items, a.gone)) || again; }
   const sig = (t) => t.items.map((i) => i.code).sort().join();
   check(rounds < 10 && sig(profiles[0]) === sig(profiles[1]) && sig(profiles[1]) === sig(profiles[2]) && sig(profiles[0]) === 'a8,b6', `share: three profiles settle on the same list in ${rounds} rounds (${sig(profiles[0])})`);
+}
+
+// Ghost tabs: only the scripts switched to run there go, with their values; the copy is marked and keeps nothing private.
+{
+  const it = (id, extra = {}) => ({ id, kind: 'script', meta: { name: id, namespace: 'n' }, code: id, enabled: true, secret: 'sek-' + id, connectAllow: ['api.example'], update: { version: '9' }, skip: '8', ...extra });
+  const items = [it('on', { ghost: true }), it('plain'), it('off', { ghost: true, enabled: false }), { ...it('st', { ghost: true }), kind: 'style', sections: [] }];
+  const values = { on: { hidden: ['.ad', '#promo'] }, plain: { secret: 1 }, off: { x: 1 } };
+  const b = ghostBundle(items, values, { enabled: true });
+  check(eq(b.items.map((i) => i.id), ['on', 'st']), 'ghost: only items that run and are set to run in ghost tabs go');
+  check(eq(b.values, { on: { hidden: ['.ad', '#promo'] } }), 'ghost: their GM values go with them, and no other script\'s');
+  check(b.items.every((i) => !('secret' in i) && !('update' in i) && !('skip' in i)) && eq(b.items[0].connectAllow, ['api.example']), 'ghost: the port secret and a pending update stay behind; allowed hosts go');
+  check(!ghostBundle(items, values, { enabled: false }).items.length, 'ghost: nothing goes while Site tweaks is switched off');
+  check(!ghostBundle(items, values, { enabled: true, ghost: { from: 'Home' } }).items.length, 'ghost: a ghost copy never exports');
+  check(!ghostBundle([it('a')], {}, {}).items.length && !Object.keys(ghostBundle([it('a')], {}, {}).values).length, 'ghost: with nothing switched on the bundle is empty');
+  let n = 0;
+  const w = seedWrites(JSON.parse(JSON.stringify({ ...b, from: 'Home' })), 'Home', () => 'fresh' + ++n);
+  check(eq(w.settings, { enabled: true, ghost: { from: 'Home' } }), 'ghost: the copy is marked with the space it came from');
+  check(w['item:on'].secret === 'fresh1' && w['item:st'].secret === 'fresh2' && w['item:on'].ghost === true, 'ghost: each copy gets a new port secret');
+  check(eq(w['values:on'], { hidden: ['.ad', '#promo'] }) && !('values:st' in w), 'ghost: values are seeded under the same script id');
+  const bad = seedWrites({ items: [{ id: '../x', kind: 'script' }, { id: 'ok', kind: 'nope' }, null, { id: 'v', kind: 'script' }], values: { v: [1] } }, '', () => 's');
+  check(eq(Object.keys(bad).sort(), ['item:v', 'settings']) && bad.settings.ghost.from === 'your space', 'ghost: malformed items and values are dropped');
+  check(ghostNote(w.settings) === 'Copied from Home for this ghost session; changes here are not kept.' && ghostNote({ enabled: true }) === '', 'ghost: the manager\'s note names the space');
+  check(snapshot([it('on', { ghost: true, touched: 3 })]).items[0].ghost === true, 'share: the ghost-tab switch spreads with the item');
 }
 
 console.log(fail ? `${fail} failed` : 'all passed');

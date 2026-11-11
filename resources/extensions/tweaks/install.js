@@ -2,7 +2,7 @@
 // the metadata, what the code may do, a preview, and Install or Cancel.
 import { parseMeta } from './lib/meta.js';
 import { parseUserCSS } from './lib/usercss.js';
-import { allItems, installScript, installStyle, isStyleSource } from './lib/store.js';
+import { allItems, getSettings, installScript, installStyle, isStyleSource } from './lib/store.js';
 import { varsForm } from './lib/ui.js';
 
 const $ = (id) => document.getElementById(id);
@@ -17,6 +17,12 @@ $('cancel').onclick = () => (history.length > 1 ? history.back() : window.close(
 
 async function main() {
   if (!/^(https?|ftp|file):/i.test(url)) return fail('Nothing to install.');
+  // A ghost session's copy holds only what its space sent; anything installed here would go with the session.
+  if ((await getSettings()).ghost) {
+    document.title = 'Can\'t install in a ghost tab';
+    $('title').textContent = 'Can\'t install in a ghost tab';
+    return fail(`Ghost tabs only run copies of scripts set to “Run in ghost tabs”. Open ${url} in a normal tab to install it, then switch that on in Site tweaks.`);
+  }
   fact('From', url);
   let code;
   try {

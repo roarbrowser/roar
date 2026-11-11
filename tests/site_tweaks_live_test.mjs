@@ -2,7 +2,9 @@
 // installs a userscript and a UserCSS through the install page (*.user.js / *.user.css links),
 // and the effects show on a local page: document-start, GM_setValue/GM_getValue across loads,
 // GM_xmlhttpRequest to an @connect host and its refusal elsewhere, a menu command and the
-// style's @var (changed live from the manager), plus the site menu and ghost tabs.
+// style's @var (changed live from the manager), plus the site menu and ghost tabs: off there, unless a
+// script is switched to "Run in ghost tabs", which copies it and its GM values into the ghost session
+// and never back. Ghost tabs are hidden from CDP, so the ghost fixture reports through the tab title.
 // Usage: node tests/site_tweaks_live_test.mjs <Roar binary> [screenshot dir]
 // Env: ROAR_CDP_PORT (default: a free port), TWEAKS_HTTP_PORT (two ports from it; default: free).
 import { spawn } from 'node:child_process';
@@ -61,10 +63,26 @@ const STYLE = `/* ==UserStyle==
   h1 { color: var(--accent) !important; }
 }
 `;
+// Writes its stored value into the title (the sidebar state shows ghost tabs' titles); ?set=x stores x first.
+const GHOST_SCRIPT = `// ==UserScript==
+// @name        Ghost fixture
+// @namespace   roar-tests
+// @version     1.0
+// @match       http://ghost.localhost/*
+// @run-at      document-end
+// @grant       GM_getValue
+// @grant       GM_setValue
+// ==/UserScript==
+const set = new URLSearchParams(location.search).get('set');
+if (set) GM_setValue('k', set);
+document.title = 'marker:' + GM_getValue('k', 'none');
+`;
 const PAGE = `<!doctype html><title>t</title><script>document.title = 'start:' + (document.documentElement.dataset.start || 'none')</script><h1>Hello</h1>`;
 const site = createServer((req, res) => {
   if (req.url === '/fixture.user.js') return res.end(SCRIPT);
   if (req.url === '/fixture.user.css') return res.end(STYLE);
+  if (req.url === '/ghost.user.js') return res.end(GHOST_SCRIPT);
+  if (req.url.startsWith('/g')) { res.setHeader('content-type', 'text/html'); return res.end('<!doctype html><title>plain</title><p>g'); }
   if (req.url.startsWith('/backup/')) return res.end(readFileSync(join(import.meta.dirname, 'fixtures/site-tweaks', req.url.slice(8))));
   res.setHeader('content-type', 'text/html');
   res.end(PAGE);
@@ -72,6 +90,7 @@ const site = createServer((req, res) => {
 const sitePort = +process.env.TWEAKS_HTTP_PORT || await free();
 await new Promise((r) => site.listen(sitePort, '127.0.0.1', r));
 const SITE = `http://page.localhost:${sitePort}`;
+const GSITE = `http://ghost.localhost:${sitePort}`;
 
 const list = async () => (await fetch(`http://127.0.0.1:${port}/json/list`)).json();
 const roar = spawn(bin, ['--headless=new', '--noerrdialogs'], { env: { ...process.env, ROAR_UI_CDP: '1', ROAR_CDP_PORT: port, ROAR_DATA_DIR: data }, stdio: 'ignore' });
@@ -216,6 +235,60 @@ try {
   const gts = (await tabs()).filter((t) => t.ghost);
   check(ghost && gts.length === 2 && gts.every((t) => !t.url.includes(ID)) && gts.some((t) => t.url.endsWith('.user.js')),
     `ghost tabs: a .user.js link stays raw, the extension is off there (${gts.map((t) => t.url).join(', ')})`);
+  check(ghost && (await tabs()).find((t) => t.id === ghost.id)?.title === 'start:none', 'ghost tabs: the space\'s scripts don\'t run there by default');
+  const closeGhosts = async () => { for (const t of (await tabs()).filter((x) => x.ghost)) await sidebar(`ask({cmd:'tab.close',id:${t.id}})`); await sleep(1500); };
+  await closeGhosts();
+
+  // "Run in ghost tabs": a ghost fixture with a value stored in the space.
+  const gstate = async (match) => { const t = (await tabs()).filter(match); return t.length && t.every((x) => x.title?.startsWith('marker:')) ? t.map((x) => x.title).join() : undefined; };
+  await evalIn(manager, `import('./lib/store.js').then((s) => s.installScript(${JSON.stringify(GHOST_SCRIPT)}, { url: '${GSITE}/ghost.user.js' })).then((it) => it.id)`);
+  await open(`${GSITE}/g?set=space1`);
+  check(await until(() => gstate((t) => !t.ghost && t.url.startsWith(GSITE))) === 'marker:space1', 'ghost fixture runs in a space tab and stores a value');
+  await ghostOpen(`${GSITE}/g`);
+  const offTitle = await until(async () => (await tabs()).find((t) => t.ghost && t.url.startsWith(GSITE) && !t.loading && t.title === 'plain')?.title, 15000);
+  await sleep(2000);
+  const stillOff = (await tabs()).find((t) => t.ghost && t.url.startsWith(GSITE))?.title;
+  check(offTitle === 'plain' && stillOff === 'plain', `switch off: the script doesn't run in a ghost tab (${stillOff})`);
+  await closeGhosts();
+
+  // Switch it on in the manager's list (the real checkbox).
+  await evalIn(manager, `location.hash = ''`);
+  const switched = await until(() => evalIn(manager, `(() => { const card = [...document.querySelectorAll('#view .card')].find((c) => c.querySelector('strong')?.textContent === 'Ghost fixture');
+    const box = card && [...card.querySelectorAll('label')].find((l) => l.textContent.includes('Run in ghost tabs'))?.querySelector('input'); if (!box) return false; if (!box.checked) box.click(); return true; })()`));
+  await sleep(500);
+  const flag = await worker(`chrome.storage.local.get(null).then((all) => { const it = Object.values(all).find((v) => v?.meta?.name === 'Ghost fixture'); return it.ghost === true && (Object.values(all).find((v) => v?.meta?.name === 'Live fixture')?.ghost ?? false) === false; })`);
+  check(switched && flag === true, 'the manager\'s "Run in ghost tabs" switch is stored with that script only');
+  await shot('6-manager-ghost-switch', manager);
+  const t0 = Date.now();
+  await ghostOpen(`${GSITE}/g`);
+  const seen = await until(() => gstate((t) => t.ghost && t.url.startsWith(GSITE)), 20000);
+  check(seen === 'marker:space1', `switch on: the copy runs in the ghost tab and sees the space's GM value (${seen}, ${Date.now() - t0} ms incl. opening)`);
+  await ghostOpen(`${GSITE}/g?set=ghost2`);
+  const both = await until(async () => { const v = await gstate((t) => t.ghost && t.url.startsWith(GSITE)); return v?.split(',').includes('marker:ghost2') && v; });
+  check(!!both, `GM_setValue works in the ghost copy (${both})`);
+  await ghostOpen(`${GSITE}/g?again`);
+  const kept = await until(async () => (await tabs()).find((t) => t.ghost && t.url.endsWith('?again'))?.title?.startsWith('marker:') && (await tabs()).find((t) => t.ghost && t.url.endsWith('?again')).title);
+  check(kept === 'marker:ghost2', `and the ghost session keeps it while it lasts (${kept})`);
+  const normal = (await tabs()).find((t) => !t.ghost && t.url.startsWith(GSITE));
+  await evalIn((x) => x.type === 'page' && x.url.startsWith(GSITE), `location.href = '${GSITE}/g?reload'`);
+  const back = await until(async () => (await tabs()).find((t) => t.id === normal.id && t.url.endsWith('?reload'))?.title?.startsWith('marker:') && (await tabs()).find((t) => t.id === normal.id).title);
+  const spaceValues = await worker(`chrome.storage.local.get(null).then((all) => { const it = Object.values(all).find((v) => v?.meta?.name === 'Ghost fixture'); return JSON.stringify(all['values:' + it.id]); })`);
+  check(back === 'marker:space1' && spaceValues === '{"k":"space1"}', `a ghost GM_setValue never reaches the space (tab ${back}, stored ${spaceValues})`);
+  // The ghost copy's own pages: marked as a copy, and no installs.
+  await ghostOpen(`chrome-extension://${ID}/manage.html`);
+  const mgr = await until(async () => (await tabs()).find((t) => t.ghost && t.url.includes('manage.html') && t.title !== t.url && !t.loading)?.title);
+  const spaceName = (await sidebar(`ask({cmd:'state'})`))?.spaces?.[0]?.name || 'your space';
+  check(mgr === `Site tweaks: ghost copy from ${spaceName}`, `the ghost copy's manager says it is a copy, and of which space (${mgr})`);
+  await ghostOpen(`${SITE}/fixture.user.js`);
+  const inst = await until(async () => (await tabs()).find((t) => t.ghost && t.url.includes('install.html') && /ghost/.test(t.title || ''))?.title);
+  check(inst === 'Can\'t install in a ghost tab', `installing is refused in a ghost tab (${inst})`);
+  const liveVisible = (await list()).filter((x) => x.url.startsWith(GSITE) || x.url.includes('ghost.html'));
+  check(liveVisible.every((x) => !x.url.includes('ghost.html')) && liveVisible.length === 1, `CDP sees neither the ghost tabs nor the hidden seed pages (${liveVisible.map((x) => x.url).join(', ')})`);
+  await closeGhosts();
+  await ghostOpen(`${GSITE}/g`);
+  const fresh = await until(() => gstate((t) => t.ghost && t.url.startsWith(GSITE)), 20000);
+  check(fresh === 'marker:space1', `a new ghost session starts from the space's copy again (${fresh})`);
+  await closeGhosts();
 } catch (e) {
   check(false, 'test threw: ' + (e.stack || e));
 } finally {
