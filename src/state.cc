@@ -44,7 +44,7 @@ void WriteJson(const std::string& dir, const std::string& name, CefRefPtr<CefDic
   auto root = CefValue::Create();
   root->SetDictionary(d);
   mkdir(dir.c_str(), 0700);
-  AtomicWrite(dir + "/" + name, CefWriteJSON(root, JSON_WRITER_DEFAULT).ToString());
+  WriteIfChanged(dir + "/" + name, CefWriteJSON(root, JSON_WRITER_DEFAULT).ToString());
 }
 
 // The main instance's data dir: ~/Library/Application Support/Roar, %APPDATA%/Roar on Windows.
@@ -484,6 +484,7 @@ void State::SaveHistory() {
 }
 
 void State::SavePages() {
+  pages_dirty = false;
   auto d = CefDictionaryValue::Create();
   for (const auto& [key, p] : pages) {
     auto v = CefDictionaryValue::Create();
@@ -505,7 +506,10 @@ void State::SetPageText(int space, const std::string& url, const std::string& ti
       clipped.pop_back();
   if (clipped.size() < text.size() && !clipped.empty() && (static_cast<unsigned char>(clipped.back()) & 0x80))
     clipped.pop_back();
-  pages[SpaceKey(space, url)] = {title, clipped, NowSeconds(), space, url};
+  PageText& page = pages[SpaceKey(space, url)];
+  // The same text again only moves indexed_at, which waits for the next real change or quit.
+  if (page.title != title || page.text != clipped) pages_dirty = true;
+  page = {title, clipped, NowSeconds(), space, url};
   TrimOldest(pages, kMaxPages, [](const auto& p) { return p.indexed_at; });
 }
 

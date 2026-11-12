@@ -157,6 +157,7 @@ bool Controller::HandleBackup(CefRefPtr<CefBrowser> browser, CefRefPtr<CefDictio
     auto cats = Cats(msg->GetList("categories"));
     if (cats.count(backup::kExtensions)) cats.insert(backup::kSettings);
     std::string old_ubol = msg->GetString("ubolId");
+    AgentStatsFlush();  // The safety backup takes the file on disk.
     SaveNow();
     CefPostTask(TID_FILE_USER_BLOCKING, base::BindOnce([](CefRefPtr<Callback> cb, std::set<backup::Cat> cats,
                                                           std::string dir, std::string path, std::string old_ubol) {

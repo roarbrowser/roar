@@ -2,6 +2,7 @@
 // Header-only so tests/atomic_write_test.cc can check it without CEF.
 #include <cstdio>
 #include <cstdlib>
+#include <map>
 #include <string>
 #ifdef _WIN32
 #include <fcntl.h>
@@ -61,5 +62,17 @@ inline bool AtomicWrite(const std::string& path, const std::string& data) {
   return true;
 }
 #endif
+
+// AtomicWrite, skipped when `data` is what this process last wrote to `path`: many saves
+// (a favicon set again, a page indexed with the same text) produce the same bytes, and each
+// rewrite of a megabyte file counts against macOS's disk-write limit. UI thread only.
+inline bool WriteIfChanged(const std::string& path, const std::string& data) {
+  static std::map<std::string, std::string> last;
+  auto it = last.find(path);
+  if (it != last.end() && it->second == data) return true;
+  if (!AtomicWrite(path, data)) return false;
+  last[path] = data;
+  return true;
+}
 
 }  // namespace roar

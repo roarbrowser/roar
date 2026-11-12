@@ -80,7 +80,7 @@ try {
   const shot = await cdp('Page.captureScreenshot', { format: 'png' });
   if (process.argv[3]) writeFileSync(process.argv[3], Buffer.from(shot.data, 'base64'));
   check(await nestedIn('Inner', 'Outer'), 'Inner is back inside Outer before the restart');
-  await sleep(2500);  // SaveSoon
+  await sleep(4500);  // SaveSoon (3 s)
   roar.kill('SIGTERM'); await sleep(2500); roar.kill('SIGKILL'); await sleep(500);
   await start(); await sleep(1500);
   check(await nestedIn('Inner', 'Outer'), 'Inner is still inside the pinned Outer after a restart');
@@ -148,7 +148,7 @@ try {
   check((await ev(`ask({ cmd: 'agent.hello', owner: 'test', launch: '${launch}' }).then((token) => ask({ cmd: 'agent.rename', kind: 'tab', id: ${g1}, name: 'From agent', owner: 'test', token })).then(() => 'renamed', (e) => e.message)`, 'hint.html')) === 'No such tab', 'the agents bridge cannot rename a ghost tab');
   await ev(`ask({ cmd: 'agent.rename', kind: 'tab', id: ${g1}, name: 'Ghost name' })`); await sleep(300);
   check((await nameOf(g1)) === 'Ghost name', 'the sidebar can rename a ghost tab');
-  await sleep(3000);  // SaveSoon
+  await sleep(5000);  // SaveSoon (3 s)
   const saved = readFileSync(join(data, 'state.json'), 'utf8');
   check(!saved.includes('Ghost name') && !saved.includes(`Auto tab:${g2}`) && saved.includes('Auto tab:'), "a ghost tab's name is never saved to disk");
 } finally {

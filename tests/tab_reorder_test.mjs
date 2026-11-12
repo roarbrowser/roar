@@ -74,7 +74,7 @@ try {
   await drag('T4', 'T2', 0.1);
   check((await order('.tgroup .rows')) === 'T4,T2,T3', 'reordering inside the group: T4 above T2');
   const grp = await order('.tgroup .rows');
-  await sleep(2500);  // SaveSoon
+  await sleep(4500);  // SaveSoon (3 s)
   roar.kill('SIGTERM'); await sleep(2500); roar.kill('SIGKILL'); await sleep(500);
   await start(); await sleep(1500);
   check((await order('.tgroup .rows')) === grp, `the group's order survives a restart (${grp})`);

@@ -3782,13 +3782,14 @@ void Controller::IndexPage(Tab* tab) {
 
 // History and page text are megabytes: rewriting them on every navigation wrote GBs a day
 // (macOS flagged 2.1 GB in 9 h, 1.7.1), so they go at most every 5 minutes, and on quit.
+// pages.json (~2 MB) only when some page's text changed: revisits re-index the same text.
 void Controller::SaveSlowSoon() {
   if (slow_save_pending_ || closing_) return;
   slow_save_pending_ = true;
   CefPostDelayedTask(TID_UI, base::BindOnce([] {
                        Controller::Get()->slow_save_pending_ = false;
                        State::Get().SaveHistory();
-                       State::Get().SavePages();
+                       if (State::Get().pages_dirty) State::Get().SavePages();
                      }),
                      5 * 60 * 1000);
 }
@@ -5682,8 +5683,11 @@ bool Controller::HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> 
       }
       if (hit) {
         driving_[who].insert(hit->id);
+        // Saved when the agent starts acting here; every later command (one per MCP tool call)
+        // only moves agentLast, which rides along with the next save or quit.
+        bool was_active = AgentActive(hit->agent, false, NowSeconds());
         TouchAgentMark(hit->agent, NowSeconds());
-        SaveSoon();
+        if (!was_active) SaveSoon();
       }
     }
     callback->Success("");
@@ -6653,7 +6657,8 @@ void Controller::SetFaviconData(int tab_id, const std::string& url, const std::s
   if (!tab || tab->favicon != url) return;  // The page moved on to another icon.
   tab->favicon = data;
   PushSidebar();
-  SaveSoon();
+  // No save of its own: pages that flip their icon (unread counts) rewrote state.json each time.
+  // The page supplies it again on load, and the next save or quit stores it.
 }
 
 void Controller::OnMailResult(CefRefPtr<CefBrowser> browser, const std::string& text) {
@@ -7015,6 +7020,7 @@ bool Controller::OnGesture(CefRefPtr<CefBrowserView> view, cef_gesture_command_t
 // ---------------------------------------------------------------------------
 // Persistence and shutdown
 
+// Changes within 3 s share one state.json write: busy pages and agents asked for one a second.
 void Controller::SaveSoon() {
   if (save_pending_ || closing_) return;
   save_pending_ = true;
@@ -7023,11 +7029,11 @@ void Controller::SaveSoon() {
                        // Quit already saved; a save queued before it would see the cleared tab list.
                        if (!Controller::Get()->closing_) Controller::Get()->SaveNow();
                      }),
-                     1000);
+                     3000);
 }
 
+// Agent stats are not flushed here: the tick saves them every minute, and quit and backups flush.
 void Controller::SaveNow() {
-  AgentStatsFlush();
   State& state = State::Get();
   state.tabs.clear();
   state.active_index = 0;
@@ -7129,6 +7135,7 @@ bool Controller::CanCloseShell(CefRefPtr<CefWindow> shell) {
     return true;
   }
   closing_ = true;
+  AgentStatsFlush();
   SaveNow();
   State::Get().SaveHistory();
   State::Get().SavePages();
@@ -7185,7 +7192,10 @@ void Controller::OnShellDestroyed(CefRefPtr<CefWindow> shell) {
   // The shell can go without CanCloseShell (Chrome closing every window, e.g. over CDP).
   if (!closing_) {
     closing_ = true;
+    AgentStatsFlush();
     SaveNow();
+    State::Get().SaveHistory();
+    State::Get().SavePages();
   }
   tabs_.clear();
   MaybeQuit();

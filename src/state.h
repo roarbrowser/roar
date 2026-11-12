@@ -141,6 +141,7 @@ class State {
   bool GroupPinned(int id);
   TabGroup* FindGroup(int id);  // Never reused, so a new space never inherits an old profile.
   std::map<std::string, PageText> pages;
+  bool pages_dirty = false;  // Page text changed since the last SavePages.
   // Zoom level (Chromium's logarithmic scale, 0 = 100%) per host; hosts at 100% are absent.
   std::map<std::string, double> zoom;
 
