@@ -1844,8 +1844,9 @@ void Controller::ReleaseAgentPages(const std::string& owner) {
   for (auto& t : tabs_) {
     if (t.mcp_owner != owner) continue;
     t.mcp_owner.clear();
-    if (!IsVisible(t.id)) { doomed.push_back(t.id); continue; }
+    if (!IsVisible(t.id) && !IsKept(t)) { doomed.push_back(t.id); continue; }
     // The one the person is looking at stays, as a plain tab of theirs: no agent tag or frame.
+    // So does one they kept (pinned it, or pinned its group): closing it would empty the pinned group.
     ClearAgentMark(t.agent);
     for (auto& d : driving_) d.second.erase(t.id);
     t.driven = t.agent_active = false;
@@ -3879,12 +3880,12 @@ void Controller::RunCommand(const std::string& id) {
   else if (id == "closeTab") CloseActiveUnlessKept();
   else if (StartsWith(id, "restore:")) RestoreArchived(std::atoi(id.c_str() + 8));
   else if (id == "closeSpaceTabs" || StartsWith(id, "closeSpaceTabs:")) {
-    // Closes a space's tabs (pinned ones stay, closed ones go to Recently Closed)
-    // and moves on to the next space.
+    // Closes a space's tabs (pinned tabs and pinned groups' tabs stay, closed ones go to Recently
+    // Closed) and moves on to the next space.
     int space = id == "closeSpaceTabs" ? State::Get().active_space : atoi(id.c_str() + 15);
     std::vector<int> ids;
     for (const auto& t : tabs_)
-      if (t.space == space && !t.pinned && !t.ghost) ids.push_back(t.id);
+      if (t.space == space && !IsKept(t) && !t.ghost) ids.push_back(t.id);
     for (int tab : ids) CloseTab(tab);
     if (space == State::Get().active_space && State::Get().spaces.size() > 1) CycleSpace(1);
   }

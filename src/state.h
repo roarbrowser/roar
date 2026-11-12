@@ -3,6 +3,7 @@
 #pragma once
 
 #include <map>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -154,6 +155,9 @@ class State {
 
  private:
   State() = default;
+  // Pinned groups (or groups inside one) that held tabs at launch or the last save: Save's lost-pins guard.
+  std::set<int> filled_pinned_groups_;
+  std::set<int> FilledPinnedGroups();
 };
 
 double NowSeconds();

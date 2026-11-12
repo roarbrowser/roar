@@ -339,6 +339,7 @@ void State::Load() {
                groups.end());
   for (auto& t : tabs)
     if (!FindGroup(t.group)) t.group = 0;
+  filled_pinned_groups_ = FilledPinnedGroups();
 #ifdef _WIN32
   // Stock CEF has no CDP token or space filter: agents stay off until Settings turns them on, new installs and old alike.
   if (!settings.cdp_win_off) settings.cdp_win_off = true, settings.cdp_enabled = false;
@@ -354,6 +355,13 @@ bool State::GroupPinned(int id) {
     id = g->parent;
   }
   return false;
+}
+
+std::set<int> State::FilledPinnedGroups() {
+  std::set<int> ids;
+  for (const auto& t : tabs)
+    if (t.group && GroupPinned(t.group)) ids.insert(t.group);
+  return ids;
 }
 
 TabGroup* State::FindGroup(int id) {
@@ -444,17 +452,22 @@ void State::Save() {
   }
   d->SetList("groups", gl);
   d->SetInt("nextGroupId", next_group_id);
-  // A save that drops every pinned tab first sets the old file aside as
-  // state.json.lost-pins, so a bad quit cannot silently wipe them.
-  if (CountPinned(d) == 0) {
+  // A save that drops every pinned tab, or every tab of a pinned group that still
+  // stands, first sets the old file aside as state.json.lost-pins, so a bad quit
+  // cannot silently wipe them.
+  std::set<int> filled = FilledPinnedGroups();
+  bool emptied = std::any_of(filled_pinned_groups_.begin(), filled_pinned_groups_.end(),
+                             [&](int id) { return GroupPinned(id) && !filled.count(id); });
+  if (emptied || CountPinned(d) == 0) {
     const std::string path = Dir() + "/state.json";
     const std::string old = ReadFile(path);
     auto prev = CefParseJSON(old, JSON_PARSER_RFC);
-    if (prev && prev->GetType() == VTYPE_DICTIONARY && CountPinned(prev->GetDictionary()) > 0) {
+    if (prev && prev->GetType() == VTYPE_DICTIONARY && (emptied || CountPinned(prev->GetDictionary()) > 0)) {
       std::ofstream(path + ".lost-pins", std::ios::trunc) << old;
       chmod((path + ".lost-pins").c_str(), 0600);
     }
   }
+  filled_pinned_groups_ = std::move(filled);
   WriteJson(Dir(), "state.json", d);
 }
 
