@@ -421,5 +421,14 @@
       <description><![CDATA[Unread mail shows the first 3 messages per inbox, with a link to the rest. Each account has its own sign-out that removes only that account.]]></description>
       <enclosure url="https://github.com/roarbrowser/roar/releases/download/v1.22.2/Roar-1.22.2.dmg" type="application/octet-stream" sparkle:edSignature="zKr5Zn3fdiPHXm0m36NEOa9vvlCEq19giirPuJKhp6uKIPNC8XGbCZgOWjoyf0F4iYfsYCwkWEV0htn9bG1KDA==" length="208083312"/>
     </item>
+    <item>
+      <title>1.22.3</title>
+      <pubDate>Thu, 12 Nov 2026 22:28:21 +0000</pubDate>
+      <sparkle:version>12203</sparkle:version>
+      <sparkle:shortVersionString>1.22.3</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[Pinned tabs outside a group are now icon tiles: fixed size, wrapping, name on hover. In dark mode site icons sit on a light chip so black logos stay visible. Model chat explains why a server gives no models (no API at that address, key needed or refused) and adds /v1 to Hermes and oMLX addresses.]]></description>
+      <enclosure url="https://github.com/roarbrowser/roar/releases/download/v1.22.3/Roar-1.22.3.dmg" type="application/octet-stream" sparkle:edSignature="2TEtsNRaRgg7+l7AUQUMIMpiKnVyTQvBVRzZuuZr8FryXOfmULFyQoFuQPzgY8xztaXW7OHRHLC2GLneI/G7Bw==" length="208083655"/>
+    </item>
   </channel>
 </rss>
