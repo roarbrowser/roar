@@ -164,6 +164,14 @@ bool Client::OnBeforePopup(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> fr
       browser->GetHost()->GetRequestContext()->GetContentSetting(opener_url, opener_url, CEF_CONTENT_SETTING_TYPE_POPUPS) ==
           CEF_CONTENT_SETTING_VALUE_ALLOW)
     return false;
+  // Outlook's pop-outs (Edit draft, pop out a message) call window.open('' or 'about:blank') with no
+  // window features, keep the window and write the page into it or point it somewhere. Reopening it
+  // by URL gave window.open() null, so the opener threw and the new tab sat on about:blank. Let
+  // Chromium make the popup instead: AdoptPopup turns it into a Roar tab with its opener.
+  std::string target = target_url.ToString();
+  if (target_disposition != CEF_WOD_NEW_BACKGROUND_TAB && opener_url.rfind("http", 0) == 0 &&
+      (target.empty() || target == "about:blank"))
+    return false;
   switch (target_disposition) {
     case CEF_WOD_NEW_FOREGROUND_TAB:
     case CEF_WOD_NEW_BACKGROUND_TAB:
