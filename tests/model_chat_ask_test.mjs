@@ -49,7 +49,7 @@ try {
   await settings.ev(`showTab('chat'); const c = document.querySelector('[data-vendor=other]'); c.open = true; c.querySelector('[data-add-name]').value = 'Stub Server'; c.querySelector('[data-add-url]').value = '${base}/v1'; c.querySelector('[data-add=openai]').click(); true`);
   const row = (q) => settings.ev(`(() => { const r = document.querySelector('#chat-vendors [data-p=stub-server]'); return r ? ${q} : null; })()`);
   const before = await waitFor(() => row(`r.querySelector('small').dataset.state && r.querySelector('small').textContent`));
-  check(/Save its API key if it needs one/.test(before || ''), 'added server without its key: ' + before);
+  check(/wants an API key. Save it here/.test(before || ''), 'added server without its key: ' + before);
   check(await row(`!!r.querySelector('[data-key]') && !!r.querySelector('[data-remove]') && !r.querySelector('[data-delkey]')`), 'added row has an optional key box and Remove');
   check(!seen.some((h) => h), 'no Authorization header sent before a key is saved');
   const keychain = await settings.ev(`ask({cmd:'chat.keySet', provider:'stub-server', key:''}).then(() => true, () => false)`);

@@ -83,6 +83,26 @@ const optAsk = (keyed) => (m) => m.cmd === 'chat.keys' ? Promise.resolve({ studi
 const [o1] = await core.detectProviders([OPT], optAsk(false), 50), [o2] = await core.detectProviders([OPT], optAsk(true), 50);
 check(o1.state === 'running' && o1.models.join() === 'qwen' && o1.hasKey === false, 'detect: added server is probed without a key');
 check(o2.state === 'running' && o2.hasKey === true, 'detect: added server with a saved key reports hasKey');
+// An added server that isn't an API (a dashboard's web page), wants a key, or lists nothing says so, never "Running · 0 models".
+check(core.modelList('<!doctype html><title>Hermit</title>') === null && core.modelList({ error: 'x' }) === null && core.modelList('{"data":[]}').length === 0
+  && core.modelList({ data: [{ id: 'a' }] }).join() === 'a', 'model list: a page or error object is not a list; an empty list is');
+const HER = { id: 'hermes', key: true, optional: true, url: 'https://hermes.home.test' };
+const reqAsk = (answer, keyed = false) => (m) => m.cmd === 'chat.keys' ? Promise.resolve({ hermes: keyed }) : m.cmd === 'chat.installed' ? Promise.resolve({}) : answer();
+const [hPage] = await core.detectProviders([HER], reqAsk(() => Promise.resolve('<!doctype html><html><title>Hermit</title></html>')), 50);
+check(hPage.state === 'missing' && hPage.models.length === 0 && /web page/.test(hPage.label) && /end in \/v1/.test(hPage.label) && /dashboard/.test(hPage.label),
+  'detect: a web page instead of /models says it is not the API, suggests /v1 and the Hermes API server: ' + hPage.label);
+const [hPageV1] = await core.detectProviders([{ ...HER, url: 'https://hermes.home.test/v1' }], reqAsk(() => Promise.resolve('<html></html>')), 50);
+check(!/end in \/v1/.test(hPageV1.label), 'detect: no /v1 hint when the URL already has it');
+const e401 = () => Promise.reject(Object.assign(new Error('{"error":{"message":"Invalid gateway API key"}}'), { code: 401 }));
+const [hAuth] = await core.detectProviders([HER], reqAsk(e401), 50), [hBad] = await core.detectProviders([HER], reqAsk(e401, true), 50);
+const [hHttp] = await core.detectProviders([{ ...HER, url: 'http://192.168.1.5:8642/v1' }], reqAsk(e401, true), 50);
+check(hAuth.state === 'needs-key' && /wants an API key/.test(hAuth.label), 'detect: 401 without a key asks for one');
+check(/refused the saved API key/.test(hBad.label) && /only over HTTPS/.test(hHttp.label), 'detect: 401 with a key says refused, or that plain HTTP keeps the key back');
+const [hEmpty] = await core.detectProviders([HER], reqAsk(() => Promise.resolve({ data: [] })), 50);
+check(hEmpty.state === 'missing' && /no models/.test(hEmpty.label), 'detect: an added server listing no models is not running');
+check(core.withApiPath('https://hermes.home.test') === 'https://hermes.home.test/v1' && core.withApiPath('https://h.test/') === 'https://h.test/v1'
+  && core.withApiPath('http://127.0.0.1:8642/v1') === 'http://127.0.0.1:8642/v1' && core.withApiPath('https://h.test/api') === 'https://h.test/api', 'server URL with no path gets /v1');
+check(core.keyGoesTo('https://x') && core.keyGoesTo('http://127.0.0.1:8642/v1') && !core.keyGoesTo('http://192.168.1.5:8642/v1'), 'key only over HTTPS or to this Mac');
 const fakeAsk = (m) => m.cmd === 'chat.installed' ? Promise.resolve({ lmstudio: true })
   : m.cmd === 'chat.keys' ? Promise.resolve({ openai: true })
   : m.provider === 'jan' ? new Promise(() => {})  // Hangs: must time out.

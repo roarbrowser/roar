@@ -5,7 +5,7 @@ window.ask = (msg) =>
     window.roarQuery({
       request: JSON.stringify(msg),
       onSuccess: (r) => { try { resolve(r ? JSON.parse(r) : null); } catch { resolve(r); } },
-      onFailure: (code, message) => reject(new Error(message)),
+      onFailure: (code, message) => reject(Object.assign(new Error(message), { code })),  // code: e.g. an HTTP status.
     });
   });
 

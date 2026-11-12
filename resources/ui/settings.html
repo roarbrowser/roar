@@ -901,9 +901,11 @@ $('chat-providers').addEventListener('change', (e) => {
   }
   if (!e.target.matches('[data-url]')) return;
   const id = e.target.closest('[data-p]').dataset.p, list = chatCore.parseProviders(last.settings.chatProviders);
-  const p = list.find((x) => x.id === id), url = e.target.value.trim();
-  if (!/^https?:\/\/\S+$/.test(url)) return void (e.target.value = p.url);
-  p.url = url;
+  const p = list.find((x) => x.id === id), typed = e.target.value.trim();
+  if (!/^https?:\/\/\S+$/.test(typed)) return void (e.target.value = p.url);
+  // Hermes and oMLX serve their API under /v1.
+  const url = chatCore.VENDORS.some((v) => v.ways.some((w) => w.server?.id === id)) ? chatCore.withApiPath(typed) : typed;
+  p.url = e.target.value = url;
   e.target.blur();
   chatSave(list);
 });
@@ -977,7 +979,7 @@ $('chat-providers').addEventListener('click', async (e) => {
     return u.focus();
   }
   if (t.dataset.connect && sv) {
-    const card = t.closest('details'), where = chatWhere[v] || 'local', url = where === 'local' ? sv.local : card.querySelector('[data-conn-url]').value.trim();
+    const card = t.closest('details'), where = chatWhere[v] || 'local', url = where === 'local' ? sv.local : chatCore.withApiPath(card.querySelector('[data-conn-url]').value.trim());
     if (!/^https?:\/\/\S+$/.test(url)) return card.querySelector('[data-conn-url]')?.focus();
     if (list.some((x) => x.id === sv.id)) return;
     list.push({ id: sv.id, name: sv.name, url, key: true, optional: true });

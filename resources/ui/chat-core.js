@@ -143,6 +143,15 @@
   const modelIds = (json) => {
     try { return (JSON.parse(json).data || []).map((m) => m.id).filter((x) => typeof x === 'string'); } catch { return []; }
   };
+  // The same for detection, but null when the answer isn't a model list at all: a web page (a dashboard or login
+  // page at the address instead of the API), an error object. `r` is the raw text or what the bridge parsed.
+  const modelList = (r) => {
+    let v = r;
+    if (typeof r === 'string') try { v = JSON.parse(r); } catch { return null; }
+    return v && typeof v === 'object' && Array.isArray(v.data) ? v.data.map((m) => m?.id).filter((x) => typeof x === 'string') : null;
+  };
+  // Whether Roar sends a saved key to `url` (src/model_chat.h ChatKeyAllowed): HTTPS, or this Mac.
+  const keyGoesTo = (url) => /^https:\/\//i.test(url || '') || /^http:\/\/(localhost|127\.0\.0\.1)[:/]|^http:\/\/\[::1\]:/i.test(url || '');
 
   // Detection: which providers can answer now. probe = the model list a provider's /models gave, or
   // null when it didn't answer in time; installed = its app or CLI is on this Mac (chat.installed).
@@ -159,11 +168,24 @@
     llamacpp: 'https://github.com/ggml-org/llama.cpp#quick-start',
   };
   const RANK = { running: 0, available: 1, installed: 2, 'needs-key': 3, 'signed-out': 3, missing: 4 };
-  const providerStatus = (p, { probe = null, installed = false, hasKey = false } = {}) => {
+  // why: what a failed probe got back. 'page' (an answer that isn't a model list), 'auth' (401/403), else ''.
+  const providerStatus = (p, { probe = null, installed = false, hasKey = false, why = '' } = {}) => {
     if (p.kind === 'opencode') return probe ? { state: 'running', label: `Connected · ${p.tools ? 'its agent can use tools there' : 'answers only, no tools'}` }
       : { state: 'missing', label: hasKey ? 'Not answering. Check its URL and password.' : 'Not answering. Save its password if it has one.' };
-    if (p.optional) return probe ? { state: 'running', label: `Running · ${probe.length} model${probe.length === 1 ? '' : 's'}${hasKey ? ' · API key in Keychain' : ''}` }
-      : { state: 'missing', label: hasKey ? 'Not answering · API key in Keychain' : 'Not answering. Save its API key if it needs one.' };
+    if (p.optional) {
+      if (probe?.length) return { state: 'running', label: `Running · ${probe.length} model${probe.length === 1 ? '' : 's'}${hasKey ? ' · API key in Keychain' : ''}` };
+      // Nothing usable: say why, rather than "Running · 0 models".
+      if (probe) return { state: 'missing', label: 'Answers, but lists no models.' };
+      if (why === 'page') {
+        const hint = VENDORS.find((v) => v.ways.some((w) => w.server?.id === p.id))?.ways.find((w) => w.server)?.server.pageHint;
+        return { state: 'missing', label: 'Reachable, but no API there: it answered with a web page, not a model list.'
+          + (/\/v1$/.test(p.url || '') ? '' : ' API addresses usually end in /v1.') + (hint ? ' ' + hint : '') };
+      }
+      if (why === 'auth') return { state: 'needs-key', label: !hasKey ? 'Reachable, but it wants an API key. Save it here.'
+        : keyGoesTo(p.url) ? 'Reachable, but it refused the saved API key.'
+        : 'Reachable, but it wants an API key, and Roar sends keys only over HTTPS or to this Mac.' };
+      return { state: 'missing', label: hasKey ? 'Not answering · API key in Keychain' : 'Not answering. Save its API key if it needs one.' };
+    }
     if (p.key) return hasKey ? { state: 'available', label: 'API key in Keychain' } : { state: 'needs-key', label: 'Needs an API key' };
     if (probe) return { state: 'running', label: `Running · ${probe.length} model${probe.length === 1 ? '' : 's'}` };
     if (installed) return { state: 'installed', label: 'Installed, not running. ' + (START_HINTS[p.id] || 'Start its server.') };
@@ -182,13 +204,19 @@
         const st = cliStatus(p, clis?.[p.cli]);
         return { ...p, ...st, models: st.state === 'missing' ? [] : p.models };
       }
+      let why = '';
       const probe = p.key && !p.optional && !keys?.[p.id] ? null : await Promise.race([
         // An OpenCode server answers with its sessions, and uses its own default model.
-        ask({ cmd: 'chat.request', provider: p.id, what: 'models' }).then((r) => (p.kind === 'opencode' ? ['default'] : modelIds(typeof r === 'string' ? r : JSON.stringify(r)))),
+        ask({ cmd: 'chat.request', provider: p.id, what: 'models' }).then((r) => {
+          if (p.kind === 'opencode') return ['default'];
+          const ids = modelList(r);
+          if (!ids) why = 'page';
+          return ids;
+        }),
         late(null),
-      ]).catch(() => null);
+      ]).catch((e) => { why = e?.code === 401 || e?.code === 403 ? 'auth' : ''; return null; });
       const models = probe?.length ? probe : p.key && keys?.[p.id] && PPLX.test(p.url) ? PPLX_MODELS : probe || [];
-      return { ...p, models, hasKey: !!keys?.[p.id], ...providerStatus(p, { probe, installed: !!installed?.[p.id], hasKey: !!keys?.[p.id] }) };
+      return { ...p, models, hasKey: !!keys?.[p.id], ...providerStatus(p, { probe, installed: !!installed?.[p.id], hasKey: !!keys?.[p.id], why }) };
     }));
     return out.map((p, i) => [p, i]).sort((a, b) => RANK[a[0].state] - RANK[b[0].state] || a[1] - b[1]).map(([p]) => p);
   };
@@ -492,8 +520,9 @@
   // (an API key, a plan through its CLI, this Mac or another machine). `ways[].ids`: the providers it holds; `server`
   // ways (Hermes, oMLX) are one provider whose URL says where, added with Connect. Order is the order on screen.
   const VENDORS = [
-    { id: 'hermes', name: 'Hermes', ways: [{ id: 'server', server: { id: 'hermes', name: 'Hermes', local: 'http://127.0.0.1:8642/v1', remote: 'https://hermes.example.com/v1' } }],
-      note: 'Talks to the Hermes agent through its API server (OpenAI-compatible). Turn it on with API_SERVER_ENABLED=true in ~/.hermes/.env and restart the gateway; its key is API_SERVER_KEY.' },
+    { id: 'hermes', name: 'Hermes', ways: [{ id: 'server', server: { id: 'hermes', name: 'Hermes', local: 'http://127.0.0.1:8642/v1', remote: 'https://hermes.example.com/v1',
+      pageHint: 'Use the Hermes API server (port 8642), not its web dashboard.' } }],
+      note: 'Talks to the Hermes agent through its API server (OpenAI-compatible, port 8642), not its web dashboard. Turn it on with API_SERVER_ENABLED=true in ~/.hermes/.env and restart the gateway; its key is API_SERVER_KEY. It listens only on its own machine unless API_SERVER_HOST says otherwise.' },
     { id: 'opencode', name: 'OpenCode', ways: [{ id: 'cli', label: 'This Mac', ids: ['cli-opencode'] }, { id: 'opencode', label: 'Server', ids: [] }] },
     { id: 'omlx', name: 'oMLX', ways: [{ id: 'server', server: { id: 'omlx', name: 'oMLX', local: 'http://127.0.0.1:8000/v1', remote: 'http://192.168.1.10:8000/v1' } }],
       note: 'Local models on Apple silicon, straight from the oMLX server. If you set an API key in oMLX, save it here.' },
@@ -515,7 +544,10 @@
   // "local" when a URL points at this Mac, else "remote".
   const urlWhere = (u) => /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:|\/|$)/i.test(String(u || '')) ? 'local' : 'remote';
 
-  const api = { VENDORS, vendorOf, urlWhere, idList, chatList, chatOrdered, chatOn, modelLabel, opencodeEvents, defaultModel, renamePrompt, renameKeys, autoNameKeys, parseNames, oneShot, SEARCH_SYSTEM, searchMode, openRequest, addSources, webSearchTool, CLI_PROVIDERS, CLI_LOGIN, signedOutError, pageRefusal, shotRefusal, cliStatus, cliPrompt, cliParser, parseProviders, sseParser, streamDelta, requestBody, modelIds, providerStatus, detectProviders, renderMarkdown };
+  // A server URL typed with no path gets /v1, where Hermes and oMLX serve their API ("https://host" -> "https://host/v1").
+  const withApiPath = (u) => (/^https?:\/\/[^/?#]+\/?$/i.test(u) ? u.replace(/\/?$/, '/v1') : u);
+
+  const api = { VENDORS, vendorOf, urlWhere, withApiPath, keyGoesTo, modelList, idList, chatList, chatOrdered, chatOn, modelLabel, opencodeEvents, defaultModel, renamePrompt, renameKeys, autoNameKeys, parseNames, oneShot, SEARCH_SYSTEM, searchMode, openRequest, addSources, webSearchTool, CLI_PROVIDERS, CLI_LOGIN, signedOutError, pageRefusal, shotRefusal, cliStatus, cliPrompt, cliParser, parseProviders, sseParser, streamDelta, requestBody, modelIds, providerStatus, detectProviders, renderMarkdown };
   if (typeof module === 'object') module.exports = api;
   else globalThis.chatCore = api;
 })();
