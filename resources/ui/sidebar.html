@@ -88,14 +88,11 @@ body { box-shadow: inset 3px 0 0 var(--space-color, transparent); }
 /* While a tab is dragged, an empty pinned strip shows as a drop zone. */
 body.drag-active .pinned:empty { display: flex; height: 38px; margin: 0 4px; padding: 0; border: 1px dashed var(--rule); border-radius: 10px; align-items: center; justify-content: center; }
 body.drag-active .pinned:empty::before { content: 'Drop to pin'; color: var(--ink-3); font-size: 12px; }
-.pin { min-width: 0; height: 38px; border-radius: 10px; background: var(--hover); display: grid; place-items: center; position: relative; container-type: inline-size; }
-.pin-in { display: flex; align-items: center; justify-content: center; gap: 7px; width: 100%; min-width: 0; padding: 0 10px; }
-.pin-in > :not(.pin-name) { flex: none; }
+.pin { min-width: 0; height: 38px; border-radius: 10px; background: var(--hover); display: grid; place-items: center; position: relative; }
+/* Loose pinned tabs are icon tiles only; the tooltip gives the name. Tabs in a pinned group stay rows. */
+.pin-in { display: flex; align-items: center; justify-content: center; width: 100%; min-width: 0; padding: 0 6px; }
+.pin-in > * { flex: none; }
 .pin:has(.snd) .pin-in { padding-right: 20px; }
-/* A tile wide enough to spare the room says what it is; a lone icon in a wide tile reads as empty. */
-.pin-name { display: none; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; font-weight: 500; color: var(--ink-2); }
-.pin.active .pin-name { color: var(--ink); }
-@container (min-width: 84px) { .pin-name { display: block; } }
 .pin:hover { background: var(--rule); }
 .pin.active { background: var(--selected); box-shadow: 0 1px 2px rgba(0,0,0,.12); }
 .pin.active::after { content: ""; position: absolute; bottom: 3px; left: 50%; width: 12px; height: 2px; margin-left: -6px; border-radius: 1px; background: var(--mane); }
@@ -664,7 +661,7 @@ window.roar = {
     $('spaces').innerHTML = s.spaces.map((sp, i) => { const d = spaceDot(sp, s, i);
       return `<button data-space="${sp.id}" draggable="true" class="${[d.ring && 'agents', d.ring && d.busy && 'busy', sp.icon && 'icon'].filter(Boolean).join(' ')}" aria-current="${d.active}" style="${sp.color ? '--dot:' + sp.color : ''}" title="${esc(d.title)}" aria-label="${esc(d.label)}">${sp.icon ? esc(sp.icon) : ''}</button>`; }).join('');
     setHtml($('pinned'), pinned.map((t) =>
-      `<button class="pin${t.active ? ' active' : ''}" data-id="${t.id}" draggable="true" title="${esc(t.title)}" aria-label="${esc(t.title)}"><span class="pin-in">${pinIcon(t)}<span class="pin-name">${esc(t.name || t.title || hostOf(t.url))}</span></span>${sndButton(t, '')}</button>`).join(''));
+      `<button class="pin${t.active ? ' active' : ''}" data-id="${t.id}" draggable="true" title="${esc(t.name || t.title || hostOf(t.url))}" aria-label="${esc(t.name || t.title || hostOf(t.url))}"><span class="pin-in">${pinIcon(t)}</span>${sndButton(t, '')}</button>`).join(''));
     layoutPins(s.settings);
     // Never leave the list blank: with no loose tabs, say how to open one (+ stays in the header).
     setHtml($('tabs'), open.map((t) => tabRow(t, limit)).join('') || `<div class="empty tabs-empty">No tabs. Press + or ${keyLabel(isMacUi ? 'Cmd+T' : 'Ctrl+T')}.</div>`);

@@ -78,7 +78,8 @@ try {
   await pinned("Alpha");
   let r = await rows();
   check(same(r.counts, [1]) && r.full, `one tile fills the row (${JSON.stringify(r)})`);
-  check(await ev(`getComputedStyle(document.querySelector("#pinned .pin .pin-name") || document.body).display !== "none" && !!document.querySelector("#pinned .pin .pin-name")`), "a wide tile shows its name");
+  // Loose pinned tabs are icons only, even a tile wide enough for a name; the tooltip carries it.
+  check(await ev(`(() => { const p = document.querySelector("#pinned .pin"); const kids = p.querySelector(".pin-in").children; return kids.length === 1 && kids[0].matches(".fav") && p.title === "Alpha"; })()`), "a wide tile shows only its icon, with the title on hover");
   await shot("pins-1");
   await pinned("Bravo");
   r = await rows();
@@ -87,7 +88,7 @@ try {
   await pinned("Charlie"); await pinned("Delta"); await pinned("Echo");
   r = await rows();
   check(same(r.counts, [5]) && r.full && r.even, `five fill one row at the limit of 5 (${JSON.stringify(r)})`);
-  check(await ev(`getComputedStyle(document.querySelector("#pinned .pin .pin-name") || document.body).display === "none" || !document.querySelector("#pinned .pin .pin-name")`), "narrow tiles are icons only");
+  check(await ev(`[...document.querySelectorAll("#pinned .pin .pin-in")].every((p) => p.children.length === 1)`), "narrow tiles are icons only");
   await shot("pins-5");
   await pinned("Foxtrot");
   r = await rows();
