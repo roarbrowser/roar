@@ -1,4 +1,4 @@
-// Pinned tiles share their rows, pinned tabs reorder, a group's tabs move and sort, and the footer popovers close easily.
+// Pinned tiles keep their size and wrap, pinned tabs reorder, a group's tabs move and sort, and the footer popovers close easily.
 // Drags are real mouse input: synthetic DragEvents skip Chromium's drag loop. No window shows.
 // Usage: node tests/sidebar_pins_test.mjs <Roar binary> [screenshot dir]
 import { spawn } from "node:child_process";
@@ -59,7 +59,7 @@ const rows = () => ev(`(() => {
   const left = b.left + parseFloat(cs.paddingLeft), right = b.right - parseFloat(cs.paddingRight), by = new Map();
   for (const p of el.querySelectorAll(".pin")) { const r = p.getBoundingClientRect(), k = Math.round(r.top); by.set(k, [...(by.get(k) || []), r]); }
   const all = [...by.values()];
-  return { counts: all.map((x) => x.length), full: all.every((x) => Math.abs(x[0].left - left) < 1 && Math.abs(x.at(-1).right - right) < 1), even: all.every((x) => x.every((r) => Math.abs(r.width - x[0].width) < 1)) };
+  return { counts: all.map((x) => x.length), sized: [...el.querySelectorAll(".pin")].every((p) => Math.abs(p.getBoundingClientRect().width - 44) < 1), full: all.every((x) => Math.abs(x[0].left - left) < 1 && Math.abs(x.at(-1).right - right) < 1), even: all.every((x) => x.every((r) => Math.abs(r.width - x[0].width) < 1)) };
 })()`);
 const setCols = async (n) => { await ev(`ask({ cmd: "settings.set", settings: { pinnedColumns: ${n} } })`); await sleep(350); };
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
@@ -71,38 +71,38 @@ const menuItem = async (id, act) => {
 
 try {
   await ev(`ask({ cmd: "settings.set", settings: { onboarded: true } })`);
-  // Tiles share the row.
+  // Tiles keep one size and wrap at the limit.
   const names = ["Alpha", "Bravo", "Charlie", "Delta", "Echo", "Foxtrot", "Golf"], ids = {};
   await setCols(5);
   const pinned = async (n) => { await open(n); ids[n] = await idOf(n); await ev(`ask({ cmd: "tab.pin", id: ${ids[n]}, pinned: true })`); await sleep(350); };
   await pinned("Alpha");
   let r = await rows();
-  check(same(r.counts, [1]) && r.full, `one tile fills the row (${JSON.stringify(r)})`);
+  check(same(r.counts, [1]) && r.sized && !r.full, `one tile keeps its size, no stretching (${JSON.stringify(r)})`);
   // Loose pinned tabs are icons only, even a tile wide enough for a name; the tooltip carries it.
   check(await ev(`(() => { const p = document.querySelector("#pinned .pin"); const kids = p.querySelector(".pin-in").children; return kids.length === 1 && kids[0].matches(".fav") && p.title === "Alpha"; })()`), "a wide tile shows only its icon, with the title on hover");
   await shot("pins-1");
   await pinned("Bravo");
   r = await rows();
-  check(same(r.counts, [2]) && r.full && r.even, `two tiles share it evenly (${JSON.stringify(r)})`);
+  check(same(r.counts, [2]) && r.sized, `two tiles keep their size (${JSON.stringify(r)})`);
   await shot("pins-2");
   await pinned("Charlie"); await pinned("Delta"); await pinned("Echo");
   r = await rows();
-  check(same(r.counts, [5]) && r.full && r.even, `five fill one row at the limit of 5 (${JSON.stringify(r)})`);
+  check(same(r.counts, [5]) && r.sized, `five sit in one row at the limit of 5 (${JSON.stringify(r)})`);
   check(await ev(`[...document.querySelectorAll("#pinned .pin .pin-in")].every((p) => p.children.length === 1)`), "narrow tiles are icons only");
   await shot("pins-5");
   await pinned("Foxtrot");
   r = await rows();
-  check(same(r.counts, [3, 3]) && r.full, `six at a limit of 5 balance into two full rows (${JSON.stringify(r)})`);
+  check(same(r.counts, [5, 1]) && r.sized, `the sixth wraps at a limit of 5 (${JSON.stringify(r)})`);
   await pinned("Golf");
   r = await rows();
-  check(same(r.counts, [4, 3]) && r.full, `seven balance too (${JSON.stringify(r)})`);
+  check(same(r.counts, [5, 2]) && r.sized, `seven wrap too (${JSON.stringify(r)})`);
   await shot("pins-7");
   await setCols(2);
   r = await rows();
-  check(same(r.counts, [2, 2, 2, 1]) && r.full, `the limit in Settings holds (${JSON.stringify(r)})`);
+  check(same(r.counts, [2, 2, 2, 1]) && r.sized, `the limit in Settings holds (${JSON.stringify(r)})`);
   await setCols(0);
   r = await rows();
-  check(r.full && Math.max(...r.counts) <= 5, `Fit to width fills too (${JSON.stringify(r)})`);
+  check(r.sized && r.counts[0] >= 5 && same(r.counts.slice(0, -1).map(() => r.counts[0]), r.counts.slice(0, -1)), `Fit to width wraps as many as fit (${JSON.stringify(r)})`);
   await setCols(5);
 
   // Reordering by dragging: the whole tile, not just its edges.

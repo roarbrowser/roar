@@ -81,9 +81,9 @@ body { box-shadow: inset 3px 0 0 var(--space-color, transparent); }
 .foot .space-name { color: var(--ink-2); font-size: 11.5px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 90px; }
 .scroll { flex: 1; overflow-y: auto; padding: 0 6px 12px; display: flex; flex-direction: column; gap: 14px; }
 
+/* Fixed-size tiles that wrap; five fit a default-width sidebar. layoutPins caps the row at "Most tiles per row". */
 .pinned { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 4px; }
-/* --cols is this tile's row (layoutPins). The sliver under the exact share keeps rounding from wrapping a full row; grow takes it back. */
-.pinned > .pin { flex: 1 1 calc((100% - (var(--cols, 1) - 1) * 6px) / var(--cols, 1) - .1px); }
+.pinned > .pin { flex: none; width: 44px; }
 .pinned:empty { display: none; }
 /* While a tab is dragged, an empty pinned strip shows as a drop zone. */
 body.drag-active .pinned:empty { display: flex; height: 38px; margin: 0 4px; padding: 0; border: 1px dashed var(--rule); border-radius: 10px; align-items: center; justify-content: center; }
@@ -163,6 +163,9 @@ body.drag-active .pinned:empty::before { content: 'Drop to pin'; color: var(--in
 .ghost-ico { width: 13px; height: 13px; flex: none; }
 .pin .fav { width: 18px; height: 18px; }
 .pin .fav img { width: 18px; height: 18px; }
+/* Dark mode: favicons sit on a light chip so black logos (GitHub, Apple) stay visible. The ring grows the chip
+   without moving the icon or the row. */
+@media (prefers-color-scheme: dark) { .fav:not(.letter) { background: #eadfd2; box-shadow: 0 0 0 2px #eadfd2; } }
 .spin { width: 16px; height: 16px; flex: none; border-radius: 50%; border: 2px solid var(--rule); border-top-color: var(--mane); animation: spin .8s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 
@@ -2091,18 +2094,11 @@ $('hide-sidebar').onclick = () => ask({ cmd: 'run', id: 'sidebar' });
 // Pinned extensions: click opens the extension's popup page in a bubble beside
 // the button (an options-only extension opens in a tab); right-click unpins. Pin from the Extensions menu in the menu bar.
 let pinKey = null;
-// The most tiles in a row comes from settings, or as many 38px tiles as fit. Tiles split evenly across the rows they
-// need, longer rows first, so every row runs edge to edge: 7 at a limit of 5 is 4 + 3, never 5 + a stretched pair.
-let pinSettings = {};
+// Tiles keep their size and wrap; "Most tiles per row" in Settings caps a row (44px tiles, 6px gaps, 4px padding each side).
 function layoutPins(settings) {
-  if (settings) pinSettings = settings;
-  const el = $('pinned'), pins = [...el.children];
-  const fit = Math.max(1, Math.floor((el.clientWidth - 8 + 6) / (38 + 6)));
-  const rows = Math.ceil(pins.length / (pinSettings.pinnedColumns || fit)) || 1;
-  const short = Math.floor(pins.length / rows), longTiles = (pins.length % rows) * (short + 1);
-  pins.forEach((p, i) => p.style.setProperty('--cols', i < longTiles ? short + 1 : short));
+  const cols = settings?.pinnedColumns;
+  $('pinned').style.maxWidth = cols ? cols * 50 + 2 + 'px' : '';
 }
-addEventListener('resize', () => layoutPins());
 
 function loadPins() {
   const key = state.activeSpace + ':' + state.settings.pinnedExtensions.join(',');
