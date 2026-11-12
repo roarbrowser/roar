@@ -321,6 +321,126 @@ void OpenHiddenPage(CefRefPtr<CefRequestContext> ctx, const std::string& url, Ce
   CefPostDelayedTask(TID_UI, base::BindOnce(&HiddenPageClient::Done, client), 2 * client->timeout_ms());
 }
 
+// Google's own pages that may sign out one account: tried in order until one has a control for it.
+// hl=en, since acct-signout.js reads the button labels. ROAR_SIGNOUT_URL swaps in a test page.
+std::vector<std::string> AcctSignOutPages() {
+  if (const char* stub = std::getenv("ROAR_SIGNOUT_URL")) return {stub};
+  return {"https://accounts.google.com/SignOutOptions?hl=en&continue=https%3A%2F%2Fmail.google.com%2Fmail%2F",
+          "https://accounts.google.com/AccountChooser?hl=en&continue=https%3A%2F%2Fmail.google.com%2Fmail%2F"};
+}
+constexpr int kAcctSignOutClicks = 6, kAcctSignOutSecs = 60;
+
+// Signs ONE Google account out of a space by pressing that account's own sign-out/remove control on
+// Google's account pages (acct-signout.js), in a hidden windowless page with the space's cookies. Roar
+// drops no cookies here. Google keeps every login in one shared set of cookies, so only Google's server
+// can let one account go; afterwards the feeds are reread and the hint says what really happened.
+class AcctSignOutClient : public CefClient, public CefRenderHandler, public CefDisplayHandler,
+                          public CefLifeSpanHandler, public CefLoadHandler {
+ public:
+  AcctSignOutClient(int space, std::string email, size_t page)
+      : space_(space), email_(std::move(email)), page_(page), nonce_(platform::RandomToken()) {}
+  static void Start(int space, const std::string& email, size_t page = 0) {
+    auto pages = AcctSignOutPages();
+    if (page >= pages.size()) return;
+    CefWindowInfo info;
+    info.SetAsWindowless(kNullWindowHandle);
+    info.runtime_style = CEF_RUNTIME_STYLE_ALLOY;
+    CefBrowserSettings settings;
+    settings.windowless_frame_rate = 1;
+    CefRefPtr<AcctSignOutClient> client = new AcctSignOutClient(space, email, page);
+    CefBrowserHost::CreateBrowser(info, client, pages[page], settings, nullptr, Controller::Get()->ContextFor(space));
+    CefPostDelayedTask(TID_UI, base::BindOnce(&AcctSignOutClient::Finish, client, std::string("timeout")), kAcctSignOutSecs * 1000);
+  }
+  CefRefPtr<CefRenderHandler> GetRenderHandler() override { return this; }
+  CefRefPtr<CefDisplayHandler> GetDisplayHandler() override { return this; }
+  CefRefPtr<CefLifeSpanHandler> GetLifeSpanHandler() override { return this; }
+  CefRefPtr<CefLoadHandler> GetLoadHandler() override { return this; }
+  void GetViewRect(CefRefPtr<CefBrowser>, CefRect& rect) override { rect = CefRect(0, 0, 1280, 900); }
+  void OnPaint(CefRefPtr<CefBrowser>, PaintElementType, const RectList&, const void*, int, int) override {}
+  void OnAfterCreated(CefRefPtr<CefBrowser> browser) override {
+    browser_ = browser;
+    g_hidden_pages.insert(browser->GetIdentifier());  // Agents never reach it.
+    if (done_) browser->GetHost()->CloseBrowser(true);
+  }
+  void OnBeforeClose(CefRefPtr<CefBrowser> browser) override {
+    g_hidden_pages.erase(browser->GetIdentifier());
+    browser_ = nullptr;
+  }
+  void OnLoadingStateChange(CefRefPtr<CefBrowser> browser, bool loading, bool, bool) override {
+    if (loading || done_) return;
+    // Each load (Google may reload after a press) runs the script again, told how many clicks came before.
+    auto frame = browser->GetMainFrame();
+    frame->ExecuteJavaScript(platform::ReadResource("ui/acct-signout.js") + "\n;window.__roarAcctSignOut(" + JsString(email_) +
+                                 "," + JsString(nonce_) + "," + std::to_string(clicks_) + ");",
+                             frame->GetURL(), 0);
+  }
+  bool OnConsoleMessage(CefRefPtr<CefBrowser> browser, cef_log_severity_t, const CefString& message, const CefString&,
+                        int) override {
+    std::string m = message.ToString(), mark = "__roar_signout__ " + nonce_ + " ";
+    if (m.rfind(mark, 0) != 0) return false;
+    m = m.substr(mark.size());
+    double x = 0, y = 0;
+    if (sscanf(m.c_str(), "click %lf %lf", &x, &y) == 2) {
+      if (done_ || ++clicks_ > kAcctSignOutClicks) return true;
+      // A real click (Chromium's DevTools input path), as Google's pages may ignore scripted ones.
+      auto send = [&](const char* type, bool buttons) {
+        auto params = CefDictionaryValue::Create();
+        params->SetString("type", type);
+        params->SetDouble("x", x);
+        params->SetDouble("y", y);
+        if (buttons) {
+          params->SetString("button", "left");
+          params->SetInt("buttons", std::strcmp(type, "mouseReleased") ? 1 : 0);
+          params->SetInt("clickCount", 1);
+        }
+        browser->GetHost()->ExecuteDevToolsMethod(0, "Input.dispatchMouseEvent", params);
+      };
+      send("mouseMoved", false);
+      send("mousePressed", true);
+      send("mouseReleased", true);
+    } else if (StartsWith(m, "end ")) {
+      CefPostTask(TID_UI, base::BindOnce(&AcctSignOutClient::Finish, CefRefPtr<AcctSignOutClient>(this), m.substr(4)));
+    }
+    return true;
+  }
+  void Finish(std::string result) {
+    if (done_) return;
+    done_ = true;
+    if (browser_) browser_->GetHost()->CloseBrowser(true);
+    int space = space_;
+    std::string email = email_;
+    if (result == "none" && clicks_ == 0) {
+      if (page_ + 1 < AcctSignOutPages().size()) return Start(space, email, page_ + 1);
+      return Controller::Get()->ShowHint("Google offers no way to sign out just " + email + " here; nothing was signed out");
+    }
+    if (result == "timeout" && clicks_ == 0)
+      return Controller::Get()->ShowHint("Couldn't reach Google to sign out " + email + "; nothing was signed out");
+    // Something was pressed: reread every account and say what Google really did.
+    size_t before = State::Get().gmail[space].accounts.size();
+    Controller::Get()->RefreshGmail(space);
+    CefPostDelayedTask(TID_UI, base::BindOnce([](int space, std::string email, size_t before) {
+      if (!State::Get().FindSpace(space)) return;
+      const auto& now = State::Get().gmail[space].accounts;
+      bool gone = std::none_of(now.begin(), now.end(), [&](const GmailAccount& a) { return a.address == email; });
+      size_t lost = before > now.size() + (gone ? 1 : 0) ? before - now.size() - (gone ? 1 : 0) : 0;
+      Controller::Get()->ShowHint(!gone  ? "Google did not sign out " + email
+                                  : lost ? "Signed out " + email + ", but Google also signed out " + std::to_string(lost) + " other account" + (lost > 1 ? "s" : "")
+                                         : "Signed out " + email + " in this space; the other accounts stay signed in");
+      if (gone) Controller::Get()->ReloadSpace(space);  // Its open Gmail tabs show the sign-in page.
+    }, space, email, before), 8000);
+  }
+
+ private:
+  int space_;
+  std::string email_;
+  size_t page_;
+  std::string nonce_;
+  int clicks_ = 0;
+  bool done_ = false;
+  CefRefPtr<CefBrowser> browser_;
+  IMPLEMENT_REFCOUNTING(AcctSignOutClient);
+};
+
 void SetUpSiteTweaks(CefRefPtr<CefRequestContext> ctx, bool ghost) {
   if (!ctx) return;
   auto all = ctx->GetPreference("extensions.settings");
@@ -4017,6 +4137,21 @@ void Controller::RunCommand(const std::string& id) {
       else Controller::Get()->ActivateTab(Controller::Get()->NewTab(urls[i], false));
     });
   }
+  else if (StartsWith(id, "gmailAcctSignOut:")) {
+    // An account section's sign-out button in the Unread mail panel: signs out that one account through
+    // Google's own controls for it (AcctSignOutClient), after a native confirm menu (it can pass the sidebar).
+    int space = State::Get().active_space;
+    const GmailFeed& feed = State::Get().gmail[space];
+    size_t n = static_cast<size_t>(std::max(0, atoi(id.c_str() + 17)));
+    if (n >= feed.accounts.size()) return;
+    std::string email = feed.accounts[n].address;
+    auto go = [space, email](int) {
+      Controller::Get()->ShowHint("Signing out " + email + "…");
+      AcctSignOutClient::Start(space, email);
+    };
+    if (std::getenv("ROAR_SIGNOUT_URL")) return go(0);  // Test hook: a scratch instance can't answer a native menu.
+    platform::PopupMenu({"-" + email, "Sign Out of This Account Only"}, go);
+  }
   else if (id == "gmailSignOut") {
     // Signs this space out of Google by dropping its google.com cookies; other
     // spaces keep their own logins.
@@ -4035,11 +4170,14 @@ void Controller::RunCommand(const std::string& id) {
     };
     cookies->VisitAllCookies(new Visitor());
     std::string account = State::Get().gmail[space].account;
+    size_t accounts = State::Get().gmail[space].accounts.size();
     CefPostDelayedTask(TID_UI, base::BindOnce([](int space) {
       Controller::Get()->RefreshGmail(space);
       Controller::Get()->ReloadSpace(space);
     }, space), 500);
-    ShowHint(account.empty() ? "Signed out of Gmail in this space" : "Signed out " + account + " in this space");
+    ShowHint(accounts > 1      ? "Signed out of " + std::to_string(accounts) + " Google accounts in this space"
+             : account.empty() ? "Signed out of Gmail in this space"
+                               : "Signed out " + account + " in this space");
   }
   else if (id == "outlookSignOut") {
     // Signs this space out of Outlook by dropping its Microsoft cookies (as gmailSignOut does for

@@ -156,12 +156,12 @@ try {
   await ev(`ask({ cmd: "group.order", id: ${gid}, tabs: [${ids["Tango 9"]}, 999999] })`); await sleep(300);
   check((await groupRows()).split(",").length === 4, "an order naming too few or unknown tabs loses nothing");
 
-  // Popovers. A long list, as a busy inbox gives.
+  // Popovers. A long list, as six busy inboxes give (each lists its first three).
   await ev(`(() => {
-    const accounts = [{ address: "one@example.com", unread: 35 }, { address: "two@example.com", unread: 35 }];
-    const items = Array.from({ length: 70 }, (_, i) => ({ url: "https://mail.google.com/mail/u/" + (i % 2) + "/#inbox/" + i, title: "Message number " + i, account: i % 2, from: "Someone", snippet: "" }));
+    const accounts = Array.from({ length: 6 }, (_, n) => ({ address: "acct" + n + "@example.com", unread: 12 }));
+    const items = Array.from({ length: 72 }, (_, i) => ({ url: "https://mail.google.com/mail/u/" + (i % 6) + "/#inbox/" + i, title: "Message number " + i, account: i % 6, from: "Someone", snippet: "" }));
     const render = roar.render;
-    roar.render = (s) => render({ ...s, gmail: { ...s.gmail, enabled: true, signedOut: false, status: "", unread: 70, accounts, items } });
+    roar.render = (s) => render({ ...s, gmail: { ...s.gmail, enabled: true, signedOut: false, status: "", unread: 72, accounts, items } });
     roar.render(state);
   })()`);
   const openPop = async () => { await ev(`document.querySelector('[data-feed="gm-group"]').click()`); await sleep(250); };
@@ -171,7 +171,7 @@ try {
   await ev(`(() => { const p = document.getElementById("gm-group"); p.scrollTop = p.scrollHeight; })()`); await sleep(150);
   const close = await ev(`(() => { const b = document.querySelector("#gm-group [data-feed-close]"); if (!b) return null; const r = b.getBoundingClientRect(), p = document.getElementById("gm-group").getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2, seen: r.top >= p.top - 1 && r.bottom <= p.bottom + 1 }; })()`);
   check(!!close?.seen, "scrolled to the end of a long list, its close button is still in view");
-  check(await ev(`document.querySelectorAll("#gm .mailrow").length`) >= 60, "the list is the real mail rows");
+  check(await ev(`document.querySelectorAll("#gm .mailrow").length`) === 18, "the list is the real mail rows, three per inbox");
   check(await ev(`(() => { const p = document.getElementById("gm-group"), h = p.querySelector(":scope > .group-head").getBoundingClientRect(), under = document.elementFromPoint(h.left + 40, h.top + h.height / 2); return !!under.closest(".group-head") && p.scrollHeight > p.clientHeight; })()`), "the header stays on top of the list while it scrolls");
   // Taller heads must not hide what sticks under them, and no word in a head breaks across lines.
   const headFit = () => ev(`(() => {

@@ -351,6 +351,9 @@ body.drag-active .pinned:empty::before { content: 'Drop to pin'; color: var(--in
 .acct-head .who span { color: var(--ink-3); font-weight: 400; }
 .acct-head .n { margin-left: auto; color: var(--ink-3); font-variant-numeric: tabular-nums; }
 .acct .note { padding-left: 26px; }
+#gm .acct-more { display: block; width: 100%; text-align: left; cursor: pointer; }
+#gm .acct-more:hover { color: var(--ink); text-decoration: underline; }
+.acct-head .acctout { display: inline-flex; align-items: center; padding: 2px 4px; }
 
 .foot { flex: none; display: flex; align-items: center; gap: 7px; padding: 8px 14px 12px; color: var(--ink-3); font-size: 11px; border-top: 1px solid var(--rule); }
 .foot .wordmark { font-size: 15px; color: var(--ink-2); }
@@ -509,7 +512,7 @@ body.drag-active .pinned:empty::before { content: 'Drop to pin'; color: var(--in
   <div class="rows" id="olm"></div>
 </section>
 <section class="feed-pop" id="gm-group" aria-label="Unread mail">
-  <div class="group-head"><span>Unread mail</span><span class="spacer"></span><button id="gm-selall" title="Select every message">Select all</button><button id="gm-delsel" title="Delete the selected messages" hidden>Delete selected</button><button id="gm-refresh" title="Refresh mail">Refresh</button><button class="feed-close" data-feed-close title="Close" aria-label="Close Unread mail"><svg viewBox="0 0 12 12" width="9" height="9" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><path d="m3 3 6 6M9 3l-6 6"/></svg></button></div>
+  <div class="group-head"><span>Unread mail</span><span class="spacer"></span><button id="gm-selall" title="Select every message shown">Select all</button><button id="gm-delsel" title="Delete the selected messages" hidden>Delete selected</button><button id="gm-refresh" title="Refresh mail">Refresh</button><button class="feed-close" data-feed-close title="Close" aria-label="Close Unread mail"><svg viewBox="0 0 12 12" width="9" height="9" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><path d="m3 3 6 6M9 3l-6 6"/></svg></button></div>
   <div class="rows" id="gm"></div>
 </section>
 <dialog class="cld" id="cl-dlg" aria-labelledby="cl-dlg-h">
@@ -841,7 +844,11 @@ window.roar = {
     const accts = (gm.accounts || []).map((a, n) => [a, n]).sort(([a], [b]) => acctOrder.indexOf(a.address) - acctOrder.indexOf(b.address));
     const acctHid = accts.filter(([a]) => acctHidden.has(a.address)).length;
     if (!acctShowHidden) gm.items = gm.items.filter((m) => !acctHidden.has(gm.accounts?.[m.account]?.address));
-    for (const u of [...mailSel]) if (!gm.items.some((m) => m.url === u)) mailSel.delete(u);
+    // Each inbox lists only its first MAIL_CAP rows (the head opens the rest in Gmail). Select all, an
+    // account's All and Delete only ever cover these shown rows.
+    const perAcct = {};
+    gm.shown = gm.items.filter((m) => (perAcct[m.account || 0] = (perAcct[m.account || 0] || 0) + 1) <= MAIL_CAP);
+    for (const u of [...mailSel]) if (!gm.shown.some((m) => m.url === u)) mailSel.delete(u);
     syncMailSel();
     $('gm-btn').hidden = !gm.enabled || gm.signedOut;
     $('ol-btn').hidden = !s.outlook;
@@ -857,15 +864,17 @@ window.roar = {
     syncFeeds();
     setHtml($('gm'), gm.status
       ? (folderTab('mail') ? tabRow(folderTab('mail'), 0) : '') + `<div class="note">${esc(gm.status)}</div>`
-      : (gm.accounts || []).length > 1
-        ? (folderTab('mail') && !gm.items.some((m) => m.url === folderTab('mail').folderItem) ? tabRow(folderTab('mail'), 0) : '') +
+      // Every signed-in account gets its section (even a lone one), so each has its count and sign-out.
+      : (gm.accounts || []).length
+        ? (folderTab('mail') && !gm.shown.some((m) => m.url === folderTab('mail').folderItem) ? tabRow(folderTab('mail'), 0) : '') +
           accts.filter(([a]) => acctShowHidden || !acctHidden.has(a.address)).map(([a, n]) => {
             const at = a.address.indexOf('@');
             const who = at < 0 ? esc(a.address) : `${esc(a.address.slice(0, at))}<span>${esc(a.address.slice(at))}</span>`;
-            const items = gm.items.filter((m) => m.account === n);
+            const items = gm.shown.filter((m) => m.account === n);
+            const more = Math.max(a.unread || 0, gm.items.filter((m) => m.account === n).length) - items.length;
             return `<div class="acct" style="--acct:${ACCT_HUES[n % ACCT_HUES.length]}">
-              <div class="acct-head" draggable="true" data-acct="${n}" data-addr="${esc(a.address)}" title="Open ${esc(a.address)} in a tab"><span class="swatch"></span><span class="who">${who}</span>${items.length ? `<button class="selacct" data-selacct="${n}" title="Select every message in this account">${items.every((m) => mailSel.has(m.url)) ? 'None' : 'All'}</button>` : ''}<span class="n">${a.unread || ''}</span><button class="selacct" data-accthide="${esc(a.address)}" title="${acctHidden.has(a.address) ? 'Show this account again' : 'Hide this account (Show hidden brings it back)'}">${acctHidden.has(a.address) ? 'Show' : '−'}</button></div>
-              ${items.map(mailRow).join('') || '<div class="note">No unread mail</div>'}</div>`;
+              <div class="acct-head" draggable="true" data-acct="${n}" data-addr="${esc(a.address)}" title="Open ${esc(a.address)} in a tab"><span class="swatch"></span><span class="who">${who}</span>${items.length ? `<button class="selacct" data-selacct="${n}" title="Select the messages shown for this account">${items.every((m) => mailSel.has(m.url)) ? 'None' : 'All'}</button>` : ''}<span class="n">${a.unread || ''}</span><button class="selacct acctout" data-acctout="${n}" title="Sign out of this account only…" aria-label="Sign out of ${esc(a.address)}"><svg viewBox="0 0 16 16" width="11" height="11" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6.5 2.5h-3a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1h3M10.5 11 13.5 8l-3-3M13.5 8H6"/></svg></button><button class="selacct" data-accthide="${esc(a.address)}" title="${acctHidden.has(a.address) ? 'Show this account again' : 'Hide this account (Show hidden brings it back)'}">${acctHidden.has(a.address) ? 'Show' : '−'}</button></div>
+              ${items.map(mailRow).join('') || '<div class="note">No unread mail</div>'}${more > 0 ? `<button class="note cl-hidden acct-more" data-acct="${n}" title="Open ${esc(a.address)} in a tab">${more} more in Gmail</button>` : ''}</div>`;
           }).join('') + (acctHid ? `<button class="note cl-hidden" data-acctshowhidden>${acctShowHidden ? 'Done showing' : 'Show'} ${acctHid} hidden account${acctHid > 1 ? 's' : ''}</button>` : '')
         : gm.items.length
           ? folderRows('mail', gm.items, mailRow)
@@ -947,7 +956,10 @@ document.addEventListener('click', (e) => {
   const tab = e.target.closest('[data-id]');
   if (tab) return ask({ cmd: 'tab.activate', id: +tab.dataset.id });
   const selacct = e.target.closest('[data-selacct]');
-  if (selacct) { e.stopPropagation(); return selectMail(state.gmail.items.filter((m) => m.account === +selacct.dataset.selacct)); }
+  if (selacct) { e.stopPropagation(); return selectMail(state.gmail.shown.filter((m) => m.account === +selacct.dataset.selacct)); }
+  // Signs out that one account through Google's own page for it, after a native confirm menu (controller.cc).
+  const acctout = e.target.closest('[data-acctout]');
+  if (acctout) { e.stopPropagation(); return ask({ cmd: 'run', id: 'gmailAcctSignOut:' + acctout.dataset.acctout }); }
   const mhide = e.target.closest('[data-mhide]');
   if (mhide) { e.stopPropagation(); mailHidden.add(mhide.closest('[data-murl]').dataset.murl); saveMail(); return roar.render(state); }
   const ah = e.target.closest('[data-accthide]');
@@ -1102,6 +1114,7 @@ function showCtx(html, e, bind) {
   };
   if (!ctx.querySelector('input')) ctx.querySelector('button')?.focus();
 }
+const MAIL_CAP = 3;  // Unread mail rows listed per inbox.
 // Gmail account hues, picked to sit with the sidebar's warm browns.
 const ACCT_HUES = ['#d9822b', '#3f9e9a', '#c8607a', '#8f9a3c', '#7d7fd1', '#b9894f'];
 const dot = (c) => `<span class="gdot" style="${c ? '--gc:' + c : ''}"></span>`;
@@ -1963,7 +1976,7 @@ try {
 function syncMailSel() {
   $('gm-delsel').hidden = !mailSel.size;
   $('gm-delsel').textContent = `Delete ${mailSel.size}`;
-  const items = state?.gmail?.items || [];
+  const items = state?.gmail?.shown || [];
   const all = items.length > 0 && items.every((m) => mailSel.has(m.url));
   $('gm-selall').hidden = !items.length;
   $('gm-selall').textContent = all ? 'Select none' : 'Select all';
@@ -1973,7 +1986,7 @@ function selectMail(items) {
   for (const m of items) all ? mailSel.delete(m.url) : mailSel.add(m.url);
   roar.render(state);
 }
-$('gm-selall').onclick = (e) => { e.stopPropagation(); selectMail(state.gmail.items || []); };
+$('gm-selall').onclick = (e) => { e.stopPropagation(); selectMail(state.gmail.shown || []); };
 // Per-viewer mail list tweaks, keyed by message URL: hidden rows and a dragged order.
 const mailHidden = new Set(loadMail('mailHidden'));
 let mailOrder = loadMail('mailOrder');
