@@ -48,32 +48,12 @@ pre { margin: 6px 0; font: 12px/1.6 var(--mono); background: var(--ground); bord
 .empty { color: var(--ink-3); padding: 12px 0; }
 @media (max-width: 640px) { .wrap { grid-template-columns: 1fr; } nav { position: static; grid-auto-flow: column; overflow-x: auto; } }
 .status.warn { color: var(--mane-ink, #d9822b); }
-/* Agents: a grid of cards, CLIs first in their order (drag a card, or arrow keys on its handle). */
+/* Agents: the Chat models shape (order list .ch-*, cards details.vendor); the CLI order is agentOrder. */
 .as-hint { margin: -2px 0 12px; font-size: 12px; color: var(--ink-3); }
-.as-list { list-style: none; margin: 0 0 10px; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 10px; }
-.as-list > .empty { grid-column: 1 / -1; }
-.row.as-card { position: relative; display: grid; grid-template-rows: auto 1fr auto; align-items: start; gap: 6px; min-height: 0; padding: 14px; border: 1px solid var(--rule); border-radius: 12px; background: var(--ground); transition: border-color .15s, box-shadow .15s; }
-.row.as-card:hover { border-color: color-mix(in srgb, var(--mane) 35%, var(--rule)); }
-.as-card.on { border-color: color-mix(in srgb, var(--ok) 35%, var(--rule)); }
-.as-card.wide { grid-column: 1 / -1; }
-.as-card.drop { box-shadow: 0 0 0 2px var(--mane); }
-.as-card.away .name { color: var(--ink-2); }
-.as-top { display: flex; align-items: center; gap: 10px; }
-.as-top .name { flex: 1; font: 600 14px var(--round); min-width: 0; }
-.as-av { flex: none; display: grid; place-items: center; width: 28px; height: 28px; border-radius: 8px; background: var(--panel); box-shadow: inset 0 0 0 1px var(--rule); }
-.row small.as-st { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--ink-3); }
-.as-st::before { content: ""; flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--rule); }
-.as-st[data-state=available] { color: var(--ok); } .as-st[data-state=available]::before { background: var(--ok); }
-.as-st.warn { color: var(--mane-ink); } .as-st.warn::before { background: var(--mane); }
-.as-st.live::before { animation: as-pulse 1.8s ease-out infinite; }
-@keyframes as-pulse { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--ok) 60%, transparent); } 100% { box-shadow: 0 0 0 7px transparent; } }
-.as-act { display: flex; justify-content: flex-end; gap: 6px; min-height: 30px; align-items: end; }
-.as-act .btn { padding: 5px 12px; background: var(--panel); }
-.as-act .btn:not(.quiet) { color: var(--mane-ink); }
-.as-act .btn.quiet { background: none; color: var(--ink-3); }
-.as-act .btn.quiet:hover { color: var(--danger); background: none; }
 .grip { display: grid; gap: 2px; padding: 6px 4px; border-radius: 5px; cursor: grab; color: var(--ink-3); background: none; opacity: 0; transition: opacity .15s; }
-.as-card:hover .grip, .grip:focus-visible { opacity: 1; }
+.as-cards, .as-slot, .as-rest { display: contents; }
+.v-name .agent-icon { vertical-align: -3px; margin-right: 8px; }
+.vendor h3 { margin: 8px 0 0; }
 .ch-list { list-style: none; margin: 0; padding: 0; }
 .ch-item { display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; align-items: center; gap: 6px; border-radius: 8px; }
 .ch-item.drop { box-shadow: 0 0 0 2px var(--mane); }
@@ -86,12 +66,6 @@ pre { margin: 6px 0; font: 12px/1.6 var(--mono); background: var(--ground); bord
 .as-banner::before { content: ""; flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--mane); }
 .as-banner span { flex: 1; }
 .as-banner .btn { padding: 4px 12px; border-radius: 999px; background: var(--mane); color: #2a1604; font-weight: 600; }
-details.as-more { margin-top: 2px; }
-details.as-more .as-list { margin-top: 4px; }
-/* Sessions and Browsing: one rounded block each. */
-.blk { border: 1px solid var(--rule); border-radius: 12px; padding: 4px 16px; margin-top: 14px; }
-.blk h3 { margin: 10px 0 2px; font: 700 11px var(--ui); letter-spacing: .06em; text-transform: uppercase; }
-.blk .row:last-child, .blk fieldset .row:last-child { border-bottom: 0; }
 .sp-row { align-items: flex-start; }
 .sp-chips { display: flex; flex-wrap: wrap; gap: 6px; flex-basis: 100%; padding-bottom: 4px; }
 .sp-chip { display: inline-flex; align-items: center; gap: 7px; padding: 5px 12px 5px 10px; border-radius: 999px; font-size: 12.5px; color: var(--ink-2); box-shadow: inset 0 0 0 1px var(--rule); }
@@ -246,31 +220,30 @@ details.vendor[open] > summary::before { transform: rotate(45deg); }
     </section>
 
     <section id="agents"><h2>Agents</h2>
-      <p class="as-hint">Drag to reorder. Rename with AI uses the first agent with a running session; Shift-click to pick another.<span hidden>Agent order. Tools you use. Show more, copy config.</span></p>
+      <p class="reason">The coding agents whose sessions show in the sidebar and that can browse with Roar. Open one below to connect it.</p>
       <div id="agent-setup"></div>
-      <div class="blk"><h3>Sessions</h3>
-        <div class="row"><span class="name" id="view-label">Show sessions as<small>Each session can switch on its own.</small></span>
-          <div class="segmented" role="group" aria-labelledby="view-label" data-seg="agentTerminal">
-            <button data-v="false">Chat</button><button data-v="true">Terminal</button></div></div>
-        <div class="row"><label class="name" for="cl-side">Sessions in the sidebar<small>When off, Ask chats still show under AI.</small><span hidden>Agent sessions in the sidebar</span></label><input type="checkbox" class="switch" id="cl-side" data-set="claudeSidebar"></div>
-        <p class="reason">Session alerts live in <a href="#notifications" data-goto="notifications">Notifications</a>.</p>
-      </div>
-      <div class="blk"><h3>Hermes</h3>
+      <details class="vendor" data-agent="hermes" id="hermes-card"><summary><span class="v-name" id="hermes-ico">Hermes</span><span class="v-st" id="hermes-st">Off</span></summary>
+        <p class="reason">Open sessions on a Hermes dashboard show in the sidebar to watch.</p>
         <div class="row"><span class="name" id="hermes-label">Hermes sessions<small id="hermes-note"></small><span hidden>Hermes server Hermes Agent dashboard sessions</span></span>
           <div class="segmented" role="group" aria-labelledby="hermes-label" id="hermes-where"><button data-hw="off">Off</button><button data-hw="local">This Mac</button><button data-hw="remote">Another machine</button></div></div>
         <div class="row" id="hermes-addr"><label class="name" for="hermes-url">Dashboard<small id="hermes-addr-note"></small></label>
           <span class="end"><input type="text" id="hermes-url" class="query" placeholder="https://hermes.example.com" aria-label="Hermes dashboard address" spellcheck="false" style="width:230px"><select id="hermes-space" data-set="hermesSpace" data-kind="number" aria-label="Space signed in to Hermes"></select></span></div>
         <p class="reason">To chat with Hermes in Ask, connect it in <a href="#chat" data-goto="chat">Chat models</a>.</p>
-      </div>
-      <div class="blk"><h3>Browsing</h3>
-        <div class="row"><label class="name" for="cdp-on" title="Close it before a site that flags automated browsers">Let agents use Roar<small id="cdp-win" hidden>On Windows, agents reach every space whatever its agent setting says, and any program on this PC can use the same port.</small><span hidden>Agents can browse with Roar</span></label><span class="end"><button class="btn" id="cdp-relaunch" hidden>Relaunch to apply</button><input type="checkbox" class="switch" id="cdp-on" data-set="cdpEnabled"></span></div>
-        <fieldset id="agent-opts">
-          <div class="row"><span class="name" id="mode-label">Where agents browse<small id="mode-note"></small></span>
-            <div class="segmented" role="group" aria-labelledby="mode-label" data-seg="agentHeadless">
-              <button data-v="false">With you</button><button data-v="true">In the background</button></div></div>
-          <div class="row sp-row"><span class="name">Spaces agents can reach<small>Or click a space’s dot in the sidebar; a ring means agents can reach it. Ghost tabs always stay private.</small><span hidden>Spaces agents can see</span></span><div id="agent-spaces" class="sp-chips"></div></div>
-        </fieldset>
-      </div>
+      </details>
+      <h3>Sessions</h3>
+      <div class="row"><span class="name" id="view-label">Show sessions as<small>Each session can switch on its own.</small></span>
+        <div class="segmented" role="group" aria-labelledby="view-label" data-seg="agentTerminal">
+          <button data-v="false">Chat</button><button data-v="true">Terminal</button></div></div>
+      <div class="row"><label class="name" for="cl-side">Sessions in the sidebar<small>When off, Ask chats still show under AI.</small><span hidden>Agent sessions in the sidebar</span></label><input type="checkbox" class="switch" id="cl-side" data-set="claudeSidebar"></div>
+      <p class="reason">Session alerts live in <a href="#notifications" data-goto="notifications">Notifications</a>.</p>
+      <h3>Browsing</h3>
+      <div class="row"><label class="name" for="cdp-on" title="Close it before a site that flags automated browsers">Let agents use Roar<small id="cdp-win" hidden>On Windows, agents reach every space whatever its agent setting says, and any program on this PC can use the same port.</small><span hidden>Agents can browse with Roar</span></label><span class="end"><button class="btn" id="cdp-relaunch" hidden>Relaunch to apply</button><input type="checkbox" class="switch" id="cdp-on" data-set="cdpEnabled"></span></div>
+      <fieldset id="agent-opts">
+        <div class="row"><span class="name" id="mode-label">Where agents browse<small id="mode-note"></small></span>
+          <div class="segmented" role="group" aria-labelledby="mode-label" data-seg="agentHeadless">
+            <button data-v="false">With you</button><button data-v="true">In the background</button></div></div>
+        <div class="row sp-row"><span class="name">Spaces agents can reach<small>Or click a space’s dot in the sidebar; a ring means agents can reach it. Ghost tabs always stay private.</small><span hidden>Spaces agents can see</span></span><div id="agent-spaces" class="sp-chips"></div></div>
+      </fieldset>
       <details class="group" id="card-diag"><summary>More</summary>
         <div class="row"><span class="name">Agent badge<small>Sessions and hours Roar has counted, as a card to share. The counts stay on this computer.</small></span><span class="end"><button class="btn" id="open-badge">Open</button></span></div>
         <div class="row"><label class="name" for="af-on">Agent files row<small>Opens CLAUDE.md, AGENTS.md and rules in one click.</small></label><input type="checkbox" class="switch" id="af-on" data-set="agentFilesRow"></div>
@@ -351,7 +324,8 @@ if (/^Win/.test(navigator.platform)) document.getElementById('code-copy').textCo
 const $ = (id) => document.getElementById(id);
 const GH_DEFAULT = 'is:open is:pr author:@me archived:false';  // Matches Settings::github_query.
 let last = null;
-const setup = agentSetup($('agent-setup'), { llm: false, list: true });
+const setup = agentSetup($('agent-setup'), { llm: false, list: true, slot: $('hermes-card') });
+$('hermes-ico').insertAdjacentHTML('afterbegin', agentIcon('hermes', 16));
 $('ask-llm-row').innerHTML = llmRowHtml();  // ⌘T's AI lives with Chat models; onboarding keeps it with agents.
 const showLlm = llmPicker($('as-llm'), () => refresh());
 $('reset-all').onclick = () => { if (confirm('Reset every setting to its default? Tabs, spaces, bookmarks, extensions and logins stay.')) ask({ cmd: 'settings.reset' }).then(apply); };
@@ -424,6 +398,10 @@ function hermesRow(s) {
   u.readOnly = where === 'local';
   $('hermes-addr-note').textContent = where === 'local' ? 'The dashboard on this Mac.' : s.spaces.length > 1 ? 'Roar reads it with the sign-in in the space you pick.' : 'Roar reads it with your sign-in there.';
   $('hermes-note').textContent = url ? s.claude?.hermes || HERMES_NOTE : HERMES_NOTE;
+  // The card's status, like a Chat models provider: where it runs, green once the dashboard answers.
+  const pill = $('hermes-st'), said = url ? s.claude?.hermes || '' : '';
+  pill.textContent = { off: 'Off', local: 'This Mac', remote: 'Another machine' }[where];
+  pill.dataset.state = where === 'off' || !said ? '' : /^Connected/.test(said) ? 'available' : 'warn';
 }
 $('hermes-where').onclick = (e) => {
   const w = e.target.closest('[data-hw]')?.dataset.hw;

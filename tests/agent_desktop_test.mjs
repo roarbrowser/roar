@@ -54,22 +54,23 @@ try {
   await sleep(800);
   await set(fake);
   await set(`setup.refresh().then(() => true)`);
-  const row = await waitFor(() => set(`document.querySelector('.as-list [data-tool=claude]')?.innerText`));
+  // Claude Code's card in Settings > Agents, opened (it stays open across repaints).
+  const row = await waitFor(() => set(`(() => { const d = document.querySelector('#agent-setup details[data-agent=claude]'); if (d) d.open = true; return d?.innerText; })()`));
   check(/The Claude app is installed, but Roar’s agent features need Claude Code/.test(row || ''), 'Settings > Agents shows the install notice: ' + row);
   check(/curl -fsSL https:\/\/claude\.ai\/install\.sh \| bash/.test(row) && /Then run claude once in Terminal to sign in\./.test(row), 'command and sign-in line');
   check(!/Connected|Connect\b/.test(row), 'no Connected or Connect on the Claude Code row');
-  check(await set(`!document.querySelector('.as-list [data-tool=claude] [data-key]')`), 'its Connect button is replaced');
-  const copy = await set(`(() => { const b = document.querySelector('.as-list [data-tool=claude] [data-copytext]'); b.focus(); b.click(); return [document.activeElement === b, b.getAttribute('aria-label'), b.tagName]; })()`);
+  check(await set(`!document.querySelector('#agent-setup details[data-agent=claude] [data-key]')`), 'its Connect button is replaced');
+  const copy = await set(`(() => { const b = document.querySelector('#agent-setup details[data-agent=claude] [data-copytext]'); b.focus(); b.click(); return [document.activeElement === b, b.getAttribute('aria-label'), b.tagName]; })()`);
   check(copy[0] && copy[1] && copy[2] === 'BUTTON', 'Copy is a focusable button with a name: ' + copy[1]);
   await sleep(100);
   check(await set(`JSON.stringify(window.copied)`) === JSON.stringify(['curl -fsSL https://claude.ai/install.sh | bash']), 'clipboard gets exactly the command');
-  check(await set(`document.querySelector('.as-list [data-tool=claude] [data-copytext]').textContent`) === 'Copied', 'label says Copied');
+  check(await set(`document.querySelector('#agent-setup details[data-agent=claude] [data-copytext]').textContent`) === 'Copied', 'label says Copied');
   await sleep(1700);
-  check(await set(`document.querySelector('.as-list [data-tool=claude] [data-copytext]').textContent`) === 'Copy', 'label back to Copy');
+  check(await set(`document.querySelector('#agent-setup details[data-agent=claude] [data-copytext]').textContent`) === 'Copy', 'label back to Copy');
   // Clipboard API refused: the click still answers (Copied via the selection, or Press ⌘C).
-  await set(`navigator.clipboard.writeText = () => Promise.reject(new Error('denied')); document.querySelector('.as-list [data-tool=claude] [data-copytext]').click(); true`);
+  await set(`navigator.clipboard.writeText = () => Promise.reject(new Error('denied')); document.querySelector('#agent-setup details[data-agent=claude] [data-copytext]').click(); true`);
   await sleep(100);
-  const failLabel = await set(`document.querySelector('.as-list [data-tool=claude] [data-copytext]').textContent`);
+  const failLabel = await set(`document.querySelector('#agent-setup details[data-agent=claude] [data-copytext]').textContent`);
   check(/^(Copied|Press ⌘C)$/.test(failLabel), 'refused clipboard still gives feedback: ' + failLabel);
   await set(`navigator.clipboard.writeText = (t) => (window.copied.push(t), Promise.resolve()); true`);
   await sleep(1600);
@@ -112,11 +113,11 @@ try {
       : m.cmd === 'agents.connect' ? Promise.resolve('spawn claude ENOENT') : m.cmd === 'claude.hooks' ? Promise.reject(new Error('claude: command not found'))
       : m.cmd === 'settings.set' ? Promise.resolve(true) : a(m); return true; })()`);
     await set(`showTab('agents'); setup.refresh().then(() => true)`);
-    await waitFor(() => set(`!!document.querySelector('.as-list [data-tool=claude] [data-key]')`));
-    await set(`document.querySelector('.as-list [data-tool=claude] [data-key]').click()`);
-    const er = await waitFor(() => set(`(t => /agent features|Couldn/.test(t) && t)(document.querySelector('.as-list [data-tool=claude]').innerText)`));
+    await waitFor(() => set(`!!document.querySelector('#agent-setup details[data-agent=claude] [data-key]')`));
+    await set(`(() => { const d = document.querySelector('#agent-setup details[data-agent=claude]'); d.open = true; d.querySelector('[data-key]').click(); })()`);
+    const er = await waitFor(() => set(`(t => /agent features|Couldn/.test(t) && t)(document.querySelector('#agent-setup details[data-agent=claude]').innerText)`));
     if (cli === 'missing') check(/agent features need Claude Code/.test(er || '') && !/Couldn/.test(er), 'missing CLI: connect error shows the notice: ' + er);
-    else check(/Couldn/.test(er || '') && !/agent features/.test(er) && !!(await set(`!!document.querySelector('.as-list [data-tool=claude] [data-key]')`)), 'CLI installed: real error and Connect button, no notice: ' + er);
+    else check(/Couldn/.test(er || '') && !/agent features/.test(er) && !!(await set(`!!document.querySelector('#agent-setup details[data-agent=claude] [data-key]')`)), 'CLI installed: real error and Connect button, no notice: ' + er);
   }
   await shot('settings-chat', (x) => x.url.includes('settings.html'));
   // Sidebar Code dialog.

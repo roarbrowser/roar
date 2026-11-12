@@ -61,6 +61,36 @@ try {
   check(!!t, 'click opens settings.html#agents');
   check(await sidebar(`document.getElementById('ctx').hidden`), 'pop-up closed');
   check(await waitFor(agentsShown), 'Agents section shown');
+  // Agents has Chat models' shape: connected CLIs in an order list, then one card per agent with its setup inside.
+  // Stand in for Claude Code and OpenCode with Roar's hooks installed, whatever this machine has.
+  const st = async (e) => (await cdp((x) => x.url.includes('settings.html'), 'Runtime.evaluate', { expression: e, awaitPromise: true, returnByValue: true }))?.result?.value;
+  await st(`(() => { const a = window.ask; window.ask = (m) => m.cmd === 'state' ? a(m).then((s) => { s = typeof s === 'string' ? JSON.parse(s) : s; s.claude = { ...s.claude, tools: { ...(s.claude?.tools || {}), claude: 'installed', opencode: 'installed' } }; return s; })
+    : m.cmd === 'agents.list' ? a(m).then((l) => (l || []).map((c) => ['claude-code', 'opencode'].includes(c.id) ? { ...c, connected: true, stale: false } : c))
+    : m.cmd === 'chat.clis' ? Promise.resolve({ claude: 'ok' }) : a(m); return true; })()`);
+  await st(`setup.refresh().then(() => true)`);
+  const order = async () => (await st(`[...document.querySelectorAll('#agent-setup .as-order [data-tool]')].map((x) => x.dataset.tool).join()`)) || '';
+  const o1 = await waitFor(async () => { const o = await order(); return /claude/.test(o) && /opencode/.test(o) && o; });
+  check(!!o1, 'connected CLIs in the order list: ' + o1);
+  check(await st(`!document.querySelector('.as-card, .as-list')`), 'no card grid left');
+  check(/Shift-click to pick another/.test(await st(`document.querySelector('#agent-setup .as-order .as-hint')?.textContent`) || ''), 'rename hint over the order list');
+  const first = (o1 || '').split(',')[0];
+  await st(`(() => { const g = document.querySelector('#agent-setup [data-grip="${first}"]'); g.focus(); g.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true })); return true; })()`);
+  check(await waitFor(async () => (await order()).split(',')[1] === first), 'Arrow Down moves a row down: ' + await order());
+  check(await st(`document.activeElement?.dataset?.grip`) === first, 'focus stays on its handle');
+  check(await st(`[...document.querySelectorAll('#agent-setup .as-order [data-tool]')].every((li) => li.querySelector('[data-open-agent]') && li.querySelector('[data-key]'))`), 'each row has Settings and Disconnect');
+  await st(`document.querySelector('#agent-setup .as-order [data-open-agent=opencode]').click()`);
+  check(await st(`document.querySelector('#agent-setup details[data-agent=opencode]').open`), 'Settings opens its card');
+  await st(`setup.refresh().then(() => true)`);
+  check(await st(`document.querySelector('#agent-setup details[data-agent=opencode]').open`), 'the card stays open across a repaint');
+  check(/^Connected/.test(await st(`document.querySelector('#agent-setup details[data-agent=opencode] .v-st').textContent`) || ''), 'its pill says Connected');
+  // Hermes is a card too, after the CLIs; More agents comes last.
+  check(await st(`(() => { const h = document.querySelector('#agent-setup .vendors details[data-agent=hermes]'); return !!h && ['#hermes-where', '#hermes-url', '#hermes-space', '[data-goto=chat]'].every((q) => h.querySelector(q)); })()`), 'Hermes card holds its mode, dashboard, space and the Chat models link');
+  check(await st(`(() => { const c = [...document.querySelectorAll('#agent-setup .vendors details')].map((d) => d.dataset.agent); return c.indexOf('hermes') > c.indexOf('opencode') && (!c.includes('more') || c.at(-1) === 'more'); })()`), 'card order: CLIs, Hermes, More agents');
+  await st(`document.querySelector('#hermes-where [data-hw=local]').click()`);
+  check(await waitFor(async () => (await st(`document.getElementById('hermes-st').textContent`)) === 'This Mac'), 'Hermes pill follows its mode (This Mac)');
+  await st(`document.querySelector('#hermes-where [data-hw=off]').click()`);
+  check(await waitFor(async () => (await st(`document.getElementById('hermes-st').textContent`)) === 'Off'), 'and Off');
+  check(await st(`['cl-side', 'cdp-on', 'agent-spaces', 'card-diag'].every((id) => document.getElementById(id)?.closest('#agents')) && !!document.querySelector('#agents [data-goto=notifications]') && /space’s dot/.test(document.getElementById('agents').textContent)`), 'Sessions, Browsing and More stay, with their links');
   // Settings open elsewhere: switching to another section then clicking again reuses the tab and shows Agents.
   await cdp((x) => x.url.includes('settings.html'), 'Runtime.evaluate', { expression: `showTab('general')` });
   await sidebar(`ask({cmd:'open',text:'about:blank#y',newTab:true})`);
