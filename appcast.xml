@@ -403,5 +403,14 @@
       <description><![CDATA[Site tweaks can now run in ghost tabs. In the Site tweaks manager, switch on "Run in ghost tabs" for any script or style you want there. Each ghost session gets a copy of just those, along with their saved data, so a script that hides things or remembers settings works the same in a ghost tab. Nothing a ghost tab changes goes back to your space: the copy is thrown away when the last ghost tab closes. Scripts stay off in ghost tabs unless you switch them on, and you can't install new ones from a ghost tab.]]></description>
       <enclosure url="https://github.com/roarbrowser/roar/releases/download/v1.22.0/Roar-1.22.0.dmg" type="application/octet-stream" sparkle:edSignature="1XnnrJTAHFcOPehX4wS0sPXFks9gYbozdKK2L1uUAe+K+dIFiJRQOYTSkOMrOIOC2tVkTVCLmw86r1h8aUdnBw==" length="208066412"/>
     </item>
+    <item>
+      <title>1.22.1</title>
+      <pubDate>Thu, 12 Nov 2026 11:36:32 +0000</pubDate>
+      <sparkle:version>12201</sparkle:version>
+      <sparkle:shortVersionString>1.22.1</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[Pinned groups keep their tabs when an agent finishes or a space is cleared. Outlook pop-outs like Edit draft open properly instead of a blank tab. Roar writes its data files far less often.]]></description>
+      <enclosure url="https://github.com/roarbrowser/roar/releases/download/v1.22.1/Roar-1.22.1.dmg" type="application/octet-stream" sparkle:edSignature="o4aPB/QneDYod5qIXq4pFUDBa62LQ6PEkHWuKlEtZtbIYRc34NQqXiFGzMlza7xBEPcrF+p3SNlSNqYQ6ag0BQ==" length="208068217"/>
+    </item>
   </channel>
 </rss>
