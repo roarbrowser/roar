@@ -1,7 +1,7 @@
 // Per-tool hook adapters and installers (mcp/claude-hook.mjs), against a scratch HOME and Roar data
 // dir: scripts/test-agent-hook.sh. Never touches the real ~/.claude, ~/.codex, ~/.gemini...
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, readFileSync, writeFileSync, existsSync, readdirSync, mkdtempSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync, existsSync, readdirSync, mkdtempSync, rmSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
@@ -168,5 +168,56 @@ check(ctlWith(fakeCmux(''  , 0), 'cmux') === 'ok', 'cmux answering: ok');
 check(ctlWith(fakeCmux('Error: Socket not found at /x'), 'cmux') === 'none', 'cmux not running: no warning');
 check(ctlWith(ctlEnv, 'cmux') === 'none', 'no cmux: no warning');
 check(ctlWith(fakeCmux('Error: disk on fire'), 'screen', 'cx1') === 'error: Error: disk on fire', 'other errors pass through');
+
+// hermes: Roar is the browser of the agent box. Listed when Hermes is reachable (local gateway running,
+// or a remote connection file); `new` opens its dashboard /chat in the person's space, never front-grabbing.
+const henv = { ...ctlEnv, HERMES_HOME: '', XDG_CONFIG_HOME: '' };  // never the real home's Hermes files
+const hctl = (...a) => execFileSync(process.execPath, [EXE, 'claude-ctl', ...a], { env: henv, encoding: 'utf8' });
+const gstate = (s) => { mkdirSync(join(HOME, '.hermes'), { recursive: true }); writeFileSync(join(HOME, '.hermes', 'gateway_state.json'), JSON.stringify({ gateway_state: s })); };
+const conn = (o) => { mkdirSync(join(HOME, 'Library/Application Support/Hermes'), { recursive: true }); writeFileSync(join(HOME, 'Library/Application Support/Hermes', 'connection.json'), JSON.stringify(o)); };
+// Either source = connected.
+gstate('running'); conn({ mode: 'local' });
+check(hctl('tools').split('\n').includes('hermes'), 'tools lists hermes with a running local gateway');
+gstate('stopped');
+check(!hctl('tools').split('\n').includes('hermes'), 'a stopped gateway does not list hermes');
+conn({ mode: 'remote', remote: { url: 'http://192.0.2.7:8642/' } });
+check(hctl('tools').split('\n').includes('hermes'), 'tools lists hermes with a remote connection file');
+conn({ mode: 'remote' });
+check(!hctl('tools').split('\n').includes('hermes'), 'remote without a url is not connected');
+rmSync(join(HOME, 'Library/Application Support/Hermes/connection.json'), { force: true });
+check(!hctl('tools').split('\n').includes('hermes'), 'nothing set: hermes not listed');
+gstate('running');  // connected again for the new tests
+// new with a cmux that answers: a workspace opens the dashboard un-focused; stand-in row tracks it.
+const CMUXLOG = join(HOME, 'cmux-hermes-log.txt');
+const fcmux = join(HOME, 'fake-cmux-hermes');
+writeFileSync(fcmux, `#!/bin/sh\necho "ARGS $*" >> ${CMUXLOG}\necho workspace:42\n`, { mode: 0o755 });
+const hid = (() => { try { return execFileSync(process.execPath, [EXE, 'claude-ctl', 'new', WORK, 'ship the tile', 'hermes', 'http://127.0.0.1:59999'], { env: { ...henv, ROAR_TEST_CMUX: fcmux }, encoding: 'utf8' }); } catch { return ''; } })();
+const hs = session(hid);
+check(/^new-\d+$/.test(hid) && hs?.tool === 'hermes' && hs?.term?.cmux?.workspace === 'workspace:42' && hs.live, `new ... hermes (cmux) answers a stand-in id (${hid})`);
+check(existsSync(CMUXLOG) && readFileSync(CMUXLOG, 'utf8').includes("--command open -g 'http://127.0.0.1:59999/chat'") && readFileSync(CMUXLOG, 'utf8').includes('--focus false'), 'the cmux workspace opens the dashboard with focus false');
+// new without cmux (tmux here): the pane opens the dashboard; the stand-in tracks the pane.
+const OPENLOG = join(HOME, 'openlog.txt');
+writeFileSync(join(BIN, 'open'), `#!/bin/sh\necho "$*" >> ${OPENLOG}\n`, { mode: 0o755 });
+const opened = () => existsSync(OPENLOG) ? readFileSync(OPENLOG, 'utf8') : '';
+const waitOpen = (needle) => { for (let i = 0; i < 60 && !opened().includes(needle); i++) execFileSync('sleep', ['0.05']); return opened().includes(needle); };
+const id2 = (() => { try { return hctl('new', WORK, 'in tmux', 'hermes', 'http://127.0.0.1:59999'); } catch (e) { return e.stdout; } })();
+const hs2 = session(id2);
+check(/^new-\d+$/.test(id2) && hs2?.tool === 'hermes' && hs2?.term?.tmux?.pane && hs2?.term?.tmux?.socket, `new ... hermes (tmux) makes a session stand-in (${id2})`);
+check(waitOpen('-g http://127.0.0.1:59999/chat'), 'the tmux pane ran open -g on the dashboard');
+// Start with no base: never a dead end. A running local gateway = its default dashboard (9119);
+// a set hermesUrl (Roar's state.json) wins; a remote connection = its gateway; nothing = a fix, not a wall.
+const id3 = (() => { try { return hctl('new', WORK, 'no base', 'hermes'); } catch (e) { return e.stdout; } })();
+check(/^new-\d+$/.test(id3) && waitOpen('-g http://127.0.0.1:9119/chat'), `no base: a running local gateway opens its default dashboard (${id3})`);
+writeFileSync(join(DATA, 'state.json'), JSON.stringify({ hermesUrl: 'http://192.0.2.9:9119' }));
+const id4 = (() => { try { return hctl('new', WORK, 'set url', 'hermes'); } catch (e) { return e.stdout; } })();
+check(/^new-\d+$/.test(id4) && waitOpen('-g http://192.0.2.9:9119/chat'), `the set hermesUrl wins over the local default (${id4})`);
+rmSync(join(DATA, 'state.json'), { force: true }); rmSync(join(HOME, '.hermes', 'gateway_state.json'), { force: true });
+conn({ mode: 'remote', remote: { url: 'https://hk.example.com:9119' } });
+const id5 = (() => { try { return hctl('new', WORK, 'via remote', 'hermes'); } catch (e) { return e.stdout; } })();
+check(/^new-\d+$/.test(id5) && waitOpen('-g https://hk.example.com:9119/chat'), `a remote connection opens its gateway (${id5})`);
+rmSync(join(HOME, 'Library/Application Support/Hermes/connection.json'), { force: true });
+const id6 = (() => { try { return hctl('new', WORK, 'nothing', 'hermes'); } catch (e) { return (e.stdout || 'crashed').trim(); } })();
+check(id6 === 'error: Hermes is not connected (start its gateway or set a connection file)', `nothing connected: Start gives the fix, not a wall (${id6})`);
+try { execFileSync('tmux', ['-S', join(HOME, 'tmux'), 'kill-server']); } catch {}
 console.log(fail ? `${fail} failure(s)` : 'ok');
 process.exit(fail ? 1 : 0);

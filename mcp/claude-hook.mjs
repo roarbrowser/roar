@@ -5,9 +5,11 @@
 //   roar-mcp claude-hook                       = agent-hook claude (hooks installed before 0.12 call it)
 //   roar-mcp agent-hooks install|uninstall|status [tool]   adds/removes the hooks in each CLI's config
 //   roar-mcp claude-hooks install|uninstall|status         the same for Claude Code only
-//   roar-mcp claude-ctl new <folder> [first prompt] [tool]   starts that CLI (default claude) there
-//                                              (cmux, else tmux, else Terminal; Windows: wt.exe, else a console)
-//   roar-mcp claude-ctl tools                  prints the installed CLIs' ids, one per line
+//   roar-mcp claude-ctl new <folder> [first prompt] [tool] [dashboard base]   starts that CLI (default
+//                                              claude) there (cmux, else tmux, else Terminal; Windows: wt.exe,
+//                                              else a console); tool=hermes opens its dashboard /chat instead
+//   roar-mcp claude-ctl tools                  prints the installed CLIs' ids, one per line, plus hermes
+//                                              when reachable (its gateway runs here, or a remote connection file)
 //   roar-mcp claude-ctl cmux                   whether Roar can drive cmux: ok, none, or why not
 //   roar-mcp claude-ctl opencode-server        the URL a running OpenCode terminal uses, or nothing
 //   roar-mcp claude-ctl chat <session> [process start ms]   the session as chat JSON (mcp/agent-chat.mjs)
@@ -406,6 +408,22 @@ const CLIS = {
   opencode: { bin: [join(HOME, '.opencode/bin/opencode')], args: (p) => ['--prompt', p] },
 };
 const binOf = (tool) => [...BIN_DIRS.map((d) => join(d, tool)), ...(CLIS[tool].bin || [])].flatMap((p) => EXTS.map((x) => p + x)).find((p) => existsSync(p));
+// Hermes is not a CLI here: it works through its dashboard. Local = the gateway's own state file says
+// running ($HERMES_HOME, else ~/.hermes); remote = the desktop app's connection file names a gateway URL
+// (same paths as src/agent_connect.cc HermesConnectionFile). Either one = connected.
+const hermesHome = () => process.env.HERMES_HOME || join(HOME, '.hermes');
+const hermesConnFile = () => process.platform === 'darwin' ? join(HOME, 'Library/Application Support/Hermes/connection.json')
+  : WIN ? join(process.env.APPDATA || join(HOME, 'AppData', 'Roaming'), 'Hermes', 'connection.json')
+  : join(process.env.XDG_CONFIG_HOME || join(HOME, '.config'), 'Hermes', 'connection.json');
+const hermesJson = (f) => { try { return JSON.parse(readFileSync(f, 'utf8')); } catch { return null; } };
+const hermesRemoteUrl = () => { const c = hermesJson(hermesConnFile()); const u = String(c?.mode === 'remote' ? c.remote?.url || '' : ''); return /^https?:\/\/\S+$/.test(u) ? u.replace(/\/+$/, '') : ''; };
+const hermesConnected = () => hermesJson(join(hermesHome(), 'gateway_state.json'))?.gateway_state === 'running' || !!hermesRemoteUrl();
+// The dashboard's base URL to open: what the person set in Roar's Settings (state.json hermesUrl) wins;
+// else the local gateway's default dashboard when it runs here (9119); else the remote gateway the
+// desktop app connects to. Never a wall when something is connected (Roar's MainDir state.json).
+const hermesUrl = () => [String(hermesJson(join(DATA, 'state.json'))?.hermesUrl || '').trim(),
+  hermesJson(join(hermesHome(), 'gateway_state.json'))?.gateway_state === 'running' ? 'http://127.0.0.1:9119' : '',
+  hermesRemoteUrl()].find((x) => /^https?:\/\/\S+$/.test(x)) || '';
 
 // Windows: a Windows Terminal tab when wt.exe is installed, else the CLI in its own console.
 // shortcut: no live view, input or focus on Windows (that needs tmux/cmux); a ConPTY host would add them.
@@ -420,11 +438,12 @@ function startWindows(dir, bin, args, name) {
   spawn(exe, argv, { cwd: dir, detached: true, stdio: 'ignore', windowsHide: false }).unref();
   return 'terminal';
 }
-const installed = () => Object.keys(CLIS).filter(binOf);
+const installed = () => Object.keys(CLIS).filter(binOf).concat(hermesConnected() ? ['hermes'] : []);
 
 // A new agent session in `dir`, in the background: the hooks report it once it starts.
-function start(dir, prompt, tool = 'claude') {
+function start(dir, prompt, tool = 'claude', base = '') {
   if (!ok(dir, WIN ? /^[A-Za-z]:[\\/][^\0\n"]*$/ : /^\/[^\0\n]*$/) || !existsSync(dir)) throw new Error('pick a folder that exists');
+  if (tool === 'hermes') return startHermes(dir, prompt, base);
   if (!CLIS[tool]) throw new Error('unknown agent CLI');
   const bin = binOf(tool);
   if (!bin) throw new Error(`${TOOLS[tool].name} is not installed (no ${tool} command found)`);
@@ -454,8 +473,39 @@ function start(dir, prompt, tool = 'claude') {
   return stub.id;
 }
 
-function ctl(action, id, arg, arg2) {
-  if (action === 'new') return start(id, arg, arg2 || 'claude');
+// hermes is not a CLI: it works through its dashboard, and Roar is that browser. Start opens /chat as
+// a tab in the person's space (open -g / start: a background tab, never a front-grab), in whichever
+// environment is here: a cmux workspace, else a tmux session, else Terminal (Windows: open the URL and
+// answer). The folder is kept as the session's work folder; a stand-in row waits for the real session,
+// like the CLIs' new-* rows.
+function startHermes(dir, prompt, base) {
+  // The chain: an explicit base, else what Settings set, else the local default, else the remote gateway.
+  const u = (String(base || '').trim() || hermesUrl()).replace(/\/+$/, '');
+  if (!/^https?:\/\/\S+$/.test(u)) throw new Error('Hermes is not connected (start its gateway or set a connection file)');
+  const now = Date.now(), stub = { id: `new-${now}`, tool: 'hermes', cwd: dir, project: isScratch(dir) ? scratchName(prompt) : basename(dir) || 'hermes', state: 'starting', doing: 'Opening Hermes…', started: now, updated: now, live: true, term: {} };
+  const open = `open -g ${sq(`${u}/chat`)}`;
+  if (WIN) { spawn('cmd.exe', ['/d', '/c', 'start', '/min', '', `${u}/chat`], { detached: true, stdio: 'ignore' }).unref(); return 'terminal'; }
+  // The pane keeps a shell after opening, so the space stays there to come back to.
+  const cmd = `${open}; exec ${sq(process.env.SHELL || '/bin/bash')}`;
+  if (existsSync(CMUX)) {
+    const out = run1(CMUX, ['new-workspace', '--name', stub.project, '--cwd', dir, '--command', cmd, '--focus', 'false']);
+    const ws = /workspace:\d+/.exec(out)?.[0];
+    if (ws) stub.term.cmux = { workspace: ws, surface: '' };
+  } else if (TMUX) {
+    const pane = run1(TMUX, ['new-session', '-d', '-P', '-F', '#{pane_id} #{socket_path}', '-s', `hermes-${now % 100000}`, '-c', dir, cmd]).trim().split(' ');
+    stub.term.tmux = { pane: pane[0], socket: pane[1] };
+  } else {
+    osa(`tell application "Terminal" to do script ${JSON.stringify(`cd ${sq(dir)} && ${cmd}`)}`);
+    return 'terminal';
+  }
+  mkdirSync(DIR, { recursive: true });
+  const f = join(DIR, stub.id + '.json');  // temp + rename: Roar polls this folder and must never read half a file
+  writeFileSync(f + '.tmp', JSON.stringify(stub)), renameSync(f + '.tmp', f);
+  return stub.id;
+}
+
+function ctl(action, id, arg, arg2, arg3) {
+  if (action === 'new') return start(id, arg, arg2 || 'claude', arg3);
   if (action === 'tools') return installed().join('\n');
   if (action === 'opencode-server') {
     // The server a running terminal connects to, for Settings to offer: OpenCode keeps no setting for it.
@@ -645,7 +695,7 @@ async function chatReply(id, born) {
 export async function run(args, exe) {
   if (args[0] === 'claude-ctl') {
     // writeSync: the compiled roar-mcp (bun) dropped the tail of a large async stdout write into Roar's pipe.
-    try { writeSync(1, String((args[1] === 'chat' ? await chatReply(args[2], args[3]) : ctl(args[1], args[2], args[3], args[4])) ?? '')); }
+    try { writeSync(1, String((args[1] === 'chat' ? await chatReply(args[2], args[3]) : ctl(args[1], args[2], args[3], args[4], args[5])) ?? '')); }
     catch (e) { writeSync(1, 'error: ' + explain(e.stderr?.toString().trim() || e.message)); process.exitCode = 1; }
     return;
   }

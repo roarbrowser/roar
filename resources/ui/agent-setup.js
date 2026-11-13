@@ -69,7 +69,7 @@ function agentSetup(root, { llm = true, list: asList = false, slot = null } = {}
   function rows() {
     const hooks = st?.claude?.tools || {};
     const mcpIds = Object.values(CLI_MCP);
-    const list = Object.keys(AGENT_TOOLS).map((t) => ({ key: t, hook: t, name: AGENT_TOOLS[t][0], mcp: clients.find((c) => c.id === CLI_MCP[t]) }))
+    const list = Object.keys(AGENT_TOOLS).filter((t) => t !== 'hermes').map((t) => ({ key: t, hook: t, name: AGENT_TOOLS[t][0], mcp: clients.find((c) => c.id === CLI_MCP[t]) }))  // Hermes has its own card in Settings; it connects by server, not by hooks.
       .concat(clients.filter((c) => !mcpIds.includes(c.id)).map((c) => ({ key: c.id, name: c.name, mcp: c })));
     for (const r of list) {
       const h = r.hook ? hooks[r.hook] || 'absent' : 'absent', m = r.mcp;

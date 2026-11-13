@@ -1571,10 +1571,6 @@ $('cl').addEventListener('keydown', (e) => {
 // Code (new session): a modal, type (installed CLIs) then where (a folder, or a scratch folder Roar makes)
 // and an optional first prompt. The row shows "Starting…" until the session's hook reports.
 let clWant = null, clDirs = [], clFullTabs = {}, clReplyOpen = null, clActive = 0, askActive = 0, clLive = [], clTools = ['claude'];
-ask({ cmd: 'claude.ctl', action: 'tools' }).then((out) => {
-  const got = String(out || '').split('\n').filter((t) => AGENT_TOOLS[t]);
-  if (got.length) clTools = got;
-}).catch(() => {});
 const clDlg = $('cl-dlg'), clForm = $('cl-form');
 const clPicked = (name) => clForm.querySelector(`input[name="${name}"]:checked`)?.value;
 const clOpt = (name, value, html, on) => `<label class="opt"><input type="radio" name="${name}" value="${esc(value)}"${on ? ' checked' : ''}>${html}</label>`;
@@ -1597,10 +1593,17 @@ function clStep(n) {
   (n === 1 ? clForm.querySelector('input[name="tool"]:checked') : folder ? clForm.querySelector('input[name="where"]:checked') || $('cl-where').querySelector('.pick') : $('cl-prompt'))?.focus();
 }
 $('cl-model').onclick = () => ask({ cmd: 'run', id: 'modelChat' });
-$('cl-new').onclick = (e) => {
+$('cl-new').onclick = async (e) => {
   e.stopPropagation();
-  // Only CLIs both installed and connected in Settings > Agents.
-  const tools = clTools.filter((t) => state?.claude?.tools?.[t] === 'installed');
+  // Read live at open (a boot snapshot is too stale): only CLIs both installed and connected
+  // in Settings > Agents, plus Hermes while its gateway or connection is live (claude-ctl
+  // lists it exactly when it answers).
+  let tools = [];
+  try {
+    const out = String(await ask({ cmd: 'claude.ctl', action: 'tools' }) ?? '');
+    tools = out.split('\n').filter((t) => AGENT_TOOLS[t] && (t === 'hermes' || state?.claude?.tools?.[t] === 'installed'));
+  } catch (err) { tools = clTools.filter((t) => state?.claude?.tools?.[t] === 'installed'); }  // bridge down: last known set
+  if (tools.length) clTools = tools;
   const last = tools.includes(state?.settings?.agentTool) ? state.settings.agentTool : tools[0];
   $('cl-tiles').innerHTML = tools.map((t) => clOpt('tool', t, `${agentIcon(t, 22)}<span>${esc(AGENT_TOOLS[t][0])}</span>`, t === last)).join('');
   clWhere();

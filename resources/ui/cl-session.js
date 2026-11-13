@@ -35,9 +35,11 @@ const clSession = {
   },
 };
 
-// Agent CLIs Roar's hooks report (mcp/claude-hook.mjs TOOLS): name, tint and a generic glyph each
-// (no brand marks), one stroke style, and whether New asks for a folder (false: it starts in a scratch
-// folder). A session file without `tool` is a Claude Code one.
+// Agent rows: the CLIs Roar's hooks report (mcp/claude-hook.mjs TOOLS) plus Hermes, which has no
+// CLI here: controller_hermes.cc polls its connected servers for the rows, and New opens its
+// dashboard /chat in the background (claude-hook's startHermes). Each entry: name, tint and a
+// generic glyph (no brand marks), one stroke style, and whether New asks for a folder (false: it
+// starts in a scratch folder). A session file without `tool` is a Claude Code one.
 const AGENT_TOOLS = {
   claude: ['Claude Code', 'var(--ink-2)', '<rect x="1.8" y="2.8" width="12.4" height="10.4" rx="2"/><path d="M4.6 6.4L6.6 8l-2 1.6M8 9.6h3"/>', true],
   codex: ['Codex', 'var(--ink-2)', '<path d="M8 1.8l5.4 3.1v6.2L8 14.2l-5.4-3.1V4.9z"/><path d="M5.6 6.6L7.2 8l-1.6 1.4M8.4 9.6h2"/>', true],
@@ -45,9 +47,10 @@ const AGENT_TOOLS = {
   qwen: ['Qwen Code', 'var(--ink-2)', '<circle cx="7.6" cy="7.6" r="4.8"/><path d="M10.6 10.6l3 3"/>', true],
   copilot: ['Copilot CLI', 'var(--ink-2)', '<rect x="1.8" y="5" width="5.4" height="5" rx="2.2"/><rect x="8.8" y="5" width="5.4" height="5" rx="2.2"/><path d="M7.2 7.2h1.6"/>', true],
   opencode: ['OpenCode', 'var(--ink-2)', '<path d="M5.8 4.2L2.2 8l3.6 3.8M10.2 4.2L13.8 8l-3.6 3.8"/>', true],
+  hermes: ['Hermes', 'var(--ink-2)', '<path d="M8 1.8v12.4M3 4.6c1.6 2 3 2.6 5 2.6s3.4-.6 5-2.6M5.2 11.4c.9.7 1.7 1 2.8 1s1.9-.3 2.8-1"/>', true],
 };
-// Rows with no CLI here, so not in AGENT_TOOLS: no hooks to connect and nothing New can start. Hermes: controller_hermes.cc.
-const AGENT_ROWS = { ...AGENT_TOOLS, hermes: ['Hermes', 'var(--ink-2)', '<path d="M8 1.8v12.4M3 4.6c1.6 2 3 2.6 5 2.6s3.4-.6 5-2.6M5.2 11.4c.9.7 1.7 1 2.8 1s1.9-.3 2.8-1"/>'] };
+// Rows shown in the sidebar: same agents (all startable from New; New opens Hermes' dashboard, not a CLI).
+const AGENT_ROWS = AGENT_TOOLS;
 const agentTool = (c) => AGENT_ROWS[c?.tool] ? c.tool : 'claude';
 const agentName = (c) => AGENT_ROWS[agentTool(c)][0];
 const agentIcon = (c, size = 14) => {

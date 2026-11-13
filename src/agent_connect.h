@@ -34,6 +34,8 @@ std::string PrepareClaudeCli(const std::string& home);
 // Hermes runs on another computer: this returns that dashboard's address, or "" (local, no app, or unreadable).
 // Connect("hermes") then writes nothing here; Roar reads the dashboard instead.
 std::string HermesConnectionFile(const std::string& home);
+// Is Hermes live for this home: a remote gateway in its connection file, or a running local one.
+bool HermesLive(const std::string& home);
 std::string HermesRemoteUrl(const std::string& home);
 
 // Rewrites every stale roar entry (see Client::stale) to `server`; never adds one.
