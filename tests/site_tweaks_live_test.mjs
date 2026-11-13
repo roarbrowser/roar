@@ -207,7 +207,7 @@ const REDIR = `// ==UserScript==
 // @name        Redir fixture
 // @namespace   roar-tests
 // @version     1.0
-// @match       http://page.localhost:${sitePort}/redirhost
+// @match       http://page.localhost/redirhost
 // @connect     redir.localhost
 // @grant       GM_xmlhttpRequest
 // ==/UserScript==
@@ -242,7 +242,7 @@ const site = createServer((req, res) => {
   if (req.url === '/fixture.user.css') return res.end(STYLE);
   if (req.url === '/ghost.user.js') return res.end(GHOST_SCRIPT);
   if (req.url === '/save.user.js') return res.end(SAVE_FLOW);
-  if (host === 'hostb.localhost') { res.setHeader('content-type', 'text/html'); return res.end('<!doctype html><title>hostB plain</title><p>hostB'); }
+  if (host === 'hostb.localhost') { res.setHeader('content-type', 'text/html'); return res.end(`<!doctype html><title>HostB: ${req.headers.host}</title><p>hostB`); }
   if (req.url === '/redirhost') { res.setHeader('content-type', 'text/html'); return res.end('<!doctype html><title>redir host</title><p>redir'); }
   if (host === 'mainprobe.localhost') { res.setHeader('content-type', 'text/html'); return res.end('<!doctype html><title>probe</title><p>probe'); }
   if (host === 'maindl.localhost') { res.setHeader('content-type', 'text/html'); return res.end('<!doctype html><title>dl</title><p>dl'); }
