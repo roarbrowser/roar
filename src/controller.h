@@ -379,6 +379,7 @@ class Controller {
   void AgentStatsFlush();  // controller_share.cc: unsaved badge counts to disk now.  // controller_share.cc: a page the person opened counts today for the badge.
   void HermesPoll(bool restart = false);
   void HermesAsk(int kind, const std::string& url);
+  void HermesBuild(bool board);  // The poll's rows and status, built once the chain is done (controller_hermes.cc).
   CefRefPtr<CefListValue> claude_ = CefListValue::Create();
   std::string claude_sig_;
   std::map<std::string, std::string> claude_states_;  // Session id -> last state, for its notification.
@@ -498,6 +499,10 @@ class Controller {
   std::string hermes_base_, hermes_status_;
   CefRefPtr<CefURLRequest> hermes_request_;
   int hermes_generation_ = 0, hermes_failures_ = 0, hermes_board_skip_ = 0;
+  std::vector<HermesCard> hermes_cards_;      // The last board's running and blocked cards, while their chats are looked up.
+  std::vector<std::string> hermes_tasks_;      // Card ids queued for their task lookup, the next one last.
+  std::map<std::string, std::pair<double, HermesCardChat>> hermes_chats_;  // Card id -> (run started, its worker's chat).
+  int hermes_task_skip_ = 0;                   // A 404 on a task: no links, so the queue waits this many polls.
   double hermes_asked_ = 0;
   std::map<std::string, std::string> mcp_tokens_;  // roar-mcp owner pid -> the token it got from agent.hello.
   std::map<std::string, int> claude_idle_gen_;  // Per session, bumped on every state change: a stale close-pages timer does nothing.

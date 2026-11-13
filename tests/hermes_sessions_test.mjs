@@ -1,7 +1,9 @@
 // Hermes server rows (src/controller_hermes.cc) against a fake dashboard and a headless scratch Roar: reads with the
 // chosen space's sign-in, shows only live chats (mid-turn, as Hermes's apps say it) and the kanban board's running and waiting
 // cards in Hermes's order and words, never API helper calls, drops what ended or answered, keeps rows through a blip,
-// works without the board, opens the dashboard in that space.
+// works without the board, opens the dashboard in that space. A card's row leads that card's own worker chat once its task
+// feed (/api/plugins/kanban/tasks/<id>, real shape: task.current_run_id + events whose payload names the worker's db and
+// session there) names it, the board page till then. The fake counts every ask by poll cycle so "asked once" is real.
 // Usage: node tests/hermes_sessions_test.mjs <Roar binary> [screenshot dir]
 import { spawn } from 'node:child_process';
 import { createServer } from 'node:http';
@@ -23,6 +25,11 @@ const now = () => Date.now() / 1000;
 const session = (o) => ({ id: 's1', profile: 'default', source: 'desktop', title: 'Plan the trip', preview: 'SECRET PREVIEW', started_at: now() - 600,
   last_active: now() - 30, ended_at: null, is_active: true, archived: false, pinned: false, ...o });
 let mode = 'ok', board = 'on', asks = 0, boardAsks = 0, cookies = new Set(), first = '';
+// Poll cycle = the /api/profiles/sessions count: the cycle every chain starts with. A card's run start is pinned once
+// (NOW0) so "asked once while the run doesn't change" means something: t_run NOW0-200, t_quiet NOW0-3000, t_dep/t_ready
+// sit in no row at all and must never be asked. Every task-feed ask is recorded in asksTasks with its cycle.
+const NOW0 = Math.floor(Date.now() / 1000);
+const asksTasks = [];
 // Each session's newest message, as /api/sessions/<id>/messages?order=latest gives it: pending (yours, a tool's, a step
 // called) or a finished reply. Which sessions were asked, and with what.
 const msg = (role, o = {}) => ({ id: 10, role, content: 'SECRET MESSAGE', tool_calls: null, timestamp: now(), ...o });
@@ -34,12 +41,30 @@ let askStatus = 'running', s1Ended = false;
 const card = (o) => ({ id: 't_x', title: 'Card', assignee: 'coder', status: 'running', block_kind: null, current_run_started_at: Math.floor(now()) - 200,
   last_heartbeat_at: Math.floor(now()) - 5, body: 'SECRET BODY', ...o });
 const boardJson = () => ({ columns: [
-  { name: 'ready', tasks: [card({ id: 't_ready', status: 'ready', title: 'Later' })] },
-  { name: 'running', tasks: [card({ id: 't_run', title: 'Fix the login page' }), ...(askStatus === 'running' ? [card({ id: 't_ask', title: 'Pick a colour', assignee: 'researcher' })] : []),
-    card({ id: 't_quiet', title: 'Quiet card', assignee: 'writer', current_run_started_at: Math.floor(now()) - 3000, last_heartbeat_at: Math.floor(now()) - 400 })] },
-  { name: 'blocked', tasks: [card({ id: 't_dep', status: 'blocked', block_kind: 'dependency' }),
+  { name: 'ready', tasks: [card({ id: 't_ready', status: 'ready', title: 'Later', current_run_started_at: NOW0 - 9000, last_heartbeat_at: null })] },
+  { name: 'running', tasks: [card({ id: 't_run', title: 'Fix the login page', current_run_started_at: NOW0 - 200 }), ...(askStatus === 'running' ? [card({ id: 't_ask', title: 'Pick a colour', assignee: 'researcher' })] : []),
+    card({ id: 't_quiet', title: 'Quiet card', assignee: 'writer', current_run_started_at: NOW0 - 3000, last_heartbeat_at: Math.floor(now()) - 400 })] },
+  { name: 'blocked', tasks: [card({ id: 't_dep', status: 'blocked', block_kind: 'dependency', current_run_started_at: NOW0 - 6000 }),
     ...(askStatus === 'blocked' ? [card({ id: 't_ask', title: 'Pick a colour', assignee: 'researcher', status: 'blocked', block_kind: 'needs_input' })] : [])] },
   { name: 'done', tasks: [] }], latest_event_id: 1, now: Math.floor(now()) });
+// A card's task feed in the real shape (verified against the gateway plugin): { task: { current_run_id, ... }, events:
+// [{ kind, run_id: n|null, created_at: epoch seconds, payload: {...}|null }] }. Only admitted events (worker_admitted under
+// the gateway, owner_admitted on takeover) carry a worker's db + session in their payload; other kinds must not name one.
+// t_run: one worker admitted on coder (found, asked once). t_quiet: one admitted on the default profile (found). t_ask:
+// admitted with no session named at all (never found). t_dep/t_ready: never asked, their cards have no row.
+const taskFeed = (id) => {
+  if (id === 't_run') return { task: { id, title: 'Fix the login page', status: 'running', current_run_id: 12 }, events: [
+    { id: 21, task_id: id, kind: 'task_created', run_id: null, created_at: NOW0 - 500, payload: { text: 'created' } },
+    { id: 22, task_id: id, kind: 'worker_admitted', run_id: 12, created_at: NOW0 - 190, payload: { db: '/Users/x/.hermes/profiles/coder/state.db', session_id: 'local-w1', model: 'mid' } }] };
+  if (id === 't_quiet') return { task: { id, title: 'Quiet card', status: 'running', current_run_id: 7 }, events: [
+    { id: 31, task_id: id, kind: 'task_created', run_id: null, created_at: NOW0 - 3200, payload: { text: 'created' } },
+    { id: 32, task_id: id, kind: 'worker_admitted', run_id: 7, created_at: NOW0 - 3100, payload: { db: '/Users/x/.hermes/state.db', session_id: 'quiet', model: 'mid' } }] };
+  if (id === 't_ask') return { task: { id, title: 'Pick a colour', status: 'blocked', current_run_id: null }, events: [
+    { id: 41, task_id: id, kind: 'task_created', run_id: null, created_at: NOW0 - 700, payload: { text: 'created' } },
+    { id: 42, task_id: id, kind: 'worker_admitted', run_id: 5, created_at: NOW0 - 600, payload: null },
+    { id: 43, task_id: id, kind: 'owner_admitted', run_id: 5, created_at: NOW0 - 300, payload: { db: '/Users/x/.hermes/state.db' } }] };
+  return { task: { id, status: 'ready', current_run_id: null }, events: [] };
+};
 const dash = createServer((q, r) => {
   const url = new URL(q.url, 'http://x');
   if (url.pathname === '/signin') { r.writeHead(200, { 'Set-Cookie': 'hermes_session_at=good; Path=/; HttpOnly; SameSite=Lax', 'Content-Type': 'text/html' }); return r.end('<title>signed in</title>'); }
@@ -49,6 +74,14 @@ const dash = createServer((q, r) => {
     if (!/hermes_session_at=good/.test(q.headers.cookie || '')) { r.writeHead(401); return r.end('{}'); }
     r.writeHead(200, { 'Content-Type': 'application/json' });
     return r.end(JSON.stringify(boardJson()));
+  }
+  const tm = url.pathname.match(/^\/api\/plugins\/kanban\/tasks\/([A-Za-z0-9_-]+)$/);
+  if (tm) {
+    const id = tm[1];
+    asksTasks.push({ id, cycle: asks });  // Tag with the poll cycle it came in on.
+    if (!/hermes_session_at=good/.test(q.headers.cookie || '')) { r.writeHead(401); return r.end('{}'); }
+    r.writeHead(200, { 'Content-Type': 'application/json' });
+    return r.end(JSON.stringify(taskFeed(id)));
   }
   const m = url.pathname.match(/^\/api\/sessions\/([^/]+)\/messages$/);
   if (m) {
@@ -142,9 +175,10 @@ try {
   check(a?.state === 'working' && a?.doing === 'Live · Hermes · Chat · Terminal command running' && a?.project === 'Plan the trip', 'a live chat: Live, who, where, what it\'s doing');
   const run = got?.find((c) => c.id === 'hermes-card-t_run');
   check(run?.state === 'working' && run?.project === 'Fix the login page' && /^coder · Working · last step (now|\d+s ago)$/.test(run?.doing || ''), 'a running card says how it\'s going: ' + run?.doing);
-  check(run?.url === `${base}/kanban`, 'and opens the board');
+  check(run?.url === `${base}/chat?resume=local-w1&profile=coder`, 'and opens that card\'s own worker chat, named by its task feed (a found link beats the board guess)');
   const quiet = got?.find((c) => c.id === 'hermes-card-t_quiet');
   check(quiet?.state === 'working' && quiet?.tone === 'quiet' && /^writer · May be stuck · no check-in for 6m$/.test(quiet?.doing || ''), 'a card with no check-in for 5 minutes may be stuck: ' + quiet?.doing);
+  check(quiet?.url === `${base}/chat?resume=quiet&profile=default`, 'and a quiet card opens its own worker chat');
   check(got?.find((c) => c.id === 'hermes-default-untitled')?.project === 'Untitled chat', 'an untitled chat is Untitled chat');
   check(!JSON.stringify(got).includes('SECRET'), 'neither the preview, a message nor a card body reaches a row');
   const askedAbout = new Set(checked);
@@ -171,6 +205,25 @@ try {
   check(!!(await until(async () => { const r = await rows(); return r.length > 2 && !r.some((c) => c.id === 'hermes-default-s1'); }, 35000)), 'an ended session disappears at the next read');
   s1Ended = false;
 
+  // Proof from the fake's books (never from the clock), window = every poll since signing in, up to here. A feed is
+  // asked at most once per card per cycle, at most four cards a cycle; a found link is kept for its run, so t_run and
+  // t_quiet were each asked exactly once while their runs stayed pinned; t_ask names no chat, so its feed lands on
+  // every cycle that reaches the board (at least three so far); t_dep sits blocked on a dependency and t_ready waits
+  // in the ready column: neither ever had a row, and neither was ever asked.
+  {
+    const perKey = new Map();
+    for (const a of asksTasks) perKey.set(`${a.cycle}/${a.id}`, (perKey.get(`${a.cycle}/${a.id}`) || 0) + 1);
+    const perCycle = new Map();
+    for (const a of asksTasks) { if (!perCycle.has(a.cycle)) perCycle.set(a.cycle, new Set()); perCycle.get(a.cycle).add(a.id); }
+    check([...perKey.values()].every((n) => n === 1) && [...perCycle.values()].every((s) => s.size <= 4),
+      'no card is asked more than once in a poll cycle, and a cycle never asks more than four cards');
+    check(asksTasks.filter((a) => a.id === 't_run').length === 1 && asksTasks.filter((a) => a.id === 't_quiet').length === 1,
+      't_run and t_quiet were each asked exactly once while their runs stayed pinned: found, cached, not re-asked');
+    const askedCycles = [...perCycle.keys()].filter((c) => perCycle.get(c).has('t_ask')).length;
+    check(askedCycles >= 3, 't_ask names no chat, so its feed is asked on every cycle that reaches the board: ' + askedCycles + ' so far');
+    check(!asksTasks.some((a) => a.id === 't_dep' || a.id === 't_ready'), 't_dep and t_ready receive no asks at all');
+  }
+
   // No kanban plugin: sessions only, workers by their own activity, and the board isn't asked every poll.
   board = 'off';
   const plain = await until(async () => { const r = await rows(); return !r.some((c) => c.id.startsWith('hermes-card-')) && r.length > 1 && r; }, 35000);
@@ -178,11 +231,14 @@ try {
   check(!!plain && pids.includes('hermes-coder-local-w1') && !pids.includes('hermes-coder-local-dead'), 'no board: a working worker shows as a session, a dead one doesn\'t: ' + pids);
   check(/No kanban board/.test((await items()).status || ''), 'and Settings says why cards don\'t show');
   const asked = boardAsks;
+  const fed = asksTasks.length;
   await sleep(16000);
-  check(boardAsks === asked, 'and a missing board isn\'t asked again every poll');
+  check(boardAsks === asked && asksTasks.length === fed, 'and a missing board isn\'t asked again every poll, nor is any card feed while it\'s gone');
   board = 'on';
   await set({ hermesSpace: 0 });
   await until(async () => (await rows()).some((c) => c.id.startsWith('hermes-card-')));
+  check(asksTasks.filter((a) => a.id === 't_run').length === 2 && asksTasks.filter((a) => a.id === 't_quiet').length === 2,
+    'the board\'s back: its two found cards are asked again, once each (the cache was dropped with the plugin)');
 
   await until(() => side(`!!document.querySelector('[data-clid="hermes-default-s1"]')`));
   const html = await side(`document.querySelector('[data-clid="hermes-default-xss"]')?.outerHTML || ''`);
@@ -224,6 +280,15 @@ try {
   check(!!(await until(() => inSettings(`/Connected|Sign in/.test(document.getElementById('hermes-note').textContent)`), 12000)), 'and its status updates by itself');
   await inSettings(`document.getElementById('hermes-url').scrollIntoView({ block: 'center' })`);
   check(!!(await until(() => side(`!!document.querySelector('[data-clid^="hermes-"]')`), 8000)), 'rows come back after sessions in the sidebar is on again');
+  // The whole-run count, from the books: every feed ask belongs to a poll cycle, and no card was ever asked twice in
+  // one cycle, whether the board was on, off, unreachable, the address changing or the sidebar flipped.
+  {
+    const perCycle = new Map();
+    for (const a of asksTasks) perCycle.set(`${a.cycle}/${a.id}`, (perCycle.get(`${a.cycle}/${a.id}`) || 0) + 1);
+    check([...perCycle.values()].every((n) => n === 1) && new Set(asksTasks.map((a) => a.cycle)).size >= 6,
+      'over every poll of the run: no card asked twice in one cycle, at least six cycles covered');
+  }
+
   await shot((x) => x.url.includes('settings.html'), 'settings.png');
   if (shots) { await side(`document.querySelector('#cl-group .sec-head, #cl-group button')?.click()`); await sleep(600); }
   await shot((x) => x.url.includes('sidebar.html'), 'sidebar.png');
