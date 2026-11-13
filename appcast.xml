@@ -448,5 +448,14 @@
       <description><![CDATA[Hermes in the sidebar now shows only what's live, the way Hermes's own apps do. Chats show while they're mid-turn and drop off once they answer or end. Board cards say how they're going (Working, Long step, May be stuck, Stuck), and anything waiting on you comes first. API calls, Roar's own tab naming among them, no longer show up as chats, and Roar now ends and hides its own helper chats in Hermes. The AI count now counts only the rows listed.]]></description>
       <enclosure url="https://github.com/roarbrowser/roar/releases/download/v1.23.0/Roar-1.23.0.dmg" type="application/octet-stream" sparkle:edSignature="6gn+lq2pkpz2r3KymqGMNMoXrhiF7XpzJEYcxP8T2y7dJ9Ik1dCKXMU5hpijQscuw3vS0rF0Cr1E7pZfy8hfBg==" length="208117293"/>
     </item>
+    <item>
+      <title>1.24.0</title>
+      <pubDate>Fri, 13 Nov 2026 15:55:42 +0000</pubDate>
+      <sparkle:version>12400</sparkle:version>
+      <sparkle:shortVersionString>1.24.0</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[Code dialog lists the Hermes agent and opens its dashboard. Rename buttons now appear only where a click can actually rename something; pinned tiles stretch edge to edge.]]></description>
+      <enclosure url="https://github.com/roarbrowser/roar/releases/download/v1.24.0/Roar-1.24.0.dmg" type="application/octet-stream" sparkle:edSignature="rcRctCh3UOb6uZN7YHgkY8LznxrjzFuZkVgueIlpdZKE3SK5fnUPax3qw7YY9OGo0cl/MZVQBJQiysUuZrkyDQ==" length="208100423"/>
+    </item>
   </channel>
 </rss>
