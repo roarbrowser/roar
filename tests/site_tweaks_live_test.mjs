@@ -8,16 +8,62 @@
 // Also: MAIN-world bridge security (a document-start script watches whether its world has a bridge
 // at all; with @grant none there is none to find), the editor's single Save and lost-edits guard,
 // "imported twice" not merging same-named backups, and HostB showing its real name.
-// Usage: node tests/site_tweaks_live_test.mjs <Roar binary> [screenshot dir]
+// Usage: node tests/site_tweaks_live_test.mjs <Roar binary> [screenshot dir] [--only=<group>,...] [--list]
+// --only (or ONLY=<group>,...) runs just those check groups plus the groups they need, matched by
+// name or alias (exact first, else substring); --list prints the groups without starting Roar.
 // Env: ROAR_CDP_PORT (default: a free port), TWEAKS_HTTP_PORT (two ports from it; default: free).
 import { spawn } from 'node:child_process';
 import { createServer } from 'node:http';
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, statSync } from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { cdpClient } from './lib/cdp-probe.mjs';
 import { cdpAuth } from './cdp_auth.mjs';
 
-const [bin, shots] = process.argv.slice(2);
+// Check groups, in run order. Later groups read state earlier ones leave (installed items, open
+// tabs), so a filtered run adds every group in needs, transitively. Groups with no needs open what
+// they use themselves (a manager page when none is open, which a full run always has by then).
+const GROUPS = [
+  { name: 'setup', needs: [], aka: [], about: 'Roar starts; a fresh profile allows userScripts (always runs)' },
+  { name: 'install', needs: [], aka: ['install-page'], about: '.user.js and .user.css links open the install page; Install installs' },
+  { name: 'page', needs: ['install'], aka: ['connect', 'document-start', 'xhr', 'usercss'], about: '@connect prompt, document-start, GM_xmlhttpRequest, UserCSS default' },
+  { name: 'persist', needs: ['page'], aka: ['values', 'reload'], about: 'GM_setValue persists across a reload, in chrome.storage.local' },
+  { name: 'sitemenu', needs: ['page'], aka: ['site-menu', 'menu-command'], about: 'site menu lists the tweaks and runs the menu command' },
+  { name: 'manager', needs: ['sitemenu'], aka: ['var', 'backups'], about: '@var changes live, VM/TM/Stylus backups import, style toggles off' },
+  { name: 'hosta', needs: ['manager'], aka: ['add-to-roar', 'command-page'], about: 'hostA command page: .user.js link, install page, Install, Cancel' },
+  { name: 'editor', needs: ['hosta'], aka: ['guard', 'unsaved'], about: 'Back on an unsaved edit raises the guard; its Save keeps the edit' },
+  { name: 'two-new', needs: ['hosta'], aka: ['new-script'], about: 'two new scripts with the default name stay two; hostA tweak runs' },
+  { name: 'hop', needs: [], aka: ['redirect', 'redir'], about: '@connect redirect hop prompts and a denied hop is never reached' },
+  { name: 'main', needs: [], aka: ['mainprobe', 'maindl', 'main-world', 'download'], about: 'MAIN world: no bridge for @grant none; GM_download lands on disk' },
+  { name: 'hostb', needs: [], aka: [], about: 'hostB shows its real host and port' },
+  { name: 'reimport', needs: [], aka: ['sync', 're-import'], about: 'importing a backup again makes copies, with one sync' },
+  { name: 'ghost-off', needs: ['install'], aka: [], about: 'ghost tabs: extension off, space scripts do not run by default' },
+  { name: 'ghost', needs: [], aka: ['space-tab', 'run-in-ghost', 'ghost-copy'], about: '"Run in ghost tabs": copy, GM values, seed pages hidden, no installs' },
+];
+const argv = process.argv.slice(2);
+const opt = (n) => { const a = argv.find((x) => x === `--${n}` || x.startsWith(`--${n}=`)); return a === undefined ? undefined : a.includes('=') ? a.slice(a.indexOf('=') + 1) : true; };
+const [bin, shots] = argv.filter((x) => !x.startsWith('--'));
+if (opt('list')) {
+  for (const g of GROUPS) console.log(`${g.name.padEnd(10)} ${g.about}${g.needs.length ? ` [needs ${g.needs.join(', ')}]` : ''}${g.aka.length ? ` (also: ${g.aka.join(', ')})` : ''}`);
+  process.exit(0);
+}
+const only = String(opt('only') ?? process.env.ONLY ?? '').split(',').map((s) => s.trim().toLowerCase()).filter(Boolean);
+const selected = new Set(['setup']);
+if (!only.length) GROUPS.forEach((g) => selected.add(g.name));
+for (const t of only) {
+  const keys = (g) => [g.name, ...g.aka];
+  const exact = GROUPS.filter((g) => keys(g).includes(t));
+  const hits = exact.length ? exact : GROUPS.filter((g) => keys(g).some((k) => k.includes(t)));
+  if (!hits.length) { console.error(`--only: no check group matches "${t}"; see --list`); process.exit(2); }
+  hits.forEach((g) => selected.add(g.name));
+}
+const asked = new Set(selected);
+for (let grew = true; grew;) { grew = false; for (const g of GROUPS) if (selected.has(g.name)) for (const d of g.needs) if (!selected.has(d)) { selected.add(d); grew = true; } }
+if (only.length) {
+  console.log(`only: ${GROUPS.filter((g) => selected.has(g.name)).map((g) => g.name + (asked.has(g.name) ? '' : ' (needed)')).join(', ')}`);
+  console.log(`skipped: ${GROUPS.filter((g) => !selected.has(g.name)).map((g) => g.name).join(', ') || 'none'}`);
+}
+if (!bin) { console.error('usage: node tests/site_tweaks_live_test.mjs <Roar binary> [screenshot dir] [--only=<group>,...] [--list]'); process.exit(2); }
 if (shots) mkdirSync(shots, { recursive: true });
 const ID = 'mfbgmphllcfijgajblnepjfgopbgmnok';
 const data = realpathSync(mkdtempSync(join(process.env.TWEAKS_DATA_PARENT || tmpdir(), 'roar-tweaks-')));
@@ -274,7 +320,8 @@ const sameUrl = (a, b) => String(a || '').replace(/\/$/, '') === String(b || '')
 const MP = `http://mainprobe.localhost:${sitePort}`;
 const MD = `http://maindl.localhost:${sitePort}`;
 
-const list = async () => (await fetch(`http://127.0.0.1:${port}/json/list`)).json();
+const cdpc = cdpClient({ port, data });
+const list = cdpc.list;
 const roar = spawn(bin, ['--headless=new', '--noerrdialogs'], { env: { ...process.env, ROAR_UI_CDP: '1', ROAR_CDP_PORT: port, ROAR_DATA_DIR: data }, stdio: 'ignore' });
 let finished = false;
 const done = async () => {
@@ -287,37 +334,48 @@ const done = async () => {
   rmSync(data, { recursive: true, force: true });
 };
 
-async function cdp(match, method, params, timeout = 15000) {
-  const t = (await list()).find(match);
-  if (!t) return undefined;
-  const ws = new WebSocket(t.webSocketDebuggerUrl);
-  await new Promise((r, f) => { ws.onopen = r; ws.onerror = f; });
-  const r = await Promise.race([new Promise((ok) => { ws.onmessage = (e) => { const m = JSON.parse(e.data); if (m.id === 1) ok(m); }; ws.send(JSON.stringify({ id: 1, method, params })); }), sleep(timeout)]);
-  ws.close();
-  return r?.result;
-}
-const evalIn = async (match, expr, timeout) => (await cdp(match, 'Runtime.evaluate', { expression: expr, awaitPromise: true, returnByValue: true }, timeout))?.result?.value;
+const cdp = cdpc.send;
+const evalIn = cdpc.evaluate;
 const sidebar = (expr, timeout) => evalIn((x) => x.url.includes('sidebar.html'), expr, timeout);
 const until = async (fn, ms = 15000) => { for (const end = Date.now() + ms; Date.now() < end; await sleep(250)) { const v = await fn().catch(() => undefined); if (v) return v; } return undefined; };
 const shot = async (name, match) => {
   if (!shots) return;
-  const r = await cdp(match, 'Page.captureScreenshot', {});
-  if (r?.data) writeFileSync(join(shots, name + '.png'), Buffer.from(r.data, 'base64'));
+  await cdpc.screenshot(match, join(shots, name + '.png'));
 };
 const tabs = async () => (await sidebar(`ask({cmd:'state'})`))?.tabs || [];
 const open = (url) => sidebar(`ask({cmd:'run',id:${JSON.stringify('open:' + url)}})`);
 const worker = (expr) => evalIn((x) => x.type === 'service_worker' && x.url.startsWith(`chrome-extension://${ID}/`), expr);
 const page = (expr) => evalIn((x) => x.type === 'page' && x.url.startsWith(SITE + '/page'), expr);
 
-try {
+const installPage = (x) => x.url.startsWith(`chrome-extension://${ID}/install.html`);
+const connectPrompt = (x) => x.url.startsWith(`chrome-extension://${ID}/connect.html`);
+const manager = (x) => x.url.startsWith(`chrome-extension://${ID}/manage.html`);
+const editor = (x) => x.url.includes('manage.html');
+// Groups that only need some manager page (imports, installScript) open one when a filtered run has none.
+const ensureManager = async () => {
+  if ((await list()).some(manager)) return;
+  await open(`chrome-extension://${ID}/manage.html`);
+  await until(() => evalIn(manager, `typeof importFile === 'function'`));
+};
+const ghostOpen = async (url) => {
+  await sidebar(`ask({cmd:'run',id:'newGhostTab'})`);
+  await sleep(500);
+  await evalIn((x) => x.url.includes('command.html'), `ask({cmd:'open', text: ${JSON.stringify(url)}, newTab: true})`);
+};
+const closeGhosts = async () => { for (const t of (await tabs()).filter((x) => x.ghost)) await sidebar(`ask({cmd:'tab.close',id:${t.id}})`); await sleep(1500); };
+// Shared between groups: the page tab and its site menu answer, the style item, the hostA tweak id.
+let tab, tw, style, sf;
+const RUN = {};
+
+RUN['setup'] = async () => {
   await until(async () => (await list()).some((x) => x.url.includes('sidebar.html')), 30000);
   // The hidden chrome://extensions step turns "Allow User Scripts" on, then reloads the extension.
   const allowed = await until(() => worker('typeof chrome.userScripts === "object"'), 30000);
   check(allowed === true, 'fresh profile: chrome.userScripts is available to Site tweaks without any user action');
-
+};
+RUN['install'] = async () => {
   // Installing through the *.user.js link and the install page.
   await open(`${SITE}/fixture.user.js`);
-  const installPage = (x) => x.url.startsWith(`chrome-extension://${ID}/install.html`);
   const shown = await until(async () => (await evalIn(installPage, `document.getElementById('title').textContent`)) === 'Live fixture' &&
     (await evalIn(installPage, `document.getElementById('install').disabled === false`)));
   check(shown, 'a .user.js link opens the install page with the script\'s metadata');
@@ -336,10 +394,10 @@ try {
   check(await until(() => evalIn(installPage, `/Installed/.test(document.getElementById('status').textContent)`)), 'Install installs the style');
   await sidebar(`(async () => { for (const t of (await ask({cmd:'state'})).tabs) if (t.url.includes('install.html')) await ask({cmd:'tab.close', id: t.id}); })()`);
   await sleep(500);
-
+};
+RUN['page'] = async () => {
   // The page: document-start, values, requests.
   await open(`${SITE}/page`);
-  const connectPrompt = (x) => x.url.startsWith(`chrome-extension://${ID}/connect.html`);
   const prompt = await until(async () => (await list()).some(connectPrompt), 15000);
   check(prompt, 'a request to a host outside @connect asks the person');
   if (prompt) {
@@ -359,7 +417,8 @@ try {
   const red = await page(`getComputedStyle(document.querySelector('h1')).color`);
   check(red === 'rgb(255, 0, 0)', `the UserCSS applies with its @var default (${red})`);
   await shot('3-page', (x) => x.type === 'page' && x.url.startsWith(SITE + '/page'));
-
+};
+RUN['persist'] = async () => {
   // Values persist across loads (the registration carries the new snapshot).
   await page(`location.reload()`);
   const prompt2 = await until(async () => (await list()).some(connectPrompt), 10000);
@@ -368,11 +427,12 @@ try {
   check(visits === '2', `GM_setValue persists: second load sees ${visits}`);
   const stored = await worker(`chrome.storage.local.get(null).then((all) => JSON.stringify(Object.entries(all).filter(([k]) => k.startsWith('values:')).map(([, v]) => v)))`);
   check(stored === '[{"visits":2}]', `values live in chrome.storage.local (${stored})`);
-
+};
+RUN['sitemenu'] = async () => {
   // The site menu: the tweaks for this site, the menu command, switches.
-  const tab = (await tabs()).find((t) => t.url.startsWith(SITE + '/page'));
+  tab = (await tabs()).find((t) => t.url.startsWith(SITE + '/page'));
   await sidebar(`ask({cmd:'tab.activate',id:${tab.id}})`);
-  const tw = await until(() => sidebar(`ask({cmd:'tab.tweaks',id:${tab.id}})`));
+  tw = await until(() => sidebar(`ask({cmd:'tab.tweaks',id:${tab.id}})`));
   check(tw?.items?.map((i) => i.name).sort().join(',') === 'Live fixture,Live style' && tw.enabled, `site menu lists the site's tweaks (${JSON.stringify(tw?.items)})`);
   check(tw?.commands?.[0]?.caption === 'Mark the page', 'site menu lists the script\'s menu command');
   const menuText = await until(async () => { const t = await sidebar(`(async () => { await siteMenu(); await new Promise((r) => setTimeout(r, 400)); const t = document.getElementById('ctx').innerText; return t; })()`); return /Site tweaks/.test(t || '') && /Mark the page/.test(t) && /Manage site tweaks/.test(t) ? t : ''; }, 25000);
@@ -381,11 +441,11 @@ try {
   await sidebar(`hideCtx()`);
   await sidebar(`ask({cmd:'tab.tweaks',id:${tab.id},what:'run',arg:${JSON.stringify(tw?.commands?.[0]?.key || '')}})`);
   check(await until(() => page(`document.documentElement.dataset.menu === 'ran'`), 5000), 'running the menu command runs it in the page');
-
+};
+RUN['manager'] = async () => {
   // The manager: change the style's @var; the open page follows without a reload.
-  const style = tw.items.find((i) => i.kind === 'style');
+  style = tw.items.find((i) => i.kind === 'style');
   await open(`chrome-extension://${ID}/manage.html#edit=${style.id}`);
-  const manager = (x) => x.url.startsWith(`chrome-extension://${ID}/manage.html`);
   await until(() => evalIn(manager, `!!document.querySelector('#view input')`));
   await shot('5-manager-settings', manager);
   await evalIn(manager, `(() => { const i = document.querySelector('#view .card input'); i.value = '#0000ff'; [...document.querySelectorAll('#view button')].find((b) => b.textContent === 'Save').click(); })()`);
@@ -402,7 +462,8 @@ try {
   await sidebar(`ask({cmd:'tab.tweaks',id:${tab.id},what:'toggle',arg:${JSON.stringify(style.id)}})`);
   const plain = await until(async () => (await page(`getComputedStyle(document.querySelector('h1')).color`)) === 'rgb(0, 0, 0)' && 'off', 8000);
   check(plain, 'turning the style off in the site menu removes it live');
-
+};
+RUN['hosta'] = async () => {
   // — hostA: the Add-to-Roar flow, from the command page (real clicks, same tab) —
   // Open http://hostA.localhost/command -> one installable link -> clicking it lands on the
   // install page for save.user.js -> Install installs a new tweak -> Cancel goes back.
@@ -416,13 +477,14 @@ try {
   await evalIn(flow, `document.getElementById('install').click()`);
   const doneInstall = await until(async () => { const s = await evalIn(flow, `document.getElementById('status').textContent`); return /Installed/.test(s || '') && s; }, 12000);
   check(!!doneInstall, `Install installs the tweak (${doneInstall})`);
-  const sf = await until(async () => { const id = await worker(`(async () => { const all = await chrome.storage.local.get(null); const it = Object.values(all).find((v) => v?.meta?.name === 'Save flow'); return it ? it.id : ''; })()`); return id || undefined; });
+  sf = await until(async () => { const id = await worker(`(async () => { const all = await chrome.storage.local.get(null); const it = Object.values(all).find((v) => v?.meta?.name === 'Save flow'); return it ? it.id : ''; })()`); return id || undefined; });
   const allNow = await worker(`chrome.storage.local.get(null).then((all) => Object.keys(all).filter((k) => k.startsWith('item:')).length)`);
   check(!!sf && allNow === 8, `installed as a new tweak alongside the six imported and the two installed (${allNow})`);
   await evalIn(flow, `document.getElementById('cancel').click()`);
   const closed = await until(async () => { const t = (await tabs()).find((x) => x.url === `${HA}/command`); return t && !t.loading && t; }, 8000);
   check(!!closed, 'Cancel goes back to the command page (no install page left open)');
-
+};
+RUN['editor'] = async () => {
   // The editor (defect: Back could silently vanish an unsaved edit). Open #edit=<sf>:
   // type a marker (native setter so the dirty flag trips) -> Back -> the guard dialog must
   // name the unsaved edit; Save -> saved; reopen is clean. And two "new" scripts with the
@@ -431,7 +493,6 @@ try {
   await worker(`(async () => { const ts = await chrome.tabs.query({ url: 'chrome-extension://${ID}/manage.html*' }); for (const t of ts) await chrome.tabs.remove(t.id); return 'closed'; })()`);
   await sleep(600);
   await open(`chrome-extension://${ID}/manage.html#edit=${sf}`);
-  const editor = (x) => x.url.includes('manage.html');
   await until(() => evalIn(editor, `!!document.querySelector('#view textarea')`));
   const markerSet = await evalIn(editor, `(() => { const ta = document.querySelector('#view textarea');
     const set = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value').set;
@@ -446,6 +507,8 @@ try {
   check(sfCode === 'saved', "the guard's Save keeps the marker");
   const closedGuard = await until(async () => await evalIn(editor, `(() => [...document.querySelectorAll('dialog')].some((d) => d.open) ? 'open' : 'closed')()`) === 'closed', 5000);
   check(!!closedGuard, 'the guard closes after saving');
+};
+RUN['two-new'] = async () => {
   await evalIn(manager, `location.hash = ''`);
   await sleep(400);
   // Two new scripts, same default name: two items (new is always new, never a replace).
@@ -464,7 +527,9 @@ try {
   await evalIn((x) => (x.url || '').toLowerCase() === `${HA.toLowerCase()}/command`, `location.reload()`);
   const hostRuns = await until(async () => { const t = (await tabs()).find((x) => x.url === `${HA}/command` && !x.loading && x.title === 'flow /command'); return !!t; }, 15000);
   check(!!hostRuns, 'the installed hostA tweak runs (command page title rewritten)');
-
+};
+RUN['hop'] = async () => {
+  await ensureManager();
   // @connect redirect (defect 6): the redir fixture asks an allowed host that 302s to
   // hop.localhost, outside @connect. The hop is a new host: it must prompt like any other
   // (naming the hop host), and a denied hop must never be reached.
@@ -480,7 +545,9 @@ try {
   const redirState = await until(async () => (await evalIn((x) => x.url === `${SITE}/redirhost`, `document.documentElement.dataset.redir || ''`)), 12000);
   const hopReached = await apiHits();
   check(/^error/.test(redirState) && !hopReached.some((h) => h.startsWith('hop.localhost')), `denied hop: the request never reached hop.localhost (${redirState}; hits ${JSON.stringify(hopReached)})`);
-
+};
+RUN['main'] = async () => {
+  await ensureManager();
   // MAIN world (defect 1): a @grant none script must get no bridge at all, and nothing a page
   // dispatches can fire a download. Import the two main-world fixtures and count the worker's
   // registrations; then open the mainprobe page, which dispatches guessed :out events
@@ -506,12 +573,15 @@ try {
     }; walk();
   });
   check(!!landed && statSync(landed).size > 0, `the downloaded file is on disk (${landed})`);
-
+};
+RUN['hostb'] = async () => {
   // hostB flow: the hosted page reports its real hostname and port through the tab title.
   await open(HB);
   const hostB = await until(async () => { const t = (await tabs()).find((x) => x.url.startsWith(HB)); return t && !t.loading && t.title === `HostB: hostb.localhost:${sitePort}` ? t.title : undefined; }, 15000);
   check(!!hostB, `hostB shows its real name and port (${hostB})`);
-
+};
+RUN['reimport'] = async () => {
+  await ensureManager();
   // Re-importing the same backup makes copies, not merges (defect: two entries with the same
   // name both run on their own pages). Import the Violentmonkey backup a second time. And a
   // whole backup, however many items, causes ONE re-registration (debounced, bookkeeping skipped).
@@ -524,13 +594,9 @@ try {
   const sync1 = await syncCount();
   check(again === 'Imported 2 of 2.' && countAfter === countBefore + 2, `re-import creates 2 copies, no merge (${again}; count ${countBefore} -> ${countAfter})`);
   check(sync1 === sync0 + 1, `importing the backup causes one sync, not one per item (${sync0} -> ${sync1})`);
-
+};
+RUN['ghost-off'] = async () => {
   // Ghost tabs: the extension is switched off there (no install page for a .user.js link).
-  const ghostOpen = async (url) => {
-    await sidebar(`ask({cmd:'run',id:'newGhostTab'})`);
-    await sleep(500);
-    await evalIn((x) => x.url.includes('command.html'), `ask({cmd:'open', text: ${JSON.stringify(url)}, newTab: true})`);
-  };
   await ghostOpen(SITE + '/page');
   const ghost = await until(async () => (await tabs()).find((t) => t.ghost && t.url.startsWith(SITE)), 10000);
   await sleep(4000);  // The ghost profile's hidden setup step.
@@ -540,9 +606,10 @@ try {
   check(ghost && gts.length === 2 && gts.every((t) => !t.url.includes(ID)) && gts.some((t) => t.url.endsWith('.user.js')),
     `ghost tabs: a .user.js link stays raw, the extension is off there (${gts.map((t) => t.url).join(', ')})`);
   check(ghost && (await tabs()).find((t) => t.id === ghost.id)?.title === 'start:none', 'ghost tabs: the space\'s scripts don\'t run there by default');
-  const closeGhosts = async () => { for (const t of (await tabs()).filter((x) => x.ghost)) await sidebar(`ask({cmd:'tab.close',id:${t.id}})`); await sleep(1500); };
   await closeGhosts();
-
+};
+RUN['ghost'] = async () => {
+  await ensureManager();
   // "Run in ghost tabs": a ghost fixture with a value stored in the space.
   const gstate = async (match) => { const t = (await tabs()).filter(match); return t.length && t.every((x) => x.title?.startsWith('marker:')) ? t.map((x) => x.title).join() : undefined; }
   await evalIn(manager, `import('./lib/store.js').then((s) => s.installScript(${JSON.stringify(GHOST_SCRIPT)}, { url: '${GSITE}/ghost.user.js' })).then((it) => it.id)`);
@@ -595,6 +662,15 @@ try {
   const fresh = await until(() => gstate((t) => t.ghost && t.url.startsWith(GSITE)), 20000);
   check(fresh === 'marker:space1', `a new ghost session starts from the space's copy again (${fresh})`);
   await closeGhosts();
+};
+for (const g of GROUPS) if (!RUN[g.name]) throw new Error(`no RUN for ${g.name}`);
+
+try {
+  for (const g of GROUPS) {
+    if (!selected.has(g.name)) continue;
+    console.log(`== ${g.name}`);
+    await RUN[g.name]();
+  }
 } catch (e) {
   check(false, 'test threw: ' + (e.stack || e));
 } finally {
