@@ -54,7 +54,9 @@ async function renderList() {
 }
 
 async function save(kind, code, id, vars) {
-  return kind === 'script' ? installScript(code, { id }) : installStyle(code, { id, vars });
+  // A new tweak is always a new item (never a silent merge into a same-named one); an edit
+  // replaces by id. (Imports are fresh copies too; the install page still updates in place.)
+  return kind === 'script' ? installScript(code, { id, fresh: !id }) : installStyle(code, { id, vars, fresh: !id });
 }
 
 async function renderEditor({ edit, new: kind, site }) {

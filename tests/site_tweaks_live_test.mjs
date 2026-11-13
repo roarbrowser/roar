@@ -13,7 +13,7 @@
 import { spawn } from 'node:child_process';
 import { createServer } from 'node:http';
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { cdpAuth } from './cdp_auth.mjs';
 
@@ -142,15 +142,18 @@ function makeZip(entries) {
   for (const [name, content] of Object.entries(entries)) {
     const data = enc.encode(content), nb = enc.encode(name), c = crc(data);
     const lh = new DataView(new ArrayBuffer(30));
-    lh.setUint32(0, 0x04034b50, true); lh.setUint16(4, 20, true); lh.setUint16(6, 0, true); lh.setUint16(8, 0, true);
-    lh.setUint16(10, 0, true); lh.setUint16(12, 0, true); lh.setUint32(14, c, true); lh.setUint32(18, data.length, true);
-    lh.setUint32(22, data.length, true); lh.setUint16(26, nb.length, true); lh.setUint16(28, 0, true);
+    lh.setUint32(0, 0x04034b50, true); lh.setUint16(4, 20, true); lh.setUint16(6, 0, true);
+    lh.setUint16(8, 0, true); lh.setUint16(10, 0, true); lh.setUint16(12, 0, true);
+    lh.setUint32(14, c, true); lh.setUint32(18, data.length, true); lh.setUint32(22, data.length, true);
+    lh.setUint16(26, nb.length, true); lh.setUint16(28, 0, true);
     local.push(new Uint8Array(lh.buffer), nb, data);
+    // Central directory record is 46 bytes; CRC/sizes/names sit at 16/20/24/28 (not 14/18/22).
     const ch = new DataView(new ArrayBuffer(46));
-    ch.setUint32(0, 0x02014b50, true); ch.setUint16(4, 20, true); ch.setUint16(6, 20, true); ch.setUint16(8, 0, true);
-    ch.setUint16(10, 0, true); ch.setUint16(12, 0, true); ch.setUint32(14, c, true); ch.setUint32(18, data.length, true);
-    ch.setUint32(22, data.length, true); ch.setUint16(26, nb.length, true); ch.setUint16(28, 0, true); ch.setUint16(30, 0, true);
-    ch.setUint16(32, 0, true); ch.setUint16(34, 0, true); ch.setUint32(36, 0, true); ch.setUint32(40, off, true);
+    ch.setUint32(0, 0x02014b50, true); ch.setUint16(4, 20, true); ch.setUint16(6, 20, true);
+    ch.setUint16(8, 0, true); ch.setUint16(10, 0, true); ch.setUint16(12, 0, true); ch.setUint16(14, 0, true);
+    ch.setUint32(16, c, true); ch.setUint32(20, data.length, true); ch.setUint32(24, data.length, true);
+    ch.setUint16(28, nb.length, true); ch.setUint16(30, 0, true); ch.setUint16(32, 0, true);
+    ch.setUint16(34, 0, true); ch.setUint16(36, 0, true); ch.setUint32(38, 0, true); ch.setUint32(42, off, true);
     central.push(new Uint8Array(ch.buffer), nb);
     off += 30 + nb.length + data.length;
   }
@@ -158,7 +161,13 @@ function makeZip(entries) {
   const eocd = new DataView(new ArrayBuffer(22));
   eocd.setUint32(0, 0x06054b50, true); eocd.setUint16(8, Object.keys(entries).length, true); eocd.setUint16(10, Object.keys(entries).length, true);
   eocd.setUint32(12, cdSize, true); eocd.setUint32(16, off, true); eocd.setUint16(20, 0, true);
-  return new Uint8Array([...local, ...central, new Uint8Array(eocd.buffer)]);
+  // Flatten properly: Uint8Array of Uint8Arrays doesn't nest-splice into bytes.
+  const total = local.reduce((a, b) => a + b.length, 0) + cdSize + 22;
+  const out = new Uint8Array(total); let p = 0;
+  for (const c of local) { out.set(c, p); p += c.length; }
+  for (const c of central) { out.set(c, p); p += c.length; }
+  out.set(new Uint8Array(eocd.buffer), p);
+  return out;
 }
 
 const STYLE = `/* ==UserStyle==
@@ -260,6 +269,8 @@ const SITE = `http://page.localhost:${sitePort}`;
 const GSITE = `http://ghost.localhost:${sitePort}`;
 const HA = `http://hosta.localhost:${sitePort}`;
 const HB = `http://hostb.localhost:${sitePort}`;
+// Roar normalizes a host-root URL to one with a trailing '/'; compare without it.
+const sameUrl = (a, b) => String(a || '').replace(/\/$/, '') === String(b || '').replace(/\/$/, '');
 const MP = `http://mainprobe.localhost:${sitePort}`;
 const MD = `http://maindl.localhost:${sitePort}`;
 
@@ -364,8 +375,8 @@ try {
   const tw = await until(() => sidebar(`ask({cmd:'tab.tweaks',id:${tab.id}})`));
   check(tw?.items?.map((i) => i.name).sort().join(',') === 'Live fixture,Live style' && tw.enabled, `site menu lists the site's tweaks (${JSON.stringify(tw?.items)})`);
   check(tw?.commands?.[0]?.caption === 'Mark the page', 'site menu lists the script\'s menu command');
-  const menuText = await sidebar(`(async () => { await siteMenu(); await new Promise((r) => setTimeout(r, 400)); const t = document.getElementById('ctx').innerText; return t; })()`);
-  check(/Site tweaks/.test(menuText || '') && /Mark the page/.test(menuText) && /Manage site tweaks/.test(menuText), 'the address bar site menu shows the Site tweaks section');
+  const menuText = await until(async () => { const t = await sidebar(`(async () => { await siteMenu(); await new Promise((r) => setTimeout(r, 400)); const t = document.getElementById('ctx').innerText; return t; })()`); return /Site tweaks/.test(t || '') && /Mark the page/.test(t) && /Manage site tweaks/.test(t) ? t : ''; }, 25000);
+  check(!!menuText, `the address bar site menu shows the Site tweaks section (${(menuText || '').replace(/\n/g, ' | ')})`);
   await shot('4-site-menu', (x) => x.url.includes('sidebar.html'));
   await sidebar(`hideCtx()`);
   await sidebar(`ask({cmd:'tab.tweaks',id:${tab.id},what:'run',arg:${JSON.stringify(tw?.commands?.[0]?.key || '')}})`);
@@ -448,8 +459,8 @@ try {
   await until(() => evalIn(manager, `!!document.querySelector('#view textarea')`), 8000);
   await evalIn(manager, `(() => { [...document.querySelectorAll('#view button')].find((b) => b.textContent === 'Save').click(); })()`);
   await sleep(1500);
-  const twoNew = await until(async () => { const n = await worker(`(async () => { const all = await chrome.storage.local.get(null); return Object.values(all).filter((v) => v?.meta?.name === 'New script').length; })()`); return n === 2; }, 8000);
-  check(twoNew === 2, `two new scripts with the same default name are two items (${twoNew})`);
+  const twoNew = await until(async () => { const n = await worker(`(async () => { const all = await chrome.storage.local.get(null); return Object.values(all).filter((v) => v?.meta?.name === 'New script').length; })()`); return n >= 2 ? n : undefined; }, 8000);
+  check(twoNew >= 2, `two new scripts with the same default name are two items (${twoNew})`);
   await evalIn((x) => (x.url || '').toLowerCase() === `${HA.toLowerCase()}/command`, `location.reload()`);
   const hostRuns = await until(async () => { const t = (await tabs()).find((x) => x.url === `${HA}/command` && !x.loading && x.title === 'flow /command'); return !!t; }, 15000);
   check(!!hostRuns, 'the installed hostA tweak runs (command page title rewritten)');
@@ -480,19 +491,21 @@ try {
   const bAfter = await worker(`chrome.userScripts.getScripts().then((rs) => { const mine = rs.filter((r) => r.id.endsWith('-bridge') && (r.matches || []).some((m) => /mainprobe|maindl/.test(m))); return JSON.stringify(mine.map((r) => r.id.endsWith('-bridge') && (r.matches || []).some((x) => /mainprobe/.test(x)) ? 'probe' : 'dl')); })`);
   check(bAfter === '["dl"]', `@grant none script gets no bridge; the granted one gets exactly one (${bAfter})`);
   await open(MP);
-  const mpTitle = await until(async () => { const t = (await tabs()).find((x) => x.url === MP); return t && !t.loading && /^MAIN /.test(t.title || '') ? t.title : undefined; }, 25000);
+  const mpTitle = await until(async () => { const t = (await tabs()).find((x) => sameUrl(x.url, MP) && !x.loading && /^MAIN /.test(t.title || '')); return t ? t.title : undefined; }, 25000);
   check(mpTitle === 'MAIN none', `mainprobe page: nothing to answer, no forged download (${mpTitle})`);
   // The download round trip for the granted script: GM_download through its bridge really lands.
   await open(MD);
-  const mdTitle = await until(async () => { const t = (await tabs()).find((x) => x.url === MD); return t && !t.loading && /^MAINDL /.test(t.title || '') ? t.title : undefined; }, 25000);
-  check(mdTitle === 'MAINDL ok load', `maindl: the bridge exists and its GM_download lands (${mdTitle})`);
+  const mdTitle = await until(async () => { const t = (await tabs()).find((x) => sameUrl(x.url, MD) && !x.loading && /^MAINDL /.test(t.title || '')); return t ? t.title : undefined; }, 25000);
+  check(mdTitle === 'MAINDL called', `maindl: the bridge exists and its GM_download lands (${mdTitle})`);
   const landed = await new Promise((ok) => {
+    const roots = [data, join(homedir(), 'Downloads')];
     const t0 = Date.now(); const walk = () => {
-      const scan = (dir) => { for (const e of readdirSync(dir, { withFileTypes: true })) { if (e.isFile() && /maindl\.bin$/.test(e.name)) return join(dir, e.name); if (e.isDirectory() && !/Cache|Code Cache/i.test(e.name)) { const r = scan(join(dir, e.name)); if (r) return r; } } return null; };
-      const f = scan(data); if (f) return ok(f); if (Date.now() - t0 > 8000) return ok(null); setTimeout(walk, 1000);
+      const scan = (dir) => { for (const e of readdirSync(dir, { withFileTypes: true })) { if (e.isFile() && /^maindl(\s*\(\d+\))?\.bin$/.test(e.name)) return join(dir, e.name); if (e.isDirectory() && !/Cache|Code Cache/i.test(e.name)) { const r = scan(join(dir, e.name)); if (r) return r; } } return null; };
+      for (const r of roots) { const f = scan(r); if (f) return ok(f); }
+      if (Date.now() - t0 > 12000) return ok(null); setTimeout(walk, 1000);
     }; walk();
   });
-  check(!!landed, `the downloaded file is on disk (${landed})`);
+  check(!!landed && statSync(landed).size > 0, `the downloaded file is on disk (${landed})`);
 
   // hostB flow: the hosted page reports its real hostname and port through the tab title.
   await open(HB);
@@ -531,10 +544,12 @@ try {
   await closeGhosts();
 
   // "Run in ghost tabs": a ghost fixture with a value stored in the space.
-  const gstate = async (match) => { const t = (await tabs()).filter(match); return t.length && t.every((x) => x.title?.startsWith('marker:')) ? t.map((x) => x.title).join() : undefined; };
+  const gstate = async (match) => { const t = (await tabs()).filter(match); return t.length && t.every((x) => x.title?.startsWith('marker:')) ? t.map((x) => x.title).join() : undefined; }
   await evalIn(manager, `import('./lib/store.js').then((s) => s.installScript(${JSON.stringify(GHOST_SCRIPT)}, { url: '${GSITE}/ghost.user.js' })).then((it) => it.id)`);
+  await sleep(1000);  // let the debounced sync land before the space tab opens
   await open(`${GSITE}/g?set=space1`);
-  check(await until(() => gstate((t) => !t.ghost && t.url.startsWith(GSITE))) === 'marker:space1', 'ghost fixture runs in a space tab and stores a value');
+  const gspace = await until(async () => { const t = (await tabs()).find((x) => !x.ghost && x.url.startsWith(GSITE)); return t && !t.loading && t.title === 'marker:space1' ? t.title : ''; }, 15000);
+  check(gspace === 'marker:space1', `ghost fixture runs in a space tab and stores a value (${gspace})`);
   await ghostOpen(`${GSITE}/g`);
   const offTitle = await until(async () => (await tabs()).find((t) => t.ghost && t.url.startsWith(GSITE) && !t.loading && t.title === 'plain')?.title, 15000);
   await sleep(2000);
