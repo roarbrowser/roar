@@ -48,6 +48,19 @@ inline std::string ChatBaseKey(std::string u) {
   return u;
 }
 
+// A Hermes Agent API server names the session each call ran in (X-Hermes-Session-Id), and keeps every one. Roar's own
+// one-off helper calls (tab names) end and hide theirs with its stock PATCH /api/sessions/<id>, which sits beside /v1
+// on the same server (behind a profile's /p/<name> prefix too). "" when the id isn't a plain one or the base isn't a
+// web address, so nothing is sent.
+inline std::string HermesHelperEndUrl(const std::string& base, const std::string& session) {
+  if (base.rfind("http://", 0) != 0 && base.rfind("https://", 0) != 0) return "";
+  if (session.empty() || session.size() > 200 || session[0] == '.' ||
+      session.find_first_not_of("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_.:-") != std::string::npos)
+    return "";
+  return ChatBaseKey(base) + "/api/sessions/" + session;
+}
+inline std::string HermesHelperEndBody() { return R"({"end_reason":"roar_helper","hidden":true})"; }
+
 // Which key defaults ({id, url}) join a saved provider list: only ones never offered before (`seen`, ids),
 // so a removed one stays removed, and not when a saved row has that id or the same server.
 inline std::vector<size_t> ChatDefaultsToAdd(const std::vector<std::pair<std::string, std::string>>& saved,

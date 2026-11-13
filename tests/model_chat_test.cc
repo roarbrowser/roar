@@ -171,6 +171,16 @@ int main() {
   check(roar::OpencodeSessionBody(false, "/w") == R"({"title":"Roar Ask","permissions":[{"action":"*","resource":"*","effect":"deny"}]})", "tools off: deny-all, no folder");
   check(roar::OpencodeSessionBody(true, "") == R"({"title":"Roar Ask"})", "tools on: no rules of Roar's");
   check(roar::OpencodeSessionBody(true, "/a\"b") == R"({"title":"Roar Ask","location":{"directory":"/a\"b"}})", "the folder is escaped");
+  // Roar's own helper calls (tab names) end and hide the session a Hermes API server ran them in.
+  check(roar::HermesHelperEndUrl("https://hermes.example/v1", "api-abc_1") == "https://hermes.example/api/sessions/api-abc_1", "beside /v1 on the same server");
+  check(roar::HermesHelperEndUrl("http://127.0.0.1:8642/v1/", "20261112_1:x.y") == "http://127.0.0.1:8642/api/sessions/20261112_1:x.y", "a trailing slash, colons and dots");
+  check(roar::HermesHelperEndUrl("https://h.example/p/coder/v1", "s1") == "https://h.example/p/coder/api/sessions/s1", "a profile's /p/<name> prefix stays");
+  check(roar::HermesHelperEndUrl("http://localhost:8642", "s1") == "http://localhost:8642/api/sessions/s1", "a base with no /v1");
+  for (const char* bad : {"", "..", ".hidden", "a/b", "a b", "a?x=1", "a#b", "a%2Fb", "x\r\ny"})
+    check(roar::HermesHelperEndUrl("https://h/v1", bad).empty(), (std::string("no call for session id [") + bad + "]").c_str());
+  check(roar::HermesHelperEndUrl("https://h/v1", std::string(201, 'a')).empty(), "nor an overlong one");
+  check(roar::HermesHelperEndUrl("ftp://h/v1", "s1").empty() && roar::HermesHelperEndUrl("", "s1").empty(), "web servers only");
+  check(roar::HermesHelperEndBody() == R"({"end_reason":"roar_helper","hidden":true})", "ended and hidden, saying why");
   std::printf(failures ? "%d failure(s)\n" : "ok\n", failures);
   return failures ? 1 : 0;
 }

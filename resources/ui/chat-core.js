@@ -489,7 +489,7 @@
   const oneShot = (p, model, prompt, query, cancel = globalThis.roarQueryCancel, ms = 60000) => p.kind === 'opencode' ? opencodeShot(p, prompt, query, cancel, ms) : new Promise((done, fail) => {
     const cli = p.kind === 'cli', msgs = [{ role: 'user', text: prompt }];
     const request = cli ? { cmd: 'chat.cli', cli: p.cli, model, prompt: cliPrompt(msgs) }
-      : { cmd: 'chat.request', provider: p.id, what: 'chat', body: JSON.stringify(requestBody(p.kind, model, msgs)) };
+      : { cmd: 'chat.request', provider: p.id, what: 'chat', helper: true, body: JSON.stringify(requestBody(p.kind, model, msgs)) };
     const sse = sseParser(), lines = cli && cliParser(p.cli);
     let text = '', err = '';
     query({ request: JSON.stringify(request), persistent: true,

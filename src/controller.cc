@@ -1054,10 +1054,53 @@ class GmailFetch : public CefURLRequestClient {
 // provider config and adds the Keychain key, so keys never reach page JS. A streaming request sends
 // each chunk of the body as a Success on the page's persistent query and ends it with Failure: code
 // 0 when the body is complete, else the HTTP status (or -1, network) with the start of the body.
+// One fire-and-forget call: its answer is only logged when it fails, and it's never retried.
+class QuietRequest : public CefURLRequestClient {
+ public:
+  explicit QuietRequest(std::string what) : what_(std::move(what)) {}
+  void OnRequestComplete(CefRefPtr<CefURLRequest> request) override {
+    int code = request->GetResponse() ? request->GetResponse()->GetStatus() : 0;
+    if (request->GetRequestStatus() != UR_SUCCESS || code < 200 || code >= 300) LOG(WARNING) << what_ << " failed: " << code;
+  }
+  void OnUploadProgress(CefRefPtr<CefURLRequest>, int64_t, int64_t) override {}
+  void OnDownloadProgress(CefRefPtr<CefURLRequest>, int64_t, int64_t) override {}
+  void OnDownloadData(CefRefPtr<CefURLRequest>, const void*, size_t) override {}
+  bool GetAuthCredentials(bool, const CefString&, int, const CefString&, const CefString&,
+                          CefRefPtr<CefAuthCallback>) override { return false; }
+
+ private:
+  std::string what_;
+  IMPLEMENT_REFCOUNTING(QuietRequest);
+};
+
+// After a helper call (chatCore.oneShot: tab names) that a Hermes Agent API server answered: end and hide the session it
+// ran in, named by the answer's X-Hermes-Session-Id, with the same server and key. Any other server sends no such
+// header, so nothing happens there.
+void EndHermesHelperSession(CefRefPtr<CefResponse> response, const std::string& base, const std::string& key) {
+  std::string url = response ? HermesHelperEndUrl(base, response->GetHeaderByName("X-Hermes-Session-Id").ToString()) : "";
+  if (url.empty()) return;
+  auto http = CefRequest::Create();
+  http->SetURL(url);
+  http->SetFlags(UR_FLAG_DISABLE_CACHE | UR_FLAG_NO_RETRY_ON_5XX);  // CEF retries a 5xx twice unless told not to.
+  CefRequest::HeaderMap headers = {{"Content-Type", "application/json"}};
+  if (!key.empty() && ChatKeyAllowed(url)) headers.insert({"Authorization", "Bearer " + key});
+  http->SetHeaderMap(headers);
+  std::string body = HermesHelperEndBody();
+  auto post = CefPostData::Create();
+  auto el = CefPostDataElement::Create();
+  el->SetToBytes(body.size(), body.data());
+  post->AddElement(el);
+  http->SetPostData(post);
+  http->SetMethod("PATCH");  // After SetPostData, which makes a GET a POST.
+  CefURLRequest::Create(http, new QuietRequest("Ending a Hermes helper session"), CefRequestContext::GetGlobalContext());
+}
+
 class ChatRequest : public CefURLRequestClient {
  public:
   ChatRequest(int browser_id, bool stream, CefRefPtr<CefMessageRouterBrowserSide::Callback> cb)
       : browser_id_(browser_id), stream_(stream), cb_(cb) {}
+  // A helper call: once answered, end and hide its Hermes session, if a Hermes server ran it (EndHermesHelperSession).
+  void EndHelperSession(std::string base, std::string key) { helper_ = true, base_ = std::move(base), key_ = std::move(key); }
   static std::vector<std::pair<ChatQuery, CefRefPtr<CefURLRequest>>>& Live() {
     static std::vector<std::pair<ChatQuery, CefRefPtr<CefURLRequest>>> live;
     return live;
@@ -1067,6 +1110,7 @@ class ChatRequest : public CefURLRequestClient {
     live.erase(std::remove_if(live.begin(), live.end(), [&](auto& p) { return p.second.get() == request.get(); }), live.end());
     int code = request->GetResponse() ? request->GetResponse()->GetStatus() : 0;
     bool ok = request->GetRequestStatus() == UR_SUCCESS && code >= 200 && code < 300;
+    if (helper_) EndHermesHelperSession(request->GetResponse(), base_, key_), helper_ = false, key_.clear();
     if (!ok) return cb_->Failure(request->GetRequestStatus() == UR_SUCCESS ? code : -1, pending_.substr(0, 2000));
     if (!stream_) return cb_->Success(pending_);
     if (!pending_.empty()) cb_->Success(pending_);
@@ -1086,9 +1130,10 @@ class ChatRequest : public CefURLRequestClient {
   int browser_id_;
 
  private:
-  bool stream_;
+  bool stream_, helper_ = false;
   CefRefPtr<CefMessageRouterBrowserSide::Callback> cb_;
   std::string pending_;  // Whole body (not streaming or failed), else a held-back partial character.
+  std::string base_, key_;  // A helper call's server and key, for EndHermesHelperSession.
   IMPLEMENT_REFCOUNTING(ChatRequest);
 };
 
@@ -6158,7 +6203,8 @@ bool Controller::HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> 
     http->SetURL(url);
     http->SetFlags(UR_FLAG_DISABLE_CACHE);
     CefRequest::HeaderMap headers;
-    if (std::string key = platform::SecretGet(id); !key.empty() && (kind == "opencode" ? ChatServerAuthAllowed(url) : ChatKeyAllowed(url))) {
+    std::string key = platform::SecretGet(id);
+    if (!key.empty() && (kind == "opencode" ? ChatServerAuthAllowed(url) : ChatKeyAllowed(url))) {
       if (kind == "opencode") {
         std::string login = "opencode:" + key;
         headers.insert({"Authorization", "Basic " + CefBase64Encode(login.data(), login.size()).ToString()});
@@ -6180,7 +6226,10 @@ bool Controller::HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> 
     if (stream) headers.insert({"Accept", "text/event-stream"});
     http->SetHeaderMap(headers);
     int bid = browser->GetIdentifier();
-    auto req = CefURLRequest::Create(http, new ChatRequest(bid, stream, callback), CefRequestContext::GetGlobalContext());
+    CefRefPtr<ChatRequest> client = new ChatRequest(bid, stream, callback);
+    // helper: a one-off call of Roar's own (chatCore.oneShot), not an Ask chat, whose Hermes session isn't kept.
+    if (kind == "openai" && what == "chat" && msg->HasKey("helper") && msg->GetBool("helper")) client->EndHelperSession(base, key);
+    auto req = CefURLRequest::Create(http, client, CefRequestContext::GetGlobalContext());
     ChatRequest::Live().push_back({{bid, query_id}, req});
   } else if (cmd == "chat.keys") {
     // Which providers have a key, never the keys.
