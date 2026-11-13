@@ -457,5 +457,14 @@
       <description><![CDATA[Code dialog lists the Hermes agent and opens its dashboard. Rename buttons now appear only where a click can actually rename something; pinned tiles stretch edge to edge.]]></description>
       <enclosure url="https://github.com/roarbrowser/roar/releases/download/v1.24.0/Roar-1.24.0.dmg" type="application/octet-stream" sparkle:edSignature="rcRctCh3UOb6uZN7YHgkY8LznxrjzFuZkVgueIlpdZKE3SK5fnUPax3qw7YY9OGo0cl/MZVQBJQiysUuZrkyDQ==" length="208100423"/>
     </item>
+    <item>
+      <title>1.24.1</title>
+      <pubDate>Fri, 13 Nov 2026 22:33:02 +0000</pubDate>
+      <sparkle:version>12401</sparkle:version>
+      <sparkle:shortVersionString>1.24.1</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[Fixed the connect prompt to name the destination host before a redirect hop is reached; @match patterns that carried a port now match; the editor warns before you lose unsaved changes; one Save handles code and settings; imports and shares install as fresh copies so your local edits are never overwritten.]]></description>
+      <enclosure url="https://github.com/roarbrowser/roar/releases/download/v1.24.1/Roar-1.24.1.dmg" type="application/octet-stream" sparkle:edSignature="Z0XpctCl0bbJuoDxH9ESD5a8Iztw9HmdXj1bvtNgcpBl6Orrn42ESKZOPZf5C6OXBf9uNlsZzPp+of603XTMBg==" length="208114661"/>
+    </item>
   </channel>
 </rss>
