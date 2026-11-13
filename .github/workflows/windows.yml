@@ -186,29 +186,17 @@ jobs:
           pub=$(openssl pkey -in "$RUNNER_TEMP/ed.pem" -pubout -outform DER | tail -c 32 | base64 -w0)
           git show "$TAG:src/win/platform.cc" | grep -qF "\"$pub\"" || { echo "WINSPARKLE_ED_KEY does not match the app's public key"; exit 1; }
           plist=$(git show "$TAG:resources/Info.plist.in")
-          short=${TAG#v}; build=$(sed -n 's/.*CFBundleVersion<\/key><string>\([^<]*\).*/\1/p' <<<"$plist")
+          build=$(sed -n 's/.*CFBundleVersion<\/key><string>\([^<]*\).*/\1/p' <<<"$plist")
           for a in x64; do
             f=Roar-windows-$a-setup.exe
             gh release download "$TAG" -p "$f" -R "$GITHUB_REPOSITORY"
             sig=$(openssl pkeyutl -sign -inkey "$RUNNER_TEMP/ed.pem" -rawin -in "$f" | base64 -w0)
-            cat > appcast-windows-$a.xml <<XML
-          <?xml version="1.0" encoding="utf-8"?>
-          <rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle">
-            <channel>
-              <title>Roar for Windows ($a)</title>
-              <item>
-                <title>Roar $short</title>
-                <sparkle:releaseNotesLink>https://github.com/$GITHUB_REPOSITORY/releases/tag/$TAG</sparkle:releaseNotesLink>
-                <pubDate>$(date -R)</pubDate>
-                <enclosure url="https://github.com/$GITHUB_REPOSITORY/releases/download/$TAG/$f" sparkle:version="$build" sparkle:shortVersionString="$short" sparkle:os="windows" sparkle:installerArguments="/SILENT /SP- /NOCANCEL /NORESTART" sparkle:edSignature="$sig" length="$(stat -c%s "$f")" type="application/octet-stream"/>
-              </item>
-            </channel>
-          </rss>
-          XML
+            # Leaves the feed alone when it already offers this installer (a re-run, or a second run for the tag).
+            bash scripts/windows-appcast.sh "$TAG" "$a" "$build" "$f" "$sig" "$GITHUB_REPOSITORY"
           done
           rm -f "$RUNNER_TEMP/ed.pem" Roar-windows-*-setup.exe
           git config user.name roarbrowser && git config user.email 342802191+roarbrowser@users.noreply.github.com
           git add appcast-windows-*.xml
-          git diff --cached --quiet && exit 0
+          git diff --cached --quiet && { echo "Windows appcast already up to date for $TAG; no commit"; exit 0; }
           git commit -qm "Windows appcast: $TAG"
           for i in 1 2 3; do git pull -q --rebase origin main && git push -q origin HEAD:main && exit 0; sleep 10; done; exit 1

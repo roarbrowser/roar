@@ -25,6 +25,10 @@ git fetch -q origin main
 git merge-base --is-ancestor origin/main HEAD || { echo "HEAD is not ahead of origin/main; rebase first (release.sh pushes HEAD to main)" >&2; exit 1; }
 [[ -z "$(git status --porcelain --untracked-files=no)" ]] || { echo "working tree dirty; commit first" >&2; exit 1; }
 git rev-parse -q --verify "refs/tags/$TAG" >/dev/null && { echo "$TAG already exists" >&2; exit 1; }
+# One appcast item per version: a feed that already has this version means a rerun or a reused version.
+for f in appcast.xml appcast-intel.xml; do
+  [[ -f $f ]] && grep -qF "<sparkle:shortVersionString>$VERSION</sparkle:shortVersionString>" "$f" && { echo "release.sh: $f already has an item for $VERSION; not adding another" >&2; exit 1; }
+done
 # API-key notarization needs all three, checked before anything is edited or built.
 [[ -z ${ROAR_NOTARY_API_KEY:-} || ( -n ${ROAR_NOTARY_KEY_ID:-} && -n ${ROAR_NOTARY_ISSUER:-} && -f $ROAR_NOTARY_API_KEY ) ]] ||
   { echo "release.sh: ROAR_NOTARY_API_KEY needs ROAR_NOTARY_KEY_ID, ROAR_NOTARY_ISSUER and an existing key file" >&2; exit 1; }
@@ -181,8 +185,20 @@ REL_SHA="$(git rev-parse HEAD)" RUN=
 for _ in $(seq 1 30); do
   RUN="$(gh run list -w windows.yml -c "$REL_SHA" -L 1 --json databaseId -q '.[0].databaseId')"; [[ -n $RUN ]] && break; sleep 10
 done
-[[ -n $RUN ]] && gh run watch "$RUN" --exit-status >/dev/null || echo "windows.yml run for $REL_SHA failed or was not found" >&2
-if ! gh release view "$TAG" --json assets -q '.assets[].name' | grep -q 'windows-x64-setup.exe'; then
+# Wait for the run itself to finish before judging its assets. `gh run watch` gave up on one HTTP 502 in
+# 1.24.0 while the run went on, so a second run was dispatched, rebuilt the installer and committed the
+# Windows appcast twice. Poll its status instead (API errors just poll again), up to the 6 h job limit.
+if [[ -n $RUN ]]; then
+  ST=
+  for _ in $(seq 1 800); do ST="$(gh run view "$RUN" --json status -q .status 2>/dev/null || true)"; [[ $ST == completed ]] && break; sleep 30; done
+  [[ $ST == completed ]] || { echo "windows.yml run $RUN still not finished; not dispatching another (check it by hand)" >&2; exit 1; }
+  [[ "$(gh run view "$RUN" --json conclusion -q .conclusion 2>/dev/null || true)" == success ]] || echo "windows.yml run $RUN did not succeed" >&2
+else
+  echo "windows.yml run for $REL_SHA was not found" >&2
+fi
+# Read the list first: under pipefail, `gh ... | grep -q` fails whenever grep exits early.
+ASSETS="$(gh release view "$TAG" --json assets -q '.assets[].name' || true)"
+if ! grep -q 'windows-x64-setup.exe' <<<"$ASSETS"; then
   echo "Windows assets missing; dispatching windows.yml tag=$TAG" >&2
   LAST="$(gh run list -w windows.yml -e workflow_dispatch -L 1 --json databaseId -q '.[0].databaseId')"
   gh workflow run windows.yml --ref main -f tag="$TAG"
