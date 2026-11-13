@@ -31,23 +31,33 @@ const dataUrl = (blob) => new Promise((ok, fail) => {
 });
 
 // Finds the installed item to replace: the given id, else the same name and namespace.
-async function previous(kind, meta, id) {
+// fresh: never match by name - a new tweak is a new item even when the name collides
+// (manager new/import). Name matching stays for the install page, where re-installing the
+// same script should update the existing entry.
+async function previous(kind, meta, id, fresh) {
+  if (id) return (await chrome.storage.local.get(ITEM + id))[ITEM + id] || null;
+  if (fresh) return null;
   const items = await allItems();
-  return items.find((i) => i.id === id) ||
-    (!id && items.find((i) => i.kind === kind && i.meta.name === meta.name && i.meta.namespace === meta.namespace));
+  return items.find((i) => i.kind === kind && i.meta.name === meta.name && i.meta.namespace === meta.namespace) || null;
 }
 
 const nameFromUrl = (url, re) => {
   try { return decodeURIComponent(new URL(url).pathname.split('/').pop().replace(re, '')); } catch { return ''; }
 };
 
+// All item writes go through one promise chain: a read-modify-write never interleaves with
+// another (allowed hosts, toggles, installs all stay consistent under concurrent changes).
+const q = { tail: Promise.resolve() };
+const serialize = (fn) => { const p = q.tail.then(fn, fn); q.tail = p.catch(() => {}); return p; };
+
 // Installs or replaces a userscript, fetching its @require and @resource files (kept by URL
-// across edits). opts: { url, id, enabled, values }.
-export async function installScript(code, opts = {}) {
+// across edits). opts: { url, id, enabled, values, fresh }.
+export const installScript = (code, opts = {}) => serialize(() => installScriptInner(code, opts));
+async function installScriptInner(code, opts) {
   const meta = parseMeta(code);
   if (!meta) throw new Error('This isn\'t a userscript: it has no // ==UserScript== block');
   meta.name ||= nameFromUrl(opts.url, /\.user\.js$/) || 'Untitled script';
-  const old = await previous('script', meta, opts.id);
+  const old = await previous('script', meta, opts.id, opts.fresh);
   const base = opts.url || old?.url;
   const requires = [];
   for (const url of meta.require) {
@@ -72,11 +82,12 @@ export async function installScript(code, opts = {}) {
 // The page-only preprocessors, loaded by the pages that compile styles (vendor/*.js).
 export const styleLibs = () => ({ less: globalThis.less, StylusRenderer: globalThis.StylusRenderer });
 
-// Installs or replaces a userstyle (UserCSS, or plain CSS for every site). opts: { url, id, enabled, vars }.
-export async function installStyle(code, opts = {}) {
+// Installs or replaces a userstyle (UserCSS, or plain CSS for every site). opts: { url, id, enabled, vars, fresh }.
+export const installStyle = (code, opts = {}) => serialize(() => installStyleInner(code, opts));
+async function installStyleInner(code, opts) {
   const meta = parseUserCSS(code) || { name: '', namespace: '', version: '', description: '', updateURL: '', preprocessor: 'default', vars: {} };
   meta.name ||= nameFromUrl(opts.url, /\.user\.css$/) || 'Untitled style';
-  const old = await previous('style', meta, opts.id);
+  const old = await previous('style', meta, opts.id, opts.fresh);
   const vars = Object.fromEntries(Object.entries({ ...old?.vars, ...opts.vars }).filter(([k]) => k in meta.vars));
   const sections = await compileStyle(code, vars, styleLibs());
   const url = opts.url || old?.url || '';
@@ -90,12 +101,14 @@ export async function installStyle(code, opts = {}) {
 
 export const newItemIds = () => ({ id: newId(), secret: newId() + newId(), position: Date.now() });
 
-export const removeItem = (id) => chrome.storage.local.remove([ITEM + id, VALUES + id]);
+export const removeItem = (id) => serialize(async () => chrome.storage.local.remove([ITEM + id, VALUES + id]));
 
-export async function patchItem(id, patch) {
-  const item = (await chrome.storage.local.get(ITEM + id))[ITEM + id];
+export const patchItem = (id, patch) => serialize(async () => {
+  // Re-reads the item inside the write: an allowed host added while this patch was queued
+  // is never lost (defect: connectAllow rebuilt from a stale read dropped earlier hosts).
   // touched: what lib/share.js compares. The on/off and ghost-tab switches spread; a pending update or an allowed host stays here.
+  const item = (await chrome.storage.local.get(ITEM + id))[ITEM + id];
   if (item) await chrome.storage.local.set({ [ITEM + id]: { ...item, ...patch, ...('enabled' in patch || 'ghost' in patch ? { touched: Date.now() } : {}) } });
-}
+});
 
 export const isStyleSource = (code, url = '') => /\.user\.css(\?|#|$)/.test(url) || /==UserStyle==/.test(code);

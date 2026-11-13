@@ -13,12 +13,33 @@ const RUN_AT = { 'document-start': 'document_start', 'document-end': 'document_e
 // eval and inline code stay available to scripts, as in other userscript managers.
 const CSP = "script-src 'self' 'unsafe-eval' 'unsafe-inline'; object-src 'none'";
 const version = chrome.runtime.getManifest().version;
-const errors = {};  // Item id -> registration error, shown in the manager.
+// Item id -> registration error, shown in the manager. Kept in storage.session so an error
+// is not lost when the worker sleeps and wakes between the failure and the manager asking.
+const ERRORS = 'errors';
+const putErrors = (errors) => chrome.storage.session.set({ [ERRORS]: errors });
+// Bookkeeping fields: a change to only these needs no re-registration and no style broadcast.
+const BOOK = ['touched', 'update', 'skip', 'shareId', 'connectAllow'];
+const realChange = (c) => !c.oldValue || !c.newValue ||
+  Object.keys(c.newValue).some((f) => !BOOK.includes(f) && JSON.stringify(c.newValue[f]) !== JSON.stringify(c.oldValue?.[f]));
+// Does this script get any GM_* at all? ('none' and 'self' are not GM APIs.)
+const hasGrant = (meta) => (meta.grant || []).some((g) => g && g !== 'none' && g !== 'self');
+// Message kind -> the GM_* names that authorize it. A page dispatching a guessed token into
+// a bridge is answered the same as its script: granted calls work, anything else is ignored.
+const NEED = {
+  set: ['GM_setValue', 'GM.setValue'], listen: ['GM_addValueChangeListener', 'GM.addValueChangeListener'],
+  menu: ['GM_registerMenuCommand', 'GM.registerMenuCommand'], xhr: ['GM_xmlhttpRequest', 'GM.xmlHttpRequest'],
+  xhrAbort: ['GM_xmlhttpRequest', 'GM.xmlHttpRequest'], download: ['GM_download', 'GM.download'],
+  notify: ['GM_notification', 'GM.notification'], open: ['GM_openInTab', 'GM.openInTab'],
+  closeTab: ['GM_openInTab', 'GM.openInTab'], clip: ['GM_setClipboard', 'GM.setClipboard'],
+};
 
 // ---- Registration ----
 
 let queue = Promise.resolve();
 const serial = (fn) => (queue = queue.then(fn, fn));
+// Debounced: a whole backup write (many items in seconds) re-registers once, not per item.
+let syncTimer = 0;
+const syncSoon = (ms = 250) => { clearTimeout(syncTimer); syncTimer = setTimeout(() => sync(), ms); };
 
 const scriptReg = (it, values) => {
   const world = worldOf(it.meta);
@@ -29,10 +50,12 @@ const scriptReg = (it, values) => {
 function sync() {
   return serial(async () => {
     if (!chrome.userScripts) return;
+    // Counted in storage.session so the tests (and the manager) can see the real number.
+    await chrome.storage.session.get('syncCount').then(({ syncCount = 0 }) => chrome.storage.session.set({ syncCount: syncCount + 1 }));
     const [items, settings] = await Promise.all([allItems(), getSettings()]);
     await chrome.userScripts.unregister();
-    for (const k of Object.keys(errors)) delete errors[k];
-    if (!settings.enabled) return;
+    const errors = {};
+    if (!settings.enabled) return putErrors(errors);
     await chrome.userScripts.configureWorld({ worldId: 'styles', messaging: true });
     for (const it of items.filter((i) => i.enabled)) {
       const regs = [];
@@ -40,7 +63,9 @@ function sync() {
         await chrome.userScripts.configureWorld({ worldId: it.id, messaging: true, csp: CSP });
         const reg = scriptReg(it, await getValues(it.id));
         regs.push(reg);
-        if (reg.world === 'MAIN') {
+        // A bridge only for scripts that ask for GM_*: a @grant none script runs as plain page
+        // code, and a page dispatching guessed tokens into nobody must be able to do nothing.
+        if (reg.world === 'MAIN' && hasGrant(it.meta)) {
           regs.push({ id: it.id + '-bridge', matches: reg.matches, runAt: reg.runAt, allFrames: reg.allFrames,
             world: 'USER_SCRIPT', worldId: it.id, js: [{ code: bridgeCode(it) }] });
         }
@@ -51,6 +76,7 @@ function sync() {
       // One at a time: a bad pattern in one item must not keep the others out.
       try { await chrome.userScripts.register(regs); } catch (e) { errors[it.id] = String(e.message || e); }
     }
+    putErrors(errors);
   });
 }
 
@@ -137,14 +163,16 @@ chrome.storage.onChanged.addListener(async (ch, area) => {
     for (const k of keys) if (k.startsWith(VALUES) && !ownWrites.delete(k)) externalValues(k.slice(VALUES.length), ch[k]);
     return;
   }
-  sync();
+  // Re-register only for a real change; bookkeeping (touched, pending update, share id,
+  // allowed hosts) never needs it. Debounced so a whole import is one re-registration.
+  if (keys.some((k) => (k.startsWith(ITEM) || k === 'settings') && realChange(ch[k]))) syncSoon();
   const on = (await getSettings()).enabled;
   if ('settings' in ch) {
     for (const it of await allItems()) if (it.kind === 'style') broadcastStyle(it.id, on && it.enabled ? it.sections : null);
   }
   for (const k of keys) {
     const it = ch[k].newValue || ch[k].oldValue;
-    if (k.startsWith(ITEM) && it?.kind === 'style') broadcastStyle(it.id, on && ch[k].newValue?.enabled ? ch[k].newValue.sections : null);
+    if (k.startsWith(ITEM) && it?.kind === 'style' && realChange(ch[k])) broadcastStyle(it.id, on && ch[k].newValue?.enabled ? ch[k].newValue.sections : null);
   }
 });
 
@@ -177,7 +205,7 @@ function setValue(p, k, v) {
 
 chrome.runtime.onUserScriptConnect.addListener(async (port) => {
   const s = port.sender || {};
-  const rec = { port, id: '', tab: s.tab?.id, frame: s.frameId, url: s.url || s.tab?.url || '', cmds: [] };
+  const rec = { port, id: '', tab: s.tab?.id, frame: s.frameId, url: s.url || s.tab?.url || '', cmds: [], it: null };
   ports.add(rec);
   port.onDisconnect.addListener(() => ports.delete(rec));
   if (port.name === 'styles') return;
@@ -189,12 +217,17 @@ chrome.runtime.onUserScriptConnect.addListener(async (port) => {
   const it = id && (await chrome.storage.local.get(ITEM + id))[ITEM + id];
   if (!it || it.secret !== secret) return ports.delete(rec), port.disconnect();
   rec.id = id;
+  rec.it = it;  // the item, read once per port: every message check below uses this copy
   early.splice(0).forEach(handle);
 });
 
 async function onScriptMessage(p, m) {
   const reply = (r) => { try { p.port.postMessage(r); } catch {} };
-  const item = async () => (await chrome.storage.local.get(ITEM + p.id))[ITEM + p.id];
+  // Every call needs the matching GM_* in the item's grant list. A page dispatching a
+  // guessed token into somebody's bridge is answered like an ungranted call: nothing.
+  const need = NEED[m.t];
+  if (need && !need.some((n) => (p.it?.meta?.grant || []).includes(n))) return;
+  const item = async () => p.it;
   switch (m.t) {
     case 'set': return setValue(p, String(m.k), m.v);
     case 'listen': return;
@@ -274,11 +307,6 @@ async function request(p, m, it, reply) {
   let pageHost = '';
   try { pageHost = new URL(p.url).hostname; } catch {}
   if (!it) return fail('error', 'Script removed');
-  if (url.protocol.startsWith('http') && !connectAllowed(it.meta.connect, it.connectAllow || [], url.hostname, pageHost)) {
-    const answer = await askConnect(it, url.hostname);
-    if (answer === 'always') await patchItem(it.id, { connectAllow: [...(it.connectAllow || []), url.hostname] });
-    if (answer !== 'once' && answer !== 'always') return fail('error', `Refused: ${url.hostname} is not in this script's @connect list`);
-  }
   const ctl = new AbortController();
   const mine = requests.get(p.port) || new Map();
   requests.set(p.port, mine);
@@ -297,11 +325,48 @@ async function request(p, m, it, reply) {
     for (const [k, v] of d.body.form) typeof v === 'string' ? body.append(k, v) : body.append(k, new Blob([bytes(v.b64)], { type: v.type }), v.name);
   }
   if (d.body?.type && !headers.has('content-type')) headers.set('content-type', d.body.type);
+  // Redirects are followed by hand: every hop is a request to a host, and every host is
+  // checked (and the person asked for one outside @connect) BEFORE that hop is reached.
+  // A fetch with redirect:'manual' answers opaque (status 0, no Location), so the real
+  // status and Location of a hop come from a webRequest observer: the match pattern is
+  // host-only (patterns ignore ports) and the exact URL is compared inside the callback.
+  const observe = (href) => {
+    const u = new URL(href);
+    const pattern = `${u.protocol}//${u.hostname}/*`;
+    return new Promise((ok) => {
+      let settled = false;
+      const finish = (v) => { if (settled) return; settled = true; chrome.webRequest.onHeadersReceived.removeListener(listener); ok(v); };
+      const listener = (ev) => {
+        if (settled || ev.url !== href) return;
+        const loc = (ev.responseHeaders || []).find((h) => /^location$/i.test(h.name));
+        finish({ status: ev.statusCode, location: loc ? loc.value : '' });
+      };
+      chrome.webRequest.onHeadersReceived.addListener(listener, { urls: [pattern] }, ['responseHeaders']);
+      // No webRequest event within the window: fall back to what the opaque fetch knows.
+      setTimeout(() => finish(null), 8000);
+    });
+  };
   try {
-    const res = await fetch(url, { method: d.method, headers, body: /^(GET|HEAD)$/i.test(d.method) ? undefined : body,
-      credentials: d.anonymous ? 'omit' : 'include', redirect: 'follow', signal: ctl.signal, cache: 'no-store' });
+    let target = url, hops = 0, res, seen;
+    for (;;) {
+      const host = target.hostname;
+      if (target.protocol.startsWith('http') && !connectAllowed(it.meta.connect, it.connectAllow || [], host, pageHost)) {
+        const answer = await askConnect(it, host);
+        if (answer === 'always') await patchItem(it.id, { connectAllow: [...new Set([...(it.connectAllow || []), host])] });
+        if (answer !== 'once' && answer !== 'always') return fail('error', `Refused: ${host} is not in this script's @connect list`);
+      }
+      const obs = observe(target.href);
+      res = await fetch(target, { method: d.method, headers, body: /^(GET|HEAD)$/i.test(d.method) ? undefined : body,
+        credentials: d.anonymous ? 'omit' : 'include', redirect: 'manual', signal: ctl.signal, cache: 'no-store' });
+      seen = await obs;
+      const loc = seen && seen.status >= 300 && seen.status < 400 ? seen.location : '';
+      if (!loc) break;
+      if (++hops > 5) return fail('error', 'Too many redirects');
+      try { target = new URL(loc, target); } catch { return fail('error', 'Bad redirect location'); }
+      if (!/^(https?|ftp|data|blob):$/.test(target.protocol)) return fail('error', 'Redirect to an unsupported scheme');
+    }
     const type = d.overrideMimeType || res.headers.get('content-type') || '';
-    const r = { status: res.status, statusText: res.statusText, finalUrl: res.url, readyState: 4, type,
+    const r = { status: (seen && seen.status) || res.status, statusText: res.statusText, finalUrl: res.url, readyState: 4, type,
       responseHeaders: [...res.headers].map(([k, v]) => `${k}: ${v}`).join('\r\n') };
     if (d.responseType === 'arraybuffer' || d.responseType === 'blob') {
       const u = new Uint8Array(await res.arrayBuffer());
@@ -337,8 +402,10 @@ async function checkUpdates(ids) {
   for (const it of await allItems()) {
     if (ids && !ids.includes(it.id)) continue;
     const isScript = it.kind === 'script';
-    const metaUrl = isScript ? it.meta.updateURL || it.meta.downloadURL : it.updateURL;
-    const codeUrl = isScript ? it.meta.downloadURL || it.meta.updateURL : it.updateURL;
+    // No explicit URLs? Fall back to the install URL, styles and scripts alike.
+    const install = isScript && /\.user\.js(\?|$)/.test(it.url || '') ? it.url : '';
+    const metaUrl = isScript ? (it.meta.updateURL || it.meta.downloadURL || install) : it.updateURL;
+    const codeUrl = isScript ? (it.meta.downloadURL || it.meta.updateURL || install) : it.updateURL;
     if (!metaUrl || !/^https?:/.test(metaUrl)) continue;
     out.checked++;
     try {
@@ -373,7 +440,8 @@ chrome.runtime.onMessage.addListener((m, sender, respond) => {
     checkUpdates(m.ids).then(respond);
     return true;
   } else if (m.t === 'status') {
-    respond({ api: !!chrome.userScripts, errors });
+    chrome.storage.session.get('errors').then((v) => respond({ api: !!chrome.userScripts, errors: v.errors || {} }));
+    return true;
   } else if (m.t === 'ghostSeed') {
     ghostSeed(m.bundle).then(() => respond({ ok: true }), (e) => respond({ ok: false, error: String(e.message || e) }));
     return true;

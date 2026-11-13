@@ -31,6 +31,12 @@ export function parseMeta(code) {
   }
   if (!['document-start', 'document-end', 'document-idle', 'document-body'].includes(meta.runAt)) meta.runAt = 'document-end';
   if (!['auto', 'page', 'content'].includes(meta.injectInto)) meta.injectInto = 'auto';
+  // Chrome match patterns can't carry a port: '@match http://host:8080/*' silently never
+  // matches. Normalizing keeps such patterns usable (the host matches any port) instead of
+  // quietly dead (or, when registered as-is, poisoning the whole batch).
+  const noPort = (a) => a.map((p) => p.replace(/^(https?:\/\/[^:\/?#]+):\d+(?=$|[\/?#])/i, '$1'));
+  meta.match = noPort(meta.match); meta.include = noPort(meta.include);
+  meta.exclude = noPort(meta.exclude); meta.excludeMatch = noPort(meta.excludeMatch);
   return meta;
 }
 
