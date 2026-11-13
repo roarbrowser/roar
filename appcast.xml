@@ -430,5 +430,14 @@
       <description><![CDATA[Pinned tabs outside a group are now icon tiles: fixed size, wrapping, name on hover. In dark mode site icons sit on a light chip so black logos stay visible. Model chat explains why a server gives no models (no API at that address, key needed or refused) and adds /v1 to Hermes and oMLX addresses.]]></description>
       <enclosure url="https://github.com/roarbrowser/roar/releases/download/v1.22.3/Roar-1.22.3.dmg" type="application/octet-stream" sparkle:edSignature="2TEtsNRaRgg7+l7AUQUMIMpiKnVyTQvBVRzZuuZr8FryXOfmULFyQoFuQPzgY8xztaXW7OHRHLC2GLneI/G7Bw==" length="208083655"/>
     </item>
+    <item>
+      <title>1.22.4</title>
+      <pubDate>Fri, 13 Nov 2026 00:38:46 +0000</pubDate>
+      <sparkle:version>12204</sparkle:version>
+      <sparkle:shortVersionString>1.22.4</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[Settings > Agents now looks and works like Chat models: connected agents in an order you drag, and one card per agent with its status and Connect inside. Hermes has its own card with its sessions, dashboard and space.]]></description>
+      <enclosure url="https://github.com/roarbrowser/roar/releases/download/v1.22.4/Roar-1.22.4.dmg" type="application/octet-stream" sparkle:edSignature="VfsY5zmQCwAIr1tPiH9zJ596XcHUPumFAxu1Z/kcdhQbFiQKMax99CSHfw47P6D2t7Qy5+3W6pyuZAXjL9yqDA==" length="208084802"/>
+    </item>
   </channel>
 </rss>
