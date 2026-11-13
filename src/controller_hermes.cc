@@ -1,7 +1,8 @@
 // Sessions and board cards on a Hermes Agent server as watch-only rows among the sidebar's agent sessions. Hermes runs
 // on its own machine, so no hook here can see it: Roar reads the dashboard with the cookies of the space signed in to
-// it, like Gmail's feed, so there's no key to keep. Each poll reads the session list, then the kanban board Hermes ships
-// with (a dashboard without it just shows sessions). Rows stay in memory. Rules: hermes_server.h.
+// it, like Gmail's feed, so there's no key to keep. Each poll reads the session list, then the newest messages of each
+// chat that moved in the last two minutes (to see whether it's mid-turn, as Hermes's apps do), then the kanban board Hermes
+// ships with (a dashboard without it just shows sessions). Rows stay in memory. Rules: hermes_server.h.
 #include <algorithm>
 #include <string>
 #include <utility>
@@ -23,9 +24,9 @@ constexpr double kStuckSeconds = 30;      // CefURLRequest has no timeout of its
 constexpr int kFailuresBeforeClear = 8;   // Two minutes: a restarting server keeps its rows, a gone one loses them.
 constexpr int kBoardRetryPolls = 20;      // A dashboard with no kanban plugin is asked again every 5 minutes.
 constexpr size_t kMaxBody = 8 * 1024 * 1024;
-constexpr size_t kMaxTitle = 120;
+constexpr size_t kMaxChecks = 10;         // Chats asked about per poll; more than this are rarely mid-turn at once.
 
-enum Kind { kSessions = 0, kBoard = 1 };
+enum Kind { kSessions = 0, kBoard = 1, kNewest = 2 };
 
 class HermesFetch : public CefURLRequestClient {
  public:
@@ -78,8 +79,9 @@ CefRefPtr<CefDictionaryValue> Row(const HermesRow& r) {
   row->SetString("id", r.id);
   row->SetString("tool", "hermes");
   row->SetBool("remote", true);  // No hook, terminal or chat view: a row only opens `url`, in `space`.
-  row->SetString("project", r.name.substr(0, kMaxTitle));
+  row->SetString("project", r.name);  // HermesTitle and HermesRows cut it.
   row->SetString("state", r.state);
+  if (!r.tone.empty()) row->SetString("tone", r.tone);
   row->SetString("doing", r.doing);
   row->SetDouble("started", r.started * 1000);
   row->SetDouble("updated", r.updated * 1000);
@@ -109,6 +111,7 @@ bool ParseSessions(const CefRefPtr<CefDictionaryValue>& root, std::vector<Hermes
     h.activity = Text(s, "last_activity_description");
     h.active = Flag(s, "is_active");
     h.pinned = Flag(s, "pinned");
+    h.end_reason = Text(s, "end_reason");
     auto ended = s->GetType("ended_at");
     h.ended = ended == VTYPE_DOUBLE || ended == VTYPE_INT;
     h.started = Number(s, "started_at");
@@ -116,6 +119,28 @@ bool ParseSessions(const CefRefPtr<CefDictionaryValue>& root, std::vector<Hermes
     out.push_back(std::move(h));
   }
   return true;
+}
+
+// /api/sessions/<id>/messages: whether the newest of the user's, the agent's and tools' messages leaves a turn running.
+// Only roles and tool calls are read; the text never leaves this function.
+bool ParseNewest(const CefRefPtr<CefDictionaryValue>& root) {
+  auto list = root && root->GetType("messages") == VTYPE_LIST ? root->GetList("messages") : nullptr;
+  if (!list) return false;
+  CefRefPtr<CefDictionaryValue> newest;
+  double newest_id = -1;
+  for (size_t i = 0; i < list->GetSize(); ++i) {
+    if (list->GetType(i) != VTYPE_DICTIONARY) continue;
+    auto m = list->GetDictionary(i);
+    std::string role = Text(m, "role");
+    if (role != "user" && role != "assistant" && role != "tool") continue;
+    double id = m->HasKey("id") ? Number(m, "id") : static_cast<double>(i);
+    if (id >= newest_id) newest_id = id, newest = m;
+  }
+  if (!newest) return false;
+  auto calls = newest->GetType("tool_calls");
+  bool tools = (calls == VTYPE_LIST && newest->GetList("tool_calls")->GetSize() > 0) ||
+               (calls == VTYPE_STRING && [&] { std::string t = Text(newest, "tool_calls"); return !t.empty() && t != "[]" && t != "null"; }());
+  return HermesPending(Text(newest, "role"), tools);
 }
 
 // The kanban plugin's /board: {columns: [{name, tasks: [...]}, ...]}. Only the columns a row can come from.
@@ -175,6 +200,7 @@ void Controller::HermesPoll(bool restart) {
     hermes_request_ = nullptr;
     hermes_rows_.clear();
     hermes_sessions_.clear();
+    hermes_checks_.clear();
     hermes_failures_ = 0;
     hermes_board_skip_ = 0;
     hermes_base_ = base;
@@ -194,6 +220,19 @@ void Controller::HermesPoll(bool restart) {
   HermesAsk(kSessions, HermesSessionsUrl(base));
 }
 
+// The next chat to ask about, else the board, unless this dashboard showed it has none a moment ago.
+void Controller::HermesNext() {
+  if (!hermes_checks_.empty()) {
+    const auto& h = hermes_sessions_[hermes_checks_.back()];
+    return HermesAsk(kNewest, HermesNewestUrl(hermes_base_, h.id, h.profile));
+  }
+  if (hermes_board_skip_ > 0) {
+    hermes_board_skip_--;
+    return HermesResult(hermes_generation_, kBoard, -1, "");
+  }
+  HermesAsk(kBoard, HermesBoardUrl(hermes_base_));
+}
+
 void Controller::HermesResult(int generation, int kind, int code, const std::string& body) {
   if (generation != hermes_generation_) return;
   hermes_request_ = nullptr;
@@ -211,13 +250,22 @@ void Controller::HermesResult(int generation, int kind, int code, const std::str
       status = code == 200 ? "That address doesn't answer like a Hermes server." : code ? "Hermes returned " + std::to_string(code) + "." : "Couldn't reach Hermes.";
     } else {
       hermes_failures_ = 0;
-      // The board next, unless this dashboard showed it has none a moment ago.
-      if (hermes_board_skip_ > 0) {
-        hermes_board_skip_--;
-        return HermesResult(generation, kBoard, -1, "");
+      // Then each chat that may be mid-turn, the most recent first (asked from the back of the list).
+      hermes_checks_.clear();
+      double now = NowSeconds();
+      for (size_t i = hermes_sessions_.size(); i-- > 0;) {
+        const auto& h = hermes_sessions_[i];
+        if (HermesMayBeLive(h, now) && !HermesRowId(h.profile, h.id).empty()) hermes_checks_.push_back(i);
       }
-      return HermesAsk(kBoard, HermesBoardUrl(hermes_base_));
+      if (hermes_checks_.size() > kMaxChecks) hermes_checks_.erase(hermes_checks_.begin(), hermes_checks_.end() - kMaxChecks);
+      return HermesNext();
     }
+  } else if (kind == kNewest) {
+    // No answer, or not one: not mid-turn, so the chat shows only once a read says it is.
+    if (hermes_checks_.empty()) return;
+    hermes_sessions_[hermes_checks_.back()].pending = ParseNewest(Root(code, body));
+    hermes_checks_.pop_back();
+    return HermesNext();
   } else {
     // Sessions came through; the board is extra. Not there (no kanban plugin) or unreadable: sessions only, and the
     // board isn't asked again for a while. Skipped (code -1) or no answer at all (0, a blip): rows stay as they were.
@@ -228,13 +276,16 @@ void Controller::HermesResult(int generation, int kind, int code, const std::str
     hermes_rows_.clear();
     auto rows = HermesRows(hermes_base_, hermes_sessions_, cards, board, NowSeconds());
     size_t sessions = 0, working = 0, needs = 0;
-    for (const auto& r : rows) {
-      hermes_rows_.push_back(Row(r));
+    for (size_t i = 0; i < rows.size(); ++i) {
+      const auto& r = rows[i];
+      auto row = Row(r);
+      row->SetInt("order", static_cast<int>(i));  // Hermes's order, which the sidebar keeps among Hermes's rows.
+      hermes_rows_.push_back(row);
       sessions += r.id.rfind("hermes-card-", 0) != 0;
       working += r.id.rfind("hermes-card-", 0) == 0 && r.state == "working";
       needs += r.state == "needs_you";
     }
-    status = "Connected. " + (sessions ? std::to_string(sessions) + (sessions == 1 ? " open session" : " open sessions") : std::string("No open sessions"));
+    status = "Connected. " + (sessions ? std::to_string(sessions) + (sessions == 1 ? " live chat" : " live chats") : std::string("No live chats"));
     if (board) status += working || needs ? ", " + std::to_string(working) + " running on the board" + (needs ? ", " + std::to_string(needs) + " waiting on you" : "") : ", board quiet";
     status += board ? "." : ". No kanban board, so cards don't show.";
   }

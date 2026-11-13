@@ -1,6 +1,7 @@
 // Hermes server rows (src/controller_hermes.cc) against a fake dashboard and a headless scratch Roar: reads with the
-// chosen space's sign-in, shows open sessions and the kanban board's running and waiting cards, drops what ended,
-// keeps rows through a blip, works without the board, opens the dashboard in that space.
+// chosen space's sign-in, shows only live chats (mid-turn, as Hermes's apps say it) and the kanban board's running and waiting
+// cards in Hermes's order and words, never API helper calls, drops what ended or answered, keeps rows through a blip,
+// works without the board, opens the dashboard in that space.
 // Usage: node tests/hermes_sessions_test.mjs <Roar binary> [screenshot dir]
 import { spawn } from 'node:child_process';
 import { createServer } from 'node:http';
@@ -22,13 +23,20 @@ const now = () => Date.now() / 1000;
 const session = (o) => ({ id: 's1', profile: 'default', source: 'desktop', title: 'Plan the trip', preview: 'SECRET PREVIEW', started_at: now() - 600,
   last_active: now() - 30, ended_at: null, is_active: true, archived: false, pinned: false, ...o });
 let mode = 'ok', board = 'on', asks = 0, boardAsks = 0, cookies = new Set(), first = '';
+// Each session's newest message, as /api/sessions/<id>/messages?order=latest gives it: pending (yours, a tool's, a step
+// called) or a finished reply. Which sessions were asked, and with what.
+const msg = (role, o = {}) => ({ id: 10, role, content: 'SECRET MESSAGE', tool_calls: null, timestamp: now(), ...o });
+const newest = { s1: [msg('assistant', { id: 9 }), msg('tool', { tool_calls: null })], untitled: [msg('user')], xss: [msg('user')],
+  answered: [msg('user', { id: 9 }), msg('assistant')], helper: [msg('user')], 'local-w1': [msg('assistant', { tool_calls: [{ id: 'c1' }] })] };
+const checked = [], checkUrls = [];
 // The kanban plugin's /board, cut down to what Roar reads. `ask` starts out running so its move to blocked is news.
 let askStatus = 'running', s1Ended = false;
 const card = (o) => ({ id: 't_x', title: 'Card', assignee: 'coder', status: 'running', block_kind: null, current_run_started_at: Math.floor(now()) - 200,
   last_heartbeat_at: Math.floor(now()) - 5, body: 'SECRET BODY', ...o });
 const boardJson = () => ({ columns: [
   { name: 'ready', tasks: [card({ id: 't_ready', status: 'ready', title: 'Later' })] },
-  { name: 'running', tasks: [card({ id: 't_run', title: 'Fix the login page' }), ...(askStatus === 'running' ? [card({ id: 't_ask', title: 'Pick a colour', assignee: 'researcher' })] : [])] },
+  { name: 'running', tasks: [card({ id: 't_run', title: 'Fix the login page' }), ...(askStatus === 'running' ? [card({ id: 't_ask', title: 'Pick a colour', assignee: 'researcher' })] : []),
+    card({ id: 't_quiet', title: 'Quiet card', assignee: 'writer', current_run_started_at: Math.floor(now()) - 3000, last_heartbeat_at: Math.floor(now()) - 400 })] },
   { name: 'blocked', tasks: [card({ id: 't_dep', status: 'blocked', block_kind: 'dependency' }),
     ...(askStatus === 'blocked' ? [card({ id: 't_ask', title: 'Pick a colour', assignee: 'researcher', status: 'blocked', block_kind: 'needs_input' })] : [])] },
   { name: 'done', tasks: [] }], latest_event_id: 1, now: Math.floor(now()) });
@@ -42,6 +50,14 @@ const dash = createServer((q, r) => {
     r.writeHead(200, { 'Content-Type': 'application/json' });
     return r.end(JSON.stringify(boardJson()));
   }
+  const m = url.pathname.match(/^\/api\/sessions\/([^/]+)\/messages$/);
+  if (m) {
+    checked.push(decodeURIComponent(m[1]));
+    checkUrls.push(q.url);
+    if (!/hermes_session_at=good/.test(q.headers.cookie || '')) { r.writeHead(401); return r.end('{}'); }
+    r.writeHead(200, { 'Content-Type': 'application/json' });
+    return r.end(JSON.stringify({ session_id: m[1], profile: url.searchParams.get('profile'), messages: newest[decodeURIComponent(m[1])] || [] }));
+  }
   if (url.pathname !== '/api/profiles/sessions') { r.writeHead(200, { 'Content-Type': 'text/html' }); return r.end('<title>dashboard</title>'); }
   asks++;
   first ||= q.url;
@@ -52,7 +68,11 @@ const dash = createServer((q, r) => {
   r.writeHead(200, { 'Content-Type': 'application/json' });
   r.end(JSON.stringify({ sessions: [
     session({ last_activity_description: 'terminal command running', ...(s1Ended ? { ended_at: now() - 1, is_active: false } : {}) }),
-    session({ id: 'quiet', title: '<img src=x onerror=alert(1)>', is_active: false, last_active: now() - 1200, last_activity_description: null }),
+    session({ id: 'quiet', title: 'Quiet', is_active: false, last_active: now() - 1200, last_activity_description: null }),
+    session({ id: 'xss', title: '<img src=x onerror=alert(1)>' }),
+    session({ id: 'answered', title: 'Answered just now' }),
+    // A dashboard that ignored exclude_sources: Roar's own tab-name call, mid-turn, still never shows.
+    session({ id: 'helper', source: 'api_server', title: 'Suggest a short, specific name (2 to 4 words)' }),
     session({ id: 'gone', title: 'Ended', ended_at: now() - 5 }),
     session({ id: 'old', title: 'Stale', is_active: false, last_active: now() - 7 * 3600 }),
     session({ id: 'pin', title: 'Pinned', is_active: false, pinned: true, last_active: now() - 9 * 3600 }),
@@ -60,7 +80,7 @@ const dash = createServer((q, r) => {
     session({ id: 'untitled', title: null }),
     session({ id: 'local-w1', profile: 'coder', source: 'kanban', title: 'worker', started_at: now() - 100, last_activity_description: 'receiving stream response' }),
     session({ id: 'local-dead', profile: 'coder', source: 'kanban', title: 'dead worker', is_active: false, started_at: now() - 7200, last_active: now() - 1800 }),
-  ], total: 9 }));
+  ], total: 12 }));
 });
 await new Promise((ok) => dash.listen(0, '127.0.0.1', ok));
 const base = `http://127.0.0.1:${dash.address().port}`;
@@ -106,7 +126,7 @@ try {
   check(!!signin, 'a 401 becomes one sign-in row');
   check(signin?.url === base + '/login', 'which leads to the login page');
   check(/Sign in to Hermes in the/.test((await items()).status), 'and Settings says so');
-  check(first === '/api/profiles/sessions?limit=60&order=recent&exclude_sources=cron', 'asks for every profile, without cron');
+  check(first === '/api/profiles/sessions?limit=60&order=recent&exclude_sources=cron,api_server,tool', 'asks for every profile, without cron, API helper calls or tool runs');
 
   // Sign in the way a person does: a page in this space sets the cookie.
   await side(`ask({ cmd: 'open', text: ${JSON.stringify(base + '/signin')}, newTab: true })`);
@@ -116,16 +136,21 @@ try {
   check(!!got, 'signed in, the sessions and cards come through');
   check([...cookies].some((c) => /hermes_session_at=good/.test(c)), 'read with the space\'s cookie');
   const ids = (got || []).map((c) => c.id).sort();
-  check(JSON.stringify(ids) === JSON.stringify(['hermes-card-t_ask', 'hermes-card-t_run', 'hermes-default-pin', 'hermes-default-quiet', 'hermes-default-s1', 'hermes-default-untitled']),
-    'running cards, then open chats: recent, pinned or working, plainly named; no ended, stale, worker or queued rows: ' + ids);
-  const a = got?.find((c) => c.id === 'hermes-default-s1'), b = got?.find((c) => c.id === 'hermes-default-quiet');
-  check(a?.state === 'working' && a?.doing === 'Desktop · Terminal command running' && a?.project === 'Plan the trip', 'an active chat reads as working, with what it\'s doing');
-  check(b?.state === 'idle' && b?.doing === 'Desktop', 'a quiet chat reads as idle');
+  check(JSON.stringify(ids) === JSON.stringify(['hermes-card-t_ask', 'hermes-card-t_quiet', 'hermes-card-t_run', 'hermes-default-s1', 'hermes-default-untitled', 'hermes-default-xss']),
+    'running cards and live chats only: no answered, quiet, pinned, ended, stale, helper, worker or queued rows: ' + ids);
+  const a = got?.find((c) => c.id === 'hermes-default-s1');
+  check(a?.state === 'working' && a?.doing === 'Live · Hermes · Chat · Terminal command running' && a?.project === 'Plan the trip', 'a live chat: Live, who, where, what it\'s doing');
   const run = got?.find((c) => c.id === 'hermes-card-t_run');
-  check(run?.state === 'working' && run?.project === 'Fix the login page' && run?.doing === 'coder · Receiving stream response', 'a running card shows its worker\'s current step');
+  check(run?.state === 'working' && run?.project === 'Fix the login page' && /^coder · Working · last step (now|\d+s ago)$/.test(run?.doing || ''), 'a running card says how it\'s going: ' + run?.doing);
   check(run?.url === `${base}/kanban`, 'and opens the board');
-  check(got?.find((c) => c.id === 'hermes-default-untitled')?.project === 'Hermes session', 'an untitled session gets a name');
-  check(!JSON.stringify(got).includes('SECRET'), 'neither the conversation preview nor a card body reaches a row');
+  const quiet = got?.find((c) => c.id === 'hermes-card-t_quiet');
+  check(quiet?.state === 'working' && quiet?.tone === 'quiet' && /^writer · May be stuck · no check-in for 6m$/.test(quiet?.doing || ''), 'a card with no check-in for 5 minutes may be stuck: ' + quiet?.doing);
+  check(got?.find((c) => c.id === 'hermes-default-untitled')?.project === 'Untitled chat', 'an untitled chat is Untitled chat');
+  check(!JSON.stringify(got).includes('SECRET'), 'neither the preview, a message nor a card body reaches a row');
+  const askedAbout = new Set(checked);
+  check(['s1', 'untitled', 'xss', 'answered', 'local-w1'].every((x) => askedAbout.has(x)) && !['quiet', 'old', 'pin', 'gone', 'helper', 'bad/id'].some((x) => askedAbout.has(x)),
+    'only chats that moved in the last two minutes are asked about: ' + [...askedAbout]);
+  check(checkUrls.some((u) => u === '/api/sessions/local-w1/messages?profile=coder&limit=3&order=latest&inline_images=false'), 'on their own profile, without images');
   check(a?.url === `${base}/chat?resume=s1&profile=default`, 'a row links to its chat');
   check(/1 waiting on you|running on the board/.test((await items()).status || ''), 'Settings counts the board: ' + (await items()).status);
 
@@ -133,7 +158,11 @@ try {
   // The next regular read, not a forced one: starting over clears the rows, and a row seen fresh only sets a baseline.
   askStatus = 'blocked';
   const ask = await until(async () => (await rows()).find((c) => c.id === 'hermes-card-t_ask' && c.state === 'needs_you'), 35000);
-  check(ask?.doing === 'researcher needs you', 'a card waiting on input needs you, without its question');
+  check(ask?.doing === 'researcher · Asks you', 'a card waiting on input asks you, without its question');
+  check(ask?.order === 0, 'and comes first, as in Hermes\'s Needs you');
+  check(!!(await until(() => side(`document.querySelector('#cl [data-clid^="hermes-"]')?.dataset.clid === 'hermes-card-t_ask'`))), 'the sidebar lists it first too');
+  check(await side(`!!document.querySelector('[data-clid="hermes-card-t_quiet"] .dot.quiet')`), 'a quiet card\'s dot is amber');
+  check(await side(`+document.getElementById('cl-n').textContent === document.querySelectorAll('#cl [data-clid]').length`), 'the AI count is the rows listed');
   const alert = await until(async () => (await side(`ask({ cmd: 'state' }).then((s) => JSON.stringify((s.alerts || []).find((a) => a.level === 'needs_you' && /Pick a colour/.test(a.title)) || null))`).then((j) => JSON.parse(j || 'null'))));
   check(!!alert && alert.url === `${base}/kanban` && alert.agent === 'Hermes', 'and raises a needs-you card that opens the board: ' + JSON.stringify(alert));
 
@@ -156,8 +185,8 @@ try {
   await until(async () => (await rows()).some((c) => c.id.startsWith('hermes-card-')));
 
   await until(() => side(`!!document.querySelector('[data-clid="hermes-default-s1"]')`));
-  const html = await side(`document.querySelector('[data-clid="hermes-default-quiet"]')?.outerHTML || ''`);
-  check(html.includes('&lt;img') && !(await side(`!!document.querySelector('[data-clid="hermes-default-quiet"] img')`)), 'a title is text, not markup');
+  const html = await side(`document.querySelector('[data-clid="hermes-default-xss"]')?.outerHTML || ''`);
+  check(html.includes('&lt;img') && !(await side(`!!document.querySelector('[data-clid="hermes-default-xss"] img')`)), 'a title is text, not markup');
   check(!html.includes('data-clbeside') && !html.includes('data-clfocus') && !html.includes('data-clquit') && !html.includes('data-clq'), 'no side by side, terminal, end or reply on a watch-only row');
   check(html.includes('data-clhide'), 'but it can be hidden');
 

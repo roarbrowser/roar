@@ -215,6 +215,8 @@ body.drag-active .pinned:empty::before { content: 'Drop to pin'; color: var(--in
 .cl .dot.idle { background: var(--panel); box-shadow: inset 0 0 0 2px var(--ink-2), 0 0 0 2px var(--ground); } .cl .dot.needs_you { background: var(--mane, #d9822b); }
 /* Still, never blinking: a tinted row and an orange dot say a session needs you. */
 .cl .dot.working, .cl .dot.starting { background: var(--ok); }
+/* A Hermes board card that may be stuck: amber: may be stuck. */
+.cl .dot.quiet { background: #d99a00; }
 /* The state owns the row's color (needing you fills it soft orange); a session's own color (set in its
    full view) is only a bar on the left edge, so it never reads as a state. */
 .cl.tint { box-shadow: inset 3px 0 0 var(--cl-bg); }
@@ -726,7 +728,7 @@ window.roar = {
     // sessions that need you, and a list in start order (newest first) so rows never jump. A row opens the session's full view.
     const needs = (c) => c.state === 'needs_you' && !c.acked;
     const names = agentNames(s);
-    const cl = (s.settings?.claudeSidebar !== false && s.claude?.items || []).map((c) => names[c.id] ? { ...c, project: names[c.id] } : c).sort((a, b) => (b.started || b.updated) - (a.started || a.updated) || (a.id < b.id ? -1 : 1));
+    const cl = hermesOrder((s.settings?.claudeSidebar !== false && s.claude?.items || []).map((c) => names[c.id] ? { ...c, project: names[c.id] } : c).sort((a, b) => (b.started || b.updated) - (a.started || a.updated) || (a.id < b.id ? -1 : 1)));
     // Hidden sessions live in settings so they stay hidden after a restart; ids of gone sessions are dropped.
     clHiddenAt = clHiddenMap(s);
     const clPruned = clHiddenPrune(clHiddenAt, cl.map((c) => c.id));
@@ -748,11 +750,12 @@ window.roar = {
     const attachAttrs = webTab ? `title="Send the tab you're looking at, with a prompt if you like: Roar saves it as Markdown and types @file into the session's prompt"` : 'aria-disabled="true" title="Switch to a web page first: only web pages can be sent"';
     const clRow = (c) => {
       const st = needs(c) ? 'needs_you' : c.state === 'needs_you' ? 'working' : (c.state || 'idle');
-      const sub = tidy(c.doing || (c.prompt || '').split('\n')[0]);
+      // A Hermes server's line is already in Hermes's own words ("home · Working …"): no tidying.
+      const sub = c.remote ? c.doing || '' : tidy(c.doing || (c.prompt || '').split('\n')[0]);
       const open = false;
       const tint = clColor(s, c.id);
       return `<div class="row pr cl${tint ? ' tint' : ''}${needs(c) ? ' needs' : ''}${c.state === 'starting' ? ' starting' : ''}${clFull[c.id]?.active ? ' active' : ''}" data-clid="${esc(c.id)}"${tint ? ` style="--cl-bg:${tint}"` : ''} data-cltab="${clFull[c.id]?.id || ''}" title="${esc((needs(c) && c.ask) || c.prompt || c.cwd || '')}">` +
-        `<button class="clmain" aria-label="${esc(agentName(c))}: ${esc(c.project)}, ${clStates[st] || st}${sub ? ': ' + esc(sub) : ''}. Open"><span class="cl-ic">${agentIcon(c, 16)}<span class="dot ${esc(st)}" aria-hidden="true"></span></span>` +
+        `<button class="clmain" aria-label="${esc(agentName(c))}: ${esc(c.project)}, ${clStates[st] || st}${sub ? ': ' + esc(sub) : ''}. Open"><span class="cl-ic">${agentIcon(c, 16)}<span class="dot ${esc(st === 'working' && c.tone || st)}" aria-hidden="true"></span></span>` +
         `<span class="label"><span class="cl-name"><b>${esc(c.project)}</b><time>${clAgo(c.updated)}</time></span><small><span class="vh">${clStates[st] || st}: </span>${esc(sub)}</small>` +
         `</span></button>` +
         `<span class="cl-acts">` +
@@ -777,8 +780,6 @@ window.roar = {
     $('cl-count').classList.toggle('urgent', clNeeds > 0);
     $('cl-btn').title = (s.settings?.agentSection === false ? 'Show' : 'Hide') + ' AI: ' + cl.length + ' session' + (cl.length === 1 ? '' : 's') + (clNeeds ? `, ${clNeeds} waiting for you` : '');
     $('cl-btn').setAttribute('aria-label', $('cl-btn').title);
-    // Open Ask chats are AI rows, so they count here, not in Tabs.
-    $('cl-n').textContent = (cl.length + state.tabs.filter(askTab).length) || '';
     setHtml($('cl-ai'), cl.length ? aiRn('sessions', 0, 'every agent session') : '');
     clLive = cl.filter((c) => c.live);
     // Redrawing loses focus in a reply box; put it back where it was.
@@ -795,6 +796,9 @@ window.roar = {
     const hiddenNow = (c) => clIsHidden(c.id) &&!(needs(c) && c.updated > (clHiddenAt[c.id] || 0));
     const clHid = cl.filter(hiddenNow).length;
     const clVis = clShowHidden ? cl : cl.filter((c) => !hiddenNow(c));
+    // The count is what's listed, as Hermes's own section counts are: hidden sessions aren't. Open Ask chats are AI rows, so
+    // they count here, not in Tabs.
+    $('cl-n').textContent = (clVis.length + state.tabs.filter(askTab).length) || '';
     // Ask chats: one row each, like a session, its icon and name saying which model it was with.
     const chatTool = (c) => c.brand || (/^cli-/.test(c.model || '') ? c.model.slice(4).split('|')[0] : 'model');
     const chatIcon = (c) => AGENT_TOOLS[chatTool(c)] ? agentIcon(chatTool(c), 16) : '<svg class="agent-icon" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="var(--ink-2)" stroke-width="1.5" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 3.5h11v7h-6l-3 2.5v-2.5h-2z"/></svg>';
@@ -1651,6 +1655,14 @@ $('ask-llm').onclick = () => {
 var AI_RN_ICO = '<svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 1.8l1.3 3.4 3.4 1.3-3.4 1.3L8 11.2 6.7 7.8 3.3 6.5l3.4-1.3z"/><path d="M12.6 10.4l.6 1.5 1.5.6-1.5.6-.6 1.5-.6-1.5-1.5-.6 1.5-.6z"/></svg>';
 var aiBusy = {};  // "kind:id" -> {old, until}: the agent is renaming it.
 // A tabs-only bulk key ("ungrouped:space") is never in aiBusy itself: its run is any of its tabs' run.
+// A Hermes server's rows keep the order Hermes's own apps give them (Needs you, then the latest move first, `order`),
+// in the places the list's own order gave them, so other agents' rows don't move.
+function hermesOrder(list) {
+  const at = list.flatMap((c, i) => (c.remote && c.tool === 'hermes' ? [i] : []));
+  const rows = at.map((i) => list[i]).sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+  at.forEach((i, n) => { list[i] = rows[n]; });
+  return list;
+}
 const aiSessions = () => (state.claude?.items || []).filter((c) => !c.remote);  // Rename asks the session itself; a remote row can't be asked.
 function aiRunning(key) { return /^(all|ungrouped|split|ghost|sessions):/.test(key) && chatCore.renameKeys(key, state.tabs, aiSessions()).map((k) => aiBusy[k]?.run).find(Boolean); }
 function aiRn(kind, id, name) {

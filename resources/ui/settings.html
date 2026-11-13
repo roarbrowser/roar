@@ -223,7 +223,7 @@ details.vendor[open] > summary::before { transform: rotate(45deg); }
       <p class="reason">The coding agents whose sessions show in the sidebar and that can browse with Roar. Open one below to connect it.</p>
       <div id="agent-setup"></div>
       <details class="vendor" data-agent="hermes" id="hermes-card"><summary><span class="v-name" id="hermes-ico">Hermes</span><span class="v-st" id="hermes-st">Off</span></summary>
-        <p class="reason">Open sessions on a Hermes dashboard show in the sidebar to watch.</p>
+        <p class="reason">Live chats and board cards on a Hermes dashboard show in the sidebar to watch.</p>
         <div class="row"><span class="name" id="hermes-label">Hermes sessions<small id="hermes-note"></small><span hidden>Hermes server Hermes Agent dashboard sessions</span></span>
           <div class="segmented" role="group" aria-labelledby="hermes-label" id="hermes-where"><button data-hw="off">Off</button><button data-hw="local">This Mac</button><button data-hw="remote">Another machine</button></div></div>
         <div class="row" id="hermes-addr"><label class="name" for="hermes-url">Dashboard<small id="hermes-addr-note"></small></label>
@@ -380,7 +380,7 @@ for (const el of document.querySelectorAll('[data-icon]')) el.innerHTML = MODULE
 
 // Updates controls in place, so focus never moves (no container is rebuilt here).
 // Its status changes after the fetch, so the note is refreshed while it's on screen (see the timer below).
-const HERMES_NOTE = 'Open sessions on a Hermes dashboard show in the sidebar to watch.';
+const HERMES_NOTE = 'Live chats and board cards on a Hermes dashboard show in the sidebar to watch.';
 const HERMES_LOCAL = 'http://127.0.0.1:9119';  // The dashboard's own default (hermes dashboard).
 let hermesWhere = '';  // "remote" picked but no address typed yet
 function hermesRow(s) {

@@ -198,6 +198,7 @@ class Controller {
   void RefreshGmail();
   void RefreshGmail(int space, int attempt = 0);
   void HermesResult(int generation, int kind, int code, const std::string& body);  // controller_hermes.cc
+  void HermesNext();
   void RefreshOutlook(int space);
   void FetchOutlookMail(int space, const std::string& host);
   void ImportBrowser(const std::string& browser);
@@ -492,7 +493,8 @@ class Controller {
   bool sidebar_push_pending_ = false;
   std::map<std::string, std::pair<std::filesystem::file_time_type, CefRefPtr<CefDictionaryValue>>> claude_files_;  // ClaudeTick: session file -> mtime, parsed.
   std::vector<CefRefPtr<CefDictionaryValue>> hermes_rows_;  // Sessions and cards on the Hermes server, as ClaudeTick lists them.
-  std::vector<HermesSession> hermes_sessions_;  // The last session list, while the board is read.
+  std::vector<HermesSession> hermes_sessions_;  // The last session list, while its chats and the board are read.
+  std::vector<size_t> hermes_checks_;           // Indexes into it of chats still to ask about, the next one last.
   std::string hermes_base_, hermes_status_;
   CefRefPtr<CefURLRequest> hermes_request_;
   int hermes_generation_ = 0, hermes_failures_ = 0, hermes_board_skip_ = 0;
