@@ -1,9 +1,13 @@
 // Sessions and board cards on a Hermes Agent server as watch-only rows among the sidebar's agent sessions. Hermes runs
 // on its own machine, so no hook here can see it: Roar reads the dashboard with the cookies of the space signed in to
 // it, like Gmail's feed, so there's no key to keep. Each poll reads the session list, then the newest messages of each
-// chat that moved in the last two minutes (to see whether it's mid-turn, as Hermes's apps do), then the kanban board Hermes
-// ships with (a dashboard without it just shows sessions). Rows stay in memory. Rules: hermes_server.h.
+// chat that moved in the last two minutes (to see whether it's mid-turn, as Hermes's apps do), then the kanban board
+// Hermes ships with (a dashboard without it just shows sessions), then up to four cards' tasks, the newest run first:
+// a card's events name the worker session that run runs in, which is where its row leads. A row's link is that exact
+// chat once found, the board till then; a running card with exactly one worker session begun with its run gets that
+// guess. Rows stay in memory. Rules: hermes_server.h.
 #include <algorithm>
+#include <map>
 #include <string>
 #include <utility>
 
@@ -25,8 +29,10 @@ constexpr int kFailuresBeforeClear = 8;   // Two minutes: a restarting server ke
 constexpr int kBoardRetryPolls = 20;      // A dashboard with no kanban plugin is asked again every 5 minutes.
 constexpr size_t kMaxBody = 8 * 1024 * 1024;
 constexpr size_t kMaxChecks = 10;         // Chats asked about per poll; more than this are rarely mid-turn at once.
+constexpr size_t kMaxEvents = 60;         // Events read out of one card's task feed.
+constexpr int kMaxTaskAsks = 4;           // Card task lookups per poll, newest run first; the rest wait for the next cycle.
 
-enum Kind { kSessions = 0, kBoard = 1, kNewest = 2 };
+enum Kind { kSessions = 0, kBoard = 1, kNewest = 2, kTask = 3 };
 
 class HermesFetch : public CefURLRequestClient {
  public:
@@ -173,6 +179,78 @@ bool ParseBoard(const CefRefPtr<CefDictionaryValue>& root, std::vector<HermesCar
   return true;
 }
 
+// A card's task feed, /api/plugins/kanban/tasks/<id>: {task: {current_run_id: n|null, ...}, events: [{kind, run_id,
+// created_at, payload: {db, session_id}|null}, ...]}. current_run_id sits inside "task" (not the root); an event's worker
+// db and its session there sit inside that event's "payload". Only what can name a chat is read: the current run (null:
+// none, so a pick goes by the newest event overall) and the events, cut to kMaxEvents in the order Hermes returns them
+// (chronological). A malformed answer names nothing.
+bool ParseTask(const CefRefPtr<CefDictionaryValue>& root, long long& run, bool& has_run,
+               std::vector<HermesTaskEvent>& out) {
+  run = 0;
+  has_run = false;
+  out.clear();
+  if (!root) return false;
+  // The current run lives inside the card's "task" dictionary. Missing or not a dictionary: no current run.
+  auto task = root->GetType("task") == VTYPE_DICTIONARY ? root->GetDictionary("task") : nullptr;
+  if (task) {
+    long long r = Number(task, "current_run_id");  // int or null; null reads as 0, so has_run stays false.
+    if (r > 0) {
+      run = r;
+      has_run = true;
+    }
+  }
+  auto list = root->GetType("events") == VTYPE_LIST ? root->GetList("events") : nullptr;
+  if (!list) return false;
+  for (size_t i = 0; i < list->GetSize() && out.size() < kMaxEvents; ++i) {
+    if (list->GetType(i) != VTYPE_DICTIONARY) continue;
+    auto e = list->GetDictionary(i);
+    HermesTaskEvent ev;
+    ev.kind = Text(e, "kind");
+    // A worker's db and its session there are inside the event's "payload"; a non-dictionary payload names nothing.
+    auto payload = e->GetType("payload") == VTYPE_DICTIONARY ? e->GetDictionary("payload") : nullptr;
+    if (payload) {
+      ev.db = Text(payload, "db");
+      ev.session_id = Text(payload, "session_id");
+    }
+    ev.run_id = Number(e, "run_id");
+    ev.created = Number(e, "created_at");
+    out.push_back(std::move(ev));
+  }
+  return true;
+}
+
+// The board's cards whose chat isn't cached for their current run, the next one last: the queue is asked from the back,
+// so the newest run is asked first, at most kMaxTaskAsks. A 404 marks every card as having no link for a while.
+std::vector<std::string> TaskQueue(const std::vector<HermesCard>& cards,
+                                    const std::map<std::string, std::pair<double, HermesCardChat>>& chats,
+                                    int task_skip) {
+  if (task_skip > 0 || !cards.size()) return {};
+  std::vector<std::pair<double, std::string>> need;
+  for (const auto& c : cards) {
+    if (c.status != "running" && !HermesCardNeedsYou(c)) continue;  // Only cards that get a row are worth asking about.
+    auto it = chats.find(c.id);
+    if (it != chats.end() && it->second.first == c.run_started) continue;  // Found for this run already: asked once.
+    if (!HermesIdOk(c.id)) continue;
+    need.push_back({c.run_started, c.id});
+  }
+  std::stable_sort(need.begin(), need.end(), [](const auto& a, const auto& b) { return a.first < b.first; });
+  if (need.size() > static_cast<size_t>(kMaxTaskAsks)) need.erase(need.begin(), need.end() - kMaxTaskAsks);
+  std::vector<std::string> out;
+  for (auto& n : need) out.push_back(std::move(n.second));
+  return out;
+}
+
+// The exact links the rows get: cached chats still matching their card's current run.
+std::map<std::string, HermesCardChat> ChatsOf(const std::vector<HermesCard>& cards,
+                                               const std::map<std::string, std::pair<double, HermesCardChat>>& cached) {
+  std::map<std::string, HermesCardChat> out;
+  for (const auto& c : cards) {
+    auto it = cached.find(c.id);
+    if (it != cached.end() && it->second.first == c.run_started) out[c.id] = it->second.second;
+  }
+  return out;
+}
+
 }  // namespace
 
 void Controller::HermesTick() {
@@ -201,8 +279,11 @@ void Controller::HermesPoll(bool restart) {
     hermes_rows_.clear();
     hermes_sessions_.clear();
     hermes_checks_.clear();
+    hermes_tasks_.clear();
+    hermes_chats_.clear();
     hermes_failures_ = 0;
     hermes_board_skip_ = 0;
+    hermes_task_skip_ = 0;
     hermes_base_ = base;
     hermes_status_.clear();
   }
@@ -217,6 +298,8 @@ void Controller::HermesPoll(bool restart) {
     hermes_request_->Cancel();  // Its OnRequestComplete counts as a failure.
     return;
   }
+  // Poll again every 15 seconds until signed in, then forever after: a sign-in that happens between polls (the person
+  // opens the login page the sign-in row leads to) is picked up by the next tick, no forced restart needed.
   HermesAsk(kSessions, HermesSessionsUrl(base));
 }
 
@@ -228,7 +311,7 @@ void Controller::HermesNext() {
   }
   if (hermes_board_skip_ > 0) {
     hermes_board_skip_--;
-    return HermesResult(hermes_generation_, kBoard, -1, "");
+    return;
   }
   HermesAsk(kBoard, HermesBoardUrl(hermes_base_));
 }
@@ -245,9 +328,13 @@ void Controller::HermesResult(int generation, int kind, int code, const std::str
       hermes_rows_ = {Row(r)};
       hermes_failures_ = 0;
       status = "Sign in to Hermes in the " + HermesSpaceName() + " space.";
+      if (status != hermes_status_) hermes_status_ = status, PushSidebar();
+      return;  // Keep the sign-in row: the tail would build sessions in its place.
     } else if (!ParseSessions(Root(code, body), hermes_sessions_)) {
       if (++hermes_failures_ >= kFailuresBeforeClear) hermes_rows_.clear();
       status = code == 200 ? "That address doesn't answer like a Hermes server." : code ? "Hermes returned " + std::to_string(code) + "." : "Couldn't reach Hermes.";
+      if (status != hermes_status_) hermes_status_ = status, PushSidebar();
+      return;  // Keep the failure: the tail's "Connected." would erase it.
     } else {
       hermes_failures_ = 0;
       // Then each chat that may be mid-turn, the most recent first (asked from the back of the list).
@@ -266,29 +353,68 @@ void Controller::HermesResult(int generation, int kind, int code, const std::str
     hermes_sessions_[hermes_checks_.back()].pending = ParseNewest(Root(code, body));
     hermes_checks_.pop_back();
     return HermesNext();
-  } else {
-    // Sessions came through; the board is extra. Not there (no kanban plugin) or unreadable: sessions only, and the
-    // board isn't asked again for a while. Skipped (code -1) or no answer at all (0, a blip): rows stay as they were.
+  } else if (kind == kBoard) {
+    // Sessions came through; the board is extra. Not there (no kanban plugin: a 404) or unreadable: sessions only, and the
+    // board isn't asked again for a while. A 404 drops the old rows at once: the plugin is gone, its cards would be lies
+    // (ParseBoard leaves `out` untouched when it can't read anything, so clear it here). A blip (0): rows stay as they
+    // were. With a board: its cards' tasks are asked now (up to four, newest run first) and the rows are built when the
+    // last answer lands, so a card shows the board page or its exact worker chat, never something in between.
     if (code == 0) return;
-    std::vector<HermesCard> cards;
-    bool board = ParseBoard(Root(code, body), cards);
+    if (code == 404) { hermes_cards_.clear(); hermes_chats_.clear(); }  // Plugin gone: no stale card rows to keep.
+    bool board = ParseBoard(Root(code, body), hermes_cards_);
     if (!board && code > 0) hermes_board_skip_ = kBoardRetryPolls;
-    hermes_rows_.clear();
-    auto rows = HermesRows(hermes_base_, hermes_sessions_, cards, board, NowSeconds());
-    size_t sessions = 0, working = 0, needs = 0;
-    for (size_t i = 0; i < rows.size(); ++i) {
-      const auto& r = rows[i];
-      auto row = Row(r);
-      row->SetInt("order", static_cast<int>(i));  // Hermes's order, which the sidebar keeps among Hermes's rows.
-      hermes_rows_.push_back(row);
-      sessions += r.id.rfind("hermes-card-", 0) != 0;
-      working += r.id.rfind("hermes-card-", 0) == 0 && r.state == "working";
-      needs += r.state == "needs_you";
+    hermes_tasks_ = TaskQueue(hermes_cards_, hermes_chats_, hermes_task_skip_);
+    if (hermes_task_skip_ > 0) hermes_task_skip_--;
+    if (!hermes_tasks_.empty()) return HermesAsk(kTask, HermesTaskUrl(hermes_base_, hermes_tasks_.back()));
+    // Nothing to ask (no board, or every card already found): the tail builds the rows from what's cached, now.
+  } else {
+    // kTask: one card's feed, answered in the order the queue was asked (the back first, the newest run).
+    if (code == 0 || hermes_tasks_.empty()) return;
+    auto root = Root(code, body);
+    long long run = 0;
+    bool has_run = false;
+    std::vector<HermesTaskEvent> events;
+    if (code == 401 || code == 403) {
+      double now = NowSeconds();
+      HermesRow r{"hermes-signin", "Hermes", "idle", "Sign in to see your sessions", hermes_base_ + "/login", now, now};
+      hermes_rows_ = {Row(r)};
+      hermes_tasks_.clear();
+      status = "Sign in to Hermes in the " + HermesSpaceName() + " space.";
+      if (status != hermes_status_) hermes_status_ = status, PushSidebar();
+      return;  // Keep the sign-in row: the tail would build the queue's rows in its place.
+    } else if (code == 404) {
+      hermes_task_skip_ = kBoardRetryPolls;  // No task feed: go quiet like a missing board, same window.
+      hermes_tasks_.clear();
+    } else if (ParseTask(root, run, has_run, events)) {
+      std::string id = hermes_tasks_.back();
+      HermesCardChat chat = HermesPickChat(events, has_run, run);
+      if (!chat.id.empty()) {
+        double started = 0;
+        for (const auto& c : hermes_cards_) if (c.id == id) started = c.run_started;
+        hermes_chats_[id] = {started, chat};
+      }
+      hermes_tasks_.pop_back();
+      if (!hermes_tasks_.empty()) return HermesAsk(kTask, HermesTaskUrl(hermes_base_, hermes_tasks_.back()));
     }
-    status = "Connected. " + (sessions ? std::to_string(sessions) + (sessions == 1 ? " live chat" : " live chats") : std::string("No live chats"));
-    if (board) status += working || needs ? ", " + std::to_string(working) + " running on the board" + (needs ? ", " + std::to_string(needs) + " waiting on you" : "") : ", board quiet";
-    status += board ? "." : ". No kanban board, so cards don't show.";
   }
+  // The poll's rows, all at once: Needs you first, working after, the latest move first (HermesRows).
+  bool board = !hermes_board_skip_ || !hermes_cards_.empty();  // A skipped board keeps the last cards on the rows.
+  auto rows = HermesRows(hermes_base_, hermes_sessions_, hermes_cards_, board, NowSeconds(),
+                         ChatsOf(hermes_cards_, hermes_chats_));
+  hermes_rows_.clear();
+  size_t sessions = 0, working = 0, needs = 0;
+  for (size_t i = 0; i < rows.size(); ++i) {
+    const auto& r = rows[i];
+    auto row = Row(r);
+    row->SetInt("order", static_cast<int>(i));  // Hermes's order, which the sidebar keeps among Hermes's rows.
+    hermes_rows_.push_back(row);
+    sessions += r.id.rfind("hermes-card-", 0) != 0;
+    working += r.id.rfind("hermes-card-", 0) == 0 && r.state == "working";
+    needs += r.state == "needs_you";
+  }
+  status = "Connected. " + (sessions ? std::to_string(sessions) + (sessions == 1 ? " live chat" : " live chats") : std::string("No live chats"));
+  if (board) status += working || needs ? ", " + std::to_string(working) + " running on the board" + (needs ? ", " + std::to_string(needs) + " waiting on you" : "") : ", board quiet";
+  else status += ". No kanban board, so cards don't show.";
   if (status != hermes_status_) hermes_status_ = status, PushSidebar();
 }
 

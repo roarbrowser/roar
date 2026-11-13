@@ -6,6 +6,7 @@
 
 #include <algorithm>
 #include <cstdio>
+#include <map>
 #include <string>
 #include <vector>
 
@@ -68,7 +69,11 @@ inline bool HermesPending(const std::string& role, bool calls_tools) {
 
 // The kanban plugin Hermes ships with. Its board lists every card by column; a dashboard without the plugin answers 404.
 inline std::string HermesBoardUrl(const std::string& base) { return base + "/api/plugins/kanban/board"; }
-inline std::string HermesBoardPage(const std::string& base) { return base + "/kanban"; }  // No per-card link exists.
+// A card's own task: its events name the session its worker runs in (HermesPickChat), which is where its row leads.
+inline std::string HermesTaskUrl(const std::string& base, const std::string& id) { return base + "/api/plugins/kanban/tasks/" + id; }
+// A per-card chat link exists via the card's task events (HermesPickChat); HermesRows carries it in the chat map.
+// The board page is where a row leads until then; a card never shows a half-found link.
+inline std::string HermesBoardPage(const std::string& base) { return base + "/kanban"; }
 
 // One session from /api/profiles/sessions. `active` is Hermes's own: open and heard from in the last 5 minutes.
 struct HermesSession {
@@ -85,6 +90,48 @@ struct HermesCard {
   std::string block_kind;                    // needs_input, dependency, capability, transient; "" on older boards.
   double run_started = 0, heartbeat = 0;
 };
+
+// One event from a card's task feed, cut to what can name a chat: kind (only the admitted
+// events name a worker: worker_admitted when it runs under the gateway, owner_admitted when
+// a session takes it over), its run, the worker's state db and its session there, and when
+// it happened. The fetch and JSON read is controller_hermes.cc.
+struct HermesTaskEvent {
+  std::string kind, db, session_id;
+  long long run_id = 0;
+  double created = 0;
+};
+
+// A card's exact chat, found from its task events: the worker's session and whose it is.
+struct HermesCardChat {
+  std::string profile, id;
+};
+
+// A card's own chat: among the admitted events (worker_admitted under the gateway,
+// owner_admitted on takeover) that carry a db and a session id, the newest of the current
+// run; once the run has ended (a blocked card), the newest overall. The db's folder names
+// the profile when it sits inside "profiles", else the default profile. Both parts must
+// pass HermesIdOk, else the event names nothing. No qualifying event: no chat (a worker
+// not yet admitted, or one spawned outside the gateway).
+inline HermesCardChat HermesPickChat(const std::vector<HermesTaskEvent>& events, bool has_current_run, long long current_run_id) {
+  HermesCardChat best;
+  double best_at = 0;
+  for (const auto& e : events) {
+    if (e.kind != "worker_admitted" && e.kind != "owner_admitted") continue;
+    if (has_current_run && e.run_id != current_run_id) continue;
+    if (e.created <= best_at || e.created <= 0) continue;
+    if (e.db.size() <= 9 || e.db.compare(e.db.size() - 9, 9, "/state.db") != 0) continue;
+    std::string folder = e.db.substr(0, e.db.size() - 9);
+    auto slash = folder.rfind('/');
+    std::string parent = slash == std::string::npos ? "" : folder.substr(0, slash);
+    bool in_profiles = parent.size() >= 9 && parent.compare(parent.size() - 9, 9, "/profiles") == 0;
+    std::string profile = in_profiles ? folder.substr(slash + 1) : "default";
+    if (!HermesIdOk(profile) || !HermesIdOk(e.session_id)) continue;
+    best_at = e.created;
+    best.profile = profile;
+    best.id = e.session_id;
+  }
+  return best;
+}
 
 struct HermesRow {
   std::string id, name, state, doing, url;  // state: working, idle or needs_you.
@@ -221,9 +268,11 @@ inline std::string HermesWho(const std::string& assignee) {
 }
 
 // The sidebar's rows as Hermes's apps order them: Needs you (cards asking for input or stuck), then Working now (running
-// cards and live chats), each the latest move first.
+// cards and live chats), each the latest move first. `chats` carries the exact links found so far (card id -> its worker's
+// chat, filled by controller_hermes.cc as its task lookups answer); a card without one shows the board till its turn comes.
 inline std::vector<HermesRow> HermesRows(const std::string& base, const std::vector<HermesSession>& sessions,
-                                         const std::vector<HermesCard>& cards, bool board, double now) {
+                                          const std::vector<HermesCard>& cards, bool board, double now,
+                                          const std::map<std::string, HermesCardChat>& chats) {
   std::vector<HermesRow> rows;
   for (const auto& c : board ? cards : std::vector<HermesCard>{}) {
     bool running = c.status == "running", needs = HermesCardNeedsYou(c);
@@ -231,12 +280,23 @@ inline std::vector<HermesRow> HermesRows(const std::string& base, const std::vec
     HermesRow r;
     r.id = "hermes-card-" + c.id;
     r.name = c.title.empty() ? c.id : HermesCut(c.title, kHermesMaxTitle);  // Else its id, as Hermes's apps show it.
-    r.url = HermesBoardPage(base);
+    auto hit = chats.find(c.id);
+    r.url = hit != chats.end() ? HermesChatUrl(base, hit->second.id, hit->second.profile) : HermesBoardPage(base);
     r.started = r.updated = c.run_started;
     std::string who = HermesWho(c.assignee);
     if (running) {
       const HermesSession* s = HermesCardSession(c, sessions);
       if (s) r.started = std::max(r.started, s->started), r.updated = std::max(r.updated, s->last_active);
+      // No link yet: the guess is only right when exactly one worker session was started with or after the run.
+      // Two or more: never guess between them (the task lookup picks the exact one); none: nothing started after it.
+      if (hit == chats.end()) {
+        const std::string profile = c.assignee.empty() ? "default" : c.assignee;
+        int found = 0;
+        const HermesSession* only = nullptr;
+        for (const auto& cand : sessions)
+          if (cand.source == "kanban" && !cand.ended && cand.profile == profile && cand.started >= c.run_started - 5) only = &cand, ++found;
+        if (found == 1) r.url = HermesChatUrl(base, only->id, only->profile);
+      }
       HermesPaceLine pace = HermesPace(c, s ? s->last_active : 0, now);
       r.state = pace.pace == "stuck" ? "needs_you" : "working";
       if (pace.pace == "maybeStuck") r.tone = "quiet";
