@@ -325,10 +325,29 @@ async function request(p, m, it, reply) {
     for (const [k, v] of d.body.form) typeof v === 'string' ? body.append(k, v) : body.append(k, new Blob([bytes(v.b64)], { type: v.type }), v.name);
   }
   if (d.body?.type && !headers.has('content-type')) headers.set('content-type', d.body.type);
+  // Redirects are followed by hand: every hop is a request to a host, and every host is
+  // checked (and the person asked for one outside @connect) BEFORE that hop is reached.
+  // A fetch with redirect:'manual' answers opaque (status 0, no Location), so the real
+  // status and Location of a hop come from a webRequest observer: the match pattern is
+  // host-only (patterns ignore ports) and the exact URL is compared inside the callback.
+  const observe = (href) => {
+    const u = new URL(href);
+    const pattern = `${u.protocol}//${u.hostname}/*`;
+    return new Promise((ok) => {
+      let settled = false;
+      const finish = (v) => { if (settled) return; settled = true; chrome.webRequest.onHeadersReceived.removeListener(listener); ok(v); };
+      const listener = (ev) => {
+        if (settled || ev.url !== href) return;
+        const loc = (ev.responseHeaders || []).find((h) => /^location$/i.test(h.name));
+        finish({ status: ev.statusCode, location: loc ? loc.value : '' });
+      };
+      chrome.webRequest.onHeadersReceived.addListener(listener, { urls: [pattern] }, ['responseHeaders']);
+      // No webRequest event within the window: fall back to what the opaque fetch knows.
+      setTimeout(() => finish(null), 8000);
+    });
+  };
   try {
-    // Redirects are followed by hand: every hop is a request to a host, and every host is
-    // checked before it is reached (redirect:'follow' would let a hop slip past @connect).
-    let target = url, hops = 0, res;
+    let target = url, hops = 0, res, seen;
     for (;;) {
       const host = target.hostname;
       if (target.protocol.startsWith('http') && !connectAllowed(it.meta.connect, it.connectAllow || [], host, pageHost)) {
@@ -336,16 +355,18 @@ async function request(p, m, it, reply) {
         if (answer === 'always') await patchItem(it.id, { connectAllow: [...new Set([...(it.connectAllow || []), host])] });
         if (answer !== 'once' && answer !== 'always') return fail('error', `Refused: ${host} is not in this script's @connect list`);
       }
+      const obs = observe(target.href);
       res = await fetch(target, { method: d.method, headers, body: /^(GET|HEAD)$/i.test(d.method) ? undefined : body,
         credentials: d.anonymous ? 'omit' : 'include', redirect: 'manual', signal: ctl.signal, cache: 'no-store' });
-      const loc = res.status >= 300 && res.status < 400 ? res.headers.get('location') : null;
+      seen = await obs;
+      const loc = seen && seen.status >= 300 && seen.status < 400 ? seen.location : '';
       if (!loc) break;
       if (++hops > 5) return fail('error', 'Too many redirects');
       try { target = new URL(loc, target); } catch { return fail('error', 'Bad redirect location'); }
       if (!/^(https?|ftp|data|blob):$/.test(target.protocol)) return fail('error', 'Redirect to an unsupported scheme');
     }
     const type = d.overrideMimeType || res.headers.get('content-type') || '';
-    const r = { status: res.status, statusText: res.statusText, finalUrl: res.url, readyState: 4, type,
+    const r = { status: (seen && seen.status) || res.status, statusText: res.statusText, finalUrl: res.url, readyState: 4, type,
       responseHeaders: [...res.headers].map(([k, v]) => `${k}: ${v}`).join('\r\n') };
     if (d.responseType === 'arraybuffer' || d.responseType === 'blob') {
       const u = new Uint8Array(await res.arrayBuffer());
