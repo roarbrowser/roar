@@ -13,13 +13,19 @@ const fill = (...kids) => view.replaceChildren(...kids.filter((k) => k != null))
 const say = (msg, bad) => { $('banner').hidden = !msg; $('banner').textContent = msg || ''; $('banner').style.background = bad ? '' : 'color-mix(in srgb, var(--ok) 14%, transparent)'; };
 const route = () => Object.fromEntries(new URLSearchParams(location.hash.slice(1)));
 const go = (params) => { location.hash = new URLSearchParams(params).toString(); };
-
+// The unsaved-edit guard: set when anything in the editor changes, cleared on save or discard.
+// Back/hashchange and closing the tab both confirm first; nothing can quietly vanish an edit.
+let dirty = false, saving = false;
 const TEMPLATES = {
-  script: (site) => `// ==UserScript==\n// @name        New script\n// @namespace   site-tweaks\n// @version     1.0\n// @match       ${site ? new URL(site).origin : 'https://example.com'}/*\n// @grant       none\n// ==/UserScript==\n\n`,
+  script: (site) => {
+    let origin = 'https://example.com';
+    try { if (site) { const o = new URL(site).origin; if (/^https?:/.test(o)) origin = o; } } catch {}
+    return `// ==UserScript==\n// @name        New script\n// @namespace   site-tweaks\n// @version     1.0\n// @match       ${origin}/*\n// @grant       none\n// ==/UserScript==\n\n`;
+  },
   style: (site) => `/* ==UserStyle==\n@name        New style\n@namespace   site-tweaks\n@version     1.0.0\n==/UserStyle== */\n\n@-moz-document domain("${site ? new URL(site).hostname : 'example.com'}") {\n\n}\n`,
 };
 
-async function status() { try { return await chrome.runtime.sendMessage({ t: 'status' }); } catch { return { api: true, errors: {} }; } }
+async function status() { try { return await chrome.runtime.sendMessage({ t: 'status' }); } catch { return { down: true }; } }
 
 async function renderList() {
   const { site } = route();
@@ -27,7 +33,8 @@ async function renderList() {
   $('global').checked = settings.enabled;
   $('shared').hidden = !settings.shared || !!settings.ghost;
   ghostMode(settings);
-  if (!st.api) say('Userscripts can\'t run in this profile right now (Chromium\'s "Allow User Scripts" switch is off). Restart Roar to turn it on.', true);
+    if (st.down) say('Site tweaks is not running right now. Try opening the manager again in a moment.', true);
+  else if (!st.api) say('Userscripts can\'t run in this profile right now (Chromium\'s "Allow User Scripts" switch is off). Restart Roar to turn it on.', true);
   const shown = site ? items.filter((i) => (i.kind === 'script' ? testMatcher(compileMatcher(i.meta), site) : !!cssFor(i.sections, site))) : items;
   fill(
     site ? h('p', {}, `Showing the tweaks for ${new URL(site).hostname}. `, h('a', { href: '#', textContent: 'Show all', onclick: (e) => { e.preventDefault(); go({}); } })) : null,
@@ -58,29 +65,40 @@ async function renderEditor({ edit, new: kind, site }) {
   const form = it?.kind === 'style' && Object.keys(it.meta.vars || {}).length ? varsForm(it.meta.vars, it.vars || {}) : null;
   const msg = h('span', { className: 'muted' });
   let id = it?.id;
+  // One Save for everything: the code AND the settings vars, from the live fields, always.
   const doSave = async () => {
+    if (saving) return;  // a second click or Cmd+S while a save is in flight does nothing
+    saving = true;
     msg.textContent = 'Saving…';
     msg.className = 'muted';
     try {
       const saved = await save(kind, ta.value, id, form?.values());
       id = saved.id;
+      dirty = false;
       msg.textContent = 'Saved';
       msg.className = 'ok';
       if (!it) go({ edit: id });
-    } catch (e) { msg.textContent = e.message; msg.className = 'bad'; }
+    } catch (e) { msg.textContent = e.message; msg.className = 'bad'; } finally { saving = false; }
   };
-  // Tab indents instead of leaving the editor; Cmd/Ctrl+S saves.
+  editorSave = doSave;  // the leave-guard calls this when the user picks Save
+  // Mark the editor dirty the moment anything actually changes.
+  ta.addEventListener('input', () => { dirty = true; });
+  if (form) form.el.addEventListener('input', () => { dirty = true; });
+  // Tab indents instead of leaving the editor; Cmd/Ctrl+S saves. After Esc, Tab escapes:
+  // Esc arms a 700ms window where Tab moves focus away instead of indenting.
+  let escAt = 0;
   ta.onkeydown = (e) => {
-    if (e.key === 'Tab' && !e.metaKey && !e.ctrlKey && !e.altKey) { e.preventDefault(); document.execCommand('insertText', false, '  '); }
+    if (e.key === 'Escape') { escAt = Date.now(); return; }
+    if (e.key === 'Tab' && !e.metaKey && !e.ctrlKey && !e.altKey) {
+      if (document.activeElement === ta && Date.now() - escAt > 700) { e.preventDefault(); document.execCommand('insertText', false, '  '); }
+      return;
+    }
     if (e.key === 's' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); doSave(); }
   };
   fill(
     h('div', { className: 'row', style: 'margin:12px 0' }, h('h2', { style: 'margin:0', textContent: it ? it.meta.name : kind === 'script' ? 'New script' : 'New style' }),
       h('span', { className: 'spacer' }), msg, h('button', { className: 'primary', textContent: 'Save', onclick: doSave }), h('button', { textContent: 'Back', onclick: () => go({}) })),
-    form ? h('div', {}, h('h2', { textContent: 'Settings' }), form.el, h('div', { className: 'row', style: 'margin-top:8px' },
-      h('button', { textContent: 'Save settings', onclick: async () => {
-        try { await installStyle(it.code, { id: it.id, vars: form.values() }); msg.textContent = 'Settings saved'; msg.className = 'ok'; } catch (e) { msg.textContent = e.message; msg.className = 'bad'; }
-      } }))) : null,
+    form ? h('div', {}, h('h2', { textContent: 'Settings' }), form.el) : null,
     h('h2', { textContent: 'Code' }), ta);
   ta.focus();
 }
@@ -131,10 +149,16 @@ $('updates').onclick = async () => {
   if (!route().edit) renderList();
 };
 $('export').onclick = async () => {
-  const all = await chrome.storage.local.get(null);
-  const values = Object.fromEntries(Object.keys(all).filter((k) => k.startsWith(VALUES)).map((k) => [k.slice(VALUES.length), all[k]]));
-  const blob = new Blob([exportJSON(await allItems(), values)], { type: 'application/json' });
-  h('a', { href: URL.createObjectURL(blob), download: `site-tweaks-${new Date().toISOString().slice(0, 10)}.json` }).click();
+  try {
+    const all = await chrome.storage.local.get(null);
+    const values = Object.fromEntries(Object.keys(all).filter((k) => k.startsWith(VALUES)).map((k) => [k.slice(VALUES.length), all[k]]));
+    const blob = new Blob([exportJSON(await allItems(), values)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = h('a', { href: url, download: `site-tweaks-${new Date().toISOString().slice(0, 10)}.json` });
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 4000);  // let the download start, then release the blob
+  } catch (e) { say(`Couldn't export: ${e.message}`, true); }
 };
 $('import').onclick = () => $('file').click();
 $('file').onchange = async (e) => {
@@ -145,22 +169,37 @@ $('file').onchange = async (e) => {
   renderList();
 };
 
-// Installs everything in a backup; returns a summary line.
+// Installs everything in a backup; returns a summary line. Imported items are fresh copies,
+// never a merge into an existing tweak of the same name (Kes must never lose a local edit
+// because a backup carried the same name).
 export async function importFile(buf) {
   if ((await getSettings()).ghost) throw new Error('Importing is off in ghost tabs');
   const { scripts, styles } = await importBackup(buf);
   let ok = 0;
   const failed = [];
   for (const s of scripts) {
-    try { const it = await installScript(s.code, { enabled: s.enabled, values: s.values }); if (s.connectAllow?.length) await patchItem(it.id, { connectAllow: s.connectAllow }); ok++; } catch (e) { failed.push(e.message); }
+    try { const it = await installScript(s.code, { enabled: s.enabled, values: s.values, fresh: true }); if (s.connectAllow?.length) await patchItem(it.id, { connectAllow: s.connectAllow }); ok++; } catch (e) { failed.push(e.message); }
   }
   for (const s of styles) {
-    try { await installStyle(s.code, { enabled: s.enabled, vars: s.vars, updateURL: s.updateURL }); ok++; } catch (e) { failed.push(e.message); }
+    try { await installStyle(s.code, { enabled: s.enabled, vars: s.vars, updateURL: s.updateURL, fresh: true }); ok++; } catch (e) { failed.push(e.message); }
   }
   return `Imported ${ok} of ${scripts.length + styles.length}.${failed.length ? ' Failed: ' + failed.slice(0, 3).join('; ') : ''}`;
 }
 globalThis.importFile = importFile;  // Lets tests feed a backup without a file picker.
 
-window.addEventListener('hashchange', render);
+// Leaving the editor with unsaved work always asks first: Back, any hash change. Closing the
+// tab asks too. An edit can only end by save or by an explicit discard.
+function openGuard() {
+  const dlg = h('dialog', {}, h('h2', { textContent: 'Unsaved changes' }),
+    h('p', { textContent: 'Save your changes before leaving, or discard them.' }),
+    h('div', { className: 'row', style: 'margin-top:10px' },
+      h('button', { className: 'primary', textContent: 'Save changes', onclick: async () => { dlg.close(); if (editorSave) await editorSave(); render(); } }),
+      h('button', { textContent: 'Discard', onclick: () => { dirty = false; dlg.close(); render(); } })));
+  document.body.appendChild(dlg);
+  dlg.showModal();
+}
+let editorSave = null;  // set by renderEditor to its save(); the guard calls it
+window.addEventListener('hashchange', () => { if (dirty) openGuard(); else render(); });
+window.addEventListener('beforeunload', (e) => { if (dirty) { e.preventDefault(); e.returnValue = ''; } });
 chrome.storage.onChanged.addListener((ch) => { if (!route().edit && !route().new && !route().update && Object.keys(ch).some((k) => k.startsWith(ITEM) || k === 'settings')) renderList(); });
 render();
