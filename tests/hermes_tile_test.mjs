@@ -62,7 +62,8 @@ const mainTabOpen = async () => {
 
 let roar = null, newSession = null;
 try {
-  roar = spawn(bin, ['--headless=new', '--noerrdialogs'], { env: { ...process.env, HERMES_HOME: hHome, ROAR_UI_CDP: '1', ROAR_CDP_PORT: port, ROAR_DATA_DIR: data }, stdio: 'ignore' });
+  // Roar in its OWN process group so cleanup can kill the whole tree (Roar + its helpers).
+  roar = spawn(bin, ['--headless=new', '--noerrdialogs'], { env: { ...process.env, HERMES_HOME: hHome, ROAR_UI_CDP: '1', ROAR_CDP_PORT: port, ROAR_DATA_DIR: data }, stdio: 'ignore', detached: true });
   check(await until(async () => (await list()).some((x) => x.url.includes('sidebar.html')), 30000) !== null, 'headless scratch Roar is up (sidebar reachable)');
   await sleep(1500);
   await side(`ask({ cmd: 'settings.set', settings: { onboarded: true, hermesUrl: '${BASE}' } }).then(() => 1)`);
@@ -138,10 +139,19 @@ try {
 } catch (err) {
   check(false, 'suite ran without error: ' + (err && err.stack ? err.stack : String(err)));
 } finally {
-  // Kill the Roar and its tmux on every exit path so no orphan holds a port for the next run.
+  // Kill the Roar process GROUP (Roar + its helper children) on every exit path, so no orphan
+  // holds a CDP port or keeps a scratch data dir open for the next run.
   if (newSession) { try { execFileSync(tmuxBin, ['kill-session', '-t', newSession]); } catch {} }
   try { execFileSync(tmuxBin, ['kill-server']); } catch {}
-  if (roar) { try { process.kill(roar.pid, 'SIGKILL'); } catch {} }
+  if (roar) {
+    try { process.kill(-roar.pid, 'SIGKILL'); } catch {}  // the detached group: Roar + helpers
+    try { process.kill(roar.pid, 'SIGKILL'); } catch {}
+    // Belt: any helper still pointing at this run's scratch data dir.
+    try {
+      const out = execFileSync('/bin/sh', ['-c', `ps ax | grep -F '${data}' | grep -v grep | awk '{print $1}'`], { encoding: 'utf8' });
+      for (const p of out.split('\n').map((s) => s.trim()).filter(Boolean)) { try { process.kill(Number(p), 'SIGKILL'); } catch {} }
+    } catch {}
+  }
   // Only close the tabs this test opened in the running Roar.
   try {
     const l = await (await rawFetch(`http://127.0.0.1:9333/json/list`, { headers: { 'X-Roar-Token': mainTok } })).json().catch(() => []);
@@ -152,5 +162,10 @@ try {
   try { rmSync(hHome, { recursive: true, force: true }); } catch {}
   try { gw.close(); } catch {}
 }
+// Verify the exit path is clean: no Roar or helper from this run may remain.
+try {
+  const left = execFileSync('/bin/sh', ['-c', 'ps ax | grep -E "Roar( Helper)? --headless=new|Roar Helper" | grep -v grep | grep -cE "/private/(var|tmp)/.*(roar-tile|rt-|iso-)" || true'], { encoding: 'utf8' }).trim();
+  console.log(`cleanup check: Roar/helper processes left from this run = ${left}`);
+} catch {}
 console.log(`\n${failed} failure(s), ${skipped} skip(s)`);
 process.exit(failed ? 1 : 0);
