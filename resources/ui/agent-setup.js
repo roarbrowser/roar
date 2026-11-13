@@ -116,16 +116,17 @@ function agentSetup(root, { llm = true, list: asList = false, slot = null } = {}
     const what = (r) => r.needHook ? `Connect lists ${r.name}’s sessions in the sidebar, tells you when one needs you or finishes, and lets it browse with Roar.`
       : r.needMcp ? `Connect adds Roar to ${r.name}’s MCP config, so it can browse with Roar.`
       : r.mcp?.snippet ? `Roar can’t change ${r.name}’s config itself. Copy the setup and paste it into its settings.` : '';
-    // One agent's line inside a card: its status in words, any note, and its one action.
-    const line = (r) => {
+    // One agent's line inside a card: its status in words, any note, and its one action. |named|: cards holding
+    // several agents name each one; an agent's own card already says its name in its header.
+    const line = (r, named = true) => {
       const [state, text] = status(r);
       const body = r.desktop ? claudeInstallHtml() : (!r.note || r.connected ? `<small data-state="${state}">${esc(text)}</small>` : '')
         + (r.note ? `<small class="status warn">${esc(r.note)}</small>` : '') + (r.connected && !r.needHook ? '<small>To disconnect, remove Roar from its MCP config.</small>' : '');
-      return `<div class="row" data-agent-row="${esc(r.key)}"><span class="name">${esc(r.name)}${body}</span>${r.desktop ? '' : `<span class="end">${action(r)}</span>`}</div>`;
+      return `<div class="row" data-agent-row="${esc(r.key)}"><span class="name">${named ? esc(r.name) : ''}${body}</span>${r.desktop ? '' : `<span class="end">${action(r)}</span>`}</div>`;
     };
     const icon = (r) => r.hook ? agentIcon(r.hook, 16) : clientIcon(r.key);
     const card = (id, name, ico, [state, text], inner) => `<details class="vendor" data-agent="${esc(id)}"${opened.has(id) ? ' open' : ''}><summary><span class="v-name">${ico}${esc(name)}</span><span class="v-st" data-state="${state}">${esc(text)}</span></summary>${inner}</details>`;
-    const one = (r) => card(r.key, r.name, icon(r), status(r), (what(r) ? `<p class="reason">${esc(what(r))}</p>` : '') + line(r));
+    const one = (r) => card(r.key, r.name, icon(r), status(r), (what(r) ? `<p class="reason">${esc(what(r))}</p>` : '') + line(r, false));
     const item = (r, i, of) => {
       const [state, text] = status(r);
       return `<li class="ch-item" data-tool="${esc(r.key)}"><button class="grip" draggable="true" data-grip="${esc(r.key)}" title="Drag to reorder" aria-label="${esc(r.name)}, ${i + 1} of ${of}. Arrow keys move it.">${'<i></i>'.repeat(3)}</button><div class="ch-body"><div class="row"><span class="name">${esc(r.name)}<small data-state="${state}">${esc(text)}</small></span><button class="btn" data-open-agent="${esc(r.key)}">Settings</button></div></div>${action(r, true)}</li>`;
@@ -136,9 +137,9 @@ function agentSetup(root, { llm = true, list: asList = false, slot = null } = {}
       : '<p class="empty">No agent connected yet. Pick one below.</p>';
     const on = others.filter((r) => r.connected);
     root.querySelector('.as-cards').innerHTML = here.map(one).join('') + (others.length ? card('apps', 'Other apps on this Mac', '', on.length ? ['available', on.map((r) => r.name).join(' · ')] : ['', 'Not connected'],
-      '<p class="reason">Apps that reach Roar through its MCP server: Connect adds Roar to their config.</p>' + others.map(line).join('')) : '');
+      '<p class="reason">Apps that reach Roar through its MCP server: Connect adds Roar to their config.</p>' + others.map((r) => line(r)).join('')) : '');
     root.querySelector('.as-rest').innerHTML = gone.length || away.length ? card('more', 'More agents', '', ['', `${gone.length + away.length} more`],
-      (gone.length ? `<h3>Not on this Mac</h3>${gone.map(line).join('')}` : '') + (away.length ? `<h3>Other apps: set up by hand<span hidden>copy their config</span></h3>${away.map(line).join('')}` : '')) : '';
+      (gone.length ? `<h3>Not on this Mac</h3>${gone.map((r) => line(r)).join('')}` : '') + (away.length ? `<h3>Other apps: set up by hand<span hidden>copy their config</span></h3>${away.map((r) => line(r)).join('')}` : '')) : '';
     if (had) root.querySelector(had)?.focus();
   }
   // Saves a new CLI order: |key| moved to index |to|.
