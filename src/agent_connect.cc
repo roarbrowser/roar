@@ -797,6 +797,17 @@ std::string HermesConnectionFile(const std::string& home) {
 #endif
 }
 
+// Is Hermes live for this home: its desktop app names a remote gateway, or its local gateway
+// says running (same files claude-hook reads; Roar answers from disk, never a network probe).
+bool HermesLive(const std::string& home) {
+  if (!HermesRemoteUrl(home).empty()) return true;
+  std::string text;
+  const char* hh = getenv("HERMES_HOME");
+  std::string file = std::string(hh && *hh ? hh : (home + "/.hermes")) + "/gateway_state.json";
+  if (!Read(file, &text) || text.size() > 1024 * 1024) return false;
+  return JsonStrings(text).Read()["gateway_state"] == "running";
+}
+
 std::string HermesRemoteUrl(const std::string& home) {
   std::string text, file = HermesConnectionFile(home);
   if (file.empty() || !Read(file, &text) || text.size() > 1024 * 1024) return "";

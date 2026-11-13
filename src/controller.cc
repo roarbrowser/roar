@@ -1769,6 +1769,8 @@ void Controller::SetAgentHooks(const std::string& out) {
 }
 
 bool Controller::AgentConnected(const std::string& tool) const {
+  // Hermes rows come from its gateway, not a hook: same live check as AgentStart (connector).
+  if (tool == "hermes") return agents::HermesLive(platform::HomeDir());
   if (agent_hooks_.empty()) return true;
   return agent_hooks_.find("\n" + tool + " installed") != std::string::npos || agent_hooks_.find("\n" + tool + " outdated") != std::string::npos;
 }
@@ -2868,10 +2870,14 @@ void Controller::AgentStart(const std::string& dir, const std::string& prompt, s
     return !t || t->ghost || !StartsWith(t->url, "http");
   }), tabs.end());
   // Only CLIs connected in Settings (hooks installed) start: the last one used, else the first connected.
+  // Hermes has no hook: it's connected while its gateway (or remote connection) answers (connector check).
   std::string tool = State::Get().settings.agent_tool;
-  auto connected = [this](const std::string& t) { return agent_hooks_.find("\n" + t + " installed") != std::string::npos; };
+  auto connected = [this](const std::string& t) {
+    return t == "hermes" ? agents::HermesLive(platform::HomeDir())
+                         : agent_hooks_.find("\n" + t + " installed") != std::string::npos;
+  };
   if (!connected(tool))
-    for (const char* t : {"claude", "codex", "gemini", "qwen", "copilot", "opencode"})
+    for (const char* t : {"claude", "codex", "gemini", "qwen", "copilot", "opencode", "hermes"})
       if (connected(t)) { tool = t; break; }
   platform::RoarMcp({"claude-ctl", "new", dir, prompt, tool},
                     [this, dir, tabs, open_view, done](const std::string& out) {
