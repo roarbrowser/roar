@@ -1,5 +1,8 @@
 {
   "dependencies": {
     "chrome-devtools-mcp": "1.10.1"
+  },
+  "patchedDependencies": {
+    "chrome-devtools-mcp@1.10.1": "patches/chrome-devtools-mcp@1.10.1.patch"
   }
 }

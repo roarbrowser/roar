@@ -106,6 +106,8 @@ notice() {  # notice <heading> <file>
   notice "chrome-devtools-mcp" "$ROOT/mcp/node_modules/chrome-devtools-mcp/LICENSE"
   notice "chrome-devtools-mcp: bundled third-party notices" "$ROOT/mcp/node_modules/chrome-devtools-mcp/build/src/third_party/THIRD_PARTY_NOTICES"
   notice "chrome-devtools-mcp addendum: lookup-closest-locale (MIT License)" "$ROOT/licenses/lookup-closest-locale-LICENSE"
+  # mcp/patches/chrome-devtools-mcp@*.patch: Roar's changes (each changed file says so) port code from browser-use.
+  notice "chrome-devtools-mcp as modified by Roar: code ported from browser-use (MIT License; https://github.com/browser-use/browser-use)" "$ROOT/licenses/browser-use-LICENSE"
   # Site tweaks' vendored preprocessors (resources/extensions/tweaks/vendor/VERSIONS.txt).
   TW="$ROOT/resources/extensions/tweaks/vendor"
   notice "Site tweaks component: less 4.9.1 (Apache License 2.0; https://github.com/less/less.js)" "$TW/less-LICENSE"

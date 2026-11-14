@@ -115,6 +115,7 @@ $Notices = @(
   Notice 'chrome-devtools-mcp' "$Root\mcp\node_modules\chrome-devtools-mcp\LICENSE"
   Notice 'chrome-devtools-mcp: bundled third-party notices' "$Root\mcp\node_modules\chrome-devtools-mcp\build\src\third_party\THIRD_PARTY_NOTICES"
   Notice 'chrome-devtools-mcp addendum: lookup-closest-locale (MIT License)' "$Root\licenses\lookup-closest-locale-LICENSE"
+  Notice 'chrome-devtools-mcp as modified by Roar: code ported from browser-use (MIT License; https://github.com/browser-use/browser-use)' "$Root\licenses\browser-use-LICENSE"
   "`n$Rule`nBun (MIT License), JavaScriptCore (LGPL) and TinyCC (LGPL-2.1), embedded in roar-mcp.exe`n$Rule`n"
   "roar-mcp.exe is built with ``bun build --compile`` (Bun $BunVersion, https://github.com/oven-sh/bun"
   "tag bun-v$BunVersion), which embeds the Bun runtime. Bun is MIT-licensed and statically links"

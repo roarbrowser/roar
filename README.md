@@ -79,6 +79,14 @@ mcp_servers:
     args: []
     enabled: true
 ```
+
+To keep an agent on certain sites, set these in the server's environment (for example `claude mcp add -e ROAR_MCP_ALLOWED_DOMAINS="github.com,*.example.com" …`):
+
+- `ROAR_MCP_ALLOWED_DOMAINS`: the only sites its pages may open (`example.com`, `*.example.com`, `https://example.com/docs`, `localhost:8080`).
+- `ROAR_MCP_BLOCKED_DOMAINS`: sites they may never open (ignored when an allow list is set).
+- `ROAR_MCP_BLOCK_IPS=1`: no IP-address URLs.
+
+Roar refuses blocked URLs, stops a navigation to one while the agent acts and resets the page, and won't let the agent work on a page that shows one. It applies to the main page only, not to images, scripts or frames, so it keeps an agent on task but is not a sandbox.
 </details>
 
 On first launch Roar offers to bring over your Arc spaces and pinned tabs. Updates arrive through Roar › **Check for Updates…**

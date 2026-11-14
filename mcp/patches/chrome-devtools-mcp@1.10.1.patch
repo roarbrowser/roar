@@ -1,0 +1,972 @@
+diff --git a/build/src/McpPage.js b/build/src/McpPage.js
+index 3be93a33ad4afb206223290c96fd8749cd49a131..93ffed7556da2b83b36108f48af8061702972780 100644
+--- a/build/src/McpPage.js
++++ b/build/src/McpPage.js
+@@ -3,6 +3,7 @@
+  * Copyright 2025 Google LLC
+  * SPDX-License-Identifier: Apache-2.0
+  */
++// Modified by Roar (https://github.com/roarbrowser/roar, mcp/patches): see the comments marked "Roar:".
+ var __addDisposableResource = (this && this.__addDisposableResource) || function (env, value, async) {
+     if (value !== null && value !== void 0) {
+         if (typeof value !== "object" && typeof value !== "function") throw new TypeError("Object expected.");
+@@ -110,6 +111,7 @@ const DEFAULT_TIMEOUT = 5_000;
+ const NAVIGATION_TIMEOUT = 10_000;
+ import { logger } from './utils/logger.js';
+ import { getNetworkMultiplierFromString, WaitForHelper, } from './utils/WaitForHelper.js';
++import { roarActing, roarGuardPage } from './utils/roarDomains.js';
+ function isBackendNodeId(id) {
+     return typeof id === 'number';
+ }
+@@ -158,6 +160,9 @@ export class McpPage {
+             this.#dialog = dialog;
+         };
+         page.on('dialog', this.#dialogHandler);
++        // Roar: domain rules (utils/roarDomains.js).
++        this.roarGuarded = roarActing();
++        roarGuardPage(this);
+         this.networkCollector = new NetworkCollector(page);
+         this.consoleCollector = new ConsoleCollector(page, collect => {
+             return {
+diff --git a/build/src/McpResponse.js b/build/src/McpResponse.js
+index 88ef0a358ed37cd5549bc37ecd47d177513c3786..9e5acd5b76dcb68450ed5d9ad73bf7e9ef0da282 100644
+--- a/build/src/McpResponse.js
++++ b/build/src/McpResponse.js
+@@ -3,6 +3,7 @@
+  * Copyright 2025 Google LLC
+  * SPDX-License-Identifier: Apache-2.0
+  */
++// Modified by Roar (https://github.com/roarbrowser/roar, mcp/patches): see the comments marked "Roar:".
+ import { CommentFormatter, } from './formatters/CommentFormatter.js';
+ import { ConsoleFormatter } from './formatters/ConsoleFormatter.js';
+ import { CssFormatter, resolveContainerQueries, } from './formatters/CssFormatter.js';
+@@ -10,6 +11,7 @@ import { HeapSnapshotFormatter, isEdgeLike, isNodeLike, } from './formatters/Hea
+ import { IssueFormatter } from './formatters/IssueFormatter.js';
+ import { NetworkFormatter } from './formatters/NetworkFormatter.js';
+ import { SnapshotFormatter } from './formatters/SnapshotFormatter.js';
++import { roarTakeNotices } from './utils/roarDomains.js';
+ import { UncaughtError } from './collectors/PageCollector.js';
+ import { TextSnapshot } from './TextSnapshot.js';
+ import { DevTools, getToonEncode, getGcfEncode } from './third_party/index.js';
+@@ -302,9 +304,14 @@ export class McpResponse {
+             verbose: this.#snapshotParams.verbose,
+             devtoolsData: this.#devToolsData,
+         });
+-        const formatter = new SnapshotFormatter(this.#page.textSnapshot);
++        // Roar: mark what is new since the agent's last snapshot of this page, and keep the text short.
++        const formatter = new SnapshotFormatter(this.#page.textSnapshot, {
++            seen: this.#page.roarSeenUids,
++            maxChars: this.#snapshotParams.maxChars,
++        });
++        this.#page.roarSeenUids = new Set(this.#page.textSnapshot.idToNode.keys());
+         if (this.#snapshotParams.filePath) {
+-            const result = await context.saveFile(new TextEncoder().encode(formatter.toString()), this.#snapshotParams.filePath, '.txt');
++            const result = await context.saveFile(new TextEncoder().encode(formatter.toString({ full: true })), this.#snapshotParams.filePath, '.txt');
+             return result.filename;
+         }
+         else {
+@@ -543,12 +550,24 @@ export class McpResponse {
+             structuredContent.message = this.#textResponseLines.join('\n');
+             response.push(...this.#textResponseLines);
+         }
++        // Roar: a navigation the domain rules stopped (utils/roarDomains.js).
++        response.push(...roarTakeNotices());
+         if (this.#attachedWaitForResult) {
+             if (this.#attachedWaitForResult.navigatedToUrl) {
+                 response.push(`Page navigated to ${this.#attachedWaitForResult.navigatedToUrl}.`);
+                 structuredContent.navigatedToUrl =
+                     this.#attachedWaitForResult.navigatedToUrl;
+             }
++            // Roar: whether the page reacted, so the agent knows without another snapshot.
++            else if (this.#attachedWaitForResult.pageChanged !== undefined) {
++                response.push(this.#attachedWaitForResult.pageChanged
++                    ? 'Result: the page changed.'
++                    : 'Result: no change on the page (it did not react).');
++                structuredContent.pageChanged = this.#attachedWaitForResult.pageChanged;
++            }
++            if (this.#attachedWaitForResult.pendingRequests) {
++                response.push(`${this.#attachedWaitForResult.pendingRequests} network request(s) were still loading when the wait ended.`);
++            }
+         }
+         const networkConditions = this.#page?.networkConditions;
+         if (networkConditions) {
+diff --git a/build/src/ToolHandler.js b/build/src/ToolHandler.js
+index 84dbed65947c6d4755745911839c8697301f5f0c..52d34222a110eca888f69a57a4d33841eb9f696a 100644
+--- a/build/src/ToolHandler.js
++++ b/build/src/ToolHandler.js
+@@ -3,6 +3,7 @@
+  * Copyright 2026 Google LLC
+  * SPDX-License-Identifier: Apache-2.0
+  */
++// Modified by Roar (https://github.com/roarbrowser/roar, mcp/patches): see the comments marked "Roar:".
+ var __addDisposableResource = (this && this.__addDisposableResource) || function (env, value, async) {
+     if (value !== null && value !== void 0) {
+         if (typeof value !== "object" && typeof value !== "function") throw new TypeError("Object expected.");
+@@ -64,6 +65,7 @@ import { categoryToFlagName } from './config/category-options.js';
+ import { logger } from './utils/logger.js';
+ import { fileURLToPath, pathToFileURL } from 'node:url';
+ import { isLocalhost } from './utils/url.js';
++import { roarDomainBlocked, roarWhileActing } from './utils/roarDomains.js';
+ function buildDisabledMessage(toolName, flag, categoryLabel) {
+     const reason = categoryLabel
+         ? `is in category ${categoryLabel} which`
+@@ -245,15 +247,22 @@ export class ToolHandler {
+                         if (this.tool.blockedByDialog) {
+                             page.throwIfDialogOpen();
+                         }
+-                        await this.tool.handler({
++                        // Roar: a page on a blocked domain may only be closed or sent elsewhere.
++                        const why = !['navigate_page', 'close_page'].includes(this.tool.name) &&
++                            roarDomainBlocked(page.pptrPage.url());
++                        if (why) {
++                            throw new Error(`This page is off limits: ${why}. Navigate it to an allowed page or close it.`);
++                        }
++                        page.roarGuarded = true;
++                        await roarWhileActing(() => this.tool.handler({
+                             params,
+                             page,
+-                        }, response, context);
++                        }, response, context));
+                     }
+                     else {
+-                        await this.tool.handler({
++                        await roarWhileActing(() => this.tool.handler({
+                             params,
+-                        }, response, context);
++                        }, response, context));
+                     }
+                 }
+                 catch (err) {
+diff --git a/build/src/formatters/SnapshotFormatter.js b/build/src/formatters/SnapshotFormatter.js
+index b8e684b83b475038216ccd735c50970b7b2a55c4..b5e8f111208ebf17fe1d0f1fae17057f97c4de46 100644
+--- a/build/src/formatters/SnapshotFormatter.js
++++ b/build/src/formatters/SnapshotFormatter.js
+@@ -3,12 +3,57 @@
+  * Copyright 2025 Google LLC
+  * SPDX-License-Identifier: Apache-2.0
+  */
++// Modified by Roar (https://github.com/roarbrowser/roar, mcp/patches): see the comments marked "Roar:".
++// Roar: default text budget of a snapshot in a response, in characters (about 6k tokens).
++export const ROAR_SNAPSHOT_MAX_CHARS = 24000;
+ export class SnapshotFormatter {
+     #snapshot;
+-    constructor(snapshot) {
++    // Roar: uids the agent saw in its last snapshot of this page (marks the rest with *), and the text budget.
++    #seen;
++    #maxChars;
++    constructor(snapshot, options = {}) {
+         this.#snapshot = snapshot;
++        this.#maxChars = options.maxChars;
++        // A page where none of the old uids survive is a new document: marking every line says nothing.
++        const seen = options.seen;
++        if (seen?.size && [...snapshot.idToNode.keys()].some(id => seen.has(id))) {
++            this.#seen = seen;
++        }
++    }
++    toString(options = {}) {
++        const text = this.#format();
++        if (options.full) {
++            return text;
++        }
++        // Roar: an empty tree says why instead of showing one line.
++        if (this.#snapshot.idToNode.size <= 1) {
++            return `${text}(Nothing in the accessibility tree: the page is blank or still loading, or its content is drawn in a canvas or a cross-origin frame. Use take_screenshot to see it.)\n`;
++        }
++        // Roar: over budget, keep the top and the last fifth: a dialog's Done or Submit is usually near the end.
++        const max = this.#maxChars ?? ROAR_SNAPSHOT_MAX_CHARS;
++        if (!max || text.length <= max) {
++            return text;
++        }
++        const lines = text.split('\n');
++        const fit = (src, budget) => {
++            let size = 0;
++            for (let i = 0; i < src.length; i++) {
++                size += src[i].length + 1;
++                if (size > budget) {
++                    return i;
++                }
++            }
++            return src.length;
++        };
++        const head = fit(lines, max * 0.8);
++        const tail = fit([...lines].reverse(), max * 0.2);
++        return [
++            ...lines.slice(0, head),
++            `... ${lines.length - head - tail} lines cut here to keep the snapshot short. For all of it, call take_snapshot with maxChars: 0, or with filePath to save it to a file.`,
++            ...lines.slice(lines.length - tail),
++        ].join('\n');
+     }
+-    toString() {
++    #format() {
+         const chunks = [];
+         const root = this.#snapshot.root;
+         // Top-level content of the snapshot.
+@@ -28,6 +73,7 @@ Get a verbose snapshot to include all elements if you are interested in the sele
+         const chunks = [];
+         const attributes = this.#getAttributes(node);
+         const line = ' '.repeat(depth * 2) +
++            (this.#seen && !this.#seen.has(node.id) ? '*' : '') +
+             attributes.join(' ') +
+             (node.id === this.#snapshot.selectedElementUid
+                 ? ' [selected in the DevTools Elements panel]'
+diff --git a/build/src/tools/input.js b/build/src/tools/input.js
+index e7da4d2d95904f494df1292b58bcd7f430ca316a..db40fdc3ba9f64dd1ace0a765f973766866f2bb5 100644
+--- a/build/src/tools/input.js
++++ b/build/src/tools/input.js
+@@ -3,6 +3,7 @@
+  * Copyright 2025 Google LLC
+  * SPDX-License-Identifier: Apache-2.0
+  */
++// Modified by Roar (https://github.com/roarbrowser/roar, mcp/patches): see the comments marked "Roar:".
+ var __addDisposableResource = (this && this.__addDisposableResource) || function (env, value, async) {
+     if (value !== null && value !== void 0) {
+         if (typeof value !== "object" && typeof value !== "function") throw new TypeError("Object expected.");
+@@ -72,6 +73,181 @@ const submitKeySchema = zod
+     .string()
+     .optional()
+     .describe('Optional key to press after typing. E.g., "Enter", "Tab", "Escape"');
++// Roar: clicks that check what is really under the pointer, and typing that copes with fussy fields.
++// Ported from browser-use (MIT, github.com/browser-use/browser-use, browser_use/ax.py POINT_JS, MOVED_JS,
++// DATE_JS and AxHelpers.type).
++// The element's center and whether something else covers it there. Hidden, disabled or off-screen targets
++// report no verdict (checked: false): Puppeteer's own waits and errors handle those.
++const ROAR_POINT = (node, editableCover) => {
++    const e = node.nodeType === Node.ELEMENT_NODE ? node : node.parentElement;
++    if (!e || !e.isConnected || e.matches(':disabled') ||
++        !e.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true })) {
++        return { checked: false };
++    }
++    const r = e.getBoundingClientRect(), x = r.x + r.width / 2, y = r.y + r.height / 2;
++    const win = e.ownerDocument.defaultView;
++    if (!r.width || !r.height || x < 0 || y < 0 || x >= win.innerWidth || y >= win.innerHeight) {
++        return { checked: false };
++    }
++    const hit = e.getRootNode().elementFromPoint(x, y);
++    const textField = (n) => n && (['INPUT', 'TEXTAREA'].includes(n.tagName) || n.isContentEditable);
++    const label = hit?.closest?.('label');
++    const covered = !!hit && !e.contains(hit) &&
++        !(label && (label.contains(e) || label.control === e)) &&
++        !(editableCover && textField(e) && textField(hit));
++    if (!covered) {
++        return { checked: true, covered: false };
++    }
++    // Name the nearest thing a person would recognize: a dialog, or an element with a name or text.
++    let n = hit;
++    while (n && n !== e.ownerDocument.body &&
++        !(n.getAttribute('role')?.includes('dialog') || n.tagName === 'DIALOG' ||
++            n.getAttribute('aria-label') || n.id)) {
++        n = n.parentElement;
++    }
++    if (!n || n === e.ownerDocument.body) {
++        n = hit;
++    }
++    const text = (n.getAttribute('aria-label') || n.innerText || '').replace(/\s+/g, ' ').trim().slice(0, 60);
++    const role = n.getAttribute('role') || (n.tagName === 'DIALOG' ? 'dialog' : '');
++    return {
++        checked: true,
++        covered: true,
++        what: `<${n.tagName.toLowerCase()}${n.id ? `#${n.id}` : ''}${role ? ` role=${role}` : ''}>${text ? ` "${text}"` : ''}`,
++    };
++};
++const ROAR_CENTER = (node) => {
++    const e = node.nodeType === Node.ELEMENT_NODE ? node : node.parentElement;
++    e?.scrollIntoView({ block: 'center', inline: 'center', behavior: 'instant' });
++};
++// The element at the target's center, for its snapshot uid.
++const ROAR_HIT = (node) => {
++    const e = node.nodeType === Node.ELEMENT_NODE ? node : node.parentElement;
++    const r = e.getBoundingClientRect();
++    return e.getRootNode().elementFromPoint(r.x + r.width / 2, r.y + r.height / 2);
++};
++async function roarCoverUid(page, handle) {
++    let h = await handle.evaluateHandle(ROAR_HIT).catch(() => undefined);
++    for (let i = 0; h && i < 12; i++) {
++        const el = h.asElement();
++        if (!el) {
++            break;
++        }
++        const id = await el.backendNodeId().catch(() => undefined);
++        const uid = id && page.textSnapshot?.resolveCdpElementId(id);
++        if (uid) {
++            void h.dispose();
++            return uid;
++        }
++        const parent = await el.evaluateHandle(n => n.parentElement);
++        void h.dispose();
++        h = parent;
++    }
++    void h?.dispose();
++    return undefined;
++}
++// Throws, before anything is clicked, when another element covers the target's center. A target near a
++// fixed header or footer is centered once and checked again.
++async function roarEnsureUncovered(page, handle, editableCover = false) {
++    await handle.evaluate(node => {
++        const e = node.nodeType === Node.ELEMENT_NODE ? node : node.parentElement;
++        e?.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'instant' });
++    }).catch(() => { });
++    let p = await handle.evaluate(ROAR_POINT, editableCover).catch(() => ({ checked: false }));
++    if (!p.covered) {
++        return;
++    }
++    await handle.evaluate(ROAR_CENTER).catch(() => { });
++    p = await handle.evaluate(ROAR_POINT, editableCover).catch(() => ({ checked: false }));
++    if (!p.covered) {
++        return;
++    }
++    const uid = await roarCoverUid(page, handle);
++    throw new Error(`Nothing was clicked: the element is covered by ${uid ? `uid=${uid} ` : ''}${p.what} at its center. ` +
++        'Close or move what covers it first (often a cookie banner, dialog or overlay), then take a new snapshot.');
++}
++// Native date and time inputs: set the value directly and check that it stuck.
++const ROAR_DATE = (el, v) => {
++    const set = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set, old = el.value;
++    set.call(el, v);
++    if (el.value !== v) {
++        set.call(el, old);
++        return false;
++    }
++    el.dispatchEvent(new Event('input', { bubbles: true }));
++    el.dispatchEvent(new Event('change', { bubbles: true }));
++    return true;
++};
++const ROAR_DATE_FORMATS = {
++    date: '2026-11-13', time: '14:30', 'datetime-local': '2026-11-13T14:30', month: '2026-11', week: '2026-W46',
++};
++// Focus moved from the clicked element to a different text field: a combobox opened its own input.
++const ROAR_MOVED = (node) => {
++    const e = node.nodeType === Node.ELEMENT_NODE ? node : node.parentElement;
++    let a = e.ownerDocument.activeElement;
++    while (a?.shadowRoot?.activeElement) {
++        a = a.shadowRoot.activeElement;
++    }
++    return !!a && a !== e && !e.contains(a) && (['INPUT', 'TEXTAREA'].includes(a.tagName) || a.isContentEditable);
++};
++const ROAR_ACTIVE_VALUE = () => {
++    let a = document.activeElement;
++    while (a?.shadowRoot?.activeElement) {
++        a = a.shadowRoot.activeElement;
++    }
++    return a ? (a.isContentEditable ? a.innerText : (a.value ?? '')) : '';
++};
++const ROAR_VALUE = (node) => {
++    const e = node.nodeType === Node.ELEMENT_NODE ? node : node.parentElement;
++    return e.isContentEditable ? e.innerText : (e.value ?? null);
++};
++const roarClip = (s, n = 60) => (s.length > n ? `${s.slice(0, n)}…` : s);
++// Roar: fills one text-like element. Returns a note for the response when the field needed help or ended up
++// showing something other than the value. Returns undefined to let Puppeteer's fill handle the element.
++async function roarFill(page, handle, value, signal) {
++    const kind = await handle.evaluate(el => ({
++        tag: el.tagName,
++        type: el instanceof HTMLInputElement ? el.type : '',
++        editable: el.isContentEditable,
++    }));
++    if (kind.tag === 'INPUT' && ROAR_DATE_FORMATS[kind.type]) {
++        if (!(await handle.evaluate(ROAR_DATE, value))) {
++            throw new Error(`"${value}" is not a valid value for this ${kind.type} input; use its ISO format, e.g. ${ROAR_DATE_FORMATS[kind.type]}.`);
++        }
++        return `the ${kind.type} input now holds ${JSON.stringify(value)}`;
++    }
++    const fillable = kind.tag === 'TEXTAREA' || kind.editable ||
++        (kind.tag === 'INPUT' && ['text', 'url', 'tel', 'search', 'password', 'number', 'email', ''].includes(kind.type));
++    if (fillable) {
++        await handle.asLocator().setTimeout(page.pptrPage.getDefaultTimeout() + value.length * 10).fill(value, { signal });
++        const actual = await handle.evaluate(ROAR_VALUE).catch(() => null);
++        return typeof actual === 'string' && actual !== value
++            ? `the field now shows ${JSON.stringify(roarClip(actual))}, not the value typed (the page may format or limit it)`
++            : undefined;
++    }
++    if (kind.tag === 'INPUT' || kind.tag === 'SELECT') {
++        return undefined; // Other input types: Puppeteer's fill sets them.
++    }
++    // Not a field itself (a custom combobox, a div that opens an editor): click it, then type where focus went.
++    await roarEnsureUncovered(page, handle, true);
++    await handle.asLocator().click({ signal });
++    if (!(await handle.evaluate(ROAR_MOVED).catch(() => false))) {
++        throw new Error('This element is not a text field, and clicking it did not focus one. Take a new snapshot: an input may have appeared.');
++    }
++    const mod = (await page.pptrPage.evaluate(() => navigator.platform)).startsWith('Mac') ? 'Meta' : 'Control';
++    await page.pptrPage.keyboard.down(mod);
++    await page.pptrPage.keyboard.press('a');
++    await page.pptrPage.keyboard.up(mod);
++    if (value === '') {
++        await page.pptrPage.keyboard.press('Backspace');
++    }
++    else {
++        await page.pptrPage.keyboard.type(value);
++    }
++    const actual = await page.pptrPage.evaluate(ROAR_ACTIVE_VALUE).catch(() => null);
++    return 'typed into the input that opened when the element was clicked' +
++        (typeof actual === 'string' && actual !== value ? `; it now shows ${JSON.stringify(roarClip(actual))}` : '');
++}
+ /**
+  * Locator actions abort or time out while the page is blocked by a JavaScript
+  * dialog, even though the action itself was dispatched and opened that dialog.
+@@ -160,6 +336,7 @@ export const click = definePageTool(() => ({
+                         (await selectNativeSelectOption(handle, signal))) {
+                         return;
+                     }
++                    await roarEnsureUncovered(request.page, handle);
+                     await handle.asLocator().click({
+                         count: request.params.dblClick ? 2 : 1,
+                         signal,
+@@ -338,6 +515,7 @@ function hasOptionChildren(aXNode) {
+  */
+ async function fillFormElements(elements, page) {
+     let currentUid;
++    const notes = []; // Roar: what roarFill reports per element.
+     try {
+         const result = await page.waitForEventsAfterAction(async (signal) => {
+             for (const { uid, value } of elements) {
+@@ -375,13 +553,19 @@ async function fillFormElements(elements, page) {
+                             }
+                         }
+                         else {
+-                            // Increase timeout for longer input values.
+-                            const timeoutPerChar = 10; // ms
+-                            const fillTimeout = page.pptrPage.getDefaultTimeout() + value.length * timeoutPerChar;
+-                            await handle
+-                                .asLocator()
+-                                .setTimeout(fillTimeout)
+-                                .fill(value, { signal });
++                            const note = await raceWithSignal(roarFill(page, handle, value, signal), signal);
++                            if (note !== undefined) {
++                                notes.push(elements.length > 1 ? `uid ${uid}: ${note}` : note);
++                            }
++                            else {
++                                // Increase timeout for longer input values.
++                                const timeoutPerChar = 10; // ms
++                                const fillTimeout = page.pptrPage.getDefaultTimeout() + value.length * timeoutPerChar;
++                                await handle
++                                    .asLocator()
++                                    .setTimeout(fillTimeout)
++                                    .fill(value, { signal });
++                            }
+                         }
+                     }
+                     signal.throwIfAborted();
+@@ -395,14 +579,14 @@ async function fillFormElements(elements, page) {
+                 }
+             }
+         });
+-        return { result };
++        return { result, notes };
+     }
+     catch (error) {
+         if (!currentUid) {
+             throw error;
+         }
+         handleActionError(error, currentUid, page);
+-        return { interruptedUid: currentUid };
++        return { interruptedUid: currentUid, notes };
+     }
+ }
+ export const fill = definePageTool(() => ({
+@@ -424,12 +608,12 @@ export const fill = definePageTool(() => ({
+     blockedByDialog: true,
+     verifyFilesSchema: {},
+     handler: async (request, response) => {
+-        const { result } = await fillFormElements([{ uid: request.params.uid, value: request.params.value }], request.page);
++        const { result, notes } = await fillFormElements([{ uid: request.params.uid, value: request.params.value }], request.page);
+         if (!result) {
+             response.appendResponseLine(`The element was filled out and it opened a dialog.`);
+             return;
+         }
+-        response.appendResponseLine(`Successfully filled out the element`);
++        response.appendResponseLine(`Successfully filled out the element${notes.length ? ` (${notes[0]})` : ''}`);
+         response.attachWaitForResult(result);
+         if (request.params.includeSnapshot) {
+             response.includeSnapshot();
+@@ -525,7 +709,10 @@ export const fillForm = definePageTool(() => ({
+     blockedByDialog: true,
+     verifyFilesSchema: {},
+     handler: async (request, response) => {
+-        const { result, interruptedUid } = await fillFormElements(request.params.elements, request.page);
++        const { result, interruptedUid, notes } = await fillFormElements(request.params.elements, request.page);
++        for (const note of notes) {
++            response.appendResponseLine(`Note: ${note}.`);
++        }
+         if (!result) {
+             // The page is blocked by a dialog, so the remaining elements cannot be
+             // filled out until it is handled.
+diff --git a/build/src/tools/snapshot.js b/build/src/tools/snapshot.js
+index a1918ed028d7dfbf35da20e0782de69eabc5ab0f..2b447aafcfb23a3609673b647b4aac9f28668ba5 100644
+--- a/build/src/tools/snapshot.js
++++ b/build/src/tools/snapshot.js
+@@ -3,6 +3,7 @@
+  * Copyright 2025 Google LLC
+  * SPDX-License-Identifier: Apache-2.0
+  */
++// Modified by Roar (https://github.com/roarbrowser/roar, mcp/patches): see the comments marked "Roar:".
+ import { zod } from '../third_party/index.js';
+ import { ToolCategory } from './categories.js';
+ import { definePageTool, timeoutSchema } from './ToolDefinition.js';
+@@ -10,7 +11,8 @@ export const takeSnapshot = definePageTool(() => ({
+     name: 'take_snapshot',
+     description: `Take a text snapshot of the target page based on the a11y tree. The snapshot lists page elements along with a unique
+ identifier (uid). Always use the latest snapshot. Prefer taking a snapshot over taking a screenshot. The snapshot indicates the element selected
+-in the DevTools Elements panel (if any).`,
++in the DevTools Elements panel (if any). A * before a uid marks an element that is new since your last snapshot of this page.
++A long snapshot is cut in the middle (the top and the end stay); maxChars: 0 or filePath gives all of it.`,
+     annotations: {
+         category: ToolCategory.DEBUGGING,
+         // Not read-only due to filePath param.
+@@ -25,6 +27,12 @@ in the DevTools Elements panel (if any).`,
+             .string()
+             .optional()
+             .describe('The absolute path, or a path relative to the current working directory, to save the snapshot to instead of attaching it to the response.'),
++        maxChars: zod
++            .number()
++            .int()
++            .min(0)
++            .optional()
++            .describe('Longest snapshot text to return, in characters; longer ones are cut in the middle. Default 24000. 0 returns all of it.'),
+     },
+     blockedByDialog: true,
+     verifyFilesSchema: {
+@@ -34,6 +42,7 @@ in the DevTools Elements panel (if any).`,
+         response.includeSnapshot({
+             verbose: request.params.verbose ?? false,
+             filePath: request.params.filePath,
++            maxChars: request.params.maxChars,
+         });
+     },
+ }));
+diff --git a/build/src/utils/WaitForHelper.js b/build/src/utils/WaitForHelper.js
+index 733dc4e1909124f8962ca6f5d9a6e4a1acd759fa..169e64ee65205d83bdbca700ea2ecb84e53dab86 100644
+--- a/build/src/utils/WaitForHelper.js
++++ b/build/src/utils/WaitForHelper.js
+@@ -3,6 +3,7 @@
+  * Copyright 2025 Google LLC
+  * SPDX-License-Identifier: Apache-2.0
+  */
++// Modified by Roar (https://github.com/roarbrowser/roar, mcp/patches): see the comments marked "Roar:".
+ var __addDisposableResource = (this && this.__addDisposableResource) || function (env, value, async) {
+     if (value !== null && value !== void 0) {
+         if (typeof value !== "object" && typeof value !== "function") throw new TypeError("Object expected.");
+@@ -56,6 +57,75 @@ var __disposeResources = (this && this.__disposeResources) || (function (Suppres
+     return e.name = "SuppressedError", e.error = error, e.suppressed = suppressed, e;
+ });
+ import { logger } from './logger.js';
++// Roar: counts the page's own reactions to an action, so the result can say "page changed" or "no change".
++// Same-origin frames count as the page. Writing an attribute's current value is not a change, and a style
++// change counts only as the first on its element in 200 ms, so animation loops go quiet. A new document gets
++// a new id. Runs in the isolated world, where the page cannot see or disturb it.
++// Ported from browser-use (MIT, github.com/browser-use/browser-use, browser_use/ax.py PROBE_JS).
++const ROAR_PROBE = () => {
++    const key = Symbol.for('roar.probe');
++    const w = window;
++    if (!w[key]) {
++        w[key] = { n: 0, doc: Math.random().toString(36).slice(2) };
++    }
++    const state = w[key];
++    const watch = (win) => {
++        let doc;
++        try {
++            doc = win.document;
++        }
++        catch {
++            return; // Cross-origin frame.
++        }
++        if (!doc || doc[key]) {
++            return;
++        }
++        doc[key] = true;
++        if (win !== w) {
++            state.n++; // A frame document not seen before: a frame navigated.
++        }
++        const styled = new WeakMap();
++        new MutationObserver(records => {
++            const now = performance.now();
++            let real = false;
++            for (const r of records) {
++                if (r.attributeName &&
++                    r.oldValue === r.target.getAttributeNS?.(r.attributeNamespace, r.attributeName)) {
++                    continue;
++                }
++                if (r.attributeName !== 'style') {
++                    real = true;
++                }
++                else if (now - (styled.get(r.target) ?? -1e9) > 200) {
++                    real = true;
++                }
++                if (r.attributeName === 'style') {
++                    styled.set(r.target, now);
++                }
++            }
++            if (real) {
++                state.n++;
++            }
++        }).observe(doc, { subtree: true, childList: true, attributes: true, attributeOldValue: true, characterData: true });
++        for (const type of ['input', 'change']) {
++            win.addEventListener(type, () => state.n++, true);
++        }
++    };
++    const walk = (win, depth) => {
++        watch(win);
++        if (depth > 5) {
++            return;
++        }
++        for (let i = 0; i < win.frames.length; i++) {
++            walk(win.frames[i], depth + 1);
++        }
++    };
++    walk(w, 0);
++    return { n: state.n, doc: state.doc };
++};
++// Roar: requests open longer than this are long polls or analytics beacons, never what an action waits for.
++const ROAR_LONG_REQUEST_MS = 1500;
++const ROAR_NETWORK_QUIET_MS = 150;
+ export class WaitForHelper {
+     #abortController = new AbortController();
+     #page;
+@@ -67,6 +137,12 @@ export class WaitForHelper {
+     /** Track all dialogs as they pause the renderer. */
+     #dialogDetected = false;
+     #initialUrl;
++    // Roar: probe before/after the action, and requests still loading when the wait ended.
++    #probeBefore;
++    #pageChanged;
++    #pendingRequests = 0;
++    #inflight = new Map(); // request -> start time
++    #lastNetwork = 0;
+     constructor(page, cpuTimeoutMultiplier, networkTimeoutMultiplier) {
+         this.#stableDomTimeout = 3000 * cpuTimeoutMultiplier;
+         this.#stableDomFor = 100 * cpuTimeoutMultiplier;
+@@ -143,6 +219,68 @@ export class WaitForHelper {
+             __disposeResources(env_1);
+         }
+     }
++    async #probe() {
++        try {
++            return await Promise.race([
++                this.#page.mainFrame().isolatedRealm().evaluate(ROAR_PROBE),
++                new Promise(res => setTimeout(() => res(undefined), 1000)),
++            ]);
++        }
++        catch {
++            return undefined; // Navigation in progress, or a dialog pauses the page.
++        }
++    }
++    #trackNetwork() {
++        const ignore = (request) => ['websocket', 'eventsource'].includes(request.resourceType());
++        const started = (request) => {
++            if (ignore(request)) {
++                return;
++            }
++            this.#inflight.set(request, performance.now());
++            this.#lastNetwork = performance.now();
++        };
++        const ended = (request) => {
++            if (this.#inflight.delete(request)) {
++                this.#lastNetwork = performance.now();
++            }
++        };
++        this.#page.on('request', started);
++        this.#page.on('requestfinished', ended);
++        this.#page.on('requestfailed', ended);
++        return () => {
++            this.#page.off('request', started);
++            this.#page.off('requestfinished', ended);
++            this.#page.off('requestfailed', ended);
++        };
++    }
++    #busyRequests() {
++        const now = performance.now();
++        let busy = 0;
++        for (const t of this.#inflight.values()) {
++            if (now - t < ROAR_LONG_REQUEST_MS) {
++                busy++;
++            }
++        }
++        return busy;
++    }
++    // Roar: waits until no fresh request is loading and the network has been quiet briefly, bounded by cap.
++    // Returns whether any network activity happened while it waited, so the DOM is checked once more.
++    async #waitForNetworkIdle(cap) {
++        const start = performance.now();
++        const seen = this.#lastNetwork;
++        while (performance.now() - start < cap) {
++            if (this.#abortController.signal.aborted) {
++                break;
++            }
++            this.#pendingRequests = this.#busyRequests();
++            if (!this.#pendingRequests && performance.now() - this.#lastNetwork >= ROAR_NETWORK_QUIET_MS) {
++                break;
++            }
++            await new Promise(res => setTimeout(res, 25));
++        }
++        this.#pendingRequests = this.#busyRequests();
++        return this.#lastNetwork !== seen;
++    }
+     timeout(time) {
+         if (this.#abortController.signal.aborted) {
+             return Promise.resolve();
+@@ -246,6 +384,9 @@ export class WaitForHelper {
+             }
+             logger?.(error);
+         });
++        this.#probeBefore = await this.#probe();
++        const stopTracking = this.#trackNetwork();
++        this.#abortController.signal.addEventListener('abort', stopTracking);
+         try {
+             await action(this.#abortController.signal);
+         }
+@@ -273,17 +414,30 @@ export class WaitForHelper {
+                 ]);
+             }
+             if (this.#dialogDetected) {
++                this.#abortController.abort();
+                 return this.#getResult();
+             }
+             // Wait for stable dom after navigation so we execute in
+             // the correct context
+             if (options?.waitForStableDom !== false) {
+                 await this.waitForStableDom();
++                // Roar: a fetch the action started usually changes the DOM when it lands.
++                if (await this.#waitForNetworkIdle(this.#navigationTimeout)) {
++                    await this.waitForStableDom();
++                }
+             }
+         }
+         catch (error) {
+             logger?.(error);
+         }
++        try {
++            if (!this.#dialogDetected) {
++                const after = await this.#probe();
++                if (this.#probeBefore && after) {
++                    this.#pageChanged = after.doc !== this.#probeBefore.doc || after.n !== this.#probeBefore.n;
++                }
++            }
++        }
+         finally {
+             this.#abortController.abort();
+         }
+@@ -296,6 +450,8 @@ export class WaitForHelper {
+                 ? { navigatedToUrl: urlAfterAction }
+                 : {}),
+             dialogHandled: this.#dialogHandled,
++            ...(this.#pageChanged !== undefined ? { pageChanged: this.#pageChanged } : {}),
++            ...(this.#pendingRequests ? { pendingRequests: this.#pendingRequests } : {}),
+         };
+     }
+ }
+diff --git a/build/src/utils/roarDomains.js b/build/src/utils/roarDomains.js
+new file mode 100644
+index 0000000000000000000000000000000000000000..da0ad7fffdb7562a9a21cfcc2f5dd41bd49a1f54
+--- /dev/null
++++ b/build/src/utils/roarDomains.js
+@@ -0,0 +1,185 @@
++/**
++ * Roar: where this agent session's pages may go. Set by the MCP server's environment:
++ *   ROAR_MCP_ALLOWED_DOMAINS  only these (comma or space separated patterns)
++ *   ROAR_MCP_BLOCKED_DOMAINS  never these (ignored when an allow list is set)
++ *   ROAR_MCP_BLOCK_IPS=1      no IP-address hosts
++ * Patterns:
++ *   example.com             example.com, and www.example.com for a two-label domain; in the block list also every
++ *                           subdomain
++ *   mail.example.com        exactly that host
++ *   *.example.com           example.com and every subdomain
++ *   https://example.com     that scheme and host on its default port; a path in the pattern is a path prefix
++ *   https://*.example.com, http*://example.com/*   globs on scheme, host and path
++ *   localhost:8080          a host with a port
++ * about:blank, data: and blob: are always allowed; file: URLs and URLs without a host are not.
++ * Enforced on the main frame of pages this session drives (subresources and frames are not filtered): navigation
++ * tools refuse a blocked URL, a navigation to one during a tool call is stopped and the page reset to about:blank,
++ * and page tools refuse to work on a page that shows a blocked URL.
++ * Ported from browser-use (MIT, github.com/browser-use/browser-use, browser_use/domains.py). Puppeteer's own
++ * blocklist/allowlist options act on the whole connection, which here includes the person's own tabs.
++ */
++const ALWAYS_ALLOWED = new Set(['about:blank', 'chrome://new-tab-page/', 'chrome://newtab/']);
++const NO_HOST_ALLOWED = new Set(['data:', 'blob:']);
++const WEB = new Set(['http:', 'https:']);
++const DEFAULT_PORT = { 'http:': '80', 'https:': '443' };
++const list = (v) => String(v || '').split(/[\s,]+/).map(s => s.trim()).filter(Boolean);
++const allowed = list(process.env.ROAR_MCP_ALLOWED_DOMAINS);
++const blockedList = allowed.length ? [] : list(process.env.ROAR_MCP_BLOCKED_DOMAINS);
++const blockIps = /^(1|true|yes|on)$/i.test(process.env.ROAR_MCP_BLOCK_IPS || '');
++export const roarDomainsActive = !!(allowed.length || blockedList.length || blockIps);
++// A glob (only * is special) as a whole-string RegExp.
++const globRe = (g) => new RegExp(`^${g.split('*').map(s => s.replace(/[.+?^${}()|[\]\\]/g, '\\$&')).join('.*')}$`);
++// The host as the browser sends it (lowercase, punycode, IPv4 in dotted decimal), through the URL parser.
++const canonical = (host) => {
++    try {
++        return new URL(`http://${host}/`).hostname;
++    }
++    catch {
++        return host.toLowerCase();
++    }
++};
++const hostGlob = (p) => p.split('.').map(l => (l.includes('*') ? l.toLowerCase() : canonical(l))).join('.');
++const hostMatches = (host, p) => (p.includes('*') ? globRe(hostGlob(p)).test(host) : host === canonical(p));
++const splitPort = (h) => {
++    if (h.startsWith('[')) {
++        const end = h.indexOf(']');
++        return [h.slice(0, end + 1), h.slice(end + 2)];
++    }
++    if ((h.match(/:/g) || []).length > 1) {
++        return [h, '']; // A bare IPv6 address.
++    }
++    const i = h.lastIndexOf(':');
++    return i < 0 ? [h, ''] : [h.slice(0, i), h.slice(i + 1)];
++};
++const isIp = (host) => /^\d+\.\d+\.\d+\.\d+$/.test(host) || host.startsWith('[');
++function matches(pattern, u, subdomains) {
++    const p = pattern.trim();
++    if (p.includes('://')) {
++        const [scheme, rest] = [p.slice(0, p.indexOf('://')), p.slice(p.indexOf('://') + 3)];
++        const slash = rest.indexOf('/');
++        const [pHost, pPort] = splitPort(slash < 0 ? rest : rest.slice(0, slash));
++        const pPath = slash < 0 ? undefined : rest.slice(slash + 1);
++        if (!globRe(scheme.toLowerCase()).test(u.protocol.slice(0, -1)) ||
++            !(pHost === '*' || hostMatches(u.hostname, pHost))) {
++            return false;
++        }
++        const port = u.port || DEFAULT_PORT[u.protocol] || '';
++        if (pPort) {
++            if (!globRe(pPort).test(port)) {
++                return false;
++            }
++        }
++        else if (!subdomains && u.port && u.port !== DEFAULT_PORT[u.protocol]) {
++            return false;
++        }
++        if (pPath === undefined) {
++            return true;
++        }
++        const path = u.pathname + u.search;
++        return pPath.includes('*') ? globRe(`/${pPath}`).test(path) : path.startsWith(`/${pPath}`);
++    }
++    if (!WEB.has(u.protocol)) {
++        return false; // A pattern without a scheme never matches chrome:, file: and the like.
++    }
++    const [pHost, pPort] = splitPort(p);
++    if (pPort && (u.port || DEFAULT_PORT[u.protocol]) !== pPort) {
++        return false;
++    }
++    if (pHost.startsWith('*.')) {
++        const base = canonical(pHost.slice(2));
++        return u.hostname === base || u.hostname.endsWith(`.${base}`);
++    }
++    if (pHost.includes('*')) {
++        return globRe(hostGlob(pHost)).test(u.hostname);
++    }
++    const h = canonical(pHost);
++    if (subdomains) {
++        return u.hostname === h || u.hostname.endsWith(`.${h}`);
++    }
++    return u.hostname === h || ((pHost.match(/\./g) || []).length === 1 && u.hostname === `www.${h}`);
++}
++const show = (ps) => ps.slice(0, 10).join(', ') + (ps.length > 10 ? `, ... (${ps.length} patterns)` : '');
++/** Why this session may not open url, or undefined when it may. */
++export function roarDomainBlocked(url) {
++    if (!roarDomainsActive) {
++        return undefined;
++    }
++    url = String(url);
++    if (ALWAYS_ALLOWED.has(url) || url.startsWith('about:blank#')) {
++        return undefined;
++    }
++    let u;
++    try {
++        u = new URL(url);
++    }
++    catch {
++        return `"${url.slice(0, 100)}" is not a valid URL`;
++    }
++    if (NO_HOST_ALLOWED.has(u.protocol)) {
++        return undefined;
++    }
++    if (!u.hostname || u.protocol === 'file:') {
++        return `${u.protocol} URLs are blocked in this session`;
++    }
++    if (blockIps && isIp(u.hostname)) {
++        return `${u.host} is an IP address, and IP addresses are blocked in this session`;
++    }
++    if (allowed.length) {
++        return allowed.some(p => matches(p, u, false))
++            ? undefined
++            : `${u.host} is outside the domains this session may open (${show(allowed)})`;
++    }
++    if (blockedList.some(p => matches(p, u, true))) {
++        return `${u.host} is blocked in this session (${show(blockedList)})`;
++    }
++    return undefined;
++}
++// Tool calls running now. Navigations are stopped only while the agent acts, so the person's own browsing in a
++// tab the agent once used is never reset.
++let acting = 0;
++// Navigations stopped since the last response; the next response reports them (one tool call runs at a time).
++const notices = [];
++export const roarTakeNotices = () => notices.splice(0);
++export const roarActing = () => acting > 0;
++export async function roarWhileActing(fn) {
++    acting++;
++    try {
++        return await fn();
++    }
++    finally {
++        acting--;
++    }
++}
++/** Stops a blocked main-frame navigation of a page this session drives and resets the page to about:blank. */
++export function roarGuardPage(mcpPage) {
++    if (!roarDomainsActive) {
++        return;
++    }
++    const page = mcpPage.pptrPage;
++    let resetting = false;
++    const stop = async (url) => {
++        const why = roarDomainBlocked(url);
++        if (!why || resetting || !mcpPage.roarGuarded || !roarActing()) {
++            return;
++        }
++        resetting = true;
++        notices.push(`Blocked: page ${mcpPage.id} tried to open ${url.slice(0, 200)}, but ${why}. It was stopped and the page reset to about:blank.`);
++        try {
++            await page._client().send('Page.stopLoading').catch(() => { });
++            await page.goto('about:blank').catch(() => { });
++        }
++        finally {
++            resetting = false;
++        }
++    };
++    page.on('request', (request) => {
++        if (request.isNavigationRequest() && request.frame() === page.mainFrame()) {
++            void stop(request.url());
++        }
++    });
++    page.on('framenavigated', (frame) => {
++        if (frame === page.mainFrame()) {
++            void stop(frame.url());
++        }
++    });
++}
+diff --git a/build/src/utils/url.js b/build/src/utils/url.js
+index 46a1cfdbf5d9091ee06022fe3bdf8f3cc843dcc1..a2a41520cda2d1fbb8cb4bfc1edd6ea0792363a0 100644
+--- a/build/src/utils/url.js
++++ b/build/src/utils/url.js
+@@ -3,6 +3,8 @@
+  * Copyright 2026 Google LLC
+  * SPDX-License-Identifier: Apache-2.0
+  */
++// Modified by Roar (https://github.com/roarbrowser/roar, mcp/patches): see the comments marked "Roar:".
++import { roarDomainBlocked } from './roarDomains.js';
+ const ALLOWED_PROTOCOLS = new Set(['http:', 'https:', 'ws:', 'wss:']);
+ const IPV4_LOOPBACK_REGEX = /^127(?:\.(?:25[0-5]|2[0-4]\d|[01]?\d\d?)){3}$/;
+ /**
+@@ -111,6 +113,11 @@ export function validateUrl(url, options) {
+         }
+         throw new Error(`Navigating to ${parsed.protocol} URLs is not allowed.`);
+     }
++    // Roar: the session's allowed/blocked domains (utils/roarDomains.js).
++    const why = roarDomainBlocked(url);
++    if (why) {
++        throw new Error(`Not opened: ${why}.`);
++    }
+     return parsed;
+ }
+ //# sourceMappingURL=url.js.map
+\ No newline at end of file
