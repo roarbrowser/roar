@@ -2257,7 +2257,8 @@ int Controller::NewTabFrom(CefRefPtr<CefBrowser> opener, const std::string& url,
   if (StartsWith(url, "roar:") && !(opener && StartsWith(opener->GetMainFrame()->GetURL().ToString(), kUiOrigin)))
     return 0;
   Tab* from = FindTabByBrowser(opener);
-  if (from && from->driven) activate = false;  // An agent's click opens its link behind.
+  bool behind = from && from->driven;
+  if (behind) activate = false;  // An agent's click opens its link behind.
   bool ghost = IsGhostBrowser(opener);
   int space = from ? from->space : -1;
   if (!from && !ghost && !IsUiBrowser(opener)) {  // Roar pages open into the active space.
@@ -2270,7 +2271,12 @@ int Controller::NewTabFrom(CefRefPtr<CefBrowser> opener, const std::string& url,
       return 0;
     }
   }
-  return NewTab(url, activate, false, 0, space, ghost, from ? from->id : 0);
+  int id = NewTab(url, activate, false, 0, space, ghost, from ? from->id : 0);
+  // A tab's browser comes with its window, made on first activation; the agent that clicked must reach the
+  // page now, so it gets its window unshown (OnTabWindowCreated shows only visible tabs), as OpenTargetTab does.
+  if (behind)
+    if (Tab* t = FindTab(id); t && !IsVisible(id)) ShowTabWindow(t);
+  return id;
 }
 
 CefRect Controller::ContentRect() {
