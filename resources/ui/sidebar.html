@@ -195,6 +195,10 @@ body.drag-active .pinned:empty::before { content: 'Drop to pin'; color: var(--in
 .ctx button:disabled { color: var(--ink-3); background: none; }
 .ctx hr { border: 0; border-top: 1px solid var(--rule); margin: 4px 2px; }
 .ctx .head { color: var(--ink-3); font-size: 11px; padding: 4px 8px 2px; }
+.ctx .tweakrow { display: flex; align-items: center; }
+.ctx .tweakrow > button[data-act="tweak"] { flex: 1; min-width: 0; }
+.ctx .tweakrow > button.edit { flex: none; color: var(--ink-3); font-size: 11.5px; }
+.ctx .tweakrow > button.edit:hover { color: var(--ink); }
 .ctx .gdot { width: 8px; height: 8px; border-radius: 50%; background: var(--gc, var(--ink-3)); flex: none; }
 .ctx input { margin: 2px; border: 0; padding: 5px 8px; border-radius: 6px; background: var(--panel); color: var(--ink); font: 500 12.5px var(--ui); }
 .ctx .swatches { display: flex; gap: 6px; padding: 4px 6px; }
@@ -1233,13 +1237,15 @@ async function tabMenu(t, e) {
   });
 }
 // Site tweaks (the bundled userscript and userstyle manager) for the site: each tweak that
-// runs here with its switch, the scripts' menu commands, the global switch and the manager.
+// runs here with its switch and an Edit action, the scripts' menu commands, the global switch,
+// a new script for this site and the manager.
 function tweaksItems(tw) {
   const check = (on) => `<span style="width:10px">${on ? '✓' : ''}</span>`;
   return `<hr><div class="head">Site tweaks</div>
-    ${tw.items.map((i) => `<button data-act="tweak" data-id="${esc(i.id)}" data-kind="${esc(i.kind)}" role="menuitemcheckbox" aria-checked="${!!i.enabled}"${tw.enabled ? '' : ' aria-disabled="true" disabled'} title="${esc(i.kind === 'style' ? 'Userstyle' : 'Userscript; reloads the page')}">${check(i.enabled)}${esc(i.name)}</button>`).join('')}
+    ${tw.items.map((i) => `<div class="tweakrow"><button data-act="tweak" data-id="${esc(i.id)}" data-kind="${esc(i.kind)}" role="menuitemcheckbox" aria-checked="${!!i.enabled}"${tw.enabled ? '' : ' aria-disabled="true" disabled'} title="${esc(i.kind === 'style' ? 'Userstyle' : 'Userscript; reloads the page')}">${check(i.enabled)}${esc(i.name)}</button><button class="edit" data-act="tweakedit" data-id="${esc(i.id)}" title="Edit ${esc(i.name)} in Site tweaks" aria-label="Edit ${esc(i.name)}">Edit</button></div>`).join('')}
     ${tw.commands.map((c) => `<button data-act="tweakcmd" data-k="${esc(c.key)}" title="${esc(c.script)}"><span style="width:10px"></span>${esc(c.caption)}</button>`).join('')}
     <button data-act="tweaksoff" role="menuitemcheckbox" aria-checked="${!tw.enabled}" title="Stops every userscript and userstyle until you turn them back on. Reloads the page">${check(!tw.enabled)}Turn off all site tweaks</button>
+    <button data-act="tweaksnew" title="Opens the editor with a script that runs on this site"><span style="width:10px"></span>New script for this site…</button>
     <button data-act="tweaksmanage"><span style="width:10px"></span>Manage site tweaks…</button>`;
 }
 // The address bar's site icon: per-site switches for the active tab's site.
@@ -1265,6 +1271,9 @@ async function siteMenu() {
       else if (act === 'tweaksoff') ask({ cmd: 'tab.tweaks', id: t.id, what: 'global' });
       else if (act === 'tweakcmd') ask({ cmd: 'tab.tweaks', id: t.id, what: 'run', arg: d.k });
       else if (act === 'tweaksmanage') ask({ cmd: 'run', id: 'open:' + tw.manage });
+      // The manager's own routes: tw.manage without its #site=, plus the editor's or item's hash.
+      else if (act === 'tweaksnew') ask({ cmd: 'run', id: 'open:' + tw.manage.split('#')[0] + '#new=script&site=' + encodeURIComponent(t.url) });
+      else if (act === 'tweakedit') ask({ cmd: 'run', id: 'open:' + tw.manage.split('#')[0] + '#item=' + encodeURIComponent(d.id) });
       hideCtx();
       btn.focus();
     });

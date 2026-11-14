@@ -34,6 +34,7 @@ const GROUPS = [
   { name: 'p2-item', needs: ['install'], aka: ['item', 'item-page'], about: 'per-item page: remove an allowed connect host; edit a stored value and a fresh load sees it' },
   { name: 'p2-delete', needs: ['install'], aka: ['undo'], about: 'delete shows Undo; Undo restores code and values; bulk delete shows one toast' },
   { name: 'p2-updates', needs: ['install'], aka: ['update-count'], about: 'header shows N updates; click opens the Has-update filter' },
+  { name: 'p2-tabmenu', needs: ['install'], aka: ['tabmenu'], about: 'site menu: New script for this site opens the editor with its @match; Edit opens the item page' },
   { name: 'p3-backups', needs: ['manager'], aka: ['backups'], about: 'Backups page: Export all downloads a valid v2 file; the import picker previews before anything changes' },
   { name: 'p3-preview', needs: ['manager', 'p3-backups'], aka: ['preview', 'apply'], about: 'preview rows default Replace on same id, Add when the name is claimed; Apply applies what the radios say' },
   { name: 'p3-ghost', needs: ['manager'], aka: [], about: 'a ghost copy (settings.ghost) shows no Backups button or page, and its preview refuses' },
@@ -659,6 +660,47 @@ RUN['p2-updates'] = async () => {
   check(none0 === '[]' && none1 === '[]', `with no update waiting there is no header button (before ${none0}, after clearing ${none1})`);
   for (const t of (await tabs()).filter((x) => !x.ghost && x.url.includes('manage.html'))) await sidebar(`ask({cmd:'tab.close',id:${t.id}})`);
   await sleep(400);
+};
+RUN['p2-tabmenu'] = async () => {
+  // The address bar's site menu on the fixture page: (a) "New script for this site…" opens the
+  // manager's editor (#new=script&site=) with this page's host in @match; (b) every tweak row has
+  // an Edit action, and Edit on Live fixture opens #item=<its id> without switching it.
+  // Leaves: no fixture page, manager or connect tab open from this group.
+  const closeOurs = async () => {
+    for (const t of (await tabs()).filter((t) => !t.ghost && (t.url.startsWith(SITE + '/page') || t.url.includes('manage.html') || t.url.includes('connect.html')))) await sidebar(`ask({cmd:'tab.close',id:${t.id}})`);
+    await sleep(400);
+  };
+  await closeOurs();
+  await open(`${SITE}/page`);
+  // Live fixture asks about other.localhost on each fresh load: deny it, then come back to the page.
+  if (await until(async () => (await list()).some(connectPrompt), 8000)) await evalIn(connectPrompt, `document.getElementById('deny').click()`, 2000);
+  const pageTab = await until(async () => (await tabs()).find((t) => t.url.startsWith(SITE + '/page')));
+  const tw2 = await until(() => sidebar(`ask({cmd:'tab.tweaks',id:${pageTab.id}})`));
+  const menu = async () => {
+    await sidebar(`ask({cmd:'tab.activate',id:${pageTab.id}})`);
+    return until(async () => sidebar(`(async () => { await siteMenu(); await new Promise((r) => setTimeout(r, 400)); const c = document.getElementById('ctx'); return !c.hidden && /Manage site tweaks/.test(c.innerText) ? 'open' : ''; })()`), 25000);
+  };
+  const ctxClick = (expr) => sidebar(`(() => { const b = ${expr}; if (b) b.click(); return b ? 'clicked' : 'none'; })()`);
+  // (a)
+  await menu();
+  const newBtn = await ctxClick(`[...document.querySelectorAll('#ctx button')].find((b) => b.textContent.trim() === 'New script for this site…')`);
+  const newTab = await until(async () => (await tabs()).find((t) => t.url.includes('manage.html#new=script&site=')), 8000);
+  const code = newTab ? await until(() => evalIn((x) => x.url.includes('manage.html#new=script&site='), `document.querySelector('textarea.code')?.value || ''`), 8000) : '';
+  const matchLine = (code || '').split('\n').find((l) => /@match/.test(l)) || '';
+  check(newBtn === 'clicked' && !!newTab && /page\.localhost/.test(matchLine), `"New script for this site…" opens the editor with this site's @match (button=${newBtn} tab=${newTab ? newTab.url.replace(/^.*manage\.html/, 'manage.html') : 'none'} ${matchLine.trim() || 'no @match'})`);
+  if (newTab) await sidebar(`ask({cmd:'tab.close',id:${newTab.id}})`);
+  await sleep(400);
+  // (b)
+  await menu();
+  const rows = await sidebar(`JSON.stringify([...document.querySelectorAll('#ctx [data-act="tweak"]')].map((b) => ({ id: b.dataset.id, edit: !!document.querySelector('#ctx [data-act="tweakedit"][data-id="' + b.dataset.id + '"]') })))`);
+  const rowList = JSON.parse(rows || '[]');
+  const live = tw2?.items?.find((i) => i.name === 'Live fixture');
+  const editBtn = live ? await ctxClick(`document.querySelector('#ctx [data-act="tweakedit"][data-id="${live.id}"]')`) : 'no item';
+  const itemTab = live && await until(async () => (await tabs()).find((t) => t.url.includes(`manage.html#item=${live.id}`)), 8000);
+  const after = live ? await worker(`chrome.storage.local.get('item:${live.id}').then((a) => (a['item:${live.id}'] || {}).enabled === ${!!live.enabled})`) : false;
+  check(rowList.length > 0 && rowList.every((r) => r.edit) && editBtn === 'clicked' && !!itemTab && after === true, `each tweak row has Edit; Edit opens #item=<id> and doesn't switch the tweak (rows=${rows} edit=${editBtn} tab=${itemTab ? 'opened' : 'none'} unchanged=${after})`);
+  await sidebar(`hideCtx()`);
+  await closeOurs();
 };
 RUN['p3-backups'] = async () => {
   // The Backups page: Export all really downloads a v2 file; the picker previews before anything changes.
