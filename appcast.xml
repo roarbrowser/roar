@@ -502,5 +502,14 @@
       <description><![CDATA[Chromium 156 (CEF 156.0.30). A page your agent opens for you no longer replaces the tab you are on: it opens beside it, and a sidebar card with Open takes you there. Agents now reach pages their clicks open in the background. Fixes a crash when the last ghost tab closes.]]></description>
       <enclosure url="https://github.com/roarbrowser/roar/releases/download/v1.27.0/Roar-1.27.0.dmg" type="application/octet-stream" sparkle:edSignature="7Ve4FGhdVRrZGsLSiSb55cGlm/g4cK99AYl9VlRyEL0tKUFu7wVQeRcz1QlUQdYgw8XTkb8X0WxCpzb/rBMXDQ==" length="210386734"/>
     </item>
+    <item>
+      <title>1.28.0</title>
+      <pubDate>Sat, 14 Nov 2026 23:59:29 +0000</pubDate>
+      <sparkle:version>12800</sparkle:version>
+      <sparkle:shortVersionString>1.28.0</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[An agent keeps each task in one tab group: different group names, renaming the group, or the agent closing its last tab no longer split a task into several groups. Site tweaks: Undo after deleting a tweak, a count of pending updates in the header, and New script for this site and Edit in the site menu.]]></description>
+      <enclosure url="https://github.com/roarbrowser/roar/releases/download/v1.28.0/Roar-1.28.0.dmg" type="application/octet-stream" sparkle:edSignature="/taTWhrGWfTPv5hz9K8CV3VVhBFpQlmtBmcDx2r8IdjMNJn/O+OZcDoXkFkt1HWLd8XPYm8sWYS65Tuq6T/xBA==" length="210399445"/>
+    </item>
   </channel>
 </rss>
