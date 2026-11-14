@@ -104,7 +104,22 @@ async function installStyleInner(code, opts) {
 
 export const newItemIds = () => ({ id: newId(), secret: newId() + newId(), position: Date.now() });
 
-export const removeItem = (id) => serialize(async () => storageLocal.remove([ITEM + id, VALUES + id]));
+// Deletes a tweak and its GM values. Returns what it removed ({ 'item:<id>': ..., 'values:<id>': ... })
+// so the manager's Undo can hand it to restoreItems.
+export const removeItem = (id) => serialize(async () => {
+  const keys = [ITEM + id, VALUES + id];
+  const kept = await storageLocal.get(keys);
+  await storageLocal.remove(keys);
+  return kept;
+});
+
+// Undo for removeItem: writes the kept records back on their own ids. touched moves on, so a
+// share merge sees the item as newer than its deletion and doesn't drop it again (lib/share.js).
+export const restoreItems = (kept) => serialize(async () => {
+  const out = {};
+  for (const [k, v] of Object.entries(kept)) out[k] = k.startsWith(ITEM) ? { ...v, touched: Date.now() } : v;
+  await storageLocal.set(out);
+});
 
 export const patchItem = (id, patch) => serialize(async () => {
   // Re-reads the item inside the write: an allowed host added while this patch was queued

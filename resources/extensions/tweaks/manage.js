@@ -1,6 +1,6 @@
 // The manager: a searchable, filterable, sortable list with bulk mode, the editor, settings
 // for UserCSS vars, update review, import and export (export only over a selection).
-import { allItems, getSettings, setSettings, getValues, installScript, installStyle, removeItem, patchItem, ITEM, VALUES } from './lib/store.js';
+import { allItems, getSettings, setSettings, getValues, installScript, installStyle, removeItem, restoreItems, patchItem, ITEM, VALUES } from './lib/store.js';
 import { compileMatcher, testMatcher } from './lib/match.js';
 import { cssFor } from './lib/usercss.js';
 import { importBackup, exportJSON, backupRows, matchRow } from './lib/importers.js';
@@ -94,7 +94,14 @@ async function renderList() {
     h('span', { className: 'spacer' }),
     h('button', { textContent: 'Turn on', onclick: async () => { for (const id of visibleSel()) await patchItem(id, { enabled: true }); renderList(); } }),
     h('button', { textContent: 'Turn off', onclick: async () => { for (const id of visibleSel()) await patchItem(id, { enabled: false }); renderList(); } }),
-    h('button', { className: 'danger', textContent: 'Delete', onclick: async () => { const ids = visibleSel(); if (ids.length && confirm(`Delete ${ids.length} tweak(s) and their stored data?`)) { for (const id of ids) await removeItem(id); } renderList(); } }),
+    h('button', { className: 'danger', textContent: 'Delete', title: 'Delete the selected tweaks and their stored data (Undo for 10 seconds)', onclick: async () => {
+      const ids = visibleSel();
+      if (!ids.length) return;
+      const one = ids.length === 1 && items.find((it) => it.id === ids[0]);
+      await deleteWithUndo(ids, one ? `Deleted "${one.meta.name}"` : `Deleted ${ids.length} tweaks`);
+      ids.forEach((id) => ui.sel.delete(id));
+      renderList();
+    } }),
     h('button', { textContent: 'Export selected', onclick: exportSelected })) : null;
   fill(
     bulkbar,
@@ -114,6 +121,34 @@ async function renderList() {
       h('button', { textContent: 'Edit', onclick: () => go({ item: it.id }) }),
       ui.sort === 'run' && !settings.ghost ? h('button', { textContent: '\u2191', title: 'Move up', disabled: visible.indexOf(it.id) <= 0, onclick: () => move(it.id, -1) }) : null,
       ui.sort === 'run' && !settings.ghost ? h('button', { textContent: '\u2193', title: 'Move down', disabled: !visible.length || visible.indexOf(it.id) >= visible.length - 1, onclick: () => move(it.id, 1) }) : null)));
+}
+
+// ---- Delete with Undo ----
+// Deleting never asks first: a 10 s toast offers Undo instead. What was removed stays in this
+// page's memory only while the toast is up; Undo writes it back on the same ids (restoreItems).
+// One toast at a time: a new delete closes the old one, and that deletion stands.
+let toast = null;  // { el, timer } of the toast on screen
+function closeToast() {
+  if (!toast) return;
+  clearTimeout(toast.timer);
+  toast.el.remove();
+  toast = null;  // drops the kept copy with it
+}
+async function deleteWithUndo(ids, label) {
+  closeToast();
+  const kept = {};
+  for (const id of ids) Object.assign(kept, await removeItem(id));
+  if (!Object.keys(kept).length) return;
+  const t = {};
+  t.el = h('div', { className: 'toast', role: 'status' }, h('span', { textContent: label }),
+    h('button', { textContent: 'Undo', onclick: async () => {
+      if (toast !== t) return;
+      closeToast();
+      try { await restoreItems(kept); } catch (e) { say(`Couldn't undo: ${e.message}`, true); }
+    } }));
+  t.timer = setTimeout(() => { if (toast === t) closeToast(); }, 10000);
+  toast = t;
+  document.body.appendChild(t.el);
 }
 
 // Move a tweak one step within the visible run order (swap positions with its neighbour).
@@ -259,7 +294,7 @@ function ghostMode(settings) {
 // One page per tweak. Code is the editor with a line-number gutter; Settings is the @var form;
 // Permissions lists grants (read-only) and connect hosts (the only place to remove an allowed
 // host, and the only GUI for @connect at all); Stored values is an editable key/value table;
-// Info holds facts, Check now, the ghost-tab switch and the error tail. The header's Save acts
+// Info holds facts, Check now, the ghost-tab switch, the error tail and Delete (with Undo). The header's Save acts
 // on the active tab only (none on Permissions/Info: everything there is immediate). Anything
 // typed trips the one guard: hash changes and closing the tab confirm before anything is lost.
 async function renderItem(r) {
@@ -379,6 +414,11 @@ async function renderItem(r) {
       checked.textContent = a.timeout ? 'timed out' : a.error ? a.error : a.checked === 0 ? 'No update URL to check.' : `${a.found ? a.found + ' update waiting. ' : ''}Checked ${a.checked}${a.failed ? ', ' + a.failed + ' failed' : ''}.`;
     } });
     const ghostBox = h('input', { type: 'checkbox', checked: !!it.ghost, onchange: (e) => patchItem(id, { ghost: e.target.checked }) });
+    // Not in a ghost copy: it only reads what it copied.
+    const del = (await getSettings()).ghost ? null : h('button', { className: 'danger', textContent: 'Delete', title: 'Delete this tweak and its stored data (Undo for 10 seconds)', onclick: async () => {
+      await deleteWithUndo([id], `Deleted "${it.meta.name}"`);
+      go({});
+    } });
     content = h('div', {},
       h('dl', {},
         h('dt', { textContent: 'Kind' }), h('dd', { textContent: it.kind }),
@@ -387,7 +427,7 @@ async function renderItem(r) {
         h('dt', { textContent: urlText ? (it.kind === 'style' ? 'Update URL' : 'Install URL') : 'URL' }), h('dd', {}, urlText ? h('span', { textContent: urlText }) : h('span', { className: 'muted', textContent: 'None' }), urlText ? copy : null, copied),
         h('dt', { textContent: 'Ghost tabs' }), h('dd', {}, h('label', { className: 'row muted', style: 'gap:5px', title: 'Ghost tabs get a copy of it and its stored data when they open. Nothing a ghost tab changes comes back.' }, ghostBox, 'Run in ghost tabs')),
         h('dt', { textContent: 'Errors' }), h('dd', {}, st.errors?.[id] ? h('span', { className: 'bad', textContent: st.errors[id] }) : h('span', { className: 'muted', textContent: 'None.' }))),
-      h('div', { className: 'row', style: 'margin-top:10px' }, checkNow, checked));
+      h('div', { className: 'row', style: 'margin-top:10px' }, checkNow, checked, h('span', { className: 'spacer' }), del));
   }
   const hasSave = doSave != null;
   editorSave = doSave;  // the leave-guard's 'Save changes' runs the active tab's save

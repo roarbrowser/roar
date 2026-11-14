@@ -42,3 +42,4 @@ dt { color: var(--muted); } dd { margin: 0; word-break: break-word; }
 .sw { cursor: pointer; }
 .badge { font-size: 11.5px; padding: 2px 9px; border-radius: 99px; border: 1px solid var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); color: var(--fg); cursor: pointer; }
 .bulk-pick { cursor: pointer; }
+.toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); z-index: 10; display: flex; gap: 14px; align-items: center; padding: 8px 8px 8px 16px; border: 1px solid var(--line); border-radius: 10px; background: var(--card); color: var(--fg); box-shadow: 0 6px 24px rgb(0 0 0 / .18); }

@@ -32,6 +32,7 @@ const GROUPS = [
   { name: 'sitemenu', needs: ['page'], aka: ['site-menu', 'menu-command'], about: 'site menu lists the tweaks and runs the menu command' },
   { name: 'manager', needs: ['sitemenu'], aka: ['var'], about: '@var changes live, VM/TM/Stylus backups import, style toggles off' },
   { name: 'p2-item', needs: ['install'], aka: ['item', 'item-page'], about: 'per-item page: remove an allowed connect host; edit a stored value and a fresh load sees it' },
+  { name: 'p2-delete', needs: ['install'], aka: ['undo'], about: 'delete shows Undo; Undo restores code and values; bulk delete shows one toast' },
   { name: 'p3-backups', needs: ['manager'], aka: ['backups'], about: 'Backups page: Export all downloads a valid v2 file; the import picker previews before anything changes' },
   { name: 'p3-preview', needs: ['manager', 'p3-backups'], aka: ['preview', 'apply'], about: 'preview rows default Replace on same id, Add when the name is claimed; Apply applies what the radios say' },
   { name: 'p3-ghost', needs: ['manager'], aka: [], about: 'a ghost copy (settings.ghost) shows no Backups button or page, and its preview refuses' },
@@ -571,6 +572,62 @@ RUN['p2-item'] = async () => {
   const q3 = await until(async () => (await list()).some(connectPrompt) && (await evalIn(connectPrompt, `document.getElementById('deny').click()`, 2000), 'denied'), 15000);
   const visits = await until(async () => (await page(`document.documentElement.dataset.visits || ''`)) || '');
   check(saved === 'Saved' && !!listed && visits === '42', `editing a stored value reaches GM_getValue (stored 41, a fresh load sees ${visits || 'none'}; listed=${!!listed} saved=${saved || 'no'})`);
+};
+RUN['p2-delete'] = async () => {
+  // Delete with Undo, on three throwaway scripts with stored values (Undo A, B, C), so the fixtures
+  // later groups use stay as they are. (a) The Info tab's Delete: one toast with Undo, the row is
+  // gone. (b) Undo: A is back on its id with the same code and values. (c) Bulk mode, B + C, Delete:
+  // exactly one toast; Undo brings both back. (d) A deleted again, no Undo: after 10.5 s the toast
+  // is gone and A stays deleted. Leaves: none of the three installed, no manager tab open.
+  const mk = (n) => `// ==UserScript==\n// @name        Undo ${n}\n// @namespace   roar-tests\n// @version     1.0\n// @match       http://undo.localhost/*\n// @grant       GM_getValue\n// ==/UserScript==\n// undo fixture ${n}\n`;
+  await oneManager();
+  const ids = {};
+  for (const n of ['A', 'B', 'C']) ids[n] = await evalIn(manager, `import('./lib/store.js').then((s) => s.installScript(${JSON.stringify(mk(n))}, { fresh: true, values: { n: ${JSON.stringify(n)}, count: 7 } })).then((it) => it.id)`);
+  const rec = async (id) => JSON.parse(await worker(`chrome.storage.local.get(['item:${id}', 'values:${id}']).then((a) => JSON.stringify({ id: (a['item:${id}'] || {}).id || null, code: (a['item:${id}'] || {}).code || null, values: a['values:${id}'] || null }))`));
+  const click = (sel, text) => evalIn(manager, `(() => { const b = [...document.querySelectorAll(${JSON.stringify(sel)})].find((x) => x.textContent === ${JSON.stringify(text)}); if (b) b.click(); return b ? 'clicked' : 'none'; })()`);
+  const toasts = () => evalIn(manager, `[...document.querySelectorAll('.toast')].filter((t) => [...t.querySelectorAll('button')].some((b) => b.textContent === 'Undo')).length`);
+  const rowFor = (name) => evalIn(manager, `[...document.querySelectorAll('#view .card')].some((r) => r.querySelector('strong')?.textContent === ${JSON.stringify(name)})`);
+  const infoDelete = async (id) => {
+    await evalIn(manager, `location.hash = 'item=${id}&tab=info'`);
+    await until(() => evalIn(manager, `[...document.querySelectorAll('#view button')].some((b) => b.textContent === 'Delete')`), 5000);
+    return click('#view button', 'Delete');
+  };
+  await until(async () => (await rec(ids.C)).id === ids.C);
+  // (a)
+  const before = await rec(ids.A);
+  const delA = await infoDelete(ids.A);
+  const toastA = await until(async () => (await toasts()) === 1 && (await rowFor('Undo B')) && !(await rowFor('Undo A')) && 'shown', 5000);
+  const goneA = await until(async () => (await rec(ids.A)).id === null, 5000);
+  check(delA === 'clicked' && toastA === 'shown' && !!goneA, `deleting one tweak shows a toast with Undo and the row is gone (delete=${delA} toast=${toastA || 'none'} gone=${!!goneA})`);
+  // (b)
+  const undoA = await click('.toast button', 'Undo');
+  const backA = await until(async () => { const r = await rec(ids.A); return r.id === ids.A && r; }, 5000);
+  const listedA = await until(async () => (await rowFor('Undo A')) && (await toasts()) === 0, 5000);
+  check(undoA === 'clicked' && JSON.stringify(backA) === JSON.stringify(before) && !!listedA, `Undo brings it back with the same id, code and stored values (undo=${undoA} listed=${!!listedA} ${JSON.stringify(backA || null)})`);
+  // (c) The page's confirm() is stubbed so a build that still asks can't hang the run.
+  await evalIn(manager, `(window.confirm = () => true, location.hash = '', 'list')`);
+  await until(() => rowFor('Undo C'), 5000);
+  await click('#toolbar button', 'Bulk select');
+  await until(() => evalIn(manager, `document.querySelectorAll('#view .bulk-pick').length > 0`), 5000);
+  await evalIn(manager, `(() => { for (const r of document.querySelectorAll('#view .card')) if (/^Undo [BC]$/.test(r.querySelector('strong')?.textContent || '')) r.querySelector('.bulk-pick').click(); return 'picked'; })()`);
+  await click('#view .bulkbar button', 'Delete');
+  const goneBC = await until(async () => (await rec(ids.B)).id === null && (await rec(ids.C)).id === null, 5000);
+  await sleep(500);
+  const nBulk = await toasts();
+  const undoBC = await click('.toast button', 'Undo');
+  const backBC = await until(async () => { const b = await rec(ids.B), c = await rec(ids.C); return b.id === ids.B && c.id === ids.C && b.values?.n === 'B' && c.values?.count === 7; }, 5000);
+  check(!!goneBC && nBulk === 1 && undoBC === 'clicked' && !!backBC, `bulk delete of two shows exactly one toast; Undo brings both back (gone=${!!goneBC} toasts=${nBulk} undo=${undoBC} back=${!!backBC})`);
+  await click('#toolbar button', 'Done');
+  // (d)
+  await infoDelete(ids.A);
+  const shownD = await until(async () => (await toasts()) === 1, 5000);
+  await sleep(10500);
+  const leftD = await toasts();
+  const stillGone = await rec(ids.A);
+  check(!!shownD && leftD === 0 && stillGone.id === null && stillGone.values === null, `with no Undo the toast closes after 10 s and the tweak stays deleted (shown=${!!shownD} toasts after 10.5 s=${leftD} ${JSON.stringify(stillGone)})`);
+  await worker(`chrome.storage.local.remove(['item:${ids.B}', 'values:${ids.B}', 'item:${ids.C}', 'values:${ids.C}', 'item:${ids.A}', 'values:${ids.A}']).then(() => 'cleaned')`);
+  for (const t of (await tabs()).filter((x) => !x.ghost && x.url.includes('manage.html'))) await sidebar(`ask({cmd:'tab.close',id:${t.id}})`);
+  await sleep(400);
 };
 RUN['p3-backups'] = async () => {
   // The Backups page: Export all really downloads a v2 file; the picker previews before anything changes.
