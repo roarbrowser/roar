@@ -13,12 +13,13 @@ diff --git a/cef/libcef/browser/chrome/roar_devtools_filter.cc b/cef/libcef/brow
 new file mode 100644
 --- /dev/null
 +++ b/cef/libcef/browser/chrome/roar_devtools_filter.cc
-@@ -0,0 +1,50 @@
+@@ -0,0 +1,64 @@
 +// Roar: lets the embedder hide browsers from remote CDP clients (the HTTP
 +// endpoints and the browser-level Target domain). Chromium side:
 +// roar_devtools_target_filter.patch.
 +
 +#include "cef/libcef/browser/browser_host_base.h"
++#include "chrome/browser/profiles/profile.h"
 +#include "content/public/browser/browser_context.h"
 +#include "content/public/browser/web_contents.h"
 +
@@ -30,25 +31,38 @@ new file mode 100644
 +}  // namespace content
 +
 +namespace {
-+// Gets the browser id (0 for contents that are not a CEF browser) and the
-+// profile directory; true shows the target.
-+using RoarTargetFilter = bool (*)(int browser_id, const char* profile_path);
++// Gets the browser id (0 for contents that are not a CEF browser), the
++// profile directory, and whether that context is off the record (an OTR
++// profile reports the parent's path, so the flag is needed to tell the two
++// apart). True shows the target.
++using RoarTargetFilter =
++    bool (*)(int browser_id, const char* profile_path,
++             bool is_off_the_record);
 +RoarTargetFilter g_filter = nullptr;
-+// Gets a service worker's script URL and profile directory; true shows it.
-+using RoarWorkerFilter = bool (*)(const char* url, const char* profile_path);
++// Gets a service worker's script URL, profile directory and OTR flag; true
++// shows it.
++using RoarWorkerFilter =
++    bool (*)(const char* url, const char* profile_path,
++             bool is_off_the_record);
 +RoarWorkerFilter g_worker_filter = nullptr;
 +
 +bool Allow(content::WebContents* contents, content::BrowserContext* context) {
 +  auto browser =
 +      contents ? CefBrowserHostBase::GetBrowserForContents(contents) : nullptr;
 +  std::string path = context ? context->GetPath().value() : std::string();
++  bool is_otr =
++      context && Profile::FromBrowserContext(context)->IsOffTheRecord();
 +  return !g_filter ||
-+         g_filter(browser ? browser->GetIdentifier() : 0, path.c_str());
++         g_filter(browser ? browser->GetIdentifier() : 0, path.c_str(),
++                  is_otr);
 +}
 +
 +bool AllowWorker(const std::string& url, content::BrowserContext* context) {
 +  std::string path = context ? context->GetPath().value() : std::string();
-+  return !g_worker_filter || g_worker_filter(url.c_str(), path.c_str());
++  bool is_otr =
++      context && Profile::FromBrowserContext(context)->IsOffTheRecord();
++  return !g_worker_filter ||
++         g_worker_filter(url.c_str(), path.c_str(), is_otr);
 +}
 +}  // namespace
 +

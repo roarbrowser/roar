@@ -1,0 +1,86 @@
+diff --git a/cef/libcef/browser/chrome/chrome_browser_context.cc b/cef/libcef/browser/chrome/chrome_browser_context.cc
+index 93653ac1..ad76dfd8 100644
+--- a/cef/libcef/browser/chrome/chrome_browser_context.cc
++++ b/cef/libcef/browser/chrome/chrome_browser_context.cc
+@@ -19,6 +19,11 @@
+ 
+ namespace {
+ 
++// Roar: the marker directory inside a space's profile dir (or inside
++// Default) that requests the off-the-record copy of that profile.
++// A cache_path ending in this leaf is not a profile directory of its own.
++constexpr char kRoarOtrMarker[] = "roar-otr";
++
+ // Match the default logic from ProfileManager::GetPrimaryUserProfile which was
+ // restricted in https://crbug.com/1264436.
+ Profile* GetPrimaryUserProfile() {
+@@ -111,6 +116,19 @@ void ChromeBrowserContext::InitializeAsync(base::OnceClosure initialized_cb) {
+                          weak_ptr_factory_.GetWeakPtr(),
+                          CreateStatus::kCreated));
+       return;
++    } else if (cache_path_.BaseName().value() == kRoarOtrMarker &&
++               cache_path_.DirName().DirName() == user_data_dir) {
++      // Roar: the marker sits inside a valid profile directory (a space's
++      // dir or Default). Load or create that profile; ProfileCreated swaps
++      // in its off-the-record copy. Passing only the initialized callback
++      // makes it fire whether the profile exists already or is created now.
++      otr_requested_ = true;
++      profile_manager->CreateProfileAsync(
++          cache_path_.DirName(),
++          base::BindOnce(&ChromeBrowserContext::ProfileCreated,
++                         weak_ptr_factory_.GetWeakPtr(),
++                         CreateStatus::kInitialized));
++      return;
+     } else {
+       // All profile directories must be relative to |user_data_dir|.
+       LOG(ERROR) << "Cannot create profile at path "
+@@ -135,7 +153,10 @@ void ChromeBrowserContext::Shutdown() {
+       net_service::ProxyURLLoaderFactory::ClearProxiesForBrowserContextAsync(
+           profile_);
+ 
+-      GetPrimaryUserProfile()->DestroyOffTheRecordProfile(
++      // Roar: |profile_| is always an OTR profile here (the primary's via
++      // the fallback, or a space's via the "roar-otr" marker). Destroy
++      // through its real parent so both paths work unchanged.
++      profile_->GetOriginalProfile()->DestroyOffTheRecordProfile(
+           profile_.ExtractAsDangling());
+     } else if (profile_) {
+       OnProfileWillBeDestroyed(profile_);
+@@ -169,7 +190,22 @@ void ChromeBrowserContext::ProfileCreated(CreateStatus status,
+     // May be CREATE_STATUS_CREATED or CREATE_STATUS_INITIALIZED since
+     // *CREATED isn't always sent for a disk-based profile that already
+     // exists.
+-    profile_ = profile;
++    if (otr_requested_) {
++      // Roar: |profile| is the space's profile (or Default) that the
++      // "roar-otr" marker named. Swap in its off-the-record copy before
++      // AddObserver and before the keep-alive below. Set |parent_profile|
++      // and |otr_profile| so the flow below initializes the OTR profile
++      // exactly like the fallback path above.
++      parent_profile = profile;
++      const auto& profile_id =
++          Profile::OTRProfileID::CreateUniqueForCEF();
++      profile_ =
++          profile->GetOffTheRecordProfile(profile_id, /*create_if_needed=*/true);
++      otr_profile = static_cast<OffTheRecordProfileImpl*>(profile_);
++      should_destroy_ = true;
++    } else {
++      profile_ = profile;
++    }
+     profile_->AddObserver(this);
+     if (!profile_->IsOffTheRecord()) {
+       // The Profile will only be destroyed if the total KeepAlive refcount is
+diff --git a/cef/libcef/browser/chrome/chrome_browser_context.h b/cef/libcef/browser/chrome/chrome_browser_context.h
+index e4f693b1..4111d612 100644
+--- a/cef/libcef/browser/chrome/chrome_browser_context.h
++++ b/cef/libcef/browser/chrome/chrome_browser_context.h
+@@ -55,6 +55,9 @@ class ChromeBrowserContext : public CefBrowserContext, public ProfileObserver {
+   base::OnceClosure initialized_cb_;
+   raw_ptr<Profile> profile_ = nullptr;
+   bool should_destroy_ = false;
++  // Roar: true when cache_path named the "roar-otr" marker, so
++  // ProfileCreated must swap in the parent profile's off-the-record copy.
++  bool otr_requested_ = false;
+ 
+   bool destroyed_ = false;
+   std::unique_ptr<ScopedProfileKeepAlive> profile_keep_alive_;
