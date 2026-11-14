@@ -7,6 +7,14 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
 VERSION="${1:?usage: scripts/release.sh <version> [notes]}"
+# Releases run through the maintainer's wrapper, which unlocks the Developer ID keychain and passes the Sparkle and
+# notary keys. Run directly, this script only works while that keychain happens to be unlocked, and otherwise fails
+# partway (after the version bump). ROAR_RELEASE_ALLOW_DIRECT=1 overrides on a machine set up differently.
+if [[ -z ${ROAR_RELEASE_VIA_WRAPPER:-} && -z ${ROAR_RELEASE_ALLOW_DIRECT:-} ]]; then
+  echo "release.sh: run releases through ~/.config/roarbrowser-bot/release.sh <version> \"<notes>\" (it unlocks signing" >&2
+  echo "and passes the Sparkle and notary keys); set ROAR_RELEASE_ALLOW_DIRECT=1 only if this machine signs without it" >&2
+  exit 1
+fi
 NOTES="${2:-}"
 TAG="v$VERSION"
 PLIST=resources/Info.plist.in
