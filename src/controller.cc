@@ -5,6 +5,7 @@
 #include "window_tabs.h"
 #include "agent_connect.h"
 #include "agent_files.h"
+#include "agent_placeholder.h"
 
 #include <sys/stat.h>
 #include "atomic_write.h"
@@ -3488,15 +3489,17 @@ void Controller::ClaudeTick() {
     files.insert(e.path().string());
     auto d = cached.second->Copy(false);
     // A session that crashed never sends SessionEnd; forget it after 6 idle hours.
-    // A session Roar started but Claude never confirmed (cancelled at the trust question) after 15 minutes.
+    // A session Roar started but Claude never confirmed (cancelled at the trust question) after 15 minutes;
+    // a Hermes stand-in after 60 s (src/agent_placeholder.h).
     double idle = now - d->GetDouble("updated") / 1000;
     // Or at once when the Claude process the hook recorded is gone.
     auto term = d->GetDictionary("term");
     int pid = term && term->GetType("pid") == VTYPE_INT ? term->GetInt("pid") : 0;
     bool dead = PidGone(pid);
     // Disconnected in Settings: sessions already running still fire the hooks they loaded at start; drop them.
-    bool off = !AgentConnected(d->HasKey("tool") ? d->GetString("tool").ToString() : "claude");
-    if (off || dead || idle > 6 * 3600 || (e.path().filename().string().rfind("new-", 0) == 0 && idle > 15 * 60)) { fs::remove(e.path(), ec); continue; }
+    std::string tool = d->HasKey("tool") ? d->GetString("tool").ToString() : "claude";
+    bool off = !AgentConnected(tool);
+    if (off || dead || idle > 6 * 3600 || (e.path().filename().string().rfind("new-", 0) == 0 && PlaceholderExpired(tool, idle))) { fs::remove(e.path(), ec); continue; }
     auto row = d->Copy(false);
     // The Roar tools this session's roar-mcp has (mcp/roar-mcp.mjs writes agent-mcp/<agent pid>.json); none: an outdated or missing roar-mcp.
     if (pid > 1) {
