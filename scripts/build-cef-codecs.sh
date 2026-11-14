@@ -23,6 +23,8 @@ mkdir -p "$CEF_SRC"
 if [[ ! -d "$CEF_SRC/cef-probe" ]]; then
   git clone -q --filter=blob:none --no-checkout https://bitbucket.org/chromiumembedded/cef.git "$CEF_SRC/cef-probe"
 fi
+# The probe is cloned once; fetch when it predates the pinned commit.
+git -C "$CEF_SRC/cef-probe" cat-file -e "$CEF_COMMIT^{commit}" 2>/dev/null || git -C "$CEF_SRC/cef-probe" fetch -q origin
 BRANCH=$(git -C "$CEF_SRC/cef-probe" branch -r --contains "$CEF_COMMIT" | grep -oE 'origin/[0-9]+$' | head -1 | cut -d/ -f2)
 [[ -n "$BRANCH" ]] || { echo "No CEF branch contains $CEF_COMMIT"; exit 1; }
 echo "CEF $CEF_COMMIT on branch $BRANCH, Chromium $CHROMIUM"
@@ -42,7 +44,12 @@ AUTOMATE=(python3 "$CEF_SRC/automate-git.py"
 # Check out, add Roar's patches, then build without updating (an update would
 # discard them). Chromium-side patches join CEF's own patch list, because CEF
 # re-runs its patcher before every build and rejects files changed under it.
-"${AUTOMATE[@]}" --no-build --no-distrib
+# A shallow (no-history) checkout can't move to another Chromium; --force-update
+# replaces it with a fresh download of the pinned version.
+UPDATE=()
+V="$CEF_SRC/chromium/src/chrome/VERSION"
+[[ -f "$V" && "$(sed -n 's/.*=//p' "$V" | paste -sd. -)" != "$CHROMIUM" ]] && UPDATE=(--force-update)
+"${AUTOMATE[@]}" --no-build --no-distrib ${UPDATE[@]+"${UPDATE[@]}"}
 SRC="$CEF_SRC/chromium/src"
 # Undo Roar patches that left the repo (rollback or a dropped optional patch).
 for cp in "$SRC"/cef/patch/patches/roar_*.patch; do

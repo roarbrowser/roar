@@ -6,8 +6,8 @@ $ErrorActionPreference = 'Stop'
 # Windows PowerShell's progress bar slows Invoke-WebRequest on big files to a crawl (a 50-minute hang in CI).
 $ProgressPreference = 'SilentlyContinue'
 $Root = if ($env:ROAR_ROOT) { $env:ROAR_ROOT } else { Split-Path -Parent $PSScriptRoot }
-$Version = 'cef_binary_154.0.34+g14c5a08+chromium-154.0.8037.98'
-$Sha1 = @{ windows64 = 'be54bbaf3222191dec59ffd9c9ec7e8a7f44a26d'; windowsarm64 = '09c6b6807da289b18704bc6d66f8c24e13562b6d' }  # From the CDN's .sha1 file.
+$Version = 'cef_binary_156.0.30+g6028375+chromium-156.0.8078.96'
+$Sha1 = @{ windows64 = '1fedfc8dd0274caec9183a709ad1ed7856867b91'; windowsarm64 = '51e6db48702d76858b1ee7f7be478a20ecb27f4f' }  # From the CDN's .sha1 file.
 $Name = "${Version}_${Arch}_minimal"
 $Dest = Join-Path $Root 'third_party'
 if (Test-Path (Join-Path $Dest 'cef')) { Write-Host "CEF already at $Dest\cef"; exit 0 }
