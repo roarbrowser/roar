@@ -152,7 +152,8 @@ async function exportSelected() {
     const all = await chrome.storage.local.get(null);
     const values = Object.fromEntries(Object.keys(all).filter((k) => k.startsWith(VALUES) && ids.some((id) => k === VALUES + id)).map((k) => [k.slice(VALUES.length), all[k]]));
     const picked = (await allItems()).filter((it) => ids.includes(it.id));
-    const blob = new Blob([exportJSON(picked, values)], { type: 'application/json' });
+    const { enabled } = await getSettings();
+    const blob = new Blob([exportJSON(picked, values, { enabled })], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = h('a', { href: url, download: `site-tweaks-${new Date().toISOString().slice(0, 10)}.json` });
     document.body.appendChild(a);

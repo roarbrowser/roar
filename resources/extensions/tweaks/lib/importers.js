@@ -1,6 +1,9 @@
 // Imports Violentmonkey and Tampermonkey backup zips, Stylus JSON exports and Site tweaks'
-// own export. Every importer returns { scripts: [{ code, enabled, values }],
-// styles: [{ code, enabled, vars }] } for the caller to install.
+// own export (v1 and v2). Every importer returns { source, scripts: [...], styles: [...] } for
+// the preview to label and the caller to install; the own-format import also carries settings
+// so Apply can restore the global switch. v2 rows keep id, position, url and the stored
+// requires/resources copies — never the port secret or share id (imports get new secrets).
+import { parseUserCSS } from './usercss.js';
 
 const utf8 = (u8) => new TextDecoder().decode(u8);
 
@@ -64,7 +67,7 @@ export function importViolentmonkey(files) {
     scripts.push({ code, enabled: info.config?.enabled !== 0 && info.config?.enabled !== false, position: info.position,
       values: Object.fromEntries(Object.entries(raw).map(([k, v]) => [k, vmValue(v)])) });
   }
-  return { scripts: scripts.sort((a, b) => (a.position ?? 0) - (b.position ?? 0)), styles: [] };
+  return { source: 'Violentmonkey', scripts: scripts.sort((a, b) => (a.position ?? 0) - (b.position ?? 0)), styles: [] };
 }
 
 export function importTampermonkey(files) {
@@ -76,7 +79,7 @@ export function importTampermonkey(files) {
     scripts.push({ code: utf8(f.data), enabled: options.settings?.enabled !== false,
       position: options.settings?.position, values: storage.data || {} });
   }
-  return { scripts: scripts.sort((a, b) => (a.position ?? 0) - (b.position ?? 0)), styles: [] };
+  return { source: 'Tampermonkey', scripts: scripts.sort((a, b) => (a.position ?? 0) - (b.position ?? 0)), styles: [] };
 }
 
 // A classic (non-UserCSS) Stylus style becomes UserCSS with @-moz-document blocks.
@@ -99,7 +102,7 @@ export function importStylus(list) {
     styles.push({ code: s.usercssData && s.sourceCode ? s.sourceCode : stylusToUserCSS(s), enabled: s.enabled !== false,
       vars, updateURL: s.updateUrl || '' });
   }
-  return { scripts: [], styles };
+  return { source: 'Stylus', scripts: [], styles };
 }
 
 // Picks the importer by content: a zip (Violentmonkey has a "violentmonkey" index file,
@@ -114,15 +117,40 @@ export async function importBackup(buf) {
   }
   const data = JSON.parse(utf8(u8));
   if (data && data.format === 'roar-site-tweaks') {
-    return { scripts: data.scripts || [], styles: data.styles || [] };
+    if (data.version === 2 && Array.isArray(data.items)) {
+      const rows = [...data.items].sort((a, b) => (a.position ?? 0) - (b.position ?? 0));
+      const scripts = rows.filter((i) => i.kind === 'script').map((i) => ({
+        code: i.code, enabled: i.enabled !== false, values: i.values || {}, connectAllow: i.connectAllow || [],
+        id: i.id, ghost: !!i.ghost, skip: i.skip || '', position: i.position, url: i.url || '',
+        requires: i.requires || [], resources: i.resources || {}, name: nameOf(i.code), namespace: nsOf(i.code),
+      }));
+      const styles = rows.filter((i) => i.kind === 'style').map((i) => {
+        const meta = parseUserCSS(i.code) || {};
+        return {
+          code: i.code, enabled: i.enabled !== false, vars: i.vars || {}, updateURL: i.updateURL || '',
+          id: i.id, position: i.position, url: i.url || '', name: meta.name || 'Untitled style', namespace: meta.namespace || '',
+        };
+      });
+      return { source: 'Site tweaks', scripts, styles, settings: { enabled: (data.settings || {}).enabled !== false } };
+    }
+    return { source: 'Site tweaks', scripts: data.scripts || [], styles: data.styles || [] };
   }
   if (Array.isArray(data)) return importStylus(data);
   throw new Error('Not a Violentmonkey, Tampermonkey, Stylus or Site tweaks backup');
 }
 
-// Site tweaks' own export (importBackup reads it back).
-export const exportJSON = (items, valuesById) => JSON.stringify({
-  format: 'roar-site-tweaks', version: 1,
-  scripts: items.filter((i) => i.kind === 'script').map((i) => ({ code: i.code, enabled: i.enabled, values: valuesById[i.id] || {}, connectAllow: i.connectAllow || [] })),
-  styles: items.filter((i) => i.kind === 'style').map((i) => ({ code: i.code, enabled: i.enabled, vars: i.vars || {}, updateURL: i.updateURL || '' })),
-}, null, 2);
+// Site tweaks' own backup (importBackup reads it back): v2 keeps everything a round trip needs,
+// items in run order, values on their row, settings for the global switch. The port secret and
+// the share id are never exported: every import brings a new one. { only: ids } restricts the
+// file to those items (their values included); empty or absent means all.
+export const exportJSON = (items, valuesById, settings = {}, { only } = {}) => {
+  const picked = (only && only.length ? items.filter((i) => only.includes(i.id)) : [...items])
+    .sort((a, b) => (a.position ?? 0) - (b.position ?? 0));
+  const rows = picked.map((i) => ({
+    id: i.id, kind: i.kind, code: i.code, enabled: i.enabled !== false, ghost: !!i.ghost, skip: i.skip || '',
+    position: i.position, url: i.url || '', updateURL: i.updateURL || '',
+    requires: i.requires || [], resources: i.resources || {},
+    connectAllow: i.connectAllow || [], vars: i.vars || {}, values: valuesById[i.id] || {},
+  }));
+  return JSON.stringify({ format: 'roar-site-tweaks', version: 2, exported: new Date().toISOString(), settings: { enabled: settings.enabled !== false }, items: rows }, null, 2);
+};

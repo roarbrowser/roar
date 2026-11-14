@@ -12,7 +12,7 @@ const lib = (f) => import(join(root, 'resources/extensions/tweaks/lib', f));
 const { parseMeta, worldOf, compareVersions } = await lib('meta.js');
 const { patternSource, globSource, compileMatcher, testMatcher, nativeMatches, connectAllowed } = await lib('match.js');
 const { parseUserCSS, splitSections, sectionMatches, cssFor, withVars, compileStyle, nativeStyleMatches } = await lib('usercss.js');
-const { importBackup, vmValue, exportJSON } = await lib('importers.js');
+const { importBackup, vmValue, exportJSON, decide } = await lib('importers.js');
 const { scriptCode } = await lib('gm.js');
 const { shareIdOf, snapshot, plan, adopt } = await lib('share.js');
 const { ghostBundle, seedWrites, ghostNote } = await lib('ghost.js');
@@ -168,6 +168,55 @@ check(own.scripts[0].code === SCRIPT && own.scripts[0].values.k === 1 && !own.sc
 let bad = '';
 try { await importBackup(Buffer.from('{"x":1}')); } catch (e) { bad = e.message; }
 check(/Not a Violentmonkey/.test(bad), 'unknown JSON is refused');
+
+// ---- Site tweaks backup v2: export format, restore, decide ----
+// Rows with every field the format names, filled so each check can see the real thing.
+const mkRow = (id, kind, pos, extra = {}) => ({
+  id, kind, position: pos, enabled: true, secret: 'sek' + id, shareId: 'sh' + id,
+  code: kind === 'script' ? SCRIPT : CSS,
+  url: kind === 'script' ? `http://host.test/${id}.user.js` : `http://host.test/${id}.user.css`,
+  updateURL: kind === 'style' ? `https://styles.example/${id}.user.css` : '',
+  requires: kind === 'script' ? [{ url: 'lib.js', code: 'var L = 1;' }] : [],
+  resources: kind === 'script' ? { logo: { url: 'l.png', text: 'PNG', dataUrl: 'data:,PNG' } } : {},
+  connectAllow: kind === 'script' ? ['a.example'] : [], vars: kind === 'style' ? { bg: '#333' } : {},
+  ghost: false, skip: '', ...extra,
+});
+const v2src = [
+  mkRow('c', 'script', 3, { enabled: false, ghost: true, skip: '1.9' }),
+  mkRow('a', 'script', 1),
+  mkRow('s', 'style', 2, { vars: { bg: '#101010' } }),
+];
+const v2txt = exportJSON(v2src, { a: { k: 1 }, c: { z: 2 } }, { enabled: false });
+const v2f = JSON.parse(v2txt);
+check(v2f.format === 'roar-site-tweaks' && v2f.version === 2 && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(v2f.exported) && v2f.settings && v2f.settings.enabled === false && Object.keys(v2f).join(',') === 'format,version,exported,settings,items',
+  'v2 export: header {format, version:2, exported:<ISO>, settings:{enabled}}');
+check(!/secret/.test(v2txt) && !/shareId/.test(v2txt) && v2f.items.every((i) => !('secret' in i) && !('shareId' in i)), 'v2 export: no secret or shareId anywhere');
+check(eq(v2f.items.map((i) => i.position), [1, 2, 3]) && eq(v2f.items.map((i) => i.id), ['a', 's', 'c']), 'v2 export: items sorted by position (the run order), from unsorted in memory');
+check(v2f.items.every((i) => 'values' in i) && eq(v2f.items.find((i) => i.id === 'a').values, { k: 1 }) && eq(v2f.items.find((i) => i.id === 'c').values, { z: 2 }) && eq(v2f.items.find((i) => i.id === 's').values, {}), 'v2 export: values ride on their row');
+const justC = JSON.parse(exportJSON(v2src, { a: { k: 1 }, c: { z: 2 }, s: {} }, { enabled: true }, { only: ['c'] }));
+check(justC.items.length === 1 && justC.items[0].id === 'c' && eq(justC.items[0].values, { z: 2 }), '{only: [c]} exports just c and only its values');
+const back2 = await importBackup(Buffer.from(v2txt));
+check(back2.scripts.length === 2 && back2.styles.length === 1 && back2.settings && back2.settings.enabled === false, 'importBackup v2: rows split by kind, settings carried');
+check(eq(back2.scripts.map((r) => r.position), [1, 3]) && eq(back2.styles.map((r) => r.position), [2]), 'importBackup v2: rows keep the run order');
+const rA = back2.scripts[0], rC = back2.scripts[1], rS = back2.styles[0];
+check(rA.id === 'a' && rA.enabled === true && rA.ghost === false && rA.skip === '' && rA.url === 'http://host.test/a.user.js' &&
+  eq(rA.requires, [{ url: 'lib.js', code: 'var L = 1;' }]) && eq(rA.resources, { logo: { url: 'l.png', text: 'PNG', dataUrl: 'data:,PNG' } }) &&
+  eq(rA.connectAllow, ['a.example']) && eq(rA.values, { k: 1 }), 'importBackup v2: a script row restores id, enabled, ghost, skip, url, requires, resources, connectAllow, values');
+check(rC.enabled === false && rC.ghost === true && rC.skip === '1.9', 'importBackup v2: disabled ghost row keeps enabled/ghost/skip');
+check(rS.id === 's' && rS.enabled === true && eq(rS.vars, { bg: '#101010' }) && rS.updateURL === 'https://styles.example/s.user.css' && rS.url === 'http://host.test/s.user.css', 'importBackup v2: a style row restores vars and updateURL');
+check(rA.name === 'Demo' && rA.namespace === 'https://example.com/ns' && rS.name === 'Dark Example' && rS.namespace === 'fixtures', 'importBackup v2: name and namespace come from the code header');
+check(!('secret' in rA) && !('shareId' in rA), 'importBackup v2: rows carry no secret or shareId');
+const own1 = await importBackup(Buffer.from(JSON.stringify({ format: 'roar-site-tweaks', version: 1, scripts: [{ code: SCRIPT, enabled: true, values: { k: 7 }, connectAllow: ['b.example'] }], styles: [{ code: CSS, enabled: false, vars: { bg: '#333' }, updateURL: 'u' }] })));
+check(own1.scripts.length === 1 && own1.scripts[0].values.k === 7 && own1.scripts[0].enabled === true && own1.styles.length === 1 && own1.styles[0].enabled === false && own1.styles[0].updateURL === 'u', 'a v1 file (old shape) still imports');
+// decide(): the preview's default for one row. Installed rows here are complete (id/url/name+ns).
+const ins = (id, url, name, ns) => ({ id, url, name, namespace: ns });
+const D = (...a) => (typeof decide === 'function' ? decide(...a) : 'MISSING');
+check(typeof decide === 'function', 'decide is exported from the importers');
+check(D(ins('a', 'http://q/', 'Z', 'zz'), [ins('a', 'http://other/', 'A', 'n')], []) === 'Replace', 'decide: same id means Replace');
+check(D(ins('zz', 'http://host.test/x', 'Whatever', 'n'), [ins('k', 'http://host.test/x/', 'K', 'n')], []) === 'Replace' && D(ins('zz', 'http://host.test/x/', 'Whatever', 'n'), [ins('k', 'http://host.test/x', 'K', 'n')], []) === 'Replace', 'decide: same url (trailing-slash-insensitive) means Replace');
+check(D(ins('zz', 'http://host.test/y', 'Shared thing', 'roar-tests'), [ins('k', 'http://host.test/z', 'Shared thing', 'roar-tests')], []) === 'Add', 'decide: same name+namespace means Add (a copy)');
+check(D(ins('zz', 'http://host.test/x', 'Shared thing', 'roar-tests'), [], ['k']) === 'Add', 'decide: a higher-priority row already claims it, so Add');
+check(D(ins('zz', 'http://host.test/y', 'Fresh', 'n'), [ins('k', 'http://host.test/z', 'Other', 'n')], []) === 'Add', 'decide: nothing matching means Add');
 
 // ---- GM runtime in a fake page ----
 function runScript(code, meta, url, values = {}) {
