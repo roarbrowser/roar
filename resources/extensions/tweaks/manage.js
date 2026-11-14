@@ -1,6 +1,6 @@
 // The manager: a searchable, filterable, sortable list with bulk mode, the editor, settings
 // for UserCSS vars, update review, import and export (export only over a selection).
-import { allItems, getSettings, setSettings, installScript, installStyle, removeItem, patchItem, ITEM, VALUES } from './lib/store.js';
+import { allItems, getSettings, setSettings, getValues, installScript, installStyle, removeItem, patchItem, ITEM, VALUES } from './lib/store.js';
 import { compileMatcher, testMatcher } from './lib/match.js';
 import { cssFor } from './lib/usercss.js';
 import { importBackup, exportJSON } from './lib/importers.js';
@@ -9,6 +9,7 @@ import { ghostNote } from './lib/ghost.js';
 
 const $ = (id) => document.getElementById(id);
 const view = $('view');
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 // Skips the empty slots (a bare null would show as the text "null").
 const fill = (...kids) => view.replaceChildren(...kids.filter((k) => k != null));
 const say = (msg, bad) => { $('banner').hidden = !msg; $('banner').textContent = msg || ''; $('banner').style.background = bad ? '' : 'color-mix(in srgb, var(--ok) 14%, transparent)'; };
@@ -71,7 +72,7 @@ async function status() { try { return await chrome.runtime.sendMessage({ t: 'st
 function maybeCheck(force) {
   if (!force && Date.now() - ui.checkedAt < 15 * 60 * 1000) return;
   ui.checkedAt = Date.now();
-  chrome.runtime.sendMessage({ t: 'checkUpdates' }).then(() => { const r = route(); if (!r.edit && !r.new && !r.update) renderList(); }).catch(() => {});
+  chrome.runtime.sendMessage({ t: 'checkUpdates' }).then(() => { const r = route(); if (!r.item && !r.edit && !r.new && !r.update) renderList(); }).catch(() => {});
 }
 
 async function renderList() {
@@ -109,9 +110,7 @@ async function renderList() {
       it.meta.description ? h('span', { className: 'muted', textContent: it.meta.description }) : null,
       st.errors?.[it.id] ? h('span', { className: 'bad', textContent: st.errors[it.id] }) : null,
       it.update ? h('button', { className: 'badge', title: 'Check for a newer version now', textContent: 'updates available', onclick: () => maybeCheck(true) }) : null,
-      h('button', { textContent: 'Edit', onclick: () => go({ edit: it.id }) }),
-      settings.ghost || ui.bulk ? null : h('label', { className: 'row muted ghost-switch', title: 'Ghost tabs get a copy of it and its stored data when they open. Nothing a ghost tab changes comes back.' },
-        h('input', { type: 'checkbox', checked: !!it.ghost, onchange: (e) => patchItem(it.id, { ghost: e.target.checked }) }), 'Run in ghost tabs'),
+      h('button', { textContent: 'Edit', onclick: () => go({ item: it.id }) }),
       ui.sort === 'run' && !settings.ghost ? h('button', { textContent: '\u2191', title: 'Move up', disabled: visible.indexOf(it.id) <= 0, onclick: () => move(it.id, -1) }) : null,
       ui.sort === 'run' && !settings.ghost ? h('button', { textContent: '\u2193', title: 'Move down', disabled: !visible.length || visible.indexOf(it.id) >= visible.length - 1, onclick: () => move(it.id, 1) }) : null)));
 }
@@ -251,6 +250,155 @@ function ghostMode(settings) {
   document.title = settings.ghost ? `Site tweaks: ghost copy from ${settings.ghost.from}` : 'Site tweaks';
 }
 
+// ---- The per-item page: #item=<id>&tab=code|settings|permissions|values|info ----
+// One page per tweak. Code is the editor with a line-number gutter; Settings is the @var form;
+// Permissions lists grants (read-only) and connect hosts (the only place to remove an allowed
+// host, and the only GUI for @connect at all); Stored values is an editable key/value table;
+// Info holds facts, Check now, the ghost-tab switch and the error tail. The header's Save acts
+// on the active tab only (none on Permissions/Info: everything there is immediate). Anything
+// typed trips the one guard: hash changes and closing the tab confirm before anything is lost.
+async function renderItem(r) {
+  const id = r.item;
+  const it = (await chrome.storage.local.get(ITEM + id))[ITEM + id];
+  if (!it) return go({});
+  const tab = ['settings', 'permissions', 'values', 'info'].includes(r.tab) ? r.tab : 'code';
+  const msg = h('span', { className: 'muted' });
+  let doSave = null;
+  let content;
+  if (tab === 'code') {
+    const gutter = h('pre', { className: 'gutter' });
+    const ta = h('textarea', { className: 'code', spellcheck: false, value: it.code });
+    const paint = () => { gutter.textContent = Array.from({ length: ta.value.split('\n').length }, (_, i) => i + 1).join('\n'); };
+    paint();
+    ta.addEventListener('input', () => { dirty = true; paint(); });
+    ta.onscroll = () => { gutter.scrollTop = ta.scrollTop; };
+    // Tab indents instead of leaving the editor; Esc arms a 700ms window where Tab moves focus.
+    let escAt = 0;
+    ta.onkeydown = (e) => {
+      if (e.key === 'Escape') { escAt = Date.now(); return; }
+      if (e.key === 'Tab' && !e.metaKey && !e.ctrlKey && !e.altKey) {
+        if (document.activeElement === ta && Date.now() - escAt > 700) { e.preventDefault(); document.execCommand('insertText', false, '  '); }
+      }
+    };
+    doSave = async () => {
+      if (saving) return; saving = true;
+      msg.textContent = 'Saving…'; msg.className = 'muted';
+      try { await save(it.kind, ta.value, id); dirty = false; msg.textContent = 'Saved'; msg.className = 'ok'; }
+      catch (e) { msg.textContent = e.message; msg.className = 'bad'; }
+      finally { saving = false; }
+    };
+    content = h('div', { className: 'codewrap' }, gutter, ta);
+  } else if (tab === 'settings') {
+    const form = it.kind === 'style' && Object.keys(it.meta.vars || {}).length ? varsForm(it.meta.vars, it.vars || {}) : null;
+    if (form) {
+      form.el.addEventListener('input', () => { dirty = true; });
+      doSave = async () => {
+        if (saving) return; saving = true;
+        msg.textContent = 'Saving…'; msg.className = 'muted';
+        try { await installStyle(it.code, { id, vars: form.values() }); dirty = false; msg.textContent = 'Saved'; msg.className = 'ok'; }
+        catch (e) { msg.textContent = e.message; msg.className = 'bad'; }
+        finally { saving = false; }
+      };
+      content = form.el;
+    } else content = h('p', { className: 'muted', textContent: it.kind === 'style' ? 'This style declares no @var settings.' : 'Scripts have no settings: they are code.' });
+  } else if (tab === 'permissions') {
+    const rc = h('span', { className: 'muted' });
+    const grants = (it.meta.grant || []).filter((g) => g && g !== 'none');
+    const declared = [...new Set(it.meta.connect || [])];
+    const allowed = [...new Set((it.connectAllow || []).filter((host) => !declared.includes(host)))];
+    const recheck = h('button', { textContent: 'Re-check', title: 'Re-sync this tweak with the open tabs now', onclick: async () => {
+      rc.textContent = 'Checking…';
+      const a = await Promise.race([chrome.runtime.sendMessage({ t: 'reconcile' }).catch(() => ({ error: 'no answer from the worker' })), sleep(5000).then(() => ({ timeout: true }))]);
+      rc.textContent = a.timeout ? 'timed out' : a.error ? `Couldn't reconcile: ${a.error}` : `Reconciled: ${(await allItems()).filter((i) => i.enabled).length} enabled`;
+    } });
+    content = h('div', {},
+      h('h2', { textContent: 'Grants' }),
+      grants.length ? h('div', { className: 'row' }, ...grants.map((g) => h('span', { className: 'tag', textContent: g }))) : h('p', { className: 'muted', textContent: 'No GM_* APIs granted: this runs as plain page code.' }),
+      h('p', { className: 'muted', textContent: 'Grants are read-only here: change them in Code.' }),
+      h('h2', { textContent: 'Connect hosts' }),
+      declared.length || allowed.length ? h('div', {},
+        ...declared.map((host) => h('div', { className: 'row', style: 'margin:4px 0' }, h('span', { textContent: host }), h('span', { className: 'tag', textContent: 'declared' }))),
+        ...allowed.map((host) => h('div', { className: 'row', style: 'margin:4px 0' }, h('span', { textContent: host }), h('span', { className: 'tag', textContent: 'allowed by you' }),
+          h('button', { className: 'danger', textContent: 'Remove', title: `Ask again before ${host} can be reached`, onclick: async () => { await patchItem(id, { connectAllow: (it.connectAllow || []).filter((x) => x !== host) }); render(); } }))))
+        : h('p', { className: 'muted', textContent: 'This tweak names no hosts.' }),
+      h('div', { className: 'row', style: 'margin-top:10px' }, recheck, rc));
+  } else if (tab === 'values') {
+    if (it.kind !== 'script') content = h('p', { className: 'muted', textContent: 'Styles keep no values.' });
+    else {
+      const table = h('div', {});
+      // An existing value's name is fixed text (a mistyped key would just make a second value);
+      // only its value is editable. '+ Add' types a new name in. Row order: name, value, status.
+      const addRow = (k, v, isNew) => {
+        const key = isNew
+          ? h('input', { type: 'text', className: 'vk', value: '', placeholder: 'name', style: 'min-width:180px' })
+          : h('span', { className: 'vk', textContent: k });
+        const val = h('input', { type: 'text', className: 'vv', value: typeof v === 'string' ? v : JSON.stringify(v), placeholder: 'value (text, or JSON for numbers, true…)', style: 'min-width:280px;flex:1' });
+        const st = h('span', { className: 'muted' });
+        const row = h('div', { className: 'row', style: 'margin:4px 0' }, key, val, st,
+          h('button', { className: 'danger', textContent: 'Remove', onclick: () => { row.remove(); dirty = true; } }));
+        key.addEventListener('input', () => { dirty = true; st.textContent = ''; });
+        val.addEventListener('input', () => { dirty = true; st.textContent = ''; });
+        table.append(row);
+      };
+      for (const [k, v] of Object.entries(await getValues(id))) addRow(k, v, false);
+      const add = h('button', { textContent: '+ Add', onclick: () => { addRow('', '', true); dirty = true; } });
+      doSave = async () => {
+        if (saving) return; saving = true;
+        msg.textContent = 'Saving…'; msg.className = 'muted';
+        try {
+          const out = {};
+          for (const row of [...table.querySelectorAll('.row')]) {
+            const ke = row.querySelector('.vk');
+            const k = String(ke.tagName === 'INPUT' ? ke.value : ke.textContent).trim();
+            if (!k) continue;
+            const raw = row.querySelector('.vv').value;
+            try { out[k] = JSON.parse(raw); } catch { out[k] = raw; }
+            row.querySelector('.muted').textContent = 'Saved';
+          }
+          await chrome.storage.local.set({ [VALUES + id]: out });
+          dirty = false; msg.textContent = 'Saved'; msg.className = 'ok';
+        } catch (e) { msg.textContent = e.message; msg.className = 'bad'; }
+        finally { saving = false; }
+      };
+      content = h('div', {}, table, h('div', { className: 'row', style: 'margin-top:8px' }, add));
+    }
+  } else { // info
+    const st = await status();
+    const urlText = it.kind === 'style' ? (it.updateURL || it.url || '') : (it.meta.downloadURL || it.meta.updateURL || it.url || '');
+    const copied = h('span', { className: 'muted' });
+    const copy = h('button', { textContent: 'Copy', onclick: async () => { try { await navigator.clipboard.writeText(urlText); copied.textContent = 'Copied'; } catch (e) { copied.textContent = `Couldn't copy: ${e.message}`; } } });
+    const checked = h('span', { className: 'muted' });
+    const checkNow = h('button', { textContent: 'Check now', title: 'Check the update URL for a newer version now', onclick: async () => {
+      checked.textContent = 'Checking…';
+      const a = await Promise.race([chrome.runtime.sendMessage({ t: 'checkUpdates', ids: [id] }).catch(() => ({ error: 'no answer from the worker' })), sleep(8000).then(() => ({ timeout: true }))]);
+      checked.textContent = a.timeout ? 'timed out' : a.error ? a.error : a.checked === 0 ? 'No update URL to check.' : `${a.found ? a.found + ' update waiting. ' : ''}Checked ${a.checked}${a.failed ? ', ' + a.failed + ' failed' : ''}.`;
+    } });
+    const ghostBox = h('input', { type: 'checkbox', checked: !!it.ghost, onchange: (e) => patchItem(id, { ghost: e.target.checked }) });
+    content = h('div', {},
+      h('dl', {},
+        h('dt', { textContent: 'Kind' }), h('dd', { textContent: it.kind }),
+        h('dt', { textContent: 'Version' }), h('dd', { textContent: it.meta.version || '1' }),
+        h('dt', { textContent: 'Updated' }), h('dd', { textContent: relTime(it.updated) }),
+        h('dt', { textContent: urlText ? (it.kind === 'style' ? 'Update URL' : 'Install URL') : 'URL' }), h('dd', {}, urlText ? h('span', { textContent: urlText }) : h('span', { className: 'muted', textContent: 'None' }), urlText ? copy : null, copied),
+        h('dt', { textContent: 'Ghost tabs' }), h('dd', {}, h('label', { className: 'row muted', style: 'gap:5px', title: 'Ghost tabs get a copy of it and its stored data when they open. Nothing a ghost tab changes comes back.' }, ghostBox, 'Run in ghost tabs')),
+        h('dt', { textContent: 'Errors' }), h('dd', {}, st.errors?.[id] ? h('span', { className: 'bad', textContent: st.errors[id] }) : h('span', { className: 'muted', textContent: 'None.' }))),
+      h('div', { className: 'row', style: 'margin-top:10px' }, checkNow, checked));
+  }
+  const hasSave = doSave != null;
+  editorSave = doSave;  // the leave-guard's 'Save changes' runs the active tab's save
+  const bars = h('div', { className: 'chips', style: 'margin:12px 0 10px' }, ...[
+    ['code', 'Code'], ['settings', 'Settings'], ['permissions', 'Permissions'], ['values', 'Stored values'], ['info', 'Info'],
+  ].map(([key, label]) => h('button', { className: 'chip', textContent: label, 'aria-pressed': String(tab === key), onclick: () => go({ item: id, ...(key === 'code' ? {} : { tab: key }) }) })));
+  $('toolbar').hidden = true;
+  fill(
+    h('div', { className: 'row', style: 'margin:12px 0' }, h('h2', { style: 'margin:0', textContent: it.meta.name }),
+      h('span', { className: 'tag', textContent: it.kind }), h('span', { className: 'muted', textContent: 'v' + (it.meta.version || '1') }),
+      h('span', { className: 'spacer' }), msg,
+      hasSave ? h('button', { className: 'primary', textContent: 'Save', onclick: () => doSave() }) : null,
+      h('button', { textContent: 'Back', onclick: () => go({}) })),
+    bars, content);
+}
+
 async function render() {
   say('');
   const settings = await getSettings();
@@ -263,6 +411,7 @@ async function render() {
   $('global').checked = settings.enabled;
   ghostMode(settings);
   const r = route();
+  if (r.item) return renderItem(r);
   if (r.edit || r.new) return renderEditor(r);
   if (r.update) return renderUpdate(r);
   return renderList();
@@ -328,5 +477,8 @@ function openGuard() {
 }
 window.addEventListener('hashchange', () => { if (dirty) openGuard(); else render(); });
 window.addEventListener('beforeunload', (e) => { if (dirty) { e.preventDefault(); e.returnValue = ''; } });
-chrome.storage.onChanged.addListener((ch) => { if (!route().edit && !route().new && !route().update && Object.keys(ch).some((k) => k.startsWith(ITEM) || k === 'settings')) renderList(); });
+// Page-level Cmd/Ctrl+S saves the editor or the item page's active tab (not on Permissions/Info,
+// where everything is immediate). The editor's textarea keeps its own handler as a fallback.
+window.addEventListener('keydown', (e) => { if ((e.metaKey || e.ctrlKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 's') { if (editorSave) { e.preventDefault(); editorSave(); } } });
+chrome.storage.onChanged.addListener((ch) => { if (!route().item && !route().edit && !route().new && !route().update && Object.keys(ch).some((k) => k.startsWith(ITEM) || k === 'settings')) renderList(); });
 render();
