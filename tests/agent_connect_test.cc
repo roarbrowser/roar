@@ -111,7 +111,8 @@ int main() {
     std::stringstream ss;
     ss << in.rdbuf();
     js = ss.str();
-    size_t a = js.find("export const INSTRUCTIONS = `"), b = js.find("`;", a);
+    // Up to the domain line roar-mcp adds at run time (${domainLine()}), or the closing backtick.
+    size_t a = js.find("export const INSTRUCTIONS = `"), b = std::min(js.find("${", a), js.find("`;", a));
     Expect(a != std::string::npos && b != std::string::npos && Has(soul, js.substr(a + 29, b - a - 29)),
            "SOUL section matches INSTRUCTIONS in mcp/roar-mcp.mjs");
   }
