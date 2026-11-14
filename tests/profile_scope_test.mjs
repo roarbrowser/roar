@@ -121,13 +121,13 @@ try {
   check(!(await open()).some((u) => u.endsWith('/d1')), 'an idle connection\'s pages close');
   const E = connect();
   await E.rpc('initialize', { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 'scope-test', version: '1' } });
-  await E.call('new_page', { url: `${site}/e1`, background: false });  // Shown: the person is looking at it.
+  await E.call('new_page', { url: `${site}/e1`, background: false });  // Opened for the person: it stays theirs.
   await E.call('new_page', { url: `${site}/e2` });
   await E.call('notify_user', { title: 'Done', level: 'done' });
   await sleep(500);
   const tabs = (await sidebar(`ask({cmd:'state'})`)).tabs;
   const e1 = tabs.find((t) => t.url.endsWith('/e1'));
-  check(e1 && !tabs.some((t) => t.url.endsWith('/e2')), 'done keeps the tab the person is viewing and closes the rest');
+  check(e1 && !tabs.some((t) => t.url.endsWith('/e2')), 'done keeps the tab opened for the person and closes the rest');
   check(e1 && !e1.agentMark && !e1.agentActive && !e1.driven, 'the kept tab loses its agent tag and frame');
   E.p.stdin.end();
   A.p.stdin.end();

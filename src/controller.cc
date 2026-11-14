@@ -2045,7 +2045,7 @@ int Controller::OpenTargetTab(const std::string& url) {
   bool roar = url.size() >= 5 && std::equal(url.begin(), url.begin() + 5, "roar:",
                                             [](char a, char b) { return std::tolower((unsigned char)a) == b; });
   if (!win_->shell || space < 0 || roar) return -1;
-  // Agents' tabs open in the background; roar-mcp asks for agent.front when the agent wants it shown.
+  // Agents' tabs open in the background; roar-mcp sends agent.front when the agent opened it for the person.
   int id = NewTab(url, false, false, 0, space);
   // The tab's browser exists once its window does; it gets its window now, unshown
   // (OnTabWindowCreated shows only visible tabs).
@@ -2086,9 +2086,10 @@ void Controller::ReleaseAgentPages(const std::string& owner) {
   for (auto& t : tabs_) {
     if (t.mcp_owner != owner) continue;
     t.mcp_owner.clear();
-    if (!IsVisible(t.id) && !IsKept(t)) { doomed.push_back(t.id); continue; }
+    if (!IsVisible(t.id) && !IsKept(t) && !t.for_person) { doomed.push_back(t.id); continue; }
     // The one the person is looking at stays, as a plain tab of theirs: no agent tag or frame.
     // So does one they kept (pinned it, or pinned its group): closing it would empty the pinned group.
+    // And one the agent opened for them (new_page background: false), which they may not have looked at yet.
     ClearAgentMark(t.agent);
     for (auto& d : driving_) d.second.erase(t.id);
     t.driven = t.agent_active = false;
@@ -4972,6 +4973,7 @@ std::string Controller::StateJson() {
     d->SetString("url", a.url);
     d->SetString("agent", a.agent);
     d->SetInt("space", a.space);
+    d->SetInt("tab", a.tab);
     d->SetString("session", a.session);
     d->SetInt("pid", a.pid);
     d->SetDouble("time", a.time);
@@ -6040,19 +6042,21 @@ bool Controller::HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> 
     v->SetDictionary(d);
     callback->Success(ToJson(v));
   } else if (cmd == "agent.front") {
-    // new_page with background: false: show the tab the agent just opened, if this connection opened it.
+    // new_page with background: false: the agent opened this page for the person. It never takes over the tab
+    // they are on (in front or not); it stays beside it, is theirs to keep, and a sidebar card's Open goes to it.
     Tab* t = FindTab(last_target_tab_);
     if (t && t->mcp_owner != msg->GetString("owner").ToString()) t = nullptr;
-    if (t && t->space == State::Get().active_space) ActivateTab(t->id);
-    // Roar in the background stays there (FocusTab): a sidebar card says the tab is up instead.
+    if (t) t->for_person = true;
     NotifyPref pref = NotifyGet(State::Get().settings.notifications, "agentPage");
-    if (t && !platform::AppActive() && pref.on) {
+    if (t && pref.on) {
       AgentAlert a;
       a.id = next_alert_id_++;
       a.title = "Your agent opened a page for you";
       a.body = t->title.empty() ? t->url.substr(0, 200) : t->title.substr(0, 200);
       a.level = "info";
       a.space = t->space;
+      a.url = t->url;
+      a.tab = t->id;
       a.time = NowSeconds();
       TimeAlert(a, pref);
       agent_alerts_.push_back(a);

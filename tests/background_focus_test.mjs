@@ -102,12 +102,28 @@ try {
   const ids = (await call('list_pages')).text.split('\n').filter((l) => /^\d+: /.test(l)).map((l) => Number(l.split(':')[0]));
   check(ids.length >= 3 && !Number.isNaN(await pageOf(`${site}/next`)) && !Number.isNaN(await pageOf(`${site}/pop`)), `link and popup opened as pages (${ids.length}) ${(await call("list_pages")).text.replace(/\n/g, " ")}`);
   await call('select_page', { pageId: ids[0], bringToFront: true });
+  // The person's own tab, selected: a page an agent opens for them must not take its place.
+  const mine = await sidebar(`ask({cmd:'open',text:'${site}/mine',newTab:true}).then(() => ask({cmd:'state'}))`);
+  const isActive = (st, t) => t.id === st.activeId || t.active;
+  const mineTab = mine.tabs?.find((t) => t.url?.endsWith('/mine'));
+  check(mineTab && isActive(mine, mineTab), `the person's tab is selected (${mineTab?.url})`);
   check(!(await call('new_page', { url: `${site}/shown`, background: false })).err, 'new_page background:false');
   await sleep(1500);
   const after = await sidebar(`ask({cmd:'state'})`);
-  const active = after.tabs?.find((t) => t.id === after.activeId || t.active);
-  check(active?.url?.endsWith('/shown'), `the shown page is Roar's selected tab (${active?.url})`);
-  check(JSON.stringify(after).includes('opened a page for you'), 'a sidebar card points to it');
+  const active = after.tabs?.find((t) => isActive(after, t));
+  const shown = after.tabs?.find((t) => t.url?.endsWith('/shown'));
+  check(active?.url?.endsWith('/mine'), `the person's tab stays selected (${active?.url})`);
+  check(!!shown, 'the shown page is a tab in the sidebar');
+  const card = after.alerts?.find((a) => a.title.includes('opened a page for you'));
+  check(card && card.tab === shown?.id && card.url?.endsWith('/shown'), `a sidebar card points to that tab (${JSON.stringify(card)})`);
+  // Open on the card goes to the agent's tab instead of opening the address again.
+  await sidebar(`(() => { const b = document.querySelector('[data-alert="${card?.id}"] [data-alert-open]'); b?.click(); return !!b; })()`);
+  await sleep(800);
+  const opened = await sidebar(`ask({cmd:'state'})`);
+  const now = opened.tabs?.find((t) => isActive(opened, t));
+  check(now?.id === shown?.id, `Open goes to the agent's tab (${now?.url})`);
+  check(opened.tabs.filter((t) => t.url?.endsWith('/shown')).length === 1, 'Open did not open the page twice');
+  await sidebar(`ask({cmd:'tab.activate',id:${mineTab?.id ?? 0}})`);
   await call('notify_user', { title: 'Checking', body: 'A test card.' });
   await sleep(500);
   clearInterval(poll);

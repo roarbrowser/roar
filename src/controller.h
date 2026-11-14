@@ -71,6 +71,7 @@ struct Tab {
   bool agent_active = false;  // AgentActive, refreshed by PollDriven.
   std::string ask_llm;  // The AI site an Ask opened it for ("Claude"): listed under AI; saved with the tab.
   std::string mcp_owner;  // The roar-mcp connection that opened it (agent.space claim); not saved.
+  bool for_person = false;  // An agent opened it for the person (new_page background: false): it stays when they let go; not saved.
   bool audible = false;  // A media element is playing sound (MediaWatcher in controller.cc).
   bool muted = false;
   std::string reader_origin;  // The article's address while the tab shows Reader mode.
@@ -454,6 +455,7 @@ class Controller {
     int id = 0;
     std::string title, body, level, url, agent;
     int space = -1;        // The agent's space at the time; Open puts the URL there.
+    int tab = 0;           // The tab an agent opened for the person: Open goes to it rather than opening the URL again.
     std::string key;       // ask_user's id from the MCP server, for agent.expire.
     std::string session;   // The agent session a done card came from (hook cards); Reply types into it.
     int pid = 0;           // notify_user's agent pid; the sidebar matches it to a session's term.pid.

@@ -26,7 +26,7 @@ inline const std::vector<NotifyType>& NotifyTypes() {
       {"sessionNeeds", {true, 120, true}},  // An agent session needs you.
       {"agentDone", {true, 45, true}},      // notify_user "done"/"info" cards.
       {"agentNeeds", {true, 120, true}},    // notify_user "needs_you" cards (ask_user always shows: it waits on you).
-      {"agentPage", {true, 45, false}},     // An agent opened a page for you while Roar was in the background.
+      {"agentPage", {true, 45, false}},     // An agent opened a page for you (beside your tab, with an Open button).
       {"update", {false, 45, false}},       // A Roar update is available.
       {"download", {false, 15, false}},     // A download finished.
       {"dictation", {false, 15, false}},    // Dictation stopped with a problem.

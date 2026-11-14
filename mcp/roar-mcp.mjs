@@ -445,7 +445,7 @@ createInterface({ input: child.stdout }).on('line', (line) => {
   if (msg.id !== undefined && painting.has(msg.id)) clearInterval(painting.get(msg.id)), painting.delete(msg.id);
   if (msg.id !== undefined && listIds.delete(msg.id) && msg.result?.tools) {
     const bg = msg.result.tools.find((t) => t.name === 'new_page')?.inputSchema?.properties?.background;
-    if (bg) bg.description = 'Open without showing it to the person. Default true; pass false only when they ask to see the page: it becomes the selected tab in Roar, and if Roar is in the background it stays there and a sidebar card points to the page.';
+    if (bg) bg.description = 'Open without showing it to the person. Default true; pass false only when they ask to see the page: it opens beside the tab they are on (never replacing it), a sidebar card with an Open button points to it, and it stays open after you finish.';
     // Page.bringToFront would raise Roar over the app the person is using.
     const sel = msg.result.tools.find((t) => t.name === 'select_page')?.inputSchema?.properties;
     if (sel) delete sel.bringToFront;
@@ -468,7 +468,7 @@ createInterface({ input: child.stdout }).on('line', (line) => {
     msg.result.serverInfo = { ...msg.result.serverInfo, name: 'roar', title: 'Roar' };  // Not "Chrome DevTools MCP server".
     msg.result.capabilities = { ...msg.result.capabilities, tools: { ...msg.result.capabilities?.tools, listChanged: true } };
   }
-  // A foreground new_page: Roar opens every agent tab in the background, so bring this one up.
+  // A foreground new_page: the page is for the person, so Roar keeps it and shows a card (never switches their tab).
   const front = msg.id !== undefined && frontIds.delete(msg.id) && msg.result && !msg.result.isError;
   const list = msg.result?.content?.some((c) => /^## Pages$/m.test(c.text ?? ''));
   if (front || list) return void (async () => {
