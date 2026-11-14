@@ -88,6 +88,7 @@ async function renderList() {
   const shown = filtered(items, site);
   visible = shown.map((it) => it.id);
   renderChips(items, site);
+  renderPending(items, settings);
   if (!settings.ghost) maybeCheck();
   const bulkbar = ui.bulk && !settings.ghost ? h('div', { className: 'bulkbar row', style: 'margin:8px 0' },
     h('label', { className: 'row' }, h('input', { type: 'checkbox', id: 'bulk-all', checked: visible.length > 0 && visibleSel().length === visible.length, onchange: (e) => { ui.sel = new Set(e.target.checked ? visible : []); renderList(); } }), 'Select all'),
@@ -178,6 +179,14 @@ function renderChips(items, site) {
   if (site) chips.push(['site', 'This site', `Only what runs on ${site}`]);
   $('chips').replaceChildren(...chips.map(([key, label, title]) =>
     h('button', { className: 'chip', textContent: label, 'aria-pressed': String(ui.chip === key), title, onclick: () => { if (ui.chip !== key) { ui.chip = key; renderList(); if (key === 'updates') maybeCheck(true); } } })));
+}
+
+// The header's "N updates", only while N > 0 (never in a ghost copy, which checks nothing): it
+// opens the Has-update filter and checks for more, like the chip. List routes only (render clears it).
+function renderPending(items, settings) {
+  const n = settings.ghost ? 0 : items.filter((it) => it.update).length;
+  $('pending').replaceChildren(...(n ? [h('button', { className: 'badge', textContent: `${n} update${n === 1 ? '' : 's'}`, title: 'Show the tweaks with an update waiting',
+    onclick: () => { ui.chip = 'updates'; renderList(); maybeCheck(true); } })] : []));
 }
 
 // Export the current selection (bulk mode): same v2 format and filename as the Backups page.
@@ -456,6 +465,7 @@ async function render() {
   $('global').checked = settings.enabled;
   ghostMode(settings);
   const r = route();
+  if (r.item || r.edit || r.new || r.update || 'backups' in r) $('pending').replaceChildren();
   if (r.item) return renderItem(r);
   if (r.edit || r.new) return renderEditor(r);
   if (r.update) return renderUpdate(r);

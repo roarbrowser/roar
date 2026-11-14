@@ -1,7 +1,9 @@
 // Shared page bits: the UserCSS settings form and the update diff.
 
+// aria-* keys become attributes (as properties they set nothing: the chips' pressed state never showed).
 const h = (tag, props = {}, ...kids) => {
-  const el = Object.assign(document.createElement(tag), props);
+  const el = document.createElement(tag);
+  for (const [k, v] of Object.entries(props)) { if (k.startsWith('aria-')) el.setAttribute(k, v); else el[k] = v; }
   el.append(...kids.filter((k) => k != null));
   return el;
 };

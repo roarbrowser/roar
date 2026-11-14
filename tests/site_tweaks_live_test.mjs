@@ -33,6 +33,7 @@ const GROUPS = [
   { name: 'manager', needs: ['sitemenu'], aka: ['var'], about: '@var changes live, VM/TM/Stylus backups import, style toggles off' },
   { name: 'p2-item', needs: ['install'], aka: ['item', 'item-page'], about: 'per-item page: remove an allowed connect host; edit a stored value and a fresh load sees it' },
   { name: 'p2-delete', needs: ['install'], aka: ['undo'], about: 'delete shows Undo; Undo restores code and values; bulk delete shows one toast' },
+  { name: 'p2-updates', needs: ['install'], aka: ['update-count'], about: 'header shows N updates; click opens the Has-update filter' },
   { name: 'p3-backups', needs: ['manager'], aka: ['backups'], about: 'Backups page: Export all downloads a valid v2 file; the import picker previews before anything changes' },
   { name: 'p3-preview', needs: ['manager', 'p3-backups'], aka: ['preview', 'apply'], about: 'preview rows default Replace on same id, Add when the name is claimed; Apply applies what the radios say' },
   { name: 'p3-ghost', needs: ['manager'], aka: [], about: 'a ghost copy (settings.ghost) shows no Backups button or page, and its preview refuses' },
@@ -626,6 +627,36 @@ RUN['p2-delete'] = async () => {
   const stillGone = await rec(ids.A);
   check(!!shownD && leftD === 0 && stillGone.id === null && stillGone.values === null, `with no Undo the toast closes after 10 s and the tweak stays deleted (shown=${!!shownD} toasts after 10.5 s=${leftD} ${JSON.stringify(stillGone)})`);
   await worker(`chrome.storage.local.remove(['item:${ids.B}', 'values:${ids.B}', 'item:${ids.C}', 'values:${ids.C}', 'item:${ids.A}', 'values:${ids.A}']).then(() => 'cleaned')`);
+  for (const t of (await tabs()).filter((x) => !x.ghost && x.url.includes('manage.html'))) await sidebar(`ask({cmd:'tab.close',id:${t.id}})`);
+  await sleep(400);
+};
+RUN['p2-updates'] = async () => {
+  // The header's "N updates": no button while nothing waits; with one update stored on Live fixture
+  // (the way sw.js checkUpdates stores one) it reads "1 update", and clicking it turns on the
+  // Has-update chip, which lists only that tweak. Leaves: the update cleared, no manager tab open.
+  const liveId = await until(async () => worker(`(async () => { const all = await chrome.storage.local.get(null); const it = Object.values(all).find((v) => v?.kind === 'script' && v?.meta?.name === 'Live fixture'); return it ? it.id : ''; })()`));
+  const head = async () => (await evalIn(manager, `JSON.stringify([...document.querySelector('main > .row').querySelectorAll('button')].map((b) => b.textContent).filter((t) => /^\\d+ updates?$/.test(t)))`)) || 'none';
+  const fresh = async () => {
+    await oneManager();
+    await until(() => evalIn(manager, `document.querySelectorAll('#view .card').length > 0`));
+    await sleep(800);  // the list (and its header) has rendered
+  };
+  await fresh();
+  const none0 = await head();
+  await worker(`chrome.storage.local.get('item:${liveId}').then((a) => { const it = a['item:${liveId}']; return chrome.storage.local.set({ 'item:${liveId}': { ...it, update: { version: '9.0', code: it.code.replace(/@version(\\s+)\\S+/, '@version$19.0'), checked: Date.now() } } }); }).then(() => 'set')`);
+  await evalIn(manager, `(setTimeout(() => location.reload(), 50), 'reload')`);
+  await sleep(800);
+  await until(() => evalIn(manager, `typeof importFile === 'function'`));
+  const one = await until(async () => { const v = JSON.parse(await head()); return v.length === 1 && v[0]; }, 8000);
+  check(one === '1 update', `with one update waiting the header shows a "1 update" button (${one || await head()})`);
+  const clicked = await evalIn(manager, `(() => { const b = [...document.querySelector('main > .row').querySelectorAll('button')].find((x) => /^\\d+ updates?$/.test(x.textContent)); if (b) b.click(); return b ? 'clicked' : 'none'; })()`);
+  const only = await until(() => evalIn(manager, `(() => { const chip = [...document.querySelectorAll('#chips .chip')].find((c) => /^Tweaks with an update/.test(c.title)); const rows = [...document.querySelectorAll('#view .card')]; return chip && chip.getAttribute('aria-pressed') === 'true' && rows.length === 1 && rows[0].querySelector('strong')?.textContent === 'Live fixture' ? 'only' : ''; })()`), 8000);
+  const rows = await evalIn(manager, `[...document.querySelectorAll('#view .card strong')].map((s) => s.textContent).join(', ') + '; chips ' + [...document.querySelectorAll('#chips .chip')].map((c) => c.textContent + '=' + c.getAttribute('aria-pressed') + '/' + c.title.slice(0, 12)).join(' ')`);
+  check(clicked === 'clicked' && only === 'only', `clicking it turns on the Has-update chip and the list shows only that tweak (click=${clicked} rows=${rows})`);
+  await worker(`chrome.storage.local.get('item:${liveId}').then((a) => { const { update, ...it } = a['item:${liveId}']; return chrome.storage.local.set({ 'item:${liveId}': it }); }).then(() => 'cleared')`);
+  await fresh();
+  const none1 = await head();
+  check(none0 === '[]' && none1 === '[]', `with no update waiting there is no header button (before ${none0}, after clearing ${none1})`);
   for (const t of (await tabs()).filter((x) => !x.ghost && x.url.includes('manage.html'))) await sidebar(`ask({cmd:'tab.close',id:${t.id}})`);
   await sleep(400);
 };
