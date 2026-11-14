@@ -5,6 +5,7 @@ import { mkdirSync, readFileSync, writeFileSync, existsSync, readdirSync, mkdtem
 import { join, dirname } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
+import { hermesPaneCommand } from '../mcp/claude-hook.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const HOME = mkdtempSync(join(tmpdir(), 'roar-hook-')), DATA = join(HOME, 'data');
@@ -219,5 +220,9 @@ rmSync(join(HOME, 'Library/Application Support/Hermes/connection.json'), { force
 const id6 = (() => { try { return hctl('new', WORK, 'nothing', 'hermes'); } catch (e) { return (e.stdout || 'crashed').trim(); } })();
 check(id6 === 'error: Hermes is not connected (start its gateway or set a connection file)', `nothing connected: Start gives the fix, not a wall (${id6})`);
 try { execFileSync('tmux', ['-S', join(HOME, 'tmux'), 'kill-server']); } catch {}
+// The Hermes pane: a terminal running the hermes CLI when it is installed, else the dashboard as before.
+check(hermesPaneCommand('/x/hermes', 'hi there', 'http://h', '/bin/zsh') === "'/x/hermes' 'chat' '-q' 'hi there'", 'hermes pane: a first prompt runs hermes chat -q');
+check(hermesPaneCommand('/x/hermes', '', 'http://h', '/bin/zsh') === "'/x/hermes'", 'hermes pane: no prompt runs plain hermes');
+check(hermesPaneCommand('', 'hi', 'http://h', '/bin/zsh').startsWith("open -g 'http://h/chat'"), 'hermes pane: no hermes CLI opens the dashboard');
 console.log(fail ? `${fail} failure(s)` : 'ok');
 process.exit(fail ? 1 : 0);

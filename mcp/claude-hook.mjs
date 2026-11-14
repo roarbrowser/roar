@@ -407,7 +407,7 @@ const CLIS = {
   copilot: { args: (p) => ['-i', p] },
   opencode: { bin: [join(HOME, '.opencode/bin/opencode')], args: (p) => ['--prompt', p] },
 };
-const binOf = (tool) => [...BIN_DIRS.map((d) => join(d, tool)), ...(CLIS[tool].bin || [])].flatMap((p) => EXTS.map((x) => p + x)).find((p) => existsSync(p));
+const binOf = (tool) => [...BIN_DIRS.map((d) => join(d, tool)), ...(CLIS[tool]?.bin || [])].flatMap((p) => EXTS.map((x) => p + x)).find((p) => existsSync(p));
 // Hermes is not a CLI here: it works through its dashboard. Local = the gateway's own state file says
 // running ($HERMES_HOME, else ~/.hermes); remote = the desktop app's connection file names a gateway URL
 // (same paths as src/agent_connect.cc HermesConnectionFile). Either one = connected.
@@ -473,8 +473,15 @@ function start(dir, prompt, tool = 'claude', base = '') {
   return stub.id;
 }
 
-// hermes is not a CLI: it works through its dashboard, and Roar is that browser. Start opens /chat as
-// a tab in the person's space (open -g / start: a background tab, never a front-grab), in whichever
+// What the Hermes pane runs: the hermes CLI when it is installed (`hermes chat -q <prompt>` seeds its TUI),
+// else the dashboard's /chat as a background tab (open -g, never a front-grab) and a shell kept open, so
+// the space stays there to come back to.
+export function hermesPaneCommand(bin, prompt, url, shell) {
+  if (bin) return [bin, ...(prompt ? ['chat', '-q', prompt.slice(0, 2000)] : [])].map(sq).join(' ');
+  return `open -g ${sq(`${url}/chat`)}; exec ${sq(shell)}`;
+}
+
+// Hermes Start: a terminal running hermes (or its dashboard, see hermesPaneCommand) in whichever
 // environment is here: a cmux workspace, else a tmux session, else Terminal (Windows: open the URL and
 // answer). The folder is kept as the session's work folder; a stand-in row waits for the real session,
 // like the CLIs' new-* rows.
@@ -482,11 +489,10 @@ function startHermes(dir, prompt, base) {
   // The chain: an explicit base, else what Settings set, else the local default, else the remote gateway.
   const u = (String(base || '').trim() || hermesUrl()).replace(/\/+$/, '');
   if (!/^https?:\/\/\S+$/.test(u)) throw new Error('Hermes is not connected (start its gateway or set a connection file)');
-  const now = Date.now(), stub = { id: `new-${now}`, tool: 'hermes', cwd: dir, project: isScratch(dir) ? scratchName(prompt) : basename(dir) || 'hermes', state: 'starting', doing: 'Opening Hermes…', started: now, updated: now, live: true, term: {} };
-  const open = `open -g ${sq(`${u}/chat`)}`;
+  const bin = binOf('hermes');
+  const now = Date.now(), stub = { id: `new-${now}`, tool: 'hermes', cwd: dir, project: isScratch(dir) ? scratchName(prompt) : basename(dir) || 'hermes', state: 'starting', doing: bin ? 'Starting Hermes…' : 'Opening Hermes…', started: now, updated: now, live: true, term: {} };
   if (WIN) { spawn('cmd.exe', ['/d', '/c', 'start', '/min', '', `${u}/chat`], { detached: true, stdio: 'ignore' }).unref(); return 'terminal'; }
-  // The pane keeps a shell after opening, so the space stays there to come back to.
-  const cmd = `${open}; exec ${sq(process.env.SHELL || '/bin/bash')}`;
+  const cmd = hermesPaneCommand(bin, prompt, u, process.env.SHELL || '/bin/bash');
   if (existsSync(CMUX)) {
     const out = run1(CMUX, ['new-workspace', '--name', stub.project, '--cwd', dir, '--command', cmd, '--focus', 'false']);
     const ws = /workspace:\d+/.exec(out)?.[0];

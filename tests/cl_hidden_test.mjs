@@ -17,7 +17,7 @@ check(clHiddenPrune({ a: 1, b: 2 }, ['a', 'b', 'c']) === null, 'nothing gone: no
 check(j(clHiddenPrune({ a: 1, b: 2 }, ['b', 'c'])) === '{"b":2}', 'drops ids of sessions that are gone');
 check(clHiddenPrune({ a: 1 }, []) === null, 'an empty session list prunes nothing');
 const st = (o) => ({ settings: { agentOrder: o } });
-check(agentOrder(st('["gemini","bogus"]'))[0] === 'gemini' && agentOrder(st('["gemini"]')).length === 6, 'order: listed tools first, unknown dropped, rest follow');
+check(agentOrder(st('["gemini","bogus"]'))[0] === 'gemini' && agentOrder(st('["gemini"]')).length === 7, 'order: listed tools first, unknown dropped, rest follow');
 check(agentOrder(st('nope'))[0] === 'claude', 'order: bad JSON falls back to default');
 const live = [{ id: 'a', tool: 'claude', updated: 1 }, { id: 'b', tool: 'codex', updated: 2 }, { id: 'c', tool: 'codex', updated: 3 }];
 check(agentRank(st('["codex","claude"]'), live).map((c) => c.id).join() === 'c,b,a', 'rank: order first, newest within a tool');
