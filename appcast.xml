@@ -484,5 +484,14 @@
       <description><![CDATA[Site tweaks backups that round-trip: a Backups page with Export all, and imports that preview each item (add, replace or skip) before anything changes. Agents: clicks refuse a target hidden behind a banner or dialog, actions say whether the page changed, waits cover the requests an action starts, smarter form filling, shorter snapshots, and optional per-agent site limits.]]></description>
       <enclosure url="https://github.com/roarbrowser/roar/releases/download/v1.25.0/Roar-1.25.0.dmg" type="application/octet-stream" sparkle:edSignature="mwq9ziJSUnvHxaGLlgQAEHe9rLBh1aDZ48zVkKfbMInZGEiGHPWR13OySWDa3wYjIvDf79Ojx0qc6DNV4MwGDw==" length="208158963"/>
     </item>
+    <item>
+      <title>1.26.0</title>
+      <pubDate>Sat, 14 Nov 2026 05:49:13 +0000</pubDate>
+      <sparkle:version>12600</sparkle:version>
+      <sparkle:shortVersionString>1.26.0</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[Ghost tabs are now the incognito copy of the space you open them from (Mac): extensions you allow in incognito run there, and Settings > Extensions has an Allow in ghost tabs switch for each one. uBlock Origin Lite blocks in ghost tabs, and Site tweaks set to Run in ghost tabs keep working. Agents still can't reach ghost tabs.]]></description>
+      <enclosure url="https://github.com/roarbrowser/roar/releases/download/v1.26.0/Roar-1.26.0.dmg" type="application/octet-stream" sparkle:edSignature="po8FGV8L79r9TRhZ+N0hz4gvIxsAT+8e3oTCk4L6J36YEHhY+62JuqlVz3oOmCjCfIT+M3Va1N+YHNRbzf2vAg==" length="208164192"/>
+    </item>
   </channel>
 </rss>
