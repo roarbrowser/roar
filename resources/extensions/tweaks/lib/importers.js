@@ -139,6 +139,35 @@ export async function importBackup(buf) {
   throw new Error('Not a Violentmonkey, Tampermonkey, Stylus or Site tweaks backup');
 }
 
+// The import preview's default for one row, with the installed item it would replace.
+// entry and installed rows: { id, url, name, namespace } (installed may also carry kind; an entry
+// only matches its own kind). claimed: ids that higher-priority rows already replace.
+//   same id → Replace; else same url (trailing '/' ignored) → Replace;
+//   else same name+namespace → Add a copy, with Replace offered (alt); else Add.
+const sameUrl = (a, b) => !!a && !!b && String(a).replace(/\/+$/, '') === String(b).replace(/\/+$/, '');
+export function matchRow(entry, installed, claimed = []) {
+  const taken = new Set(claimed);
+  const pool = installed.filter((i) => !entry.kind || !i.kind || i.kind === entry.kind);
+  const free = (i) => i && !taken.has(i.id);
+  const byId = entry.id ? pool.find((i) => i.id === entry.id) : null;
+  if (free(byId)) return { action: 'replace', target: byId.id };
+  const byUrl = entry.url ? pool.find((i) => free(i) && sameUrl(i.url, entry.url)) : null;
+  if (byUrl) return { action: 'replace', target: byUrl.id };
+  const byName = pool.find((i) => free(i) && (i.name || '') === (entry.name || '') && (i.namespace || '') === (entry.namespace || ''));
+  return { action: 'add', target: null, alt: byName ? byName.id : null };
+}
+export const decide = (entry, installed, claimed = []) => (matchRow(entry, installed, claimed).action === 'replace' ? 'Replace' : 'Add');
+
+// Every row of a parsed backup, in run order (by position when every row has one, else as listed),
+// with what the preview shows: kind, name, namespace, version.
+export function backupRows(parsed) {
+  const rows = [
+    ...parsed.scripts.map((s) => ({ ...s, kind: 'script', name: s.name || nameOf(s.code) || 'Untitled script', namespace: s.namespace ?? nsOf(s.code), version: /\/\/[ \t]*@version[ \t]+(\S+)/m.exec(s.code)?.[1] || '' })),
+    ...parsed.styles.map((s) => { const m = parseUserCSS(s.code) || {}; return { ...s, kind: 'style', name: s.name || m.name || 'Untitled style', namespace: s.namespace ?? (m.namespace || ''), version: m.version || '' }; }),
+  ];
+  return rows.every((r) => typeof r.position === 'number') ? rows.sort((a, b) => a.position - b.position) : rows;
+}
+
 // Site tweaks' own backup (importBackup reads it back): v2 keeps everything a round trip needs,
 // items in run order, values on their row, settings for the global switch. The port secret and
 // the share id are never exported: every import brings a new one. { only: ids } restricts the

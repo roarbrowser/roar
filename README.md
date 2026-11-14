@@ -174,8 +174,10 @@ port 9444) started on demand.
 - uBlock Origin Lite is built in; other Chrome extensions install as usual.
 - Site tweaks: built-in userscripts (GM_* and GM.* APIs) and userstyles (UserCSS with settings,
   less and stylus). Open any `.user.js` or `.user.css` link to install one; each site's tweaks and
-  their menu commands are in the address bar's site menu. Imports Violentmonkey and Tampermonkey
-  backup zips and Stylus exports. Off in ghost tabs, except scripts you switch to "Run in ghost tabs":
+  their menu commands are in the address bar's site menu. Backups keep everything (settings, stored
+  values, allowed hosts, downloaded @require files, run order). Importing one, or a Violentmonkey or
+  Tampermonkey zip or a Stylus export, shows a preview where each item is added, replaced or skipped.
+  Off in ghost tabs, except scripts you switch to "Run in ghost tabs":
   each ghost session gets a copy of those and their stored data, and nothing it changes comes back.
 
 **Getting around**

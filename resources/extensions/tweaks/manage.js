@@ -3,7 +3,7 @@
 import { allItems, getSettings, setSettings, getValues, installScript, installStyle, removeItem, patchItem, ITEM, VALUES } from './lib/store.js';
 import { compileMatcher, testMatcher } from './lib/match.js';
 import { cssFor } from './lib/usercss.js';
-import { importBackup, exportJSON } from './lib/importers.js';
+import { importBackup, exportJSON, backupRows, matchRow } from './lib/importers.js';
 import { h, varsForm, diffView } from './lib/ui.js';
 import { ghostNote } from './lib/ghost.js';
 
@@ -72,7 +72,7 @@ async function status() { try { return await chrome.runtime.sendMessage({ t: 'st
 function maybeCheck(force) {
   if (!force && Date.now() - ui.checkedAt < 15 * 60 * 1000) return;
   ui.checkedAt = Date.now();
-  chrome.runtime.sendMessage({ t: 'checkUpdates' }).then(() => { const r = route(); if (!r.item && !r.edit && !r.new && !r.update) renderList(); }).catch(() => {});
+  chrome.runtime.sendMessage({ t: 'checkUpdates' }).then(() => { const r = route(); if (!r.item && !r.edit && !r.new && !r.update && !('backups' in r)) renderList(); }).catch(() => {});
 }
 
 async function renderList() {
@@ -144,7 +144,7 @@ function renderChips(items, site) {
     h('button', { className: 'chip', textContent: label, 'aria-pressed': String(ui.chip === key), title, onclick: () => { if (ui.chip !== key) { ui.chip = key; renderList(); if (key === 'updates') maybeCheck(true); } } })));
 }
 
-// Export the current selection (the bundle format imports back).
+// Export the current selection (bulk mode): same v2 format and filename as the Backups page.
 async function exportSelected() {
   try {
     const ids = visibleSel();
@@ -152,14 +152,17 @@ async function exportSelected() {
     const all = await chrome.storage.local.get(null);
     const values = Object.fromEntries(Object.keys(all).filter((k) => k.startsWith(VALUES) && ids.some((id) => k === VALUES + id)).map((k) => [k.slice(VALUES.length), all[k]]));
     const picked = (await allItems()).filter((it) => ids.includes(it.id));
-    const { enabled } = await getSettings();
-    const blob = new Blob([exportJSON(picked, values, { enabled })], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = h('a', { href: url, download: `site-tweaks-${new Date().toISOString().slice(0, 10)}.json` });
-    document.body.appendChild(a);
-    a.click();
-    setTimeout(() => URL.revokeObjectURL(url), 4000);  // let the download start, then release the blob
+    downloadFile(exportJSON(picked, values, { enabled: (await getSettings()).enabled }), backupName());
   } catch (e) { say(`Couldn't export: ${e.message}`, true); }
+}
+
+// One download: blob URL, click, release it a little later so the download can start.
+function downloadFile(text, name) {
+  const url = URL.createObjectURL(new Blob([text], { type: 'application/json' }));
+  const a = h('a', { href: url, download: name });
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 4000);
 }
 
 const TEMPLATES = {
@@ -247,7 +250,7 @@ async function save(kind, code, id, vars) {
 function ghostMode(settings) {
   $('ghost').hidden = !settings.ghost;
   $('ghost').textContent = ghostNote(settings);
-  for (const id of ['new-script', 'new-style', 'import']) $(id).hidden = !!settings.ghost;
+  for (const id of ['new-script', 'new-style', 'backups']) $(id).hidden = !!settings.ghost;
   document.title = settings.ghost ? `Site tweaks: ghost copy from ${settings.ghost.from}` : 'Site tweaks';
 }
 
@@ -415,20 +418,133 @@ async function render() {
   if (r.item) return renderItem(r);
   if (r.edit || r.new) return renderEditor(r);
   if (r.update) return renderUpdate(r);
+  if ('backups' in r) return settings.ghost ? go({}) : renderBackups();
   return renderList();
 }
+
+// ---- The Backups page: #backups ----
+// Export all writes one v2 file. Import reads a file (v2, v1, a Violentmonkey/Tampermonkey zip,
+// a Stylus JSON) and shows a preview: one row per item with Add / Replace / Skip. Nothing
+// changes until Apply, which runs the same path as the headless importFile().
+const backupName = () => `site-tweaks-backup-${new Date().toISOString().slice(0, 10)}.json`;
+let pending = null;  // the preview on screen: { parsed, rows: [{ entry, action, target, alt, old }] }
+
+async function exportAll() {
+  const all = await chrome.storage.local.get(null);
+  const values = Object.fromEntries(Object.keys(all).filter((k) => k.startsWith(VALUES)).map((k) => [k.slice(VALUES.length), all[k]]));
+  downloadFile(exportJSON(await allItems(), values, { enabled: (await getSettings()).enabled }), backupName());
+}
+
+// The preview's rows with their default decisions (lib/importers.js matchRow): higher rows
+// claim what they replace, so two rows never replace the same item.
+async function planImport(buf) {
+  const parsed = await importBackup(buf);
+  const installed = (await allItems()).map((it) => ({ id: it.id, kind: it.kind, url: it.url, name: it.meta.name, namespace: it.meta.namespace || '', version: it.meta.version || '' }));
+  const claimed = [];
+  const rows = backupRows(parsed).map((entry) => {
+    const m = matchRow(entry, installed, claimed);
+    if (m.target) claimed.push(m.target);
+    const target = m.target || m.alt;
+    return { entry, action: m.action, target, old: installed.find((i) => i.id === target) || null };
+  });
+  return { parsed, rows };
+}
+
+// Applies the decided rows in run order; returns 'added N, replaced N, skipped N, failed N' plus
+// '; <name>: <error>' for each failure. Stored @require/@resource copies are used as-is, never
+// refetched. withSettings: also apply the backup's global on/off.
+async function applyImport({ parsed, rows }, withSettings) {
+  let added = 0, replaced = 0, skipped = 0;
+  const failed = [];
+  for (const r of rows) {
+    if (r.action === 'skip') { skipped++; continue; }
+    const e = r.entry, id = r.action === 'replace' && r.target ? r.target : undefined;
+    try {
+      const opts = { id, fresh: !id, enabled: e.enabled, ...(e.url ? { url: e.url } : {}) };
+      const it = e.kind === 'script'
+        ? await installScript(e.code, { ...opts, values: e.values, requires: e.requires, resources: e.resources })
+        : await installStyle(e.code, { ...opts, vars: e.vars, updateURL: e.updateURL });
+      const patch = {};
+      if (e.connectAllow?.length) patch.connectAllow = e.connectAllow;
+      if ('ghost' in e) patch.ghost = !!e.ghost;
+      if ('skip' in e) patch.skip = e.skip || '';
+      if (e.id && typeof e.position === 'number') patch.position = e.position;  // a Site tweaks backup keeps its run order
+      if (Object.keys(patch).length) await patchItem(it.id, patch);
+      id ? replaced++ : added++;
+    } catch (err) { failed.push(`${e.name}: ${err.message}`); }
+  }
+  if (withSettings && parsed.settings && parsed.settings.enabled !== (await getSettings()).enabled) await setSettings({ enabled: parsed.settings.enabled });
+  return `added ${added}, replaced ${replaced}, skipped ${skipped}, failed ${failed.length}${failed.map((f) => '; ' + f).join('')}`;
+}
+
+function renderBackups() {
+  $('toolbar').hidden = true;
+  const file = h('input', { type: 'file', id: 'bk-file', accept: '.zip,.json,application/zip,application/json', onchange: async (e) => {
+    const f = e.target.files[0];
+    e.target.value = '';
+    if (!f) return;
+    try { await previewBackup(await f.arrayBuffer(), f.name); } catch (err) { say(`Couldn't read ${f.name}: ${err.message}`, true); }
+  } });
+  fill(
+    h('div', { className: 'row', style: 'margin:12px 0' }, h('h2', { style: 'margin:0', textContent: 'Backups' }),
+      h('span', { className: 'spacer' }), h('button', { textContent: 'Back', onclick: () => go({}) })),
+    h('h2', { textContent: 'Export' }),
+    h('p', { className: 'muted', textContent: 'One file with every script and style, their settings, stored values, allowed hosts and downloaded @require files.' }),
+    h('div', { className: 'row' }, h('button', { id: 'export-all', className: 'primary', textContent: 'Export all', onclick: () => exportAll().catch((e) => say(`Couldn't export: ${e.message}`, true)) })),
+    h('h2', { textContent: 'Import' }),
+    h('p', { className: 'muted', textContent: 'A Site tweaks backup, a Violentmonkey or Tampermonkey zip, or a Stylus export. You see what it holds before anything changes.' }),
+    h('div', { className: 'row' }, file),
+    h('div', { id: 'bk-preview' }));
+}
+
+// Shows the preview of a backup on the Backups page (also called by tests without a file picker).
+async function previewBackup(buf, fileName = '') {
+  if ((await getSettings()).ghost) throw new Error('Importing is off in ghost tabs');
+  if (!('backups' in route()) || !$('bk-preview')) {
+    if (!('backups' in route())) location.hash = 'backups';
+    for (let i = 0; i < 40 && !$('bk-preview'); i++) await sleep(50);
+  }
+  pending = await planImport(buf);
+  const { parsed, rows } = pending;
+  const box = $('bk-preview') || view.appendChild(h('div', { id: 'bk-preview' }));
+  const current = (await getSettings()).enabled;
+  const switchDiffers = parsed.settings && parsed.settings.enabled !== current;
+  const keepSwitch = switchDiffers ? h('input', { type: 'checkbox', id: 'bk-switch', checked: true }) : null;
+  const sum = h('p', { id: 'bk-sum', className: 'muted' });
+  const radios = (r, i) => ['add', 'replace', 'skip'].map((a) => h('label', { className: 'row', style: 'gap:4px' },
+    h('input', { type: 'radio', name: `bk-${i}`, value: a, checked: r.action === a, disabled: a === 'replace' && !r.target,
+      onchange: () => { r.action = a; } }), a[0].toUpperCase() + a.slice(1)));
+  const change = (r) => {
+    if (!r.old) return '';
+    const o = r.old.version || '?', n = r.entry.version || '?';
+    const what = r.action === 'replace' ? `replaces "${r.old.name}"` : `same name as installed "${r.old.name}"`;
+    return o === n ? `${what}: no change (v${n})` : `${what}: v${o} → v${n}`;
+  };
+  box.replaceChildren(
+    h('h2', { textContent: `Preview${fileName ? ': ' + fileName : ''}` }),
+    h('p', { className: 'muted', textContent: `${rows.length} item${rows.length === 1 ? '' : 's'} from ${parsed.source}. Replace overwrites the installed item; Add installs a copy.` }),
+    ...rows.map((r, i) => h('div', { id: 'bk-row', className: 'card row', style: 'margin:6px 0' },
+      h('strong', { textContent: r.entry.name }), h('span', { className: 'tag', textContent: r.entry.kind }), h('span', { className: 'muted', textContent: parsed.source }),
+      h('span', { className: 'spacer' }), ...radios(r, i), h('span', { className: 'muted', textContent: change(r) }))),
+    keepSwitch ? h('label', { className: 'row note', style: 'margin:8px 0' }, keepSwitch,
+      `Backup exported with tweaks ${parsed.settings.enabled ? 'ON' : 'OFF'}: Apply will turn them ${parsed.settings.enabled ? 'ON' : 'OFF'}`) : null,
+    h('div', { className: 'row', style: 'margin-top:10px' },
+      h('button', { className: 'primary', textContent: 'Apply', onclick: async (e) => {
+        if (pending?.rows !== rows) return;
+        e.target.disabled = true;
+        sum.textContent = 'Applying…';
+        sum.textContent = await applyImport(pending, keepSwitch ? keepSwitch.checked : false);
+        pending = null;
+      } })),
+    sum);
+  return rows.length;
+}
+globalThis.previewBackup = previewBackup;  // Lets tests preview a backup without a file picker.
 
 $('global').onchange = (e) => setSettings({ enabled: e.target.checked });
 $('new-script').onclick = () => go({ new: 'script', ...(route().site ? { site: route().site } : {}) });
 $('new-style').onclick = () => go({ new: 'style', ...(route().site ? { site: route().site } : {}) });
-$('import').onclick = () => $('file').click();
-$('file').onchange = async (e) => {
-  const f = e.target.files[0];
-  e.target.value = '';
-  if (!f) return;
-  try { say(await importFile(await f.arrayBuffer())); } catch (err) { say(`Couldn't import ${f.name}: ${err.message}`, true); }
-  renderList();
-};
+$('backups').onclick = () => { location.hash = 'backups'; };
 $('reconcile').onclick = async () => {
   $('recon').textContent = 'Reconciling…';
   try {
@@ -447,21 +563,13 @@ $('bulk').onclick = () => {
   if (!route().edit && !route().new && !route().update) renderList();
 };
 
-// Installs everything in a backup; returns a summary line. Imported items are fresh copies,
-// never a merge into an existing tweak of the same name (Kes must never lose a local edit
-// because a backup carried the same name).
+// Imports a whole backup with the preview's default decisions and no preview: Replace on the same
+// id or url, otherwise Add a copy (a same-named tweak is never overwritten unasked, so a local edit
+// can't vanish because a backup carried its name). Applies the backup's global on/off too.
+// Returns the Apply summary line.
 export async function importFile(buf) {
   if ((await getSettings()).ghost) throw new Error('Importing is off in ghost tabs');
-  const { scripts, styles } = await importBackup(buf);
-  let ok = 0;
-  const failed = [];
-  for (const s of scripts) {
-    try { const it = await installScript(s.code, { enabled: s.enabled, values: s.values, fresh: true }); if (s.connectAllow?.length) await patchItem(it.id, { connectAllow: s.connectAllow }); ok++; } catch (e) { failed.push(e.message); }
-  }
-  for (const s of styles) {
-    try { await installStyle(s.code, { enabled: s.enabled, vars: s.vars, updateURL: s.updateURL, fresh: true }); ok++; } catch (e) { failed.push(e.message); }
-  }
-  return `Imported ${ok} of ${scripts.length + styles.length}.${failed.length ? ' Failed: ' + failed.slice(0, 3).join('; ') : ''}`;
+  return applyImport(await planImport(buf), true);
 }
 globalThis.importFile = importFile;  // Lets tests feed a backup without a file picker.
 
@@ -481,5 +589,5 @@ window.addEventListener('beforeunload', (e) => { if (dirty) { e.preventDefault()
 // Page-level Cmd/Ctrl+S saves the editor or the item page's active tab (not on Permissions/Info,
 // where everything is immediate). The editor's textarea keeps its own handler as a fallback.
 window.addEventListener('keydown', (e) => { if ((e.metaKey || e.ctrlKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 's') { if (editorSave) { e.preventDefault(); editorSave(); } } });
-chrome.storage.onChanged.addListener((ch) => { if (!route().item && !route().edit && !route().new && !route().update && Object.keys(ch).some((k) => k.startsWith(ITEM) || k === 'settings')) renderList(); });
+chrome.storage.onChanged.addListener((ch) => { if (!route().item && !route().edit && !route().new && !route().update && !('backups' in route()) && Object.keys(ch).some((k) => k.startsWith(ITEM) || k === 'settings')) renderList(); });
 render();

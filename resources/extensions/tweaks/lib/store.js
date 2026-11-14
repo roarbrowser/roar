@@ -51,7 +51,9 @@ const q = { tail: Promise.resolve() };
 const serialize = (fn) => { const p = q.tail.then(fn, fn); q.tail = p.catch(() => {}); return p; };
 
 // Installs or replaces a userscript, fetching its @require and @resource files (kept by URL
-// across edits). opts: { url, id, enabled, values, fresh }.
+// across edits). opts: { url, id, enabled, values, fresh, requires, resources }. requires
+// ([{url, code}]) and resources ({name: {url, text, dataUrl}}) are stored copies (a backup's):
+// a file with a copy is never fetched.
 export const installScript = (code, opts = {}) => serialize(() => installScriptInner(code, opts));
 async function installScriptInner(code, opts) {
   const meta = parseMeta(code);
@@ -61,13 +63,13 @@ async function installScriptInner(code, opts) {
   const base = opts.url || old?.url;
   const requires = [];
   for (const url of meta.require) {
-    const had = old?.requires?.find((r) => r.url === url);
+    const had = old?.requires?.find((r) => r.url === url) || opts.requires?.find((r) => r.url === url && typeof r.code === 'string');
     requires.push(had || { url, code: await (await get(url, base)).text() });
   }
   const resources = {};
   for (const { name, url } of meta.resource) {
-    const had = old?.resources?.[name];
-    if (had && had.url === url) { resources[name] = had; continue; }
+    const had = [old?.resources?.[name], opts.resources?.[name]].find((r) => r && r.url === url);
+    if (had) { resources[name] = had; continue; }
     const blob = await (await get(url, base)).blob();
     resources[name] = { url, text: await blob.text(), dataUrl: await dataUrl(blob) };
   }

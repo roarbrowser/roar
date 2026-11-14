@@ -218,6 +218,28 @@ check(D(ins('zz', 'http://host.test/y', 'Shared thing', 'roar-tests'), [ins('k',
 check(D(ins('zz', 'http://host.test/x', 'Shared thing', 'roar-tests'), [], ['k']) === 'Add', 'decide: a higher-priority row already claims it, so Add');
 check(D(ins('zz', 'http://host.test/y', 'Fresh', 'n'), [ins('k', 'http://host.test/z', 'Other', 'n')], []) === 'Add', 'decide: nothing matching means Add');
 
+// ---- Restore without refetching: installScript with a backup's stored copies (chrome.storage and fetch stubbed) ----
+{
+  const mem = {};
+  globalThis.chrome = { storage: { local: {
+    get: async (k) => (k === null ? { ...mem } : typeof k === 'string' ? (k in mem ? { [k]: mem[k] } : {}) : {}),
+    set: async (o) => { Object.assign(mem, o); },
+  } } };
+  const realFetch = globalThis.fetch;
+  let fetched = 0;
+  globalThis.fetch = async () => { fetched++; throw new Error('offline'); };
+  const { installScript } = await lib('store.js');
+  const REQ = '// ==UserScript==\n// @name Offline\n// @namespace t\n// @require lib/helper.js\n// @resource logo img/logo.png\n// @match https://x.test/*\n// ==/UserScript==\nL;';
+  let off;
+  try { off = await installScript(REQ, { fresh: true, url: 'https://x.test/s.user.js', requires: [{ url: 'lib/helper.js', code: 'var L = 1;' }], resources: { logo: { url: 'img/logo.png', text: 'PNG', dataUrl: 'data:,PNG' } } }); } catch (e) { off = { error: e.message }; }
+  check(off && !off.error && fetched === 0 && off.requires[0]?.code === 'var L = 1;' && off.resources.logo?.dataUrl === 'data:,PNG', `a relative @require and @resource install offline from the stored copy (${off?.error || `fetched ${fetched}`})`);
+  const BARE = '// ==UserScript==\n// @match https://x.test/*\n// ==/UserScript==\n';
+  const u1 = await installScript(BARE, { fresh: true }), u2 = await installScript(BARE, { fresh: true });
+  check(u1.id !== u2.id && u1.meta.name === 'Untitled script' && Object.keys(mem).filter((k) => k.startsWith('item:')).length === 3, 'two "Untitled script" items import as two');
+  globalThis.fetch = realFetch;
+  delete globalThis.chrome;
+}
+
 // ---- GM runtime in a fake page ----
 function runScript(code, meta, url, values = {}) {
   const sent = [];

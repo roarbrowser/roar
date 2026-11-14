@@ -30,8 +30,12 @@ const GROUPS = [
   { name: 'page', needs: ['install'], aka: ['connect', 'document-start', 'xhr', 'usercss'], about: '@connect prompt, document-start, GM_xmlhttpRequest, UserCSS default' },
   { name: 'persist', needs: ['page'], aka: ['values', 'reload'], about: 'GM_setValue persists across a reload, in chrome.storage.local' },
   { name: 'sitemenu', needs: ['page'], aka: ['site-menu', 'menu-command'], about: 'site menu lists the tweaks and runs the menu command' },
-  { name: 'manager', needs: ['sitemenu'], aka: ['var', 'backups'], about: '@var changes live, VM/TM/Stylus backups import, style toggles off' },
+  { name: 'manager', needs: ['sitemenu'], aka: ['var'], about: '@var changes live, VM/TM/Stylus backups import, style toggles off' },
   { name: 'p2-item', needs: ['install'], aka: ['item', 'item-page'], about: 'per-item page: remove an allowed connect host; edit a stored value and a fresh load sees it' },
+  { name: 'p3-backups', needs: ['manager'], aka: ['backups'], about: 'Backups page: Export all downloads a valid v2 file; the import picker previews before anything changes' },
+  { name: 'p3-preview', needs: ['manager', 'p3-backups'], aka: ['preview', 'apply'], about: 'preview rows default Replace on same id, Add when the name is claimed; Apply applies what the radios say' },
+  { name: 'p3-ghost', needs: ['manager'], aka: [], about: 'a ghost copy (settings.ghost) shows no Backups button or page, and its preview refuses' },
+  { name: 'p3-run', needs: ['manager', 'p3-preview', 'p3-ghost'], aka: ['round-trip'], about: 'a v2 file re-applied in full: the page runs again with its restored values' },
   { name: 'hosta', needs: ['manager'], aka: ['add-to-roar', 'command-page'], about: 'hostA command page: .user.js link, install page, Install, Cancel' },
   { name: 'editor', needs: ['hosta'], aka: ['guard', 'unsaved'], about: 'Back on an unsaved edit raises the guard; its Save keeps the edit' },
   { name: 'two-new', needs: ['hosta'], aka: ['new-script'], about: 'two new scripts with the default name stay two; hostA tweak runs' },
@@ -293,6 +297,31 @@ const ZIP_MAIN = () => makeZip({
   'main-dl.user.js': MAIN_DL,
 });
 const ZIP_REDIR = () => makeZip({ 'redir.user.js': REDIR });
+// Backups this run downloaded (into the home Downloads): removed when the suite ends.
+const backupFiles = new Set();
+// Waits for a site-tweaks-backup-*.json written at or after since (a stale one from an earlier run never counts).
+async function waitBackup(since, exclude = '') {
+  for (const end = Date.now() + 20000; Date.now() < end; await sleep(500)) {
+    const f = findBackupFile(exclude);
+    if (f && statSync(f).mtimeMs >= since - 1000 && statSync(f).size > 0) { await sleep(300); backupFiles.add(f); return f; }
+  }
+  return '';
+}
+// The newest site-tweaks-backup-*.json Roar really downloaded (under its data dir or the home Downloads).
+function findBackupFile(exclude = '') {
+  const roots = [data, join(homedir(), 'Downloads')];
+  const scan = (dir) => {
+    let best = null;
+    for (const e of readdirSync(dir, { withFileTypes: true })) {
+      const p = join(dir, e.name);
+      if (e.isFile() && /^site-tweaks-backup-\d{4}-\d{2}-\d{2}( \(\d+\))?\.json$/.test(e.name) && p !== exclude) { if (!best || statSync(p).mtimeMs > statSync(best).mtimeMs) best = p; }
+      else if (e.isDirectory() && !/Cache|Code Cache/i.test(e.name)) { const r = scan(p); if (r && (!best || statSync(r).mtimeMs > statSync(best).mtimeMs)) best = r; }
+    }
+    return best;
+  };
+  for (const rt of roots) { const f = scan(rt); if (f) return f; }
+  return null;
+}
 const site = createServer((req, res) => {
   const host = (req.headers.host || '').split(':')[0].toLowerCase();
   if (req.url === '/fixture.user.js') return res.end(SCRIPT);
@@ -309,6 +338,7 @@ const site = createServer((req, res) => {
   if (req.url === '/zip/redir.zip') return res.end(Buffer.from(ZIP_REDIR()));
   if (req.url === '/zip/main-world.zip') return res.end(Buffer.from(ZIP_MAIN()));
   if (req.url.startsWith('/backup/')) return res.end(readFileSync(join(import.meta.dirname, 'fixtures/site-tweaks', req.url.slice(8))));
+  if (req.url === '/export/latest') { const f = findBackupFile(); if (!f) { res.statusCode = 404; return res.end('{}'); } res.setHeader('content-type', 'application/json'); return res.end(readFileSync(f)); }
   res.setHeader('content-type', 'text/html');
   res.end(PAGE);
 });
@@ -334,6 +364,7 @@ const done = async () => {
   if (roar.exitCode === null) roar.kill('SIGKILL');
   api.close(); site.close();
   rmSync(data, { recursive: true, force: true });
+  for (const f of backupFiles) rmSync(f, { force: true });
 };
 
 const cdp = cdpc.send;
@@ -358,6 +389,13 @@ const ensureManager = async () => {
   if ((await list()).some(manager)) return;
   await open(`chrome-extension://${ID}/manage.html`);
   await until(() => evalIn(manager, `typeof importFile === 'function'`));
+};
+// Exactly one manager tab, freshly opened at hash (evalIn(manager) takes the first match, so two would race).
+const oneManager = async (hash = '') => {
+  for (const t of (await tabs()).filter((x) => !x.ghost && x.url.includes('manage.html'))) await sidebar(`ask({cmd:'tab.close',id:${t.id}})`);
+  await sleep(500);
+  await open(`chrome-extension://${ID}/manage.html${hash}`);
+  await until(() => evalIn(manager, `typeof importFile === 'function' && typeof previewBackup === 'function'`));
 };
 const ghostOpen = async (url) => {
   await sidebar(`ask({cmd:'run',id:'newGhostTab'})`);
@@ -486,7 +524,7 @@ RUN['manager'] = async () => {
   const imported = [];
   for (const f of ['violentmonkey-backup.zip', 'tampermonkey-backup.zip', 'stylus-export.json'])
     imported.push(await evalIn(manager, `fetch('${SITE}/backup/${f}').then((r) => r.arrayBuffer()).then(importFile)`));
-  check(imported.join(' | ') === 'Imported 2 of 2. | Imported 1 of 1. | Imported 2 of 2.', `Violentmonkey, Tampermonkey and Stylus backups import in the manager (${imported.join(' | ')})`);
+  check(imported.join(' | ') === 'added 2, replaced 0, skipped 0, failed 0 | added 1, replaced 0, skipped 0, failed 0 | added 2, replaced 0, skipped 0, failed 0', `Violentmonkey, Tampermonkey and Stylus backups import in the manager (${imported.join(' | ')})`);
   const vmValues = await worker(`(async () => { const all = await chrome.storage.local.get(null); const it = Object.values(all).find((v) => v?.meta?.name === 'Hello VM'); return JSON.stringify(all['values:' + it.id]); })()`);
   check(vmValues === '{"count":3,"flags":{"a":true},"name":"Ada","on":true}', `imported values are stored with the script (${vmValues})`);
   await sidebar(`ask({cmd:'tab.activate',id:${tab.id}})`);
@@ -533,6 +571,99 @@ RUN['p2-item'] = async () => {
   const q3 = await until(async () => (await list()).some(connectPrompt) && (await evalIn(connectPrompt, `document.getElementById('deny').click()`, 2000), 'denied'), 15000);
   const visits = await until(async () => (await page(`document.documentElement.dataset.visits || ''`)) || '');
   check(saved === 'Saved' && !!listed && visits === '42', `editing a stored value reaches GM_getValue (stored 41, a fresh load sees ${visits || 'none'}; listed=${!!listed} saved=${saved || 'no'})`);
+};
+RUN['p3-backups'] = async () => {
+  // The Backups page: Export all really downloads a v2 file; the picker previews before anything changes.
+  const today = new Date().toISOString().slice(0, 10);
+  await ensureManager();
+  const noImport = await until(() => evalIn(manager, `(() => !document.getElementById('import') && !document.getElementById('file') && !!document.getElementById('backups') ? 'header' : '')()`));
+  check(noImport === 'header', 'the header has one Backups button and no Import… button');
+  await evalIn(manager, `document.getElementById('backups').click()`);
+  const pageUp = await until(() => evalIn(manager, `(() => location.hash === '#backups' && !!document.getElementById('export-all') && !!document.getElementById('bk-file') && document.getElementById('toolbar').hidden && !!document.querySelector('#view .row button') ? 'page' : '')()`));
+  check(pageUp === 'page', 'Backups opens the page: Export all + a file picker (bk-file), toolbar hidden');
+  const t1 = Date.now();
+  await evalIn(manager, `document.getElementById('export-all').click()`);
+  const file = await waitBackup(t1);
+  check(!!file && file.includes(today), `Export all downloads site-tweaks-backup-<today>.json (${file ? file.split('/').pop() : 'none'})`);
+  const parsed = !!file && JSON.parse(readFileSync(file, 'utf8'));
+  const items = ((await worker(`chrome.storage.local.get(null).then((a) => Object.values(a).filter((v) => v && v.kind).map((v) => ({ id: v.id, kind: v.kind, position: v.position })))`)) || []).sort((a, b) => a.position - b.position);
+  const b = !!parsed && parsed.format === 'roar-site-tweaks' && parsed.version === 2 && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(parsed.exported) && parsed.settings && typeof parsed.settings.enabled === 'boolean' && Array.isArray(parsed.items) && parsed.items.length === items.length &&
+    parsed.items.every((it, i) => it.id === items[i].id && ['kind', 'code', 'enabled', 'ghost', 'skip', 'position', 'url', 'updateURL', 'requires', 'resources', 'connectAllow', 'vars', 'values'].every((k) => k in it) && !('secret' in it) && !('shareId' in it));
+  check(b, 'the downloaded file is a valid v2 export: header, run order, full fields, no secret/shareId');
+  const back = await until(async () => {
+    await evalIn(manager, `(() => { const btn = [...document.querySelectorAll('#view .row button')].find((b) => b.textContent === 'Back'); if (btn) { btn.click(); return 'back'; } return 'no-back'; })()`);
+    await sleep(700);
+    return (await evalIn(manager, `(() => location.hash === '' && !document.getElementById('toolbar').hidden ? 'list' : '')()`));
+  }, 8000);
+  check(back === 'list', 'Back returns to the list');
+  // Bulk mode's Export selected keeps working with the same filename pattern (a second file).
+  await evalIn(manager, `(() => { [...document.querySelectorAll('#toolbar button')].find((b) => b.textContent === 'Bulk select').click(); return 'bulk'; })()`);
+  await until(() => evalIn(manager, `(() => !!document.getElementById('bulk-all') && document.getElementById('bulk-all').disabled === false ? 'bulk-on' : '')()`));
+  await evalIn(manager, `(() => { document.getElementById('bulk-all').click(); return 'all'; })()`);
+  const t2 = Date.now();
+  await evalIn(manager, `(() => { [...document.querySelectorAll('#view button')].find((b) => b.textContent === 'Export selected').click(); return 'export'; })()`);
+  const file2 = await waitBackup(t2, file);
+  await evalIn(manager, `document.getElementById('bulk').click()`);  // bulk off again for later groups
+  const p2 = !!file2 && JSON.parse(readFileSync(file2, 'utf8'));
+  check(!!p2 && p2.version === 2 && p2.items.length === items.length, `bulk Export selected downloads the same-named file with the selected rows (${file2 ? 'ok' : 'none'})`);
+};
+RUN['p3-preview'] = async () => {
+  // Re-importing the export back into the same profile: every row defaults to Replace (same id).
+  await oneManager('#backups');
+  const prev = await until(() => evalIn(manager, `(() => location.hash === '#backups' && !!document.getElementById('bk-preview') ? 'on' : '')()`));
+  check(prev === 'on', 'the Backups page opens on the #backups route');
+  const shown = await evalIn(manager, `fetch('${SITE}/export/latest').then((r) => r.arrayBuffer()).then(previewBackup)`);
+  const rowChecks = await evalIn(manager, `(() => { const rows = [...document.querySelectorAll('#bk-row')]; return rows.map((r) => r.textContent); })()`);
+  const allReplace = rowChecks.length === (await worker(`chrome.storage.local.get(null).then((a) => Object.values(a).filter((v) => v && v.kind).length)`)) && rowChecks.every((t) => /Replace/.test(t) && /no change/.test(t) && /Site tweaks/.test(t));
+  check(allReplace, `previewing the export back: every row Replace (same id) with 'no change' (${rowChecks.length} rows; preview returned ${shown}; ${rowChecks.slice(0, 2).join(' | ')})`);
+  const noChangeYet = await worker(`(async () => { const a = await chrome.storage.local.get(null); const items = Object.values(a).filter((v) => v && v.kind); return { count: items.length, liveVisits: (a['values:' + items.find((i) => i.meta?.name === 'Live fixture')?.id] || {}).visits }; })()`);
+  check(noChangeYet.count === rowChecks.length, `the preview changes nothing before Apply (still ${noChangeYet.count} items)`);
+  // Set one row to Skip, apply the rest: the summary matches what was set.
+  const applied = await evalIn(manager, `(() => { const rows = [...document.querySelectorAll('#bk-row')]; const styleRow = rows.find((r) => /Live style/.test(r.textContent)); styleRow.querySelector('input[value=skip]').click(); [...document.querySelectorAll('#view button')].find((b) => b.textContent === 'Apply').click(); return 'applied'; })()`);
+  check(applied === 'applied', 'one row set to Skip, Apply clicked');
+  const sum = await until(() => evalIn(manager, `(() => { const s = document.getElementById('bk-sum'); return s && s.textContent && s.textContent !== 'Applying…' ? s.textContent : ''; })()`));
+  const n = rowChecks.length;
+  check(sum === `added 0, replaced ${n - 1}, skipped 1, failed 0`, `Apply summary matches what was set (${sum})`);
+  const appliedItems = await worker(`chrome.storage.local.get(null).then((a) => Object.values(a).filter((v) => v && v.kind).length)`);
+  check(appliedItems === n, `apply kept the count at ${appliedItems} (Replace + Skip, no copies)`);
+  // Now the Violentmonkey zip: the 'Shared thing' names are already claimed (VM/TM/Stylus rows), so Add.
+  const prevVm = await evalIn(manager, `fetch('${SITE}/backup/violentmonkey-backup.zip').then((r) => r.arrayBuffer()).then(previewBackup)`);
+  const vmRows = await evalIn(manager, `(() => { const rows = [...document.querySelectorAll('#bk-row')]; return rows.map((r) => ({ t: r.textContent, add: r.querySelector('input[value=add]').checked, replace: r.querySelector('input[value=replace]').checked, skip: r.querySelector('input[value=skip]').checked })); })()`);
+  const vmOk = vmRows.length === 2 && vmRows.every((r) => r.add && !r.replace && !r.skip && /Violentmonkey/.test(r.t));
+  check(vmOk, `the Violentmonkey zip preview: rows Add (name+namespace already claimed), source labeled (${vmRows.map((r) => r.t).join(' | ')})`);
+  await evalIn(manager, `(() => { const btn = [...document.querySelectorAll('#view .row button')].find((b) => b.textContent === 'Back'); if (btn) btn.click(); return 'back'; })()`);
+};
+RUN['p3-ghost'] = async () => {
+  // A ghost session's copy marks itself with settings.ghost; ghost tabs are hidden from CDP, so the manager is
+  // checked in that mode here (the flag set briefly in this scratch profile, then restored): no Backups button,
+  // #backups goes back to the list, and the preview refuses.
+  await oneManager();
+  const before = await worker(`chrome.storage.local.get('settings').then((a) => JSON.stringify(a.settings || {}))`);
+  try {
+    await worker(`chrome.storage.local.get('settings').then((a) => chrome.storage.local.set({ settings: { ...(a.settings || {}), ghost: { from: 'Test space' } } }))`);
+    await sleep(300);
+    await evalIn(manager, `location.hash = 'backups'`);
+    const g = await until(() => evalIn(manager, `(() => { const b = document.getElementById('backups'); return /ghost copy/.test(document.title) && b && b.hidden && !document.getElementById('bk-file') && location.hash !== '#backups' ? 'hidden' : ''; })()`), 8000);
+    const refused = await evalIn(manager, `previewBackup(new ArrayBuffer(2)).then(() => 'ran', (e) => e.message)`);
+    check(g === 'hidden' && /off in ghost/.test(refused || ''), `a ghost copy's manager: no Backups button, #backups opens no page, the preview refuses (${g || 'shown'}; ${refused})`);
+  } finally {
+    await worker(`chrome.storage.local.set({ settings: ${before} })`);
+  }
+};
+RUN['p3-run'] = async () => {
+  // Feed the exported-all back in full (everything Replace): the page runs again with restored values.
+  await ensureManager();
+  const r = await evalIn(manager, `fetch('${SITE}/export/latest').then((r) => r.arrayBuffer()).then(importFile)`);
+  const count = await worker(`chrome.storage.local.get(null).then((a) => Object.values(a).filter((v) => v && v.kind).length)`);
+  check(r === `added 0, replaced ${count}, skipped 0, failed 0`, `importing the export in full replaces every row (${r})`);
+  // The page: open it, the restored Live fixture runs with its stored value (visits was 1, now increments).
+  for (const t of (await tabs()).filter((t) => t.url.startsWith(SITE + '/page') || t.url.includes('manage.html') || t.url.includes('connect.html'))) await sidebar(`ask({cmd:'tab.close',id:${t.id}})`);
+  await sleep(2500);  // let the debounced sync re-register before the page opens
+  await open(`${SITE}/page`);
+  const prompt = await until(async () => (await list()).some(connectPrompt), 12000);
+  if (prompt) await evalIn(connectPrompt, `document.getElementById('deny').click()`, 2000);
+  const visits = await until(async () => { const v = await page(`document.documentElement.dataset.visits || ''`); return v && +v >= 2 ? v : ''; });
+  check(!!visits && +visits >= 2, `the re-applied script runs: the page sees its stored visits incremented (${visits})`);
 };
 RUN['hosta'] = async () => {
   // — hostA: the Add-to-Roar flow, from the command page (real clicks, same tab) —
@@ -663,7 +794,7 @@ RUN['reimport'] = async () => {
   await sleep(3000);
   const countAfter = await worker(`chrome.storage.local.get(null).then((all) => Object.keys(all).filter((k) => k.startsWith('item:')).length)`);
   const sync1 = await syncCount();
-  check(again === 'Imported 2 of 2.' && countAfter === countBefore + 2, `re-import creates 2 copies, no merge (${again}; count ${countBefore} -> ${countAfter})`);
+  check(again === 'added 2, replaced 0, skipped 0, failed 0' && countAfter === countBefore + 2, `re-import creates 2 copies, no merge (${again}; count ${countBefore} -> ${countAfter})`);
   check(sync1 === sync0 + 1, `importing the backup causes one sync, not one per item (${sync0} -> ${sync1})`);
 };
 RUN['ghost-off'] = async () => {
