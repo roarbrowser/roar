@@ -475,5 +475,14 @@
       <description><![CDATA[Clicking a Hermes board card opens that card's chat.]]></description>
       <enclosure url="https://github.com/roarbrowser/roar/releases/download/v1.24.2/Roar-1.24.2.dmg" type="application/octet-stream" sparkle:edSignature="o59DDOppWG7gvISBHAFTg8bEBy4/fNYX3FPfK9rljq9bXu6lDIBM1gK/ynTnmWKdETDurXYWuwApkaCYL3w4CQ==" length="208116839"/>
     </item>
+    <item>
+      <title>1.25.0</title>
+      <pubDate>Sat, 14 Nov 2026 03:06:53 +0000</pubDate>
+      <sparkle:version>12500</sparkle:version>
+      <sparkle:shortVersionString>1.25.0</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[Site tweaks backups that round-trip: a Backups page with Export all, and imports that preview each item (add, replace or skip) before anything changes. Agents: clicks refuse a target hidden behind a banner or dialog, actions say whether the page changed, waits cover the requests an action starts, smarter form filling, shorter snapshots, and optional per-agent site limits.]]></description>
+      <enclosure url="https://github.com/roarbrowser/roar/releases/download/v1.25.0/Roar-1.25.0.dmg" type="application/octet-stream" sparkle:edSignature="mwq9ziJSUnvHxaGLlgQAEHe9rLBh1aDZ48zVkKfbMInZGEiGHPWR13OySWDa3wYjIvDf79Ojx0qc6DNV4MwGDw==" length="208158963"/>
+    </item>
   </channel>
 </rss>
