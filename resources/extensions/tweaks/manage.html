@@ -11,14 +11,27 @@
     <button id="new-script">New script</button>
     <button id="new-style">New style</button>
     <button id="import">Import…</button>
-    <button id="export">Export</button>
-    <button id="updates">Check for updates</button>
     <input type="file" id="file" accept=".zip,.json,application/zip,application/json" hidden>
   </div>
   <p class="muted">Userscripts and userstyles for the sites you visit. They and their stored data stay on this computer: never synced, and included in Roar's backups.</p>
   <p class="muted" id="shared" hidden>Shared with all your spaces: a change here reaches them all, and stored data stays per space. Agents can't reach Site tweaks while this is on. Change it in Roar's Settings, under Extensions.</p>
   <p class="note" id="ghost" hidden></p>
   <div id="banner" class="banner" hidden></div>
+  <div id="toolbar" class="toolbar" hidden>
+    <input type="search" id="search" placeholder="Search name, host">
+    <span id="chips" class="chips"></span>
+    <label class="sort">Sort
+      <select id="sort">
+        <option value="run" selected>Run order</option>
+        <option value="name">Name</option>
+        <option value="updated">Last updated</option>
+      </select>
+    </label>
+    <button id="reconcile" title="Re-sync every tweak with the open tabs now">Reconcile now</button>
+    <span id="recon" class="muted"></span>
+    <span class="spacer"></span>
+    <button id="bulk">Bulk select</button>
+  </div>
   <div id="view"></div>
 </main>
 <script src="vendor/less.min.js"></script>

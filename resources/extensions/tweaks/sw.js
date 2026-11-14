@@ -439,6 +439,9 @@ chrome.runtime.onMessage.addListener((m, sender, respond) => {
   } else if (m.t === 'checkUpdates') {
     checkUpdates(m.ids).then(respond);
     return true;
+  } else if (m.t === 'reconcile') {
+    sync().then(() => respond({ ok: true }));
+    return true;
   } else if (m.t === 'status') {
     chrome.storage.session.get('errors').then((v) => respond({ api: !!chrome.userScripts, errors: v.errors || {} }));
     return true;

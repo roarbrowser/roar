@@ -26,6 +26,7 @@ import { cdpAuth } from './cdp_auth.mjs';
 const GROUPS = [
   { name: 'setup', needs: [], aka: [], about: 'Roar starts; a fresh profile allows userScripts (always runs)' },
   { name: 'install', needs: [], aka: ['install-page'], about: '.user.js and .user.css links open the install page; Install installs' },
+  { name: 'p2-list', needs: ['install'], aka: ['list'], about: 'search box narrows the list; bulk mode turns tweaks off, then back on' },
   { name: 'page', needs: ['install'], aka: ['connect', 'document-start', 'xhr', 'usercss'], about: '@connect prompt, document-start, GM_xmlhttpRequest, UserCSS default' },
   { name: 'persist', needs: ['page'], aka: ['values', 'reload'], about: 'GM_setValue persists across a reload, in chrome.storage.local' },
   { name: 'sitemenu', needs: ['page'], aka: ['site-menu', 'menu-command'], about: 'site menu lists the tweaks and runs the menu command' },
@@ -89,7 +90,7 @@ const api = createServer((req, res) => {
   res.end(host === 'hop.localhost' ? '{"hop":1}' : '{"pong":1}');
 });
 const apiPort = +process.env.TWEAKS_HTTP_PORT + 1 || await free();
-await new Promise((r) => api.listen(apiPort, '127.0.0.1', r));
+await new Promise((r) => api.listen(apiPort, '0.0.0.0', r));
 const apiHits = async () => [...hits];
 
 const SCRIPT = `// ==UserScript==
@@ -310,7 +311,7 @@ const site = createServer((req, res) => {
   res.setHeader('content-type', 'text/html');
   res.end(PAGE);
 });
-await new Promise((r) => site.listen(sitePort, '127.0.0.1', r));
+await new Promise((r) => site.listen(sitePort, '0.0.0.0', r));
 const SITE = `http://page.localhost:${sitePort}`;
 const GSITE = `http://ghost.localhost:${sitePort}`;
 const HA = `http://hosta.localhost:${sitePort}`;
@@ -394,6 +395,35 @@ RUN['install'] = async () => {
   check(await until(() => evalIn(installPage, `/Installed/.test(document.getElementById('status').textContent)`)), 'Install installs the style');
   await sidebar(`(async () => { for (const t of (await ask({cmd:'state'})).tabs) if (t.url.includes('install.html')) await ask({cmd:'tab.close', id: t.id}); })()`);
   await sleep(500);
+};
+RUN['p2-list'] = async () => {
+  // The cleaner list: the toolbar searches live, bulk mode turns everything off and back on.
+  // The post-install list holds exactly the two fixtures. The group leaves: both ON, bulk off, search empty.
+  await ensureManager();
+  await evalIn(manager, `location.hash = ''`);
+  await until(() => evalIn(manager, `document.querySelectorAll('#view .card').length === 2`));
+  const type = (v) => evalIn(manager, `(() => { const s = document.getElementById('search'); const set = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set; set.call(s, ${JSON.stringify(v)}); s.dispatchEvent(new Event('input', { bubbles: true })); return 'typed'; })()`);
+  await type('fixture');
+  const narrowed = await until(() => evalIn(manager, `(() => { const rows = [...document.querySelectorAll('#view .card')]; return rows.length === 1 && /Live fixture/.test(rows[0].textContent) && !/Live style/.test(rows[0].textContent); })()`));
+  check(!!narrowed, 'search narrows the list');
+  await type('');
+  await until(() => evalIn(manager, `document.querySelectorAll('#view .card').length === 2`));
+  // Bulk mode: select all, turn both off (the worker sees it), back on, and out of bulk.
+  await evalIn(manager, `(() => { [...document.querySelectorAll('#toolbar button')].find((b) => b.textContent === 'Bulk select').click(); return 'b'; })()`);
+  await until(() => evalIn(manager, `(() => { const rows = [...document.querySelectorAll('#view .card')]; return !!document.getElementById('bulk-all') && rows.length === 2 && rows.every((r) => r.querySelector('input[type=checkbox]')); })()`));
+  await evalIn(manager, `document.getElementById('bulk-all').click()`);
+  await evalIn(manager, `(() => { [...document.querySelectorAll('button')].find((b) => b.textContent === 'Turn off').click(); return 'off'; })()`);
+  const allOff = await until(() => worker(`chrome.storage.local.get(null).then((a) => Object.values(a).filter((v) => v && v.kind).every((i) => i.enabled === false))`));
+  check(!!allOff, 'bulk off');
+  // Restore: the selection held through the action, so 'Turn on' lands on both rows again.
+  await evalIn(manager, `(() => { [...document.querySelectorAll('button')].find((b) => b.textContent === 'Turn on').click(); return 'on'; })()`);
+  const allOn = await until(() => worker(`chrome.storage.local.get(null).then((a) => Object.values(a).filter((v) => v && v.kind).every((i) => i.enabled === true))`));
+  await evalIn(manager, `(() => { const b = [...document.querySelectorAll('#toolbar button')].find((x) => x.textContent === 'Done'); if (b) b.click(); return 'done'; })()`);
+  await until(() => evalIn(manager, `!document.getElementById('bulk-all') && document.getElementById('search').value === '' && document.querySelectorAll('#view .card').length === 2`));
+  // Leave no manager page open behind us, so later groups never match a stale one.
+  const mt = (await tabs()).find((t) => t.url.includes('manage.html') && !t.ghost);
+  if (mt) await sidebar(`ask({cmd:'tab.close', id:${mt.id}})`);
+  await sleep(400);
 };
 RUN['page'] = async () => {
   // The page: document-start, values, requests.
