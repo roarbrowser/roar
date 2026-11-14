@@ -130,7 +130,7 @@ export const INSTRUCTIONS = `Roar is the person's own web browser, already signe
 Use Roar whenever a task touches the web: opening, reading or checking a page, searching, logged-in sites (mail, GitHub, dashboards, docs), filling forms, or testing a local web app. Prefer it over fetching pages yourself or starting another browser, unless the person asks otherwise.
 - Pages you open appear as tabs in the person's sidebar, in the space set by use_profile, which applies to this session only. Only spaces the person allows agents in can be used; ghost tabs are hidden from agents.
 - You see and act only on pages you opened and the person's own tabs; other agents' pages are off-limits.
-- When several pages belong to one task, pass the same group to new_page so they sit together in one tab group; group_page moves or ungroups a page you opened.
+- Every page you open for a task, and every link it opens, sits in one tab group; name it with group on your first new_page (2 to 4 words). Later names do not make another group. The task ends with your "done" card.
 - Open pages in the background unless the person should see them. Roar closes every page you opened when you post a "done" notify_user, when you stay idle, and when this session ends; close them sooner when you no longer need them.
 - notify_user puts a card in Roar's sidebar: use level "done" when a long task finishes, "needs_you" when you are blocked.
   Write title and body as one or two plain sentences for a person: no code, markdown, logs, paths or ids.
@@ -194,12 +194,12 @@ const TOOLS = [
   },
   {
     name: 'group_page',
-    description: 'Move a page you opened into a named tab group in Roar\'s sidebar (made if missing), or out of its group with an empty group. Only your own pages.',
+    description: 'Move a page you opened into your task\'s one tab group in Roar\'s sidebar, or out of it with an empty group. A task has one group: a name only names it while it still has the site name Roar gave it. Only your own pages.',
     inputSchema: {
       type: 'object',
       properties: {
         pageId: { type: 'number', description: 'The page id from new_page or list_pages.' },
-        group: { type: ['string', 'null'], description: 'The group name; empty or null ungroups the page.' },
+        group: { type: ['string', 'null'], description: 'Any name puts the page in your task\'s group; empty or null ungroups it.' },
       },
       required: ['pageId'],
     },
@@ -282,9 +282,9 @@ function ensureProfile() {
   return profileReady;
 }
 // Roar opens the next createTarget in this space for this connection; waits while another connection's claim stands.
-async function claimSpace(id, group) {
+async function claimSpace(id, group, url) {
   for (let i = 0; i < 50; i++) {
-    if (await sidebarAsk({ cmd: 'agent.space', id, owner: OWNER, group }, 10000) !== 'busy') return;
+    if (await sidebarAsk({ cmd: 'agent.space', id, owner: OWNER, group, url }, 10000) !== 'busy') return;
     await sleep(100);
   }
   throw new Error('Roar is busy opening other agents\' pages; try again.');
@@ -318,8 +318,8 @@ async function callOwn(id, name, args) {
     } else if (name === 'group_page') {
       const pid = Number(args.pageId), group = plain(args.group || '', 80);
       if (!owned.has(pid) || !pages.has(pid)) throw new Error(`Page ${args.pageId} is not one you opened: only pages from your new_page can be grouped.`);
-      await sidebarAsk({ cmd: 'agent.group', owner: OWNER, url: pages.get(pid), group }, 10000);
-      text = group ? `Page ${pid} is in the "${group}" group.` : `Page ${pid} is no longer in a group.`;
+      const named = await sidebarAsk({ cmd: 'agent.group', owner: OWNER, url: pages.get(pid), group }, 10000);
+      text = group ? `Page ${pid} is in your task's group, "${named || group}".` : `Page ${pid} is no longer in a group.`;
     } else if (name === 'rename_item') {
       const items = Array.isArray(args.items) ? args.items.slice(0, 100) : [args];
       if (!items.length || items.some((i) => !i || !i.kind || i.id === undefined || typeof i.name !== 'string')) throw new Error('rename_item needs kind, id and name, or items: [{kind, id, name}].');
@@ -450,7 +450,7 @@ createInterface({ input: child.stdout }).on('line', (line) => {
     const sel = msg.result.tools.find((t) => t.name === 'select_page')?.inputSchema?.properties;
     if (sel) delete sel.bringToFront;
     const np = msg.result.tools.find((t) => t.name === 'new_page')?.inputSchema?.properties;
-    if (np) np.group = { type: 'string', description: 'Optional tab group name in Roar\'s sidebar. Pages opened with the same group sit together under it; Roar makes the group if the space has none by that name. Use one short name (2 to 4 words) per task.' };
+    if (np) np.group = { type: 'string', description: 'A short name (2 to 4 words) for this task\'s tab group in Roar\'s sidebar. Every page you open goes into one group per task, until your "done" card or idle; the first name names it (else the first page\'s site does) and later names never make another group.' };
     msg.result.tools.push(...TOOLS);
   }
   // Only the '## Pages' section: page-like lines in a network body or console message must not unlock pages.
@@ -506,6 +506,7 @@ createInterface({ input: process.stdin }).on('line', (line) => {
     delete a.group;
     line = JSON.stringify(msg);
     msg.group = group;
+    msg.pageUrl = String(a.url || '');  // The page opens on about:blank first: Roar names a task's group for this site.
   }
   if (msg.method === 'tools/call' && msg.params?.name !== 'list_pages') {
     const a = msg.params.arguments || {};
@@ -513,7 +514,7 @@ createInterface({ input: process.stdin }).on('line', (line) => {
     else drive(a.pageId !== undefined ? pages.get(a.pageId) : selected);
   }
   if (msg.method === 'tools/call' && msg.params?.name === 'new_page')
-    return void (newChain = newChain.then(() => ensureProfile().then((sp) => claimSpace(sp, msg.group)).then(
+    return void (newChain = newChain.then(() => ensureProfile().then((sp) => claimSpace(sp, msg.group, msg.pageUrl)).then(
       () => new Promise((done) => { newIds.set(msg.id, done); child.stdin.write(line + '\n'); }),
       (e) => fail(msg.id, e))));
   // Every other page tool acts on a page this connection may use (its pageId, else the selected page).

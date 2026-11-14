@@ -2051,7 +2051,7 @@ int Controller::OpenTargetTab(const std::string& url) {
   // (OnTabWindowCreated shows only visible tabs).
   Tab* tab = FindTab(id);
   if (tab) TouchAgentMark(tab->agent, NowSeconds()), ShowTabWindow(tab), tab->mcp_owner = claim.owner;
-  if (tab && !claim.group.empty()) SetGroup(id, AgentGroup(space, claim.group));
+  if (tab && !claim.owner.empty()) SetGroup(id, TaskGroupFor(claim.owner, space, claim.group, claim.url.empty() ? url : claim.url));
   last_target_tab_ = id;
   auto browser = tab && tab->view ? tab->view->GetBrowser() : nullptr;
   if (browser) return browser->GetIdentifier();
@@ -2059,16 +2059,43 @@ int Controller::OpenTargetTab(const std::string& url) {
   return -1;
 }
 
-int Controller::AgentGroup(int space, const std::string& name) {
+// "github.com" from "https://www.github.com/x": a task's group name until the agent gives one.
+static std::string SiteName(const std::string& url) {
+  size_t a = url.find("://");
+  if (a == std::string::npos) return "Agent task";  // about:blank, data: and the like.
+  a += 3;
+  std::string host = url.substr(a, url.find_first_of("/?#:", a) - a);
+  if (host.rfind("www.", 0) == 0) host = host.substr(4);
+  return host.empty() ? "Agent task" : host.substr(0, 80);
+}
+
+int Controller::TaskGroupFor(const std::string& owner, int space, const std::string& name, const std::string& url) {
   State& st = State::Get();
-  for (const auto& g : st.groups)
-    if (g.space == space && g.name == name) return g.id;
+  TaskGroup& tg = task_groups_[{owner, space}];
+  if (TabGroup* g = tg.id ? st.FindGroup(tg.id) : nullptr; g && g->space == space) {
+    // A later name never makes a second group. It only replaces the site name Roar gave the group (not one the person gave it).
+    if (!name.empty() && !tg.auto_name.empty() && g->name == tg.auto_name) g->name = name, SaveSoon();
+    if (!name.empty()) tg.auto_name.clear();
+    return tg.id;
+  }
+  // The task's first page, or the person removed its group: a group of that name of the person's (no other task's) takes it.
+  tg = {};
+  if (!name.empty())
+    for (const auto& g : st.groups)
+      if (g.space == space && g.name == name && !HeldByTask(g.id)) return tg.id = g.id;
   TabGroup g;
   g.id = st.next_group_id++;
-  g.name = name;
   g.space = space;
+  g.name = name.empty() ? SiteName(url) : name;
+  if (name.empty()) tg.auto_name = g.name;
   st.groups.push_back(g);
-  return g.id;
+  return tg.id = g.id;
+}
+
+bool Controller::HeldByTask(int group) const {
+  for (const auto& [key, tg] : task_groups_)
+    if (tg.id == group) return true;
+  return false;
 }
 
 int Controller::AgentSpace() {
@@ -2082,6 +2109,11 @@ int Controller::AgentSpace() {
 
 void Controller::ReleaseAgentPages(const std::string& owner) {
   if (owner.empty()) return;
+  // The task is over: its group lasts only as long as its tabs again.
+  std::vector<int> held;
+  for (auto it = task_groups_.begin(); it != task_groups_.end();)
+    if (it->first.first == owner) held.push_back(it->second.id), it = task_groups_.erase(it);
+    else ++it;
   std::vector<int> doomed;
   for (auto& t : tabs_) {
     if (t.mcp_owner != owner) continue;
@@ -2097,6 +2129,7 @@ void Controller::ReleaseAgentPages(const std::string& owner) {
     SaveSoon();
   }
   for (int id : doomed) CloseTab(id);
+  for (int g : held) DropGroupIfEmpty(g);
   PushSidebar();
 }
 
@@ -2820,7 +2853,7 @@ void Controller::SetGroup(int id, int group) {
 void Controller::DropGroupIfEmpty(int group) {
   State& state = State::Get();
   TabGroup* g = state.FindGroup(group);
-  if (!g || state.GroupPinned(group)) return;
+  if (!g || state.GroupPinned(group) || HeldByTask(group)) return;  // An agent's task group waits for its next page.
   if (std::any_of(tabs_.begin(), tabs_.end(), [&](const Tab& t) { return t.group == group; })) return;
   // A group holding another group is not empty.
   if (std::any_of(state.groups.begin(), state.groups.end(), [&](const TabGroup& x) { return x.parent == group; })) return;
@@ -6114,10 +6147,11 @@ bool Controller::HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> 
     std::string owner = msg->GetString("owner").ToString();
     if (owner.empty()) return callback->Failure(1, "owner is required"), true;
     if (target_claim_.expires > NowSeconds() && target_claim_.owner != owner) return callback->Success("busy"), true;
-    target_claim_ = {owner, sp->id, NowSeconds() + 5, msg->GetString("group").ToString().substr(0, 80)};
+    target_claim_ = {owner, sp->id, NowSeconds() + 5, msg->GetString("group").ToString().substr(0, 80), msg->GetString("url").ToString()};
     callback->Success("");
   } else if (cmd == "agent.group") {
     // roar-mcp group_page: only a tab this connection opened, in a space that allows agents; empty group ungroups.
+    // Any name puts it in the task's one group (and names that group if Roar named it). Answers the group's name.
     std::string owner = msg->GetString("owner").ToString(), url = msg->GetString("url").ToString();
     std::string name = msg->GetString("group").ToString().substr(0, 80);
     Tab* hit = nullptr;
@@ -6126,8 +6160,10 @@ bool Controller::HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> 
       if (!owner.empty() && t.mcp_owner == owner && t.url == url && !t.ghost && sp && sp->agents) { hit = &t; break; }
     }
     if (!hit) return callback->Failure(1, "That page is not one you opened in a profile that allows agents"), true;
-    SetGroup(hit->id, name.empty() ? 0 : AgentGroup(hit->space, name));
-    callback->Success("");
+    int gid = name.empty() ? 0 : TaskGroupFor(owner, hit->space, name, hit->url);
+    SetGroup(hit->id, gid);
+    TabGroup* g = gid ? State::Get().FindGroup(gid) : nullptr;
+    callback->Success(g ? g->name : "");
   } else if (cmd == "agent.release") {
     // A roar-mcp connection is done (done card, idle, or exit): close the pages it opened.
     ReleaseAgentPages(msg->GetString("owner").ToString());

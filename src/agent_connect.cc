@@ -685,7 +685,7 @@ Roar is the person's own web browser, already signed in to their sites, and thes
 Use Roar whenever a task touches the web: opening, reading or checking a page, searching, logged-in sites (mail, GitHub, dashboards, docs), filling forms, or testing a local web app. Prefer it over fetching pages yourself or starting another browser, unless the person asks otherwise.
 - Pages you open appear as tabs in the person's sidebar, in the space set by use_profile, which applies to this session only. Only spaces the person allows agents in can be used; ghost tabs are hidden from agents.
 - You see and act only on pages you opened and the person's own tabs; other agents' pages are off-limits.
-- When several pages belong to one task, pass the same group to new_page so they sit together in one tab group; group_page moves or ungroups a page you opened.
+- Every page you open for a task, and every link it opens, sits in one tab group; name it with group on your first new_page (2 to 4 words). Later names do not make another group. The task ends with your "done" card.
 - Open pages in the background unless the person should see them. Roar closes every page you opened when you post a "done" notify_user, when you stay idle, and when this session ends; close them sooner when you no longer need them.
 - notify_user puts a card in Roar's sidebar: use level "done" when a long task finishes, "needs_you" when you are blocked.
   Write title and body as one or two plain sentences for a person: no code, markdown, logs, paths or ids.

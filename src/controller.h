@@ -515,8 +515,14 @@ class Controller {
   std::map<std::string, std::string> mcp_tokens_;  // roar-mcp owner pid -> the token it got from agent.hello.
   std::map<std::string, int> claude_idle_gen_;  // Per session, bumped on every state change: a stale close-pages timer does nothing.
   std::string cdp_token_;  // This launch's CDP token (<data>/cdp-token); agent.hello must present it.
-  struct TargetClaim { std::string owner; int space = -1; double expires = 0; std::string group; } target_claim_;  // group: tab group name, made if missing.
-  int AgentGroup(int space, const std::string& name);  // The space's group of that name, made unpinned if missing.
+  struct TargetClaim { std::string owner; int space = -1; double expires = 0; std::string group, url; } target_claim_;  // group: tab group name; url: the page new_page asked for.
+  // One tab group per agent task: a roar-mcp connection's pages in a space all go to one group, held (even while
+  // empty) until the connection lets go (done card, idle, exit). auto_name: the site name Roar gave it, which the
+  // agent's first group name replaces.
+  struct TaskGroup { int id = 0; std::string auto_name; };
+  std::map<std::pair<std::string, int>, TaskGroup> task_groups_;  // (owner, space) -> its task's group.
+  int TaskGroupFor(const std::string& owner, int space, const std::string& name, const std::string& url);
+  bool HeldByTask(int group) const;
   void ReleaseAgentPages(const std::string& owner);  // Closes the tabs that connection opened.
   bool cdp_on_ = false;                 // Whether the CDP HTTP port is listening now.
   std::unique_ptr<DictationEngine> dictation_;  // roar-dictate, started on first use.
