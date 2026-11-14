@@ -187,7 +187,8 @@ void Attach(CefRefPtr<CefDictionaryValue> info) {
   });
 }
 
-void Forget(const std::string& target) {
+// By value: callers pass strings held in g_sessions, which the erase below frees (a use-after-free crash).
+void Forget(std::string target) {
   auto it = g_workers.find(target);
   if (it == g_workers.end()) return;
   g_sessions.erase(it->second.session);
