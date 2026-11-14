@@ -20,6 +20,10 @@ input[type=text], input[type=number], select, textarea { font: inherit; padding:
 pre, textarea.code { font: 12.5px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
 pre { white-space: pre-wrap; word-break: break-word; margin: 0; }
 textarea.code { width: 100%; min-height: 60vh; tab-size: 2; white-space: pre; }
+.codewrap { display: flex; border: 1px solid var(--line); border-radius: 6px; background: var(--card); overflow: hidden; }
+.codewrap .gutter { margin: 0; padding: 6px 8px; text-align: right; color: var(--muted); overflow: hidden; user-select: none; flex: none; }
+.codewrap textarea.code { flex: 1; width: auto; min-height: 60vh; border: none; border-left: 1px solid var(--line); border-radius: 0; }
+.vk { font: 12.5px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; color: var(--text, inherit); overflow-wrap: anywhere; }
 .tag { font-size: 11px; padding: 1px 7px; border-radius: 99px; border: 1px solid var(--line); color: var(--muted); }
 .diff .add { background: color-mix(in srgb, var(--ok) 18%, transparent); }
 .diff .del { background: color-mix(in srgb, var(--bad) 18%, transparent); }

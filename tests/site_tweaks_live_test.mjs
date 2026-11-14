@@ -31,6 +31,7 @@ const GROUPS = [
   { name: 'persist', needs: ['page'], aka: ['values', 'reload'], about: 'GM_setValue persists across a reload, in chrome.storage.local' },
   { name: 'sitemenu', needs: ['page'], aka: ['site-menu', 'menu-command'], about: 'site menu lists the tweaks and runs the menu command' },
   { name: 'manager', needs: ['sitemenu'], aka: ['var', 'backups'], about: '@var changes live, VM/TM/Stylus backups import, style toggles off' },
+  { name: 'p2-item', needs: ['install'], aka: ['item', 'item-page'], about: 'per-item page: remove an allowed connect host; edit a stored value and a fresh load sees it' },
   { name: 'hosta', needs: ['manager'], aka: ['add-to-roar', 'command-page'], about: 'hostA command page: .user.js link, install page, Install, Cancel' },
   { name: 'editor', needs: ['hosta'], aka: ['guard', 'unsaved'], about: 'Back on an unsaved edit raises the guard; its Save keeps the edit' },
   { name: 'two-new', needs: ['hosta'], aka: ['new-script'], about: 'two new scripts with the default name stay two; hostA tweak runs' },
@@ -493,6 +494,46 @@ RUN['manager'] = async () => {
   const plain = await until(async () => (await page(`getComputedStyle(document.querySelector('h1')).color`)) === 'rgb(0, 0, 0)' && 'off', 8000);
   check(plain, 'turning the style off in the site menu removes it live');
 };
+RUN['p2-item'] = async () => {
+  // The per-item page (#item=<id>). A: 'always' allows other.localhost, the item's Permissions
+  // tab shows it; Remove takes it away: the next fresh load asks again and ends refused.
+  // B: on the item's Values tab 'visits' is set to 41; a fresh page load sees 42 through GM_getValue.
+  const closeAll = async () => {
+    for (const t of (await tabs()).filter((t) => t.url.startsWith(SITE + '/page') || t.url.includes('manage.html') || t.url.includes('connect.html'))) await sidebar(`ask({cmd:'tab.close',id:${t.id}})`);
+    await sleep(400);
+  };
+  await closeAll();  // start clean: page()/manager() match the first tab, stale ones would read old state
+  const liveId = await until(async () => worker(`(async () => { const all = await chrome.storage.local.get(null); const it = Object.values(all).find((v) => v?.kind === 'script' && v?.meta?.name === 'Live fixture'); return it ? it.id : ''; })()`));
+  // A: allow the host, then remove it on the Permissions tab.
+  await open(`${SITE}/page`);
+  const q1 = await until(async () => { const v = await evalIn(connectPrompt, `document.getElementById('q') ? document.getElementById('q').textContent : ''`); return /other\.localhost/.test(v || '') ? v : ''; }, 15000);
+  await evalIn(connectPrompt, `document.getElementById('always').click()`, 2000);
+  const reached = await until(async () => (await page(`document.documentElement.dataset.refused || ''`)) || '');
+  await open(`chrome-extension://${ID}/manage.html#item=${liveId}&tab=permissions`);
+  const shown = await until(() => evalIn(manager, `(() => { const row = [...document.querySelectorAll('#view .row')].find((r) => /other\.localhost/.test(r.textContent) && [...r.querySelectorAll('button')].some((b) => b.textContent === 'Remove')); return row ? 'shown' : ''; })()`));
+  await evalIn(manager, `(() => { const row = [...document.querySelectorAll('#view .row')].find((r) => /other\.localhost/.test(r.textContent) && [...r.querySelectorAll('button')].some((b) => b.textContent === 'Remove')); if (row) [...row.querySelectorAll('button')].find((b) => b.textContent === 'Remove').click(); return 'clicked'; })()`);
+  const gone = await until(() => evalIn(manager, `(() => /other\.localhost/.test(document.getElementById('view').innerText) ? '' : 'gone')()`));
+  const cleared = await until(() => worker(`chrome.storage.local.get('item:${liveId}').then((a) => !(((a['item:${liveId}']) || {}).connectAllow || []).length)`));
+  // A check: a fresh load must ask again for the removed host, and the request ends refused.
+  await closeAll();
+  await open(`${SITE}/page`);
+  const q2 = await until(async () => { const v = await evalIn(connectPrompt, `document.getElementById('q') ? document.getElementById('q').textContent : ''`); return /other\.localhost/.test(v || '') ? v : ''; }, 15000);
+  await evalIn(connectPrompt, `document.getElementById('deny').click()`, 2000);
+  const refused = await until(async () => (await page(`document.documentElement.dataset.refused || ''`)) || '');
+  check(reached === 'loaded 200' && shown === 'shown' && gone === 'gone' && !!cleared && !!q1 && !!q2 && /^error Refused/.test(refused || ''), `removing a connectAllow host (always allowed, removed: a fresh load asks again and ends refused: reached=${reached || 'none'} shown=${shown || 'no'} gone=${gone || 'no'} cleared=${!!cleared} q1=${!!q1} q2=${!!q2} refused=${refused || 'none'})`);
+  // B: edit the stored 'visits' to 41; a fresh page load sees 42 (the edit reached GM_getValue).
+  await open(`chrome-extension://${ID}/manage.html#item=${liveId}&tab=values`);
+  const listed = await until(() => evalIn(manager, `(() => { const row = [...document.querySelectorAll('#view .row')].find((r) => /visits/.test(r.textContent) && r.querySelector('input')); return row && /2|4/.test(row.querySelector('input').value) ? 'listed' : ''; })()`));
+  await evalIn(manager, `(() => { const row = [...document.querySelectorAll('#view .row')].find((r) => /visits/.test(r.textContent) && r.querySelector('input')); const input = row && row.querySelector('input'); if (input) { const set = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set; set.call(input, '41'); input.dispatchEvent(new Event('input', { bubbles: true })); } return 'set'; })()`);
+  await evalIn(manager, `(() => { const b = [...document.querySelectorAll('#view button')].find((x) => x.textContent === 'Save'); if (b) b.click(); return 'saved'; })()`);
+  const saved = await until(async () => (await evalIn(manager, `(() => { const r = [...document.querySelectorAll('#view .row')].find((x) => /visits/.test(x.textContent)); return r && /Saved/.test(r.textContent) ? 'Saved' : ''; })()`)) || (await worker(`chrome.storage.local.get('values:${liveId}').then((a) => ((a['values:${liveId}']) || {}).visits === 41)`)));
+  await closeAll();
+  await sleep(2000);  // the worker re-registers the script with the edited value before the fresh load
+  await open(`${SITE}/page`);
+  const q3 = await until(async () => (await list()).some(connectPrompt) && (await evalIn(connectPrompt, `document.getElementById('deny').click()`, 2000), 'denied'), 15000);
+  const visits = await until(async () => (await page(`document.documentElement.dataset.visits || ''`)) || '');
+  check(saved === 'Saved' && !!listed && visits === '42', `editing a stored value reaches GM_getValue (stored 41, a fresh load sees ${visits || 'none'}; listed=${!!listed} saved=${saved || 'no'})`);
+};
 RUN['hosta'] = async () => {
   // — hostA: the Add-to-Roar flow, from the command page (real clicks, same tab) —
   // Open http://hostA.localhost/command -> one installable link -> clicking it lands on the
@@ -654,10 +695,10 @@ RUN['ghost'] = async () => {
   check(offTitle === 'plain' && stillOff === 'plain', `switch off: the script doesn't run in a ghost tab (${stillOff})`);
   await closeGhosts();
 
-  // Switch it on in the manager's list (the real checkbox).
-  await evalIn(manager, `location.hash = ''`);
-  const switched = await until(() => evalIn(manager, `(() => { const card = [...document.querySelectorAll('#view .card')].find((c) => c.querySelector('strong')?.textContent === 'Ghost fixture');
-    const box = card && [...card.querySelectorAll('label')].find((l) => l.textContent.includes('Run in ghost tabs'))?.querySelector('input'); if (!box) return false; if (!box.checked) box.click(); return true; })()`));
+  // Switch it on in the item page's Info tab (the real checkbox; the list rows have none now).
+  const gId = await until(async () => worker(`(async () => { const all = await chrome.storage.local.get(null); const it = Object.values(all).find((v) => v?.meta?.name === 'Ghost fixture'); return it ? it.id : ''; })()`));
+  await evalIn(manager, `location.hash = 'item=${gId}&tab=info'`);
+  const switched = await until(() => evalIn(manager, `(() => { const box = [...document.querySelectorAll('#view label')].find((l) => l.textContent.includes('Run in ghost tabs'))?.querySelector('input'); if (!box) return false; if (!box.checked) box.click(); return true; })()`));
   await sleep(500);
   const flag = await worker(`chrome.storage.local.get(null).then((all) => { const it = Object.values(all).find((v) => v?.meta?.name === 'Ghost fixture'); return it.ghost === true && (Object.values(all).find((v) => v?.meta?.name === 'Live fixture')?.ghost ?? false) === false; })`);
   check(switched && flag === true, 'the manager\'s "Run in ghost tabs" switch is stored with that script only');
