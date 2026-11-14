@@ -135,7 +135,10 @@ try {
   await sleep(6500);  // The profile writes its files back as the tabs close, so Roar deletes it again a few seconds on.
   check(!oldDirs.some((d) => ghostDirs().includes(d)), `the closed session's profile is gone from disk (${ghostDirs()})`);
   await ghost('Next');
-  check(ghostDirs().some((d) => !oldDirs.includes(d)), `the next ghost tab starts a new session (${ghostDirs()})`);
+  // Mac: a session is the off-the-record copy of its space and never touches the disk (its fresh start is checked
+  // by ghost_incognito_test). Stock CEF: each session is a new Ghost-<n> profile.
+  if (!oldDirs.length) check(!ghostDirs().length, `the next ghost session leaves nothing on disk either (${ghostDirs()})`);
+  else check(ghostDirs().some((d) => !oldDirs.includes(d)), `the next ghost tab starts a new session (${ghostDirs()})`);
 } catch (e) { check(false, 'test run: ' + e.message); } finally { cleanup(); }
 console.log(failed ? `${failed} failed` : 'all passed');
 process.exit(failed ? 1 : 0);
