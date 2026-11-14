@@ -86,6 +86,11 @@ std::filesystem::path ClaudePagesDir() { return std::filesystem::temp_directory_
 
 // contexts_ key of the profile ghost tabs share.
 constexpr int kGhostContext = -1;
+// Whether this CEF makes a ghost session the off-the-record copy of a space's profile (roar_ghost_otr.patch):
+// set at launch from the framework's roar_ghost_otr_version export. Stock CEF (Windows) keeps Ghost-<n>.
+bool g_ghost_otr = false;
+// The leaf of a cache_path that asks that patch for the off-the-record copy of the profile dir it sits in.
+constexpr char kGhostOtrMarker[] = "roar-otr";
 // A direct child of the root cache path, as Chrome-style CEF requires.
 std::string GhostDir(int session) { return State::Get().Dir() + "/Ghost-" + std::to_string(session); }
 
@@ -309,6 +314,17 @@ class HiddenWindowDelegate : public CefWindowDelegate {
   CefRefPtr<CefBrowserView> view_;
   IMPLEMENT_REFCOUNTING(HiddenWindowDelegate);
 };
+
+// Chromium's IsURLAllowedInIncognito: the chrome:// pages it moves out of an off-the-record profile.
+bool AllowedOffTheRecord(std::string url) {
+  std::transform(url.begin(), url.end(), url.begin(), ::tolower);
+  if (StartsWith(url, "view-source:")) url = url.substr(12);
+  if (!StartsWith(url, "chrome://")) return true;
+  std::string host = url.substr(9, url.find_first_of("/?#", 9) - 9);
+  for (const char* h : {"apps", "settings", "help", "history", "extensions", "password-manager", "chrome-signin"})
+    if (host == h) return false;
+  return true;
+}
 
 // Pages closed to agents while Site tweaks are shared: the extension's own, and the ones that can open DevTools on it.
 bool TweaksGuarded(const std::string& url) {
@@ -1528,15 +1544,24 @@ void Controller::Start() {
     cdp_http_ = reinterpret_cast<void (*)(int)>(sym("roar_devtools_http"));
     cdp_detach_hidden_ = reinterpret_cast<void (*)()>(sym("roar_devtools_detach_hidden"));
     if (!cdp_detach_hidden_) LOG(WARNING) << "CEF lacks roar_devtools_detach_hidden: agents off won't cut off attached agents";
-    // Hides ghost tabs and spaces with agents off from CDP clients (scripts/cef-patches).
+    g_ghost_otr = sym("roar_ghost_otr_version") != nullptr;
+    // Hides ghost tabs and spaces with agents off from CDP clients (scripts/cef-patches). The CEF that makes ghost
+    // sessions off the record also says whether a context is: such a profile reports its space's path.
     using Filter = bool (*)(int, const char*);
-    if (auto filter = reinterpret_cast<void (*)(Filter)>(sym("roar_set_devtools_target_filter")))
-      filter([](int id, const char* path) { return Controller::Get()->AgentMayReach(id, path); });
+    using OtrFilter = bool (*)(int, const char*, bool);
+    if (void* set = sym("roar_set_devtools_target_filter")) {
+      if (g_ghost_otr)
+        reinterpret_cast<void (*)(OtrFilter)>(set)([](int id, const char* path, bool otr) { return Controller::Get()->AgentMayReach(id, path, otr); });
+      else reinterpret_cast<void (*)(Filter)>(set)([](int id, const char* path) { return Controller::Get()->AgentMayReach(id, path, false); });
+    }
     // Service workers follow their profile the same way: each holds its extension's powers over the whole profile.
     using WorkerFilter = bool (*)(const char*, const char*);
-    if (auto filter = reinterpret_cast<void (*)(WorkerFilter)>(sym("roar_set_devtools_worker_filter")))
-      filter([](const char* url, const char* path) { return Controller::Get()->AgentMayReachWorker(url, path); });
-    else LOG(WARNING) << "CEF lacks roar_set_devtools_worker_filter: agents off won't hide extension workers";
+    using OtrWorkerFilter = bool (*)(const char*, const char*, bool);
+    if (void* set = sym("roar_set_devtools_worker_filter")) {
+      if (g_ghost_otr)
+        reinterpret_cast<void (*)(OtrWorkerFilter)>(set)([](const char* url, const char* path, bool otr) { return Controller::Get()->AgentMayReachWorker(url, path, otr); });
+      else reinterpret_cast<void (*)(WorkerFilter)>(set)([](const char* url, const char* path) { return Controller::Get()->AgentMayReachWorker(url, path, false); });
+    } else LOG(WARNING) << "CEF lacks roar_set_devtools_worker_filter: agents off won't hide extension workers";
     // CDP HTTP and WebSocket clients must present this launch's token (scripts/cef-patches).
     if (auto set = reinterpret_cast<void (*)(const char*)>(sym("roar_set_devtools_token"))) set(cdp_token_.c_str());
 #ifndef _WIN32
@@ -1903,6 +1928,8 @@ void Controller::Quit() {
 int Controller::NewTab(const std::string& url, bool activate, bool pinned, double last_active,
                        int space, bool ghost, int opener) {
   CEF_REQUIRE_UI_THREAD();
+  // Chrome opens these in a regular window, and a ghost browser created on one aborts in CEF.
+  if (ghost && g_ghost_otr && !AllowedOffTheRecord(url)) ghost = false;
   Tab tab;
   tab.id = next_id_++;
   tab.space = space < 0 || !State::Get().FindSpace(space) ? State::Get().active_space : space;
@@ -2054,7 +2081,9 @@ bool Controller::ForeignUiNavigation(CefRefPtr<CefBrowser> browser, const std::s
   return !t || t->url != url;
 }
 
-bool Controller::AgentMayReach(int browser_id, const std::string& profile_path) {
+bool Controller::AgentMayReach(int browser_id, const std::string& profile_path, bool off_the_record) {
+  // Ghost tabs, their popups and workers: the off-the-record copy of a space reports that space's path.
+  if (off_the_record) return false;
   if (g_hidden_pages.count(browser_id)) return false;  // Roar's own hidden pages, such as the ghost seed's export.
   auto it = browsers_.find(browser_id);
   // Of Roar's own pages, agents reach only the hint overlay, their bridge for alerts (roar-mcp):
@@ -2078,14 +2107,68 @@ bool Controller::AgentMayReach(int browser_id, const std::string& profile_path) 
   // Ghost-<n> and anything unknown match no space and stay hidden.
   State& st = State::Get();
   for (const auto& sp : st.spaces) {
-    if (profile_path == st.ProfileDir(sp.id)) return sp.agents;
+    if (profile_path != st.ProfileDir(sp.id)) continue;
+    if (sp.agents && it != browsers_.end() && g_ghost_otr) {
+      Tab* t = FindTabByBrowser(it->second);
+      if ((t && GhostReachGuarded(sp.id, t->url)) || GhostReachGuarded(sp.id, it->second->GetMainFrame()->GetURL().ToString()))
+        return false;
+    }
+    return sp.agents;
   }
   return false;
 }
 
-bool Controller::AgentMayReachWorker(const std::string& url, const std::string& profile_path) {
+bool Controller::AgentMayReachWorker(const std::string& url, const std::string& profile_path, bool off_the_record) {
+  if (off_the_record) return false;
   if (State::Get().settings.tweaks_shared && StartsWith(url, std::string("chrome-extension://") + kTweaksId + "/")) return false;
-  return AgentMayReach(0, profile_path);
+  State& st = State::Get();
+  if (g_ghost_otr)
+    for (const auto& sp : st.spaces)
+      if (profile_path == st.ProfileDir(sp.id) && GhostReachGuarded(sp.id, url)) return false;
+  return AgentMayReach(0, profile_path, false);
+}
+
+// Extensions that run in ghost tabs from a space's side: "Allow in incognito" on, and not "incognito": "split"
+// in their manifest (a split extension gets a separate ghost copy that its space's copy can't reach). Their
+// pages and workers hold chrome.tabs and chrome.scripting over the ghost tabs, so agents get none of them, nor
+// chrome://extensions and DevTools, which open those. Read live: the switch also flips in chrome://extensions.
+std::set<std::string> Controller::GhostReachExtensions(int space) {
+  std::set<std::string> out;
+  auto ctx = space == 0 ? CefRequestContext::GetGlobalContext() : contexts_.count(space) ? contexts_[space] : nullptr;
+  auto all = ctx ? ctx->GetPreference("extensions.settings") : nullptr;
+  auto settings = all && all->GetType() == VTYPE_DICTIONARY ? all->GetDictionary() : nullptr;
+  CefDictionaryValue::KeyList ids;
+  if (!settings || !settings->GetKeys(ids)) return out;
+  for (const auto& key : ids) {
+    auto ext = settings->GetDictionary(key);
+    if (!ext || !ext->GetBool("incognito")) continue;
+    // "path": an install's folder under <profile>/Extensions, or an unpacked one's own folder.
+    std::string path = ext->GetString("path");
+    if (!path.empty() && path[0] != '/') path = State::Get().ProfileDir(space) + "/Extensions/" + path;
+    auto manifest = path.empty() ? nullptr : ReadJsonFile(path + "/manifest.json");
+    if (manifest && manifest->GetString("incognito") == "split") continue;
+    out.insert(key.ToString());
+  }
+  return out;
+}
+
+bool Controller::GhostReachGuarded(int space, const std::string& url) {
+  const std::string ext = "chrome-extension://";
+  bool page = StartsWith(url, ext);
+  if (!page && !StartsWith(url, "chrome://extensions") && !StartsWith(url, "devtools://")) return false;
+  auto guarded = GhostReachExtensions(space);
+  if (!page) return !guarded.empty();
+  return guarded.count(url.substr(ext.size(), url.find('/', ext.size()) - ext.size())) > 0;
+}
+
+// The space a new ghost session copies (its profile on Mac, its Site tweaks everywhere): the space of the
+// first ghost tab waiting for the session, else the active space.
+int Controller::GhostSourceSpace() {
+  State& st = State::Get();
+  int from = st.active_space;
+  for (const auto& t : tabs_)
+    if (t.ghost && !t.view) { from = t.space; break; }
+  return st.FindSpace(from) ? from : st.active_space;
 }
 
 void Controller::TweaksShareFrom(const std::string& session) {
@@ -2260,9 +2343,16 @@ CefRefPtr<CefRequestContext> Controller::ContextFor(int space) {
   if (!ctx) {
     CefRequestContextSettings settings;
     if (space == kGhostContext) {
-      // A throwaway profile per ghost session. CEF's in-memory profile is one
-      // shared incognito profile that keeps its cookies until Roar quits.
-      CefString(&settings.cache_path) = GhostDir(++ghost_session_);
+      // Mac: the off-the-record copy of the profile of the space the session starts from, as incognito is in
+      // Chrome, so extensions allowed in incognito there run in ghost tabs (scripts/cef-patches/cef/
+      // roar_ghost_otr.patch). Stock CEF (Windows): a throwaway profile per session, because CEF's in-memory
+      // profile is one shared incognito profile that keeps its cookies until Roar quits.
+      ghost_space_ = GhostSourceSpace();
+      ++ghost_session_;
+      CefString(&settings.cache_path) =
+          g_ghost_otr ? State::Get().ProfileDir(ghost_space_) + "/" + kGhostOtrMarker : GhostDir(ghost_session_);
+      // An extension that runs in ghost tabs reaches them from its space too: cut off agents attached to one.
+      if (g_ghost_otr && cdp_detach_hidden_) cdp_detach_hidden_();
     } else {
       CefString(&settings.cache_path) = State::Get().ProfileDir(space);
       settings.persist_session_cookies = true;
@@ -2301,13 +2391,13 @@ void Controller::SeedGhostTweaks() {
   auto finish = [this, session, ghost_ctx](bool seeded) {
     auto ctx = ghost_ctx();
     if (!ctx) return;
-    if (!seeded) SetUpSiteTweaks(ctx, true);
+    // Off the record, the extension's switches are its space's, and chrome://extensions can't open there: it stays
+    // off in ghost tabs while its "Allow in incognito" is off in that space.
+    if (!seeded && !g_ghost_otr) SetUpSiteTweaks(ctx, true);
     ghost_tweaks_session_ = session;
     OnSpaceReady(kGhostContext);
   };
-  int from = State::Get().active_space;
-  for (const auto& t : tabs_)
-    if (t.ghost && !t.view) { from = t.space; break; }
+  int from = ghost_space_;  // Set with the ghost context (GhostSourceSpace).
   const Space* sp = State::Get().FindSpace(from);
   CefRefPtr<CefRequestContext> source = from == 0 ? CefRequestContext::GetGlobalContext()
       : ready_spaces_.count(from) && contexts_.count(from) ? contexts_[from] : nullptr;
@@ -2341,7 +2431,7 @@ void Controller::SeedGhostTweaks() {
         if (!ctx) return;
         bundle->SetString("from", name);
         std::string json = CefWriteJSON(v, JSON_WRITER_DEFAULT).ToString();
-        SetUpSiteTweaks(ctx, false);
+        if (!g_ghost_otr) SetUpSiteTweaks(ctx, false);  // Off the record, the space's switch already holds.
         auto seeded = std::make_shared<bool>(false);
         OpenHiddenPage(ctx, page, new HiddenPageClient(page, call("roarGhostSeed(" + json + ")"), "__roar_ghost__", 10000,
             [seeded](const std::string& line) {
@@ -2362,6 +2452,7 @@ void Controller::EndGhostSession() {
   if (it == contexts_.end()) return;
   contexts_.erase(it);
   ready_spaces_.erase(kGhostContext);
+  if (g_ghost_otr) return;  // The off-the-record profile goes with its context and never touched the disk.
   // Now for the cookies and cache, which the open files keep only until they close (macOS unlinks them anyway).
   // The tab is still closing here, so the profile writes its files back: delete again once it has stopped.
   std::error_code ec;

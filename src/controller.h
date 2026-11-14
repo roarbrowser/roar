@@ -148,8 +148,11 @@ class Controller {
   int last_target_tab_ = 0;
   std::map<std::string, std::set<int>> driving_;  // Agent name -> tabs roar-mcp says it acts on (agent.drive).  // The tab CDP createTarget opened last (agent.front).
   // Whether remote CDP clients may see this browser (Roar's DevTools filter).
-  bool AgentMayReach(int browser_id, const std::string& profile_path);
-  bool AgentMayReachWorker(const std::string& url, const std::string& profile_path);
+  bool AgentMayReach(int browser_id, const std::string& profile_path, bool off_the_record);
+  bool AgentMayReachWorker(const std::string& url, const std::string& profile_path, bool off_the_record);
+  std::set<std::string> GhostReachExtensions(int space);
+  bool GhostReachGuarded(int space, const std::string& url);
+  int GhostSourceSpace();
   // Site tweaks across spaces: tells a worker whether sharing is on and, when it is, passes its snapshot to the others.
   void TweaksShareFrom(const std::string& session);
   // Where a connection's pages open by default: the active space, else the first
@@ -439,7 +442,8 @@ class Controller {
   CefRefPtr<CefBrowserView> hint_;
   std::vector<Tab> tabs_;
   int next_id_ = 1;
-  int ghost_session_ = 0;  // Names the Ghost-<n> profile of the current ghost session.
+  int ghost_session_ = 0;  // Counts ghost sessions; names the Ghost-<n> profile on stock CEF.
+  int ghost_space_ = 0;  // The space the current ghost session copies (GhostSourceSpace).
   int ghost_tweaks_session_ = 0;  // The ghost session whose Site tweaks are set up (SeedGhostTweaks).
   std::set<int> stray_seen_;  // Browsers outside Roar whose first address was seen.
   std::vector<CefRefPtr<CefBrowser>> strays_held_;  // Strays a CDP client was attached to; PollDriven retries them.

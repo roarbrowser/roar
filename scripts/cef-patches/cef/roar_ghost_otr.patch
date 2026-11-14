@@ -1,5 +1,5 @@
 diff --git a/cef/libcef/browser/chrome/chrome_browser_context.cc b/cef/libcef/browser/chrome/chrome_browser_context.cc
-index 93653ac1..ad76dfd8 100644
+index 93653ac1f..5e69842e0 100644
 --- a/cef/libcef/browser/chrome/chrome_browser_context.cc
 +++ b/cef/libcef/browser/chrome/chrome_browser_context.cc
 @@ -19,6 +19,11 @@
@@ -14,7 +14,20 @@ index 93653ac1..ad76dfd8 100644
  // Match the default logic from ProfileManager::GetPrimaryUserProfile which was
  // restricted in https://crbug.com/1264436.
  Profile* GetPrimaryUserProfile() {
-@@ -111,6 +116,19 @@ void ChromeBrowserContext::InitializeAsync(base::OnceClosure initialized_cb) {
+@@ -32,6 +37,12 @@ Profile* GetPrimaryUserProfile() {
+ 
+ }  // namespace
+ 
++// Roar: lets the embedder tell this build from a stock CEF (dlsym), so it
++// keeps its old per-session ghost profiles there.
++extern "C" __attribute__((visibility("default"))) int roar_ghost_otr_version() {
++  return 1;
++}
++
+ ChromeBrowserContext::ChromeBrowserContext(
+     const CefRequestContextSettings& settings)
+     : CefBrowserContext(settings), weak_ptr_factory_(this) {}
+@@ -111,6 +122,19 @@ void ChromeBrowserContext::InitializeAsync(base::OnceClosure initialized_cb) {
                           weak_ptr_factory_.GetWeakPtr(),
                           CreateStatus::kCreated));
        return;
@@ -34,19 +47,38 @@ index 93653ac1..ad76dfd8 100644
      } else {
        // All profile directories must be relative to |user_data_dir|.
        LOG(ERROR) << "Cannot create profile at path "
-@@ -135,7 +153,10 @@ void ChromeBrowserContext::Shutdown() {
-       net_service::ProxyURLLoaderFactory::ClearProxiesForBrowserContextAsync(
-           profile_);
- 
+@@ -132,11 +156,25 @@ void ChromeBrowserContext::Shutdown() {
+   // |g_browser_process| may be nullptr during shutdown.
+   if (g_browser_process) {
+     if (should_destroy_) {
+-      net_service::ProxyURLLoaderFactory::ClearProxiesForBrowserContextAsync(
+-          profile_);
+-
 -      GetPrimaryUserProfile()->DestroyOffTheRecordProfile(
-+      // Roar: |profile_| is always an OTR profile here (the primary's via
-+      // the fallback, or a space's via the "roar-otr" marker). Destroy
-+      // through its real parent so both paths work unchanged.
-+      profile_->GetOriginalProfile()->DestroyOffTheRecordProfile(
-           profile_.ExtractAsDangling());
+-          profile_.ExtractAsDangling());
++      // Roar: a space's OTR profile is gone already when its parent went
++      // first (OnProfileWillBeDestroyed cleared |profile_|).
++      if (profile_) {
++        // Roar: the "roar-otr" path observes its OTR profile (ProfileCreated)
++        // and the destroy below notifies observers, after |profile_| is
++        // cleared. CEF's own fallback never observes it.
++        if (otr_requested_) {
++          profile_->RemoveObserver(this);
++        }
++
++        net_service::ProxyURLLoaderFactory::ClearProxiesForBrowserContextAsync(
++            profile_);
++
++        // Roar: |profile_| is always an OTR profile here (the primary's via
++        // the fallback, or a space's via the "roar-otr" marker). Destroy
++        // through its real parent so both paths work unchanged.
++        profile_->GetOriginalProfile()->DestroyOffTheRecordProfile(
++            profile_.ExtractAsDangling());
++      }
      } else if (profile_) {
        OnProfileWillBeDestroyed(profile_);
-@@ -169,7 +190,22 @@ void ChromeBrowserContext::ProfileCreated(CreateStatus status,
+     }
+@@ -169,7 +207,22 @@ void ChromeBrowserContext::ProfileCreated(CreateStatus status,
      // May be CREATE_STATUS_CREATED or CREATE_STATUS_INITIALIZED since
      // *CREATED isn't always sent for a disk-based profile that already
      // exists.
@@ -71,7 +103,7 @@ index 93653ac1..ad76dfd8 100644
      if (!profile_->IsOffTheRecord()) {
        // The Profile will only be destroyed if the total KeepAlive refcount is
 diff --git a/cef/libcef/browser/chrome/chrome_browser_context.h b/cef/libcef/browser/chrome/chrome_browser_context.h
-index e4f693b1..4111d612 100644
+index e4f693b17..4111d6121 100644
 --- a/cef/libcef/browser/chrome/chrome_browser_context.h
 +++ b/cef/libcef/browser/chrome/chrome_browser_context.h
 @@ -55,6 +55,9 @@ class ChromeBrowserContext : public CefBrowserContext, public ProfileObserver {
