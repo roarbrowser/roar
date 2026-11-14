@@ -50,18 +50,26 @@ const titleOf = (url, ghost, ms = 15000) => until(async () => {
 }, ms);
 const settled = async (url, ghost) => { await titleOf(url, ghost); await sleep(1500); return titleOf(url, ghost, 3000); };
 const closeAll = async (ghost) => { for (const t of (await tabs()).filter((x) => !!x.ghost === ghost)) await sidebar(`ask({cmd:'tab.close',id:${t.id}})`); await sleep(2500); };
-// Turns "Allow in incognito" on for the probe in the active space, through its chrome://extensions page. That page
-// is hidden from CDP clients from then on (an extension there now reaches ghost tabs), so this is one way only.
-const allowIncognito = async () => {
+// Developer mode in the active space: the switch below reloads the extension, and Chromium then keeps an unpacked
+// one only in developer mode, as Chrome does.
+const devMode = async () => {
   await open('chrome://extensions/');
   const page = (x) => x.type === 'page' && x.url.startsWith('chrome://extensions');
-  const id = await until(() => r.cdp.evaluate(page, `chrome.developerPrivate.getExtensionsInfo().then((l) => l.find((e) => e.name === 'Ghost probe')?.id)`));
-  // The switch reloads the extension, and Chromium then keeps an unpacked one only in developer mode, as Chrome does.
-  const done = await r.cdp.evaluate(page, `chrome.developerPrivate.updateProfileConfiguration({inDeveloperMode: true})
-    .then(() => chrome.developerPrivate.updateExtensionConfiguration({extensionId: '${id}', incognitoAccess: true})).then(() => true)`);
-  await sleep(2500);  // It reloads.
+  const ok = await until(() => r.cdp.evaluate(page, `chrome.developerPrivate.updateProfileConfiguration({inDeveloperMode: true}).then(() => true)`));
   for (const t of (await tabs()).filter((x) => !x.ghost && x.url.startsWith('chrome://extensions'))) await sidebar(`ask({cmd:'tab.close',id:${t.id}})`);
-  return done === true;
+  return ok;
+};
+// Settings > Extensions > Allow in ghost tabs, the probe's switch in the active space: [before, after] it is set.
+const ghostSwitch = async (on) => {
+  await sidebar(`ask({cmd:'open',text:'roar://ui/settings.html#extensions',newTab:true})`);
+  const settings = (x) => x.url.startsWith('roar://ui/settings.html');
+  const box = `[...document.querySelectorAll('#exg-list input')].find((b) => b.getAttribute('aria-label').startsWith('Allow Ghost probe in ghost tabs') && +b.dataset.space === ${(await sidebar('state.activeSpace'))})`;
+  const before = await until(() => r.cdp.evaluate(settings, `(() => { const b = ${box}; return b ? String(b.checked) : ''; })()`));
+  if (before !== String(on)) await r.cdp.evaluate(settings, `${box}.click()`);
+  const after = await until(() => r.cdp.evaluate(settings, `(() => { const b = ${box}; return b && !b.disabled && document.getElementById('exg-status').hidden ? String(b.checked) : ''; })()`), 15000);
+  for (const t of (await tabs()).filter((x) => x.url.startsWith('roar://ui/settings.html'))) await sidebar(`ask({cmd:'tab.close',id:${t.id}})`);
+  await sleep(1500);
+  return [before, after];
 };
 
 try {
@@ -96,11 +104,21 @@ try {
   check(next === 'cookie:none', `(c) a cookie set in a ghost tab is gone in the next ghost session (${next})`);
   await closeAll(true);
 
-  // Session 3, incognito access on.
-  check(await allowIncognito(), 'Allow in incognito switched on for the probe');
+  // Session 3: on through Settings > Extensions > Allow in ghost tabs.
+  check(await devMode(), 'developer mode on in the first space (the probe is unpacked)');
+  const [was, now] = await ghostSwitch(true);
+  check(was === 'false' && now === 'true', `Settings lists the probe with "Allow in ghost tabs" off, and switches it on (${was} -> ${now})`);
   await ghostOpen(`${site}/g3`);
   const g3 = await settled(`${site}/g3`, true);
   check(g3 === 'ext:g3', `(a) with "Allow in incognito" on the extension runs in a ghost tab (${g3})`);
+  await closeAll(true);
+
+  // Session 4: switched off again in Settings.
+  const [was2, now2] = await ghostSwitch(false);
+  check(was2 === 'true' && now2 === 'false', `Settings shows the switch on and switches it off (${was2} -> ${now2})`);
+  await ghostOpen(`${site}/g4`);
+  const g4 = await settled(`${site}/g4`, true);
+  check(g4 === 'g4', `(b) switched off again, it no longer runs in a ghost tab (${g4})`);
   await closeAll(true);
 
   // Another space: its ghost tabs copy that space's profile and its own extension switch.
@@ -110,7 +128,9 @@ try {
   const g5 = await settled(`${site}/g5`, true);
   check(g5 === 'g5', `a second space's ghost tab: the extension is off there by default (${g5})`);
   await closeAll(true);
-  check(await allowIncognito(), 'Allow in incognito switched on in the second space');
+  check(await devMode(), 'developer mode on in the second space');
+  const [was3, now3] = await ghostSwitch(true);
+  check(was3 === 'false' && now3 === 'true', `the second space has its own switch, off, and it switches on (${was3} -> ${now3})`);
   await ghostOpen(`${site}/g6`);
   const g6 = await settled(`${site}/g6`, true);
   check(g6 === 'ext:g6', `a second space's ghost tab runs the extension once that space allows it (${g6})`);

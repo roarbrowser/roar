@@ -153,6 +153,7 @@ class Controller {
   std::set<std::string> GhostReachExtensions(int space);
   bool GhostReachGuarded(int space, const std::string& url);
   int GhostSourceSpace();
+  CefRefPtr<CefRequestContext> SpaceContext(int space);
   // Site tweaks across spaces: tells a worker whether sharing is on and, when it is, passes its snapshot to the others.
   void TweaksShareFrom(const std::string& session);
   // Where a connection's pages open by default: the active space, else the first
@@ -212,6 +213,7 @@ class Controller {
   void OnSpaceReady(int space);
   // |space| -1: the active one. |bundled|: with uBOL and Site tweaks, which every space already has.
   std::string ExtensionsJson(int space = -1, bool bundled = true);
+  std::string GhostExtensionsJson();
   std::string ExtensionSpacesJson();  // Every space with its own extensions, for Settings > Extensions.
   void ReportExtensionCopies();  // A card for what the last launch copied (ext_copy.h).
   void PushActions(const std::string& json);

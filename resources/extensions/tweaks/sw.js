@@ -8,15 +8,20 @@ import { nativeMatches, compileMatcher, testMatcher, connectAllowed } from './li
 import { nativeStyleMatches, parseUserCSS, cssFor } from './lib/usercss.js';
 import { scriptCode, bridgeCode, styleCode } from './lib/gm.js';
 import { seedWrites } from './lib/ghost.js';
+import { OTR, storageLocal, storageSession, storageChanged } from './lib/area.js';
 
 const RUN_AT = { 'document-start': 'document_start', 'document-end': 'document_end', 'document-idle': 'document_idle', 'document-body': 'document_end' };
 // eval and inline code stay available to scripts, as in other userscript managers.
 const CSP = "script-src 'self' 'unsafe-eval' 'unsafe-inline'; object-src 'none'";
 const version = chrome.runtime.getManifest().version;
+// OTR: a ghost session's copy on Mac. Ghost tabs there are the off-the-record copy of a space, and this extension is
+// "incognito": "split", so the copy runs apart from the space's, with its data in lib/area.js. But Chromium gives a
+// profile and its off-the-record copy one chrome.userScripts registry (and one world configuration), so this copy
+// never registers, unregisters, updates or configures anything there: it runs its items in each ghost tab (ghostRun).
 // Item id -> registration error, shown in the manager. Kept in storage.session so an error
 // is not lost when the worker sleeps and wakes between the failure and the manager asking.
 const ERRORS = 'errors';
-const putErrors = (errors) => chrome.storage.session.set({ [ERRORS]: errors });
+const putErrors = (errors) => storageSession.set({ [ERRORS]: errors });
 // Bookkeeping fields: a change to only these needs no re-registration and no style broadcast.
 const BOOK = ['touched', 'update', 'skip', 'shareId', 'connectAllow'];
 const realChange = (c) => !c.oldValue || !c.newValue ||
@@ -51,7 +56,12 @@ function sync() {
   return serial(async () => {
     if (!chrome.userScripts) return;
     // Counted in storage.session so the tests (and the manager) can see the real number.
-    await chrome.storage.session.get('syncCount').then(({ syncCount = 0 }) => chrome.storage.session.set({ syncCount: syncCount + 1 }));
+    await storageSession.get('syncCount').then(({ syncCount = 0 }) => storageSession.set({ syncCount: syncCount + 1 }));
+    if (OTR) return;  // The registry is the space's (see OTR).
+    // While Roar lets this extension into a ghost session of this space ("Allow in incognito"), Chromium marks every
+    // script registered meanwhile as allowed in incognito, so it would run in ghost tabs too: the space's scripts
+    // stay registered as they are, and the change is registered once the session is over.
+    if (await chrome.extension.isAllowedIncognitoAccess()) return waitForGhostEnd();
     const [items, settings] = await Promise.all([allItems(), getSettings()]);
     await chrome.userScripts.unregister();
     const errors = {};
@@ -80,13 +90,60 @@ function sync() {
   });
 }
 
+let ghostWait = 0;
+function waitForGhostEnd() {
+  if (ghostWait) return;
+  ghostWait = setInterval(async () => {
+    if (await chrome.extension.isAllowedIncognitoAccess()) return;
+    clearInterval(ghostWait);
+    ghostWait = 0;
+    syncSoon(0);
+  }, 3000);
+}
+
+// ---- Ghost tabs off the record (OTR above) ----
+
+// The copies run per tab as it loads, through chrome.userScripts.execute, which touches no registry: each item once
+// per document (a page back from the back/forward cache already has them), at the point its @run-at names.
+const PHASE = { document_start: 'onCommitted', document_end: 'onDOMContentLoaded', document_idle: 'onCompleted' };
+const ran = new Set();
+async function ghostRun(d, at) {
+  if (!chrome.userScripts || d.tabId < 0 || !/^(https?|file|ftp):/.test(d.url)) return;
+  const [items, settings] = await Promise.all([allItems(), getSettings()]);
+  if (!settings.enabled || !settings.ghost) return;  // Only a seeded copy runs anything.
+  if (ran.size > 5000) ran.clear();
+  const target = { tabId: d.tabId, frameIds: [d.frameId] }, injectImmediately = at === 'document_start';
+  for (const it of items) {
+    if (!it.enabled) continue;
+    if (it.kind === 'script') {
+      if ((RUN_AT[it.meta.runAt] || 'document_idle') !== at || (it.meta.noframes && d.frameId !== 0)) continue;
+      if (!testMatcher(compileMatcher(it.meta), d.url)) continue;
+    } else if (at !== 'document_start' || !cssFor(it.sections, d.url)) continue;
+    const key = `${d.documentId || d.tabId + '.' + d.frameId + '.' + d.timeStamp} ${it.id}`;
+    if (ran.has(key)) continue;
+    ran.add(key);
+    try {
+      if (it.kind === 'style') {
+        await chrome.userScripts.execute({ target, world: 'USER_SCRIPT', worldId: 'styles', injectImmediately, js: [{ code: styleCode(it) }] });
+        continue;
+      }
+      const reg = scriptReg(it, await getValues(it.id));
+      await chrome.userScripts.execute({ target, world: reg.world, ...(reg.worldId ? { worldId: reg.worldId } : {}), injectImmediately, js: reg.js });
+      if (reg.world === 'MAIN' && hasGrant(it.meta))
+        await chrome.userScripts.execute({ target, world: 'USER_SCRIPT', worldId: it.id, injectImmediately, js: [{ code: bridgeCode(it) }] });
+    } catch (e) { console.warn('Site tweaks (ghost):', it.meta?.name || it.id, String(e.message || e)); }
+  }
+}
+// Listeners go on at the worker's start, so a navigation wakes it.
+if (OTR) for (const [at, ev] of Object.entries(PHASE)) chrome.webNavigation[ev].addListener((d) => { ghostRun(d, at); });
+
 // ---- Across spaces (lib/share.js) ----
 
 // Roar reads this line over its pipe, then asks for a snapshot; whether sharing is on is Roar's setting, not ours.
 const GONE = 'shareGone', applied = new Set();
 let shareTimer = 0;
 const shareSignal = () => { clearTimeout(shareTimer); shareTimer = setTimeout(() => console.debug('__roar_tweaks_share__'), 400); };
-const getGone = async () => (await chrome.storage.local.get(GONE))[GONE] || {};
+const getGone = async () => (await storageLocal.get(GONE))[GONE] || {};
 // A change made here goes to the other spaces, and a deletion is remembered. What a merge wrote came from them.
 function shareNote(ch) {
   let mine = false;
@@ -99,7 +156,7 @@ function shareNote(ch) {
   }
   if (!mine) return;
   serial(async () => {
-    if ((await getSettings()).shared && Object.keys(dropped).length) await chrome.storage.local.set({ [GONE]: { ...(await getGone()), ...dropped } });
+    if ((await getSettings()).shared && Object.keys(dropped).length) await storageLocal.set({ [GONE]: { ...(await getGone()), ...dropped } });
     shareSignal();
   });
 }
@@ -107,16 +164,16 @@ function shareNote(ch) {
 globalThis.roarShare = (what, arg) => new Promise((ok, fail) => serial(async () => {
   try {
     // A ghost session's copy takes part in nothing: what changes there must never reach a space.
-    if ((await getSettings()).ghost) throw new Error('A ghost copy does not share');
+    if (OTR || (await getSettings()).ghost) throw new Error('A ghost copy does not share');
     if (what === 'mode') {
-      if ((await getSettings()).shared !== arg) await chrome.storage.local.set({ settings: { ...(await getSettings()), shared: arg }, ...(arg ? {} : { [GONE]: {} }) });
+      if ((await getSettings()).shared !== arg) await storageLocal.set({ settings: { ...(await getSettings()), shared: arg }, ...(arg ? {} : { [GONE]: {} }) });
       return ok(true);
     }
     if (what === 'snapshot') {
       // Named once, so a later rename stays the same item everywhere.
       const items = await allItems(), named = {};
       for (const it of items) if (!it.shareId) { applied.add(ITEM + it.id); named[ITEM + it.id] = { ...it, shareId: shareIdOf(it) }; }
-      if (Object.keys(named).length) await chrome.storage.local.set(named);
+      if (Object.keys(named).length) await storageLocal.set(named);
       return ok(snapshot(items, await getGone()));
     }
     const local = await allItems(), p = plan(local, await getGone(), arg), write = { [GONE]: p.gone };
@@ -126,8 +183,8 @@ globalThis.roarShare = (what, arg) => new Promise((ok, fail) => serial(async () 
       write[ITEM + it.id] = it;
     }
     for (const id of p.remove) applied.add(ITEM + id);
-    await chrome.storage.local.set(write);
-    if (p.remove.length) await chrome.storage.local.remove(p.remove.flatMap((id) => [ITEM + id, VALUES + id]));
+    await storageLocal.set(write);
+    if (p.remove.length) await storageLocal.remove(p.remove.flatMap((id) => [ITEM + id, VALUES + id]));
     ok({ newer: p.newer });
   } catch (e) { fail(e); }
 }));
@@ -140,8 +197,8 @@ function refreshValues(id) {
   refreshing.add(id);
   serial(async () => {
     refreshing.delete(id);
-    const it = (await chrome.storage.local.get(ITEM + id))[ITEM + id];
-    if (!it || !chrome.userScripts) return;
+    const it = (await storageLocal.get(ITEM + id))[ITEM + id];
+    if (!it || !chrome.userScripts || OTR) return;  // A ghost copy reads its values as each page loads.
     const [reg] = await chrome.userScripts.getScripts({ ids: [id] });
     if (reg) await chrome.userScripts.update([{ id, js: scriptReg(it, await getValues(id)).js }]).catch(() => {});
   });
@@ -155,7 +212,7 @@ function broadcastStyle(id, sections) {
   for (const p of ports) if (!p.id) try { p.port.postMessage({ id, sections }); } catch {}
 }
 
-chrome.storage.onChanged.addListener(async (ch, area) => {
+storageChanged.addListener(async (ch, area) => {
   if (area !== 'local') return;
   const keys = Object.keys(ch);
   shareNote(ch);
@@ -197,7 +254,7 @@ function setValue(p, k, v) {
     const key = VALUES + p.id, values = await getValues(p.id), old = values[k];
     if (v === undefined) delete values[k]; else values[k] = v;
     ownWrites.add(key);
-    await chrome.storage.local.set({ [key]: values });
+    await storageLocal.set({ [key]: values });
     notifyValue(p.id, k, old, v, p.port);
     refreshValues(p.id);
   });
@@ -214,7 +271,7 @@ chrome.runtime.onUserScriptConnect.addListener(async (port) => {
   const handle = (m) => onScriptMessage(rec, m).catch((e) => console.warn('Site tweaks:', e));
   port.onMessage.addListener((m) => (rec.id ? handle(m) : early.push(m)));
   const [, id, secret] = /^gm:([^:]+):(.+)$/.exec(port.name) || [];
-  const it = id && (await chrome.storage.local.get(ITEM + id))[ITEM + id];
+  const it = id && (await storageLocal.get(ITEM + id))[ITEM + id];
   if (!it || it.secret !== secret) return ports.delete(rec), port.disconnect();
   rec.id = id;
   rec.it = it;  // the item, read once per port: every message check below uses this copy
@@ -443,7 +500,7 @@ chrome.runtime.onMessage.addListener((m, sender, respond) => {
     sync().then(() => respond({ ok: true }));
     return true;
   } else if (m.t === 'status') {
-    chrome.storage.session.get('errors').then((v) => respond({ api: !!chrome.userScripts, errors: v.errors || {} }));
+    storageSession.get('errors').then((v) => respond({ api: !!chrome.userScripts, errors: v.errors || {} }));
     return true;
   } else if (m.t === 'ghostSeed') {
     ghostSeed(m.bundle).then(() => respond({ ok: true }), (e) => respond({ ok: false, error: String(e.message || e) }));
@@ -460,13 +517,13 @@ chrome.runtime.onMessage.addListener((m, sender, respond) => {
 // In the worker's queue, so a share that reached this profile first can't land after it.
 const ghostSeed = (bundle) => new Promise((ok, fail) => serial(async () => {
   try {
-    const all = await chrome.storage.local.get(null);
+    const all = await storageLocal.get(null);
     // Only ever a fresh profile: one with stored values or already seeded is somebody's real data.
     if (all.settings?.ghost || Object.keys(all).some((k) => k.startsWith(VALUES))) throw new Error('This profile already has Site tweaks data');
     const write = seedWrites(bundle, bundle?.from, () => newItemIds().secret);
     const stale = Object.keys(all).filter((k) => (k.startsWith(ITEM) && !(k in write)) || k === GONE);
-    if (stale.length) await chrome.storage.local.remove(stale);
-    await chrome.storage.local.set(write);
+    if (stale.length) await storageLocal.remove(stale);
+    await storageLocal.set(write);
     ok();
   } catch (e) { fail(e); }
 }));
@@ -479,7 +536,7 @@ const matchesUrl = (it, url) => (it.kind === 'script' ? testMatcher(compileMatch
 // "toggle" (arg: item id), "global", "run" (arg: command key) -> the "get" answer afterwards.
 globalThis.roarSite = async (what, url, arg) => {
   if (what === 'toggle') {
-    const it = (await chrome.storage.local.get(ITEM + arg))[ITEM + arg];
+    const it = (await storageLocal.get(ITEM + arg))[ITEM + arg];
     if (it) await patchItem(arg, { enabled: !it.enabled });
   } else if (what === 'global') {
     await setSettings({ enabled: !(await getSettings()).enabled });

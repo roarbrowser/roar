@@ -1,19 +1,20 @@
-// Site tweaks' storage (chrome.storage.local only: never synced): "item:<id>" per script or
-// style, "values:<id>" per script's GM values, "settings". Pages write here; the service
-// worker follows chrome.storage.onChanged and re-registers.
+// Site tweaks' storage (chrome.storage.local only, never synced; through lib/area.js, which a ghost session's
+// copy on Mac keeps elsewhere): "item:<id>" per script or style, "values:<id>" per script's GM values,
+// "settings". Pages write here; the service worker follows its onChanged and re-registers.
 import { parseMeta } from './meta.js';
 import { parseUserCSS, compileStyle } from './usercss.js';
+import { storageLocal } from './area.js';
 
 export const ITEM = 'item:', VALUES = 'values:';
 
 export async function allItems() {
-  const all = await chrome.storage.local.get(null);
+  const all = await storageLocal.get(null);
   return Object.keys(all).filter((k) => k.startsWith(ITEM)).map((k) => all[k]).sort((a, b) => a.position - b.position);
 }
 
-export const getSettings = async () => ({ enabled: true, ...(await chrome.storage.local.get('settings')).settings });
-export const setSettings = async (patch) => chrome.storage.local.set({ settings: { ...(await getSettings()), ...patch } });
-export const getValues = async (id) => (await chrome.storage.local.get(VALUES + id))[VALUES + id] || {};
+export const getSettings = async () => ({ enabled: true, ...(await storageLocal.get('settings')).settings });
+export const setSettings = async (patch) => storageLocal.set({ settings: { ...(await getSettings()), ...patch } });
+export const getValues = async (id) => (await storageLocal.get(VALUES + id))[VALUES + id] || {};
 
 const newId = () => 't' + crypto.randomUUID().replace(/-/g, '').slice(0, 15);
 
@@ -35,7 +36,7 @@ const dataUrl = (blob) => new Promise((ok, fail) => {
 // (manager new/import). Name matching stays for the install page, where re-installing the
 // same script should update the existing entry.
 async function previous(kind, meta, id, fresh) {
-  if (id) return (await chrome.storage.local.get(ITEM + id))[ITEM + id] || null;
+  if (id) return (await storageLocal.get(ITEM + id))[ITEM + id] || null;
   if (fresh) return null;
   const items = await allItems();
   return items.find((i) => i.kind === kind && i.meta.name === meta.name && i.meta.namespace === meta.namespace) || null;
@@ -77,7 +78,7 @@ async function installScriptInner(code, opts) {
   const item = { position: Date.now(), connectAllow: [], secret: newId() + newId(), ...old, id: old?.id || newId(), kind: 'script', code, meta,
     requires, resources, enabled: opts.enabled ?? old?.enabled ?? true, url: opts.url || old?.url || '', updated: Date.now(), touched: Date.now() };
   delete item.update;
-  await chrome.storage.local.set({ [ITEM + item.id]: item, ...(opts.values ? { [VALUES + item.id]: opts.values } : {}) });
+  await storageLocal.set({ [ITEM + item.id]: item, ...(opts.values ? { [VALUES + item.id]: opts.values } : {}) });
   return item;
 }
 
@@ -97,20 +98,20 @@ async function installStyleInner(code, opts) {
     enabled: opts.enabled ?? old?.enabled ?? true, url, updated: Date.now(), touched: Date.now(),
     updateURL: meta.updateURL || opts.updateURL || old?.updateURL || (/\.user\.css(\?|$)/.test(url) ? url : '') };
   delete item.update;
-  await chrome.storage.local.set({ [ITEM + item.id]: item });
+  await storageLocal.set({ [ITEM + item.id]: item });
   return item;
 }
 
 export const newItemIds = () => ({ id: newId(), secret: newId() + newId(), position: Date.now() });
 
-export const removeItem = (id) => serialize(async () => chrome.storage.local.remove([ITEM + id, VALUES + id]));
+export const removeItem = (id) => serialize(async () => storageLocal.remove([ITEM + id, VALUES + id]));
 
 export const patchItem = (id, patch) => serialize(async () => {
   // Re-reads the item inside the write: an allowed host added while this patch was queued
   // is never lost (defect: connectAllow rebuilt from a stale read dropped earlier hosts).
   // touched: what lib/share.js compares. The on/off and ghost-tab switches spread; a pending update or an allowed host stays here.
-  const item = (await chrome.storage.local.get(ITEM + id))[ITEM + id];
-  if (item) await chrome.storage.local.set({ [ITEM + id]: { ...item, ...patch, ...('enabled' in patch || 'ghost' in patch ? { touched: Date.now() } : {}) } });
+  const item = (await storageLocal.get(ITEM + id))[ITEM + id];
+  if (item) await storageLocal.set({ [ITEM + id]: { ...item, ...patch, ...('enabled' in patch || 'ghost' in patch ? { touched: Date.now() } : {}) } });
 });
 
 export const isStyleSource = (code, url = '') => /\.user\.css(\?|#|$)/.test(url) || /==UserStyle==/.test(code);

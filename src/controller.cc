@@ -458,8 +458,55 @@ class AcctSignOutClient : public CefClient, public CefRenderHandler, public CefD
   IMPLEMENT_REFCOUNTING(AcctSignOutClient);
 };
 
+// An extension's "Allow in incognito" in a space, set as the pref itself. chrome://extensions' switch reloads the
+// extension, and a reloaded --load-extension one (Site tweaks, uBO Lite) is a plain unpacked extension that Chromium
+// disables outside developer mode. Chromium reads the pref as it goes (requests, events, pages); a split extension's
+// ghost copy starts only in an off-the-record profile created while it is on. False when the extension isn't there yet.
+bool SetIncognitoPref(CefRefPtr<CefRequestContext> ctx, const std::string& id, bool on) {
+  auto all = ctx ? ctx->GetPreference("extensions.settings") : nullptr;
+  auto copy = all && all->GetType() == VTYPE_DICTIONARY ? all->GetDictionary()->Copy(false) : nullptr;
+  auto mine = copy ? copy->GetDictionary(id) : nullptr;
+  if (!mine) return false;
+  if (mine->GetBool("incognito") == on) return true;
+  mine->SetBool("incognito", on);
+  auto v = CefValue::Create();
+  v->SetDictionary(copy);
+  CefString error;
+  if (!ctx->SetPreference("extensions.settings", v, error)) LOG(WARNING) << "Allow in incognito for " << id << ": " << error.ToString();
+  return true;
+}
+
+// The bundled uBO Lite's id: Chromium derives an unpacked extension's from its folder, symlinks resolved.
+std::string UbolExtensionId() {
+  std::error_code ec;
+  auto dir = std::filesystem::path(State::Get().Dir()) / "ubol";
+  auto real = std::filesystem::canonical(dir, ec);
+  return platform::UnpackedExtensionId((ec ? dir : real).string());
+}
+
+// The space whose Site tweaks a seeded ghost session runs (its "Allow in incognito" on); null when none.
+CefRefPtr<CefRequestContext> g_tweaks_in_ghost;
+void SetTweaksInGhost(CefRefPtr<CefRequestContext> ctx, bool on) {
+  if (!ctx) return;
+  SetIncognitoPref(ctx, kTweaksId, on);
+  if (on) g_tweaks_in_ghost = ctx;
+  else if (g_tweaks_in_ghost && g_tweaks_in_ghost->IsSame(ctx)) g_tweaks_in_ghost = nullptr;
+}
+
+// Off the record (Mac): uBO Lite ("incognito": "split") blocks in ghost tabs too, and Site tweaks stays out of
+// them unless a ghost session is seeded (Controller::SeedGhostTweaks), which also covers a switch left on by a
+// crash. The extensions may still be loading in a new profile: try again for a while.
+void SetUpGhostExtensions(CefRefPtr<CefRequestContext> ctx, int tries = 30) {
+  if (!g_ghost_otr || !ctx) return;
+  bool ubol = SetIncognitoPref(ctx, UbolExtensionId(), true);
+  bool tweaks = (g_tweaks_in_ghost && g_tweaks_in_ghost->IsSame(ctx)) || SetIncognitoPref(ctx, kTweaksId, false);
+  if ((!ubol || !tweaks) && tries > 0)
+    CefPostDelayedTask(TID_UI, base::BindOnce([](CefRefPtr<CefRequestContext> c, int n) { SetUpGhostExtensions(c, n); }, ctx, tries - 1), 1000);
+}
+
 void SetUpSiteTweaks(CefRefPtr<CefRequestContext> ctx, bool ghost) {
   if (!ctx) return;
+  if (!ghost) SetUpGhostExtensions(ctx);
   auto all = ctx->GetPreference("extensions.settings");
   auto settings = all && all->GetType() == VTYPE_DICTIONARY ? all->GetDictionary() : nullptr;
   auto mine = settings ? settings->GetDictionary(kTweaksId) : nullptr;
@@ -2161,6 +2208,13 @@ bool Controller::GhostReachGuarded(int space, const std::string& url) {
   return guarded.count(url.substr(ext.size(), url.find('/', ext.size()) - ext.size())) > 0;
 }
 
+// A space's request context: the global one for space 0, else its own if it was made; null when not.
+CefRefPtr<CefRequestContext> Controller::SpaceContext(int space) {
+  if (space == 0) return CefRequestContext::GetGlobalContext();
+  auto it = contexts_.find(space);
+  return it != contexts_.end() ? it->second : nullptr;
+}
+
 // The space a new ghost session copies (its profile on Mac, its Site tweaks everywhere): the space of the
 // first ghost tab waiting for the session, else the active space.
 int Controller::GhostSourceSpace() {
@@ -2349,6 +2403,9 @@ CefRefPtr<CefRequestContext> Controller::ContextFor(int space) {
       // profile is one shared incognito profile that keeps its cookies until Roar quits.
       ghost_space_ = GhostSourceSpace();
       ++ghost_session_;
+      // Site tweaks' split copy starts only in an off-the-record profile made while it is allowed there; the
+      // session's seed step (SeedGhostTweaks) switches it off again when the space has nothing for ghost tabs.
+      if (g_ghost_otr) SetTweaksInGhost(SpaceContext(ghost_space_), true);
       CefString(&settings.cache_path) =
           g_ghost_otr ? State::Get().ProfileDir(ghost_space_) + "/" + kGhostOtrMarker : GhostDir(ghost_session_);
       // An extension that runs in ghost tabs reaches them from its space too: cut off agents attached to one.
@@ -2391,9 +2448,10 @@ void Controller::SeedGhostTweaks() {
   auto finish = [this, session, ghost_ctx](bool seeded) {
     auto ctx = ghost_ctx();
     if (!ctx) return;
-    // Off the record, the extension's switches are its space's, and chrome://extensions can't open there: it stays
-    // off in ghost tabs while its "Allow in incognito" is off in that space.
+    // Off the record the extension's switches are its space's, and chrome://extensions can't open there: with
+    // nothing seeded it is kept out of the session by its "Allow in incognito" in that space.
     if (!seeded && !g_ghost_otr) SetUpSiteTweaks(ctx, true);
+    if (!seeded && g_ghost_otr) SetTweaksInGhost(SpaceContext(ghost_space_), false);
     ghost_tweaks_session_ = session;
     OnSpaceReady(kGhostContext);
   };
@@ -2452,7 +2510,12 @@ void Controller::EndGhostSession() {
   if (it == contexts_.end()) return;
   contexts_.erase(it);
   ready_spaces_.erase(kGhostContext);
-  if (g_ghost_otr) return;  // The off-the-record profile goes with its context and never touched the disk.
+  if (g_ghost_otr) {
+    // The off-the-record profile goes with its context and never touched the disk. The space's Site tweaks
+    // waits for this to register any change it got meanwhile (sw.js waitForGhostEnd).
+    SetTweaksInGhost(SpaceContext(ghost_space_), false);
+    return;
+  }
   // Now for the cookies and cache, which the open files keep only until they close (macOS unlinks them anyway).
   // The tab is still closing here, so the profile writes its files back: delete again once it has stopped.
   std::error_code ec;
@@ -3924,6 +3987,57 @@ std::string Controller::ExtensionsJson(int space, bool bundled) {
   }
   auto v = CefValue::Create();
   v->SetList(list);
+  return CefWriteJSON(v, JSON_WRITER_DEFAULT).ToString();
+}
+
+// {supported, spaces: [{id, name, ready, extensions: [{id, name, icon, on}]}]}: the extensions each space has, from
+// its profile's own list, without Roar's bundled two (Site tweaks, uBO Lite), components and themes, nor ones whose
+// manifest says "incognito": "not_allowed". A space whose profile isn't open yet starts opening (ready false).
+std::string Controller::GhostExtensionsJson() {
+  auto out = CefDictionaryValue::Create();
+  auto spaces = CefListValue::Create();
+  out->SetBool("supported", g_ghost_otr);
+  const std::string ubol = UbolExtensionId();
+  for (const Space& sp : State::Get().spaces) {
+    auto d = CefDictionaryValue::Create();
+    auto exts = CefListValue::Create();
+    d->SetInt("id", sp.id);
+    d->SetString("name", sp.name);
+    bool ready = sp.id == 0 || ready_spaces_.count(sp.id);
+    if (!ready && g_ghost_otr) ContextFor(sp.id);
+    d->SetBool("ready", ready);
+    std::map<std::string, CefRefPtr<CefDictionaryValue>> known;  // Names and icons as the other lists show them.
+    auto listed = CefParseJSON(ExtensionsJson(sp.id, false), JSON_PARSER_RFC);
+    for (size_t i = 0; listed && i < listed->GetList()->GetSize(); ++i)
+      known[listed->GetList()->GetDictionary(i)->GetString("id")] = listed->GetList()->GetDictionary(i);
+    auto all = ready && g_ghost_otr ? SpaceContext(sp.id)->GetPreference("extensions.settings") : nullptr;
+    auto settings = all && all->GetType() == VTYPE_DICTIONARY ? all->GetDictionary() : nullptr;
+    CefDictionaryValue::KeyList ids;
+    if (settings) settings->GetKeys(ids);
+    for (const auto& key : ids) {
+      std::string id = key.ToString();
+      auto e = settings->GetDictionary(key);
+      int location = e ? e->GetInt("location") : 0;
+      if (!e || id == kTweaksId || id == ubol || location == 5 || location == 10) continue;  // 5, 10: components.
+      std::string path = e->GetString("path");
+      if (!path.empty() && path[0] != '/') path = State::Get().ProfileDir(sp.id) + "/Extensions/" + path;
+      auto manifest = path.empty() ? nullptr : ReadJsonFile(path + "/manifest.json");
+      if (!manifest || manifest->HasKey("theme") || manifest->GetString("incognito") == "not_allowed") continue;
+      auto x = CefDictionaryValue::Create();
+      auto k = known.find(id);
+      std::string name = k != known.end() ? k->second->GetString("name").ToString() : manifest->GetString("name").ToString();
+      x->SetString("id", id);
+      x->SetString("name", StartsWith(name, "__MSG_") ? id : name);
+      x->SetString("icon", k != known.end() ? k->second->GetString("icon") : CefString());
+      x->SetBool("on", e->GetBool("incognito"));
+      exts->SetDictionary(exts->GetSize(), x);
+    }
+    d->SetList("extensions", exts);
+    spaces->SetDictionary(spaces->GetSize(), d);
+  }
+  out->SetList("spaces", spaces);
+  auto v = CefValue::Create();
+  v->SetDictionary(out);
   return CefWriteJSON(v, JSON_WRITER_DEFAULT).ToString();
 }
 
@@ -6023,6 +6137,42 @@ bool Controller::HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> 
     callback->Success(ExtensionsJson());
   } else if (cmd == "extensions.spaces") {
     callback->Success(ExtensionSpacesJson());
+  } else if (cmd == "extensions.ghost") {
+    // Settings > Extensions > Allow in ghost tabs: each space's extensions and Chromium's own "Allow in incognito"
+    // for them (Mac: ghost tabs are a space's off-the-record copy). {space, id, on} sets one.
+    if (!msg->HasKey("id")) return callback->Success(GhostExtensionsJson()), true;
+    int space = int_arg("space");
+    std::string id = msg->GetString("id"), name;
+    auto v = CefParseJSON(GhostExtensionsJson(), JSON_PARSER_RFC);
+    auto spaces = v ? v->GetDictionary()->GetList("spaces") : nullptr;
+    for (size_t i = 0; spaces && i < spaces->GetSize(); ++i) {
+      auto sp = spaces->GetDictionary(i);
+      auto exts = sp->GetInt("id") == space && sp->GetBool("ready") ? sp->GetList("extensions") : nullptr;
+      for (size_t k = 0; exts && k < exts->GetSize(); ++k)
+        if (exts->GetDictionary(k)->GetString("id") == id) name = exts->GetDictionary(k)->GetString("name");
+    }
+    if (!g_ghost_otr || name.empty()) return callback->Failure(0, "That extension isn't in this space."), true;
+    bool on = msg->GetBool("on");
+    // chrome://extensions' own switch, which reloads the extension so its content scripts learn the change.
+    std::string ext = "'" + id + "'", want = on ? "true" : "false";
+    std::string js = "(async () => { try {"
+                     " await chrome.developerPrivate.updateExtensionConfiguration({extensionId: " + ext + ", incognitoAccess: " + want + "});"
+                     " let i; for (let n = 0; n < 50; n++) { i = await chrome.developerPrivate.getExtensionInfo(" + ext + ");"
+                     " if (i.state !== 'ENABLED' && i.state !== 'DISABLED') { await new Promise((r) => setTimeout(r, 100)); continue; }"
+                     " if (i.incognitoAccess.isActive === " + want + ") break; await new Promise((r) => setTimeout(r, 100)); }"
+                     " console.log('__roar_ghostext__ ' + (i.state === 'DISABLED' && i.disableReasons.unsupportedDeveloperExtension ? 'devmode' : 'done'));"
+                     " } catch (e) { console.log('__roar_ghostext__ ' + e); } })();";
+    auto answer = std::make_shared<std::string>();
+    OpenHiddenPage(SpaceContext(space), "chrome://extensions/", new HiddenPageClient("chrome://extensions", js, "__roar_ghostext__", 10000,
+        [answer](const std::string& line) { *answer = line; return true; },
+        [this, callback, answer, name] {
+          // An extension that now reaches ghost tabs from its space is off limits to agents (GhostReachGuarded).
+          if (cdp_detach_hidden_) cdp_detach_hidden_();
+          if (*answer == "done") return callback->Success(GhostExtensionsJson());
+          callback->Failure(0, *answer == "devmode"
+              ? "Chrome turned " + name + " off: it's unpacked, and unpacked extensions need developer mode in chrome://extensions."
+              : "Couldn't change " + name + (answer->empty() ? "" : ": " + *answer));
+        }));
   } else if (cmd == "extensions.copy") {
     // Queued for the next launch (ext_copy.h): the page relaunches once this replies.
     State& st = State::Get();

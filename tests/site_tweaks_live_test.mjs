@@ -834,6 +834,10 @@ RUN['ghost'] = async () => {
   const flag = await worker(`chrome.storage.local.get(null).then((all) => { const it = Object.values(all).find((v) => v?.meta?.name === 'Ghost fixture'); return it.ghost === true && (Object.values(all).find((v) => v?.meta?.name === 'Live fixture')?.ghost ?? false) === false; })`);
   check(switched && flag === true, 'the manager\'s "Run in ghost tabs" switch is stored with that script only');
   await shot('6-manager-ghost-switch', manager);
+  // What the space has registered: a ghost session must never clear or replace it (on Mac its copy shares the
+  // space's chrome.userScripts registry, so it runs its copies per tab instead).
+  const registry = () => worker(`chrome.userScripts.getScripts().then((r) => JSON.stringify(r.map((x) => [x.id, x.js.map((j) => j.code || j.file)]).sort()))`);
+  const regBefore = await registry();
   const t0 = Date.now();
   await ghostOpen(`${GSITE}/g`);
   const seen = await until(() => gstate((t) => t.ghost && t.url.startsWith(GSITE)), 20000);
@@ -844,6 +848,13 @@ RUN['ghost'] = async () => {
   await ghostOpen(`${GSITE}/g?again`);
   const kept = await until(async () => (await tabs()).find((t) => t.ghost && t.url.endsWith('?again'))?.title?.startsWith('marker:') && (await tabs()).find((t) => t.ghost && t.url.endsWith('?again')).title);
   check(kept === 'marker:ghost2', `and the ghost session keeps it while it lasts (${kept})`);
+  const regDuring = await registry();
+  check(!!regBefore && regDuring === regBefore && regBefore.includes('space1') && !regBefore.includes('ghost2'), `the space's registered scripts stay as they were while the ghost copy runs (${regBefore === regDuring ? 'same' : 'changed'})`);
+  await ghostOpen(SITE + '/page');
+  const other = await until(async () => { const t = (await tabs()).find((x) => x.ghost && x.url === SITE + '/page' && !x.loading); return t && t.title !== t.url ? t.title : ''; }, 10000);
+  await sleep(1500);
+  const otherNow = (await tabs()).find((x) => x.ghost && x.url === SITE + '/page')?.title;
+  check(other === 'start:none' && otherNow === 'start:none', `a space script not set to run in ghost tabs stays out of a seeded ghost session (${otherNow})`);
   const normal = (await tabs()).find((t) => !t.ghost && t.url.startsWith(GSITE));
   await evalIn((x) => x.type === 'page' && x.url.startsWith(GSITE), `location.href = '${GSITE}/g?reload'`);
   const back = await until(async () => (await tabs()).find((t) => t.id === normal.id && t.url.endsWith('?reload'))?.title?.startsWith('marker:') && (await tabs()).find((t) => t.id === normal.id).title);
@@ -864,6 +875,12 @@ RUN['ghost'] = async () => {
   const fresh = await until(() => gstate((t) => t.ghost && t.url.startsWith(GSITE)), 20000);
   check(fresh === 'marker:space1', `a new ghost session starts from the space's copy again (${fresh})`);
   await closeGhosts();
+  await sleep(4000);
+  const regAfter = await registry();
+  check(regAfter === regBefore, `after the ghost sessions the space's registered scripts are unchanged (${regAfter === regBefore ? 'same' : regAfter?.slice(0, 120)})`);
+  await open(SITE + '/page?after-ghost');
+  const spaceRuns = await until(async () => { const t = (await tabs()).find((x) => !x.ghost && x.url.endsWith('?after-ghost') && !x.loading); return t && t.title !== t.url && t.title !== 'start:none' ? t.title : ''; }, 10000);
+  check(!!spaceRuns, `and the space's own scripts still run in its tabs (${spaceRuns})`);
 };
 for (const g of GROUPS) if (!RUN[g.name]) throw new Error(`no RUN for ${g.name}`);
 

@@ -16,7 +16,8 @@ globalThis.roarGhostExport = async () => {
   say('end');
 };
 
-// In a new ghost profile: the worker stores the copies (lib/ghost.js seedWrites), then registers them.
+// In a new ghost session's copy: the worker stores the copies (lib/ghost.js seedWrites), then registers them, or on
+// Mac (off the record) runs them in each ghost tab as it loads.
 globalThis.roarGhostSeed = async (bundle) => {
   const r = await chrome.runtime.sendMessage({ t: 'ghostSeed', bundle });
   if (!r?.ok) return say('error ' + (r?.error || 'not seeded'));

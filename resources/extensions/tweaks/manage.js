@@ -6,6 +6,7 @@ import { cssFor } from './lib/usercss.js';
 import { importBackup, exportJSON, backupRows, matchRow } from './lib/importers.js';
 import { h, varsForm, diffView } from './lib/ui.js';
 import { ghostNote } from './lib/ghost.js';
+import { storageLocal, storageChanged } from './lib/area.js';
 
 const $ = (id) => document.getElementById(id);
 const view = $('view');
@@ -149,7 +150,7 @@ async function exportSelected() {
   try {
     const ids = visibleSel();
     if (!ids.length) { say('Select at least one tweak to export.'); return; }
-    const all = await chrome.storage.local.get(null);
+    const all = await storageLocal.get(null);
     const values = Object.fromEntries(Object.keys(all).filter((k) => k.startsWith(VALUES) && ids.some((id) => k === VALUES + id)).map((k) => [k.slice(VALUES.length), all[k]]));
     const picked = (await allItems()).filter((it) => ids.includes(it.id));
     downloadFile(exportJSON(picked, values, { enabled: (await getSettings()).enabled }), backupName());
@@ -175,7 +176,7 @@ const TEMPLATES = {
 };
 
 async function renderEditor({ edit, new: kind, site }) {
-  const it = edit && (await chrome.storage.local.get(ITEM + edit))[ITEM + edit];
+  const it = edit && (await storageLocal.get(ITEM + edit))[ITEM + edit];
   if ((edit && !it) || (!it && (await getSettings()).ghost)) return go({});
   kind = it ? it.kind : kind === 'style' ? 'style' : 'script';
   const ta = h('textarea', { className: 'code', spellcheck: false, value: it ? it.code : TEMPLATES[kind](site) });
@@ -222,7 +223,7 @@ async function renderEditor({ edit, new: kind, site }) {
 }
 
 async function renderUpdate({ update }) {
-  const it = (await chrome.storage.local.get(ITEM + update))[ITEM + update];
+  const it = (await storageLocal.get(ITEM + update))[ITEM + update];
   if (!it?.update) return go({});
   const msg = h('span', { className: 'muted' });
   $('toolbar').hidden = true;
@@ -263,7 +264,7 @@ function ghostMode(settings) {
 // typed trips the one guard: hash changes and closing the tab confirm before anything is lost.
 async function renderItem(r) {
   const id = r.item;
-  const it = (await chrome.storage.local.get(ITEM + id))[ITEM + id];
+  const it = (await storageLocal.get(ITEM + id))[ITEM + id];
   if (!it) return go({});
   const tab = ['settings', 'permissions', 'values', 'info'].includes(r.tab) ? r.tab : 'code';
   const msg = h('span', { className: 'muted' });
@@ -359,7 +360,7 @@ async function renderItem(r) {
             try { out[k] = JSON.parse(raw); } catch { out[k] = raw; }
             row.querySelector('.muted').textContent = 'Saved';
           }
-          await chrome.storage.local.set({ [VALUES + id]: out });
+          await storageLocal.set({ [VALUES + id]: out });
           dirty = false; msg.textContent = 'Saved'; msg.className = 'ok';
         } catch (e) { msg.textContent = e.message; msg.className = 'bad'; }
         finally { saving = false; }
@@ -430,7 +431,7 @@ const backupName = () => `site-tweaks-backup-${new Date().toISOString().slice(0,
 let pending = null;  // the preview on screen: { parsed, rows: [{ entry, action, target, alt, old }] }
 
 async function exportAll() {
-  const all = await chrome.storage.local.get(null);
+  const all = await storageLocal.get(null);
   const values = Object.fromEntries(Object.keys(all).filter((k) => k.startsWith(VALUES)).map((k) => [k.slice(VALUES.length), all[k]]));
   downloadFile(exportJSON(await allItems(), values, { enabled: (await getSettings()).enabled }), backupName());
 }
@@ -589,5 +590,5 @@ window.addEventListener('beforeunload', (e) => { if (dirty) { e.preventDefault()
 // Page-level Cmd/Ctrl+S saves the editor or the item page's active tab (not on Permissions/Info,
 // where everything is immediate). The editor's textarea keeps its own handler as a fallback.
 window.addEventListener('keydown', (e) => { if ((e.metaKey || e.ctrlKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 's') { if (editorSave) { e.preventDefault(); editorSave(); } } });
-chrome.storage.onChanged.addListener((ch) => { if (!route().item && !route().edit && !route().new && !route().update && !('backups' in route()) && Object.keys(ch).some((k) => k.startsWith(ITEM) || k === 'settings')) renderList(); });
+storageChanged.addListener((ch) => { if (!route().item && !route().edit && !route().new && !route().update && !('backups' in route()) && Object.keys(ch).some((k) => k.startsWith(ITEM) || k === 'settings')) renderList(); });
 render();

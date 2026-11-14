@@ -1,5 +1,7 @@
 // Tab menu "Don't block ads on this site": Controller tab.adblock toggles the site in uBOL's
 // no-filtering list (action_watch::UbolSite), and the exclusion survives a restart.
+// A script an EasyList rule blocks stays blocked in a ghost tab too (Mac: uBOL is "Allowed in incognito" in every
+// space, and ghost tabs are a space's off-the-record copy).
 // Starts headless scratch Roars on a fresh data dir. Usage: node tests/adblock_site_test.mjs <Roar binary>
 import { spawn } from 'node:child_process';
 import { createServer } from 'node:http';
@@ -16,7 +18,13 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 let failed = 0;
 const check = (ok, what) => { console.log(`${ok ? 'ok  ' : 'FAIL'} ${what}`); if (!ok) failed++; };
 
-const web = createServer((req, res) => res.end('<title>ads</title>hi')).listen(0, '127.0.0.1');
+// /probe: loads /mai-publisher-ads.js (an EasyList rule blocks it) and /fine.js, and says which ran in its title.
+const web = createServer((req, res) => {
+  if (req.url.endsWith('.js')) return res.end(`window.loaded = (window.loaded || []).concat('${req.url}');`);
+  if (req.url === '/probe') return res.end(`<title>probe</title><script src="/mai-publisher-ads.js"></script><script src="/fine.js"></script>
+    <script>document.title = 'ran:' + (window.loaded || []).join(',');</script>`);
+  res.end('<title>ads</title>hi');
+}).listen(0, '127.0.0.1');
 await new Promise((r) => web.once('listening', r));
 const url = `http://www.example.localhost:${web.address().port}/`;
 
@@ -70,6 +78,21 @@ try {
   check(kept?.excluded === true, `exclusion persists across restart (${JSON.stringify(kept)})`);
   const back = await sidebar(`ask({cmd:'tab.adblock',id:${id},what:'toggle'})`);
   check(back?.excluded === false, `toggling again re-enables blocking (${JSON.stringify(back)})`);
+
+  // The same blocked script, in a space tab and then in a ghost tab.
+  const probe = url.replace(/\/$/, '') + '/probe';
+  const titleOf = async (ghost) => { for (let i = 0; i < 30; i++) { const t = (await sidebar(`ask({cmd:'state'})`))?.tabs?.find((x) => !!x.ghost === ghost && x.url === probe && x.title?.startsWith('ran:')); if (t) return t.title; await sleep(500); } };
+  await sidebar(`ask({cmd:'run',id:'open:${probe}'})`);
+  const inSpace = await titleOf(false);
+  check(inSpace === 'ran:/fine.js', `a space tab: the EasyList-blocked script is blocked, the other one runs (${inSpace})`);
+  await sidebar(`ask({cmd:'run',id:'newGhostTab'})`); await sleep(500);
+  const cmd = (await list()).find((x) => x.url.includes('command.html'));
+  const ws = new WebSocket(cmd.webSocketDebuggerUrl);
+  await new Promise((r) => (ws.onopen = r));
+  ws.send(JSON.stringify({ id: 1, method: 'Runtime.evaluate', params: { expression: `ask({cmd:'open', text: '${probe}', newTab: true})` } }));
+  await sleep(500); ws.close();
+  const inGhost = await titleOf(true);
+  check(inGhost === 'ran:/fine.js', `a ghost tab: the same script is blocked there too (${inGhost})`);
 } finally {
   cleanup();
 }

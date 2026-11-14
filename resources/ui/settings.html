@@ -46,6 +46,8 @@ details summary { cursor: default; padding: 8px 0; font-weight: 500; color: var(
 pre { margin: 6px 0; font: 12px/1.6 var(--mono); background: var(--ground); border-radius: 8px; padding: 12px 14px; overflow-x: auto; color: var(--ink-2); }
 .nomatch { display: none !important; }
 .empty { color: var(--ink-3); padding: 12px 0; }
+.exg-icon { width: 16px; height: 16px; vertical-align: -3px; margin-right: 8px; }
+#exg h4 { margin: 12px 0 0; font: 600 13px var(--ui); }
 @media (max-width: 640px) { .wrap { grid-template-columns: 1fr; } nav { position: static; grid-auto-flow: column; overflow-x: auto; } }
 .status.warn { color: var(--mane-ink, #d9822b); }
 /* Agents: the Chat models shape (order list .ch-*, cards details.vendor); the CLI order is agentOrder. */
@@ -189,6 +191,12 @@ details.vendor[open] > summary::before { transform: rotate(45deg); }
     <section id="extensions"><h2>Extensions</h2>
       <p class="reason">Each space has its own extensions, signed in on their own. To put one in another space, click its empty spot below: it's copied with its data, so it arrives signed in.</p>
       <div class="row" id="tweaks-share-row"><label class="name" for="tweaks-shared">Site tweaks in every space<small>Every space gets the same scripts and styles, and a change in one reaches them all. What they store stays per space. Agents can't read or edit Site tweaks while this is on. Off, each space has its own.</small></label><input type="checkbox" class="switch" id="tweaks-shared"></div>
+      <div id="exg" hidden>
+        <h3>Allow in ghost tabs</h3>
+        <p class="reason">Runs in ghost tabs too. Extensions that share data with this space stay signed in there.</p>
+        <div id="exg-list"></div>
+        <p class="status" id="exg-status" hidden></p>
+      </div>
       <p class="status" id="ex-none" hidden></p>
       <div id="ex-form" hidden>
         <h3>Which space has which</h3>
@@ -606,6 +614,40 @@ $('bk-confirm').onclick = async () => {
     setTimeout(() => ask({ cmd: 'run', id: 'relaunch' }), 1500);
   } catch (e) { bkResult('Import failed, nothing changed: ' + e.message, true); }
 };
+// Extensions > Allow in ghost tabs: Chromium's "Allow in incognito" for each extension in each space (Mac, where a
+// ghost tab is its space's off-the-record copy). Roar flips it in that space's chrome://extensions.
+async function exgLoad() {
+  const r = await ask({ cmd: 'extensions.ghost' });
+  const d = typeof r === 'string' ? JSON.parse(r) : r;
+  $('exg').hidden = !d.supported;
+  if (!d.supported) return;
+  const rows = [], el = (tag, props) => Object.assign(document.createElement(tag), props);
+  for (const sp of d.spaces) {
+    if (d.spaces.length > 1) rows.push(el('h4', { textContent: sp.name }));
+    if (!sp.ready) { rows.push(el('p', { className: 'empty', textContent: 'Opening this space…' })); continue; }
+    if (!sp.extensions.length) rows.push(el('p', { className: 'empty', textContent: 'No extensions in this space.' }));
+    for (const e of sp.extensions) {
+      const row = el('div', { className: 'row' }), label = el('label', { className: 'name', htmlFor: `exg-${sp.id}-${e.id}` });
+      if (/^data:image\//.test(e.icon || '')) label.append(el('img', { src: e.icon, alt: '', className: 'exg-icon' }));
+      label.append(e.name);
+      const box = el('input', { type: 'checkbox', className: 'switch', id: `exg-${sp.id}-${e.id}`, checked: e.on });
+      box.dataset.space = sp.id;
+      box.dataset.ext = e.id;
+      box.setAttribute('aria-label', `Allow ${e.name} in ghost tabs` + (d.spaces.length > 1 ? ` (${sp.name})` : ''));
+      box.onchange = async () => {
+        box.disabled = true;
+        $('exg-status').hidden = true;
+        try { await ask({ cmd: 'extensions.ghost', space: sp.id, id: e.id, on: box.checked }); }
+        catch (err) { box.checked = !box.checked; $('exg-status').hidden = false; $('exg-status').textContent = err.message; }
+        box.disabled = false;
+      };
+      row.append(label, box);
+      rows.push(row);
+    }
+  }
+  $('exg-list').replaceChildren(...rows);
+  if (d.spaces.some((s) => !s.ready)) setTimeout(() => exgLoad().catch(() => {}), 1500);
+}
 // Extensions: copy between spaces with their data. Roar does it at the next launch, before any profile opens (ext_copy.h).
 // One grid: an extension per row, a space per column. Click an empty cell to copy it there, or an installed one
 // to replace that install with a copy. exPlan[extension id] = {from: space id, to: Set of space ids}.
@@ -712,6 +754,7 @@ function showTab(id) {
   if (!document.getElementById(id)?.matches('main section')) id = 'general';
   for (const sec of document.querySelectorAll('main section')) sec.hidden = sec.id !== id;
   if (id === 'extensions') exLoad().catch((e) => { $('ex-none').hidden = false; $('ex-none').textContent = 'Couldn’t list extensions: ' + e.message; });
+  if (id === 'extensions') exgLoad().catch(() => {});
   for (const a of tabs) a.setAttribute('aria-current', String(a.hash === '#' + id));
   try { localStorage.setItem('settingsTab', id); } catch {}
   // Keeps the hash current so a later link to #agents is a change and fires hashchange.

@@ -175,9 +175,12 @@ port 9444) started on demand.
 **Spaces and privacy**
 - Spaces keep separate tabs and a separate profile (logins, cookies, extensions): ⌃1–⌃9 or ⇧⌘[ ⇧⌘].
 - Settings > Extensions copies an extension to another space with its data, so it arrives signed in. Roar restarts to do it. An extension's cookies on its own website, and any localStorage it keeps, stay behind.
-- Ghost tabs (⇧⌘N) use a throwaway profile per session. Roar deletes it within seconds of the last
-  ghost tab closing; if that fails (or Roar quits first), it is deleted on the next launch. Until then it sits
-  in the data dir, so ghost tabs are not a guarantee against someone with access to your Mac.
+- Ghost tabs (⇧⌘N): on Mac, a ghost session is the incognito copy of the space you open it from, as in
+  Chrome: its cookies, logins and cache stay in memory and are gone when its last tab closes. On Windows it
+  uses a throwaway profile per session, deleted within seconds of the last ghost tab closing (or on the next
+  launch). Ghost tabs are not a guarantee against someone with access to your computer.
+- Extensions you allow in incognito run in ghost tabs (Mac): Settings > Extensions > Allow in ghost tabs.
+  Agents can't reach those extensions' pages and workers in that space, since they reach the ghost tabs.
 - Copy Link Address unwraps Outlook Safe Links and `.mcas.ms` wrappers.
 - uBlock Origin Lite is built in; other Chrome extensions install as usual.
 - Site tweaks: built-in userscripts (GM_* and GM.* APIs) and userstyles (UserCSS with settings,
