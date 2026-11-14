@@ -493,5 +493,14 @@
       <description><![CDATA[Ghost tabs are now the incognito copy of the space you open them from (Mac): extensions you allow in incognito run there, and Settings > Extensions has an Allow in ghost tabs switch for each one. uBlock Origin Lite blocks in ghost tabs, and Site tweaks set to Run in ghost tabs keep working. Agents still can't reach ghost tabs.]]></description>
       <enclosure url="https://github.com/roarbrowser/roar/releases/download/v1.26.0/Roar-1.26.0.dmg" type="application/octet-stream" sparkle:edSignature="po8FGV8L79r9TRhZ+N0hz4gvIxsAT+8e3oTCk4L6J36YEHhY+62JuqlVz3oOmCjCfIT+M3Va1N+YHNRbzf2vAg==" length="208164192"/>
     </item>
+    <item>
+      <title>1.27.0</title>
+      <pubDate>Sat, 14 Nov 2026 17:33:09 +0000</pubDate>
+      <sparkle:version>12700</sparkle:version>
+      <sparkle:shortVersionString>1.27.0</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[Chromium 156 (CEF 156.0.30). A page your agent opens for you no longer replaces the tab you are on: it opens beside it, and a sidebar card with Open takes you there. Agents now reach pages their clicks open in the background. Fixes a crash when the last ghost tab closes.]]></description>
+      <enclosure url="https://github.com/roarbrowser/roar/releases/download/v1.27.0/Roar-1.27.0.dmg" type="application/octet-stream" sparkle:edSignature="7Ve4FGhdVRrZGsLSiSb55cGlm/g4cK99AYl9VlRyEL0tKUFu7wVQeRcz1QlUQdYgw8XTkb8X0WxCpzb/rBMXDQ==" length="210386734"/>
+    </item>
   </channel>
 </rss>
