@@ -685,14 +685,16 @@ window.roar = {
     $('forward').disabled = !s.nav.canForward;
     const url = s.nav.url || '';
     $('host').textContent = url && !url.startsWith('roar:') ? hostOf(url) : 'Search or enter address';
-    // The site icon opens the per-site menu (siteMenu); only real web pages have one.
-    const siteOk = /^https?:/.test(url) && !!askAct && !askAct.ghost;
+    // The site icon opens the per-site menu (siteMenu); only real web pages have one, ghost tabs' included
+    // (s lists no ghost tabs by now: the active one comes from state).
+    const siteTab = askAct || state.tabs.find((t) => t.active && t.ghost);
+    const siteOk = /^https?:/.test(url) && !!siteTab;
     $('site').hidden = !siteOk;
     $('address').classList.toggle('has-site', siteOk);
     const copyOk = !!url && !url.startsWith('roar:');
     $('copy-url').hidden = !copyOk;
     $('address').classList.toggle('has-copy', copyOk);
-    setHtml($('site'), siteOk ? iconHtml(askAct.favicon, url) : '');
+    setHtml($('site'), siteOk ? iconHtml(siteTab.favicon, url) : '');
     const alerts = s.alerts || [];
     const ago = (t) => { const m = Math.round((Date.now() / 1000 - t) / 60); return m < 1 ? 'now' : m < 60 ? m + ' min ago' : Math.round(m / 60) + ' h ago'; };
     // Cards are kept by id and only changed ones are redrawn, so a screen reader reads each once.
@@ -1238,38 +1240,47 @@ async function tabMenu(t, e) {
 }
 // Site tweaks (the bundled userscript and userstyle manager) for the site: each tweak that
 // runs here with its switch and an Edit action, the scripts' menu commands, the global switch,
-// a new script for this site and the manager.
-function tweaksItems(tw) {
+// a new script for this site and the manager. In a ghost tab the switches are the ghost session's
+// copy (those set to "Run in ghost tabs" start on, the rest off) and last only as long as it; its
+// manager opens in a ghost tab, and new scripts aren't offered (they would go with the session).
+function tweaksItems(tw, ghost) {
   const check = (on) => `<span style="width:10px">${on ? '✓' : ''}</span>`;
-  return `<hr><div class="head">Site tweaks</div>
-    ${tw.items.map((i) => `<div class="tweakrow"><button data-act="tweak" data-id="${esc(i.id)}" data-kind="${esc(i.kind)}" role="menuitemcheckbox" aria-checked="${!!i.enabled}"${tw.enabled ? '' : ' aria-disabled="true" disabled'} title="${esc(i.kind === 'style' ? 'Userstyle' : 'Userscript; reloads the page')}">${check(i.enabled)}${esc(i.name)}</button><button class="edit" data-act="tweakedit" data-id="${esc(i.id)}" title="Edit ${esc(i.name)} in Site tweaks" aria-label="Edit ${esc(i.name)}">Edit</button></div>`).join('')}
+  const tip = (i) => (i.kind === 'style' ? (ghost ? 'Userstyle; reloads the page' : 'Userstyle') : 'Userscript; reloads the page') + (ghost ? '. For this ghost session only' : '');
+  return `<hr><div class="head"${ghost ? ' title="Switches here last only as long as this ghost session; your space keeps its own"' : ''}>Site tweaks${ghost ? ' (this ghost session)' : ''}</div>
+    ${tw.items.map((i) => `<div class="tweakrow"><button data-act="tweak" data-id="${esc(i.id)}" data-kind="${esc(i.kind)}" role="menuitemcheckbox" aria-checked="${!!i.enabled}"${tw.enabled ? '' : ' aria-disabled="true" disabled'} title="${esc(tip(i))}">${check(i.enabled)}${esc(i.name)}</button><button class="edit" data-act="tweakedit" data-id="${esc(i.id)}" title="Edit ${esc(i.name)} in Site tweaks" aria-label="Edit ${esc(i.name)}">Edit</button></div>`).join('')}
     ${tw.commands.map((c) => `<button data-act="tweakcmd" data-k="${esc(c.key)}" title="${esc(c.script)}"><span style="width:10px"></span>${esc(c.caption)}</button>`).join('')}
-    <button data-act="tweaksoff" role="menuitemcheckbox" aria-checked="${!tw.enabled}" title="Stops every userscript and userstyle until you turn them back on. Reloads the page">${check(!tw.enabled)}Turn off all site tweaks</button>
-    <button data-act="tweaksnew" title="Opens the editor with a script that runs on this site"><span style="width:10px"></span>New script for this site…</button>
-    <button data-act="tweaksmanage"><span style="width:10px"></span>Manage site tweaks…</button>`;
+    <button data-act="tweaksoff" role="menuitemcheckbox" aria-checked="${!tw.enabled}" title="Stops every userscript and userstyle until you turn them back on${ghost ? ' (in this ghost session)' : ''}. Reloads the page">${check(!tw.enabled)}Turn off all site tweaks</button>
+    ${ghost ? '' : '<button data-act="tweaksnew" title="Opens the editor with a script that runs on this site"><span style="width:10px"></span>New script for this site…</button>'}
+    <button data-act="tweaksmanage"${ghost ? ' title="The ghost session\'s copy, in a ghost tab"' : ''}><span style="width:10px"></span>Manage site tweaks…</button>`;
 }
 // The address bar's site icon: per-site switches for the active tab's site.
 async function siteMenu() {
   const t = state?.tabs?.find((x) => x.active), btn = $('site');
-  if (!t || t.ghost || !/^https?:/.test(t.url || '')) return;
+  if (!t || !/^https?:/.test(t.url || '')) return;
   const seq = ctxSeq;
   // uBOL can take up to 5 s: past 300 ms its item shows disabled instead of missing (undefined = no answer yet).
+  // A ghost tab has no pop-up or ad-block switches (they are its space's settings): only its session's Site tweaks.
   const soon = (p) => Promise.race([p, new Promise((r) => setTimeout(r, 300))]).catch(() => null);
-  const [pop, ab, tw] = await Promise.all([ask({ cmd: 'tab.popups', id: t.id }).catch(() => null),
-    soon(ask({ cmd: 'tab.adblock', id: t.id })), soon(ask({ cmd: 'tab.tweaks', id: t.id }))]);
+  const [pop, ab, tw] = await Promise.all([t.ghost ? null : ask({ cmd: 'tab.popups', id: t.id }).catch(() => null),
+    t.ghost ? null : soon(ask({ cmd: 'tab.adblock', id: t.id })), soon(ask({ cmd: 'tab.tweaks', id: t.id }))]);
   if (seq !== ctxSeq) return;
   const host = pop?.host || hostOf(t.url), r = btn.getBoundingClientRect();
   const item = (act, on, label, tip, off) => `<button data-act="${act}" role="menuitemcheckbox" aria-checked="${!!on}"${off ? ' aria-disabled="true" disabled' : ''} title="${esc(tip)}"><span style="width:10px">${on ? '✓' : ''}</span>${label}</button>`;
+  // The ghost copy's manager, at one of its routes, in a ghost tab (tab.tweaks manage).
+  const ghostManage = (route) => ask({ cmd: 'tab.tweaks', id: t.id, what: 'manage', arg: route });
   showCtx(`<div class="head">${esc(host)}</div>
-    ${item('popups', pop?.allowed, 'Allow pop-ups', `Pop-ups from ${host} open without being blocked`, !pop)}
-    ${item('adblock', ab?.excluded, 'Turn off blocking for this site', ab ? `Ads and trackers won't be blocked on ${ab.site || host}. Reloads the page` : ab === undefined ? 'Still checking the ad blocker; try again in a moment' : 'The ad blocker isn\'t running', !ab)}
-    ${tw ? tweaksItems(tw) : ''}`,
+    ${t.ghost ? '' : item('popups', pop?.allowed, 'Allow pop-ups', `Pop-ups from ${host} open without being blocked`, !pop)}
+    ${t.ghost ? '' : item('adblock', ab?.excluded, 'Turn off blocking for this site', ab ? `Ads and trackers won't be blocked on ${ab.site || host}. Reloads the page` : ab === undefined ? 'Still checking the ad blocker; try again in a moment' : 'The ad blocker isn\'t running', !ab)}
+    ${tw ? tweaksItems(tw, t.ghost) : t.ghost ? '<div class="head">No site tweaks in this ghost session</div>' : ''}`,
     { clientX: r.left, clientY: r.bottom + 4 }, (act, d) => {
       if (act === 'popups') ask({ cmd: 'tab.popups', id: t.id, what: 'toggle' });
       else if (act === 'adblock') ask({ cmd: 'tab.adblock', id: t.id, what: 'toggle' });
-      else if (act === 'tweak') ask({ cmd: 'tab.tweaks', id: t.id, what: 'toggle', arg: d.id, reload: d.kind === 'script' });
+      // A ghost copy's styles run only as each page loads, so a ghost tab reloads for them too.
+      else if (act === 'tweak') ask({ cmd: 'tab.tweaks', id: t.id, what: 'toggle', arg: d.id, reload: d.kind === 'script' || !!t.ghost });
       else if (act === 'tweaksoff') ask({ cmd: 'tab.tweaks', id: t.id, what: 'global' });
       else if (act === 'tweakcmd') ask({ cmd: 'tab.tweaks', id: t.id, what: 'run', arg: d.k });
+      // Nothing a ghost tab's menu opens leaves its session.
+      else if (t.ghost) { if (act === 'tweaksmanage') ghostManage('site=' + encodeURIComponent(t.url)); else if (act === 'tweakedit') ghostManage('item=' + encodeURIComponent(d.id)); }
       else if (act === 'tweaksmanage') ask({ cmd: 'run', id: 'open:' + tw.manage });
       // The manager's own routes: tw.manage without its #site=, plus the editor's or item's hash.
       else if (act === 'tweaksnew') ask({ cmd: 'run', id: 'open:' + tw.manage.split('#')[0] + '#new=script&site=' + encodeURIComponent(t.url) });

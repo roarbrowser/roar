@@ -1,18 +1,23 @@
 // Site tweaks in ghost tabs. A ghost session starts with an empty profile; Roar asks a space's copy for
 // the bundle (ghost.html, roarGhostExport) and hands it to the ghost profile's copy (roarGhostSeed).
-// Only items switched to "Run in ghost tabs" go, with their GM values. Nothing is ever sent back: the
-// ghost copy refuses to share or export, and goes with the session. No storage or chrome.* in this file.
+// Items switched to "Run in ghost tabs" go on, with their GM values; every other item goes off and without
+// its values, so a ghost tab's site menu lists it and the person can turn it on for that session. Nothing is
+// ever sent back: the ghost copy refuses to share or export, and goes with the session. No storage or chrome.* here.
 import { ITEM, VALUES } from './store.js';
 
 // Stays behind: a pending update and a skipped version mean nothing in a session, and the port secret is renewed.
 const DROP = ['update', 'skip', 'secret'];
 
-// The bundle for a ghost session: items that run (the global switch on, the item on) and are set to run in ghost tabs.
+// Runs in ghost tabs on its own: on in the space and set to run in ghost tabs.
+export const runsInGhost = (it) => !!(it.ghost && it.enabled);
+
+// The bundle for a ghost session (none while the global switch is off): every item, on only when it runs in
+// ghost tabs, and the GM values of those alone.
 export function ghostBundle(items, values = {}, settings = {}) {
   if (settings.ghost || settings.enabled === false) return { items: [], values: {} };
-  const chosen = items.filter((it) => it.ghost && it.enabled);
+  const chosen = items.filter(runsInGhost);
   return {
-    items: chosen.map((it) => { const out = { ...it }; for (const k of DROP) delete out[k]; return out; }),
+    items: items.map((it) => { const out = { ...it, enabled: runsInGhost(it) }; for (const k of DROP) delete out[k]; return out; }),
     values: Object.fromEntries(chosen.filter((it) => values[it.id]).map((it) => [it.id, values[it.id]])),
   };
 }

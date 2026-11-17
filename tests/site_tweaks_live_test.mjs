@@ -2,9 +2,10 @@
 // installs a userscript and a UserCSS through the install page (*.user.js / *.user.css links),
 // and the effects show on a local page: document-start, GM_setValue/GM_getValue across loads,
 // GM_xmlhttpRequest to an @connect host and its refusal elsewhere, a menu command and the
-// style's @var (changed live from the manager), plus the site menu and ghost tabs: off there, unless a
-// script is switched to "Run in ghost tabs", which copies it and its GM values into the ghost session
-// and never back. Ghost tabs are hidden from CDP, so the ghost fixture reports through the tab title.
+// style's @var (changed live from the manager), plus the site menu and ghost tabs: a script switched to
+// "Run in ghost tabs" runs there with a copy of its GM values; the others are off there, listed in the
+// ghost tab's site menu, and turned on from it for that ghost session only. Nothing goes back to the
+// space. Ghost tabs are hidden from CDP, so the ghost fixtures report through the tab title.
 // Also: MAIN-world bridge security (a document-start script watches whether its world has a bridge
 // at all; with @grant none there is none to find), the editor's single Save and lost-edits guard,
 // "imported twice" not merging same-named backups, and HostB showing its real name.
@@ -46,8 +47,9 @@ const GROUPS = [
   { name: 'main', needs: [], aka: ['mainprobe', 'maindl', 'main-world', 'download'], about: 'MAIN world: no bridge for @grant none; GM_download lands on disk' },
   { name: 'hostb', needs: [], aka: [], about: 'hostB shows its real host and port' },
   { name: 'reimport', needs: [], aka: ['sync', 're-import'], about: 'importing a backup again makes copies, with one sync' },
-  { name: 'ghost-off', needs: ['install'], aka: [], about: 'ghost tabs: extension off, space scripts do not run by default' },
+  { name: 'ghost-off', needs: ['install'], aka: [], about: 'ghost tabs: space scripts do not run by default, a .user.js link installs nothing' },
   { name: 'ghost', needs: [], aka: ['space-tab', 'run-in-ghost', 'ghost-copy'], about: '"Run in ghost tabs": copy, GM values, seed pages hidden, no installs' },
+  { name: 'ghost-menu', needs: [], aka: ['ghost-site-menu', 'ghost-toggle'], about: 'a ghost tab\'s site menu lists the space\'s other scripts, off; one turned on runs for that session only' },
 ];
 const argv = process.argv.slice(2);
 const opt = (n) => { const a = argv.find((x) => x === `--${n}` || x.startsWith(`--${n}=`)); return a === undefined ? undefined : a.includes('=') ? a.slice(a.indexOf('=') + 1) : true; };
@@ -249,6 +251,20 @@ const set = new URLSearchParams(location.search).get('set');
 if (set) GM_setValue('k', set);
 document.title = 'marker:' + GM_getValue('k', 'none');
 `;
+// Not set to run in ghost tabs: switched on from a ghost tab's site menu, it runs for that session only.
+const GMENU_SCRIPT = `// ==UserScript==
+// @name        Ghost menu fixture
+// @namespace   roar-tests
+// @version     1.0
+// @match       http://gmenu.localhost/*
+// @run-at      document-end
+// @grant       GM_getValue
+// @grant       GM_setValue
+// ==/UserScript==
+const set = new URLSearchParams(location.search).get('set');
+if (set) GM_setValue('k', set);
+document.title = 'gm:' + GM_getValue('k', 'none');
+`;
 const PAGE = `<!doctype html><title>t</title><script>document.title = 'start:' + (document.documentElement.dataset.start || 'none')</script><h1>Hello</h1>`;
 // Named hosts, all on one server: hostB flow (real hostname through the window.title flow),
 // mainprobe (MAIN world, @grant none: no bridge to steal), maindl (MAIN world, granted: the
@@ -348,6 +364,7 @@ const site = createServer((req, res) => {
 await new Promise((r) => site.listen(sitePort, '0.0.0.0', r));
 const SITE = `http://page.localhost:${sitePort}`;
 const GSITE = `http://ghost.localhost:${sitePort}`;
+const GMSITE = `http://gmenu.localhost:${sitePort}`;
 const HA = `http://hosta.localhost:${sitePort}`;
 const HB = `http://hostb.localhost:${sitePort}`;
 // Roar normalizes a host-root URL to one with a trailing '/'; compare without it.
@@ -928,15 +945,18 @@ RUN['reimport'] = async () => {
   check(sync1 === sync0 + 1, `importing the backup causes one sync, not one per item (${sync0} -> ${sync1})`);
 };
 RUN['ghost-off'] = async () => {
-  // Ghost tabs: the extension is switched off there (no install page for a .user.js link).
+  // Ghost tabs: the space's scripts are off there (its copy lists them, off), and nothing installs.
+  const count = () => worker(`chrome.storage.local.get(null).then((all) => Object.keys(all).filter((k) => k.startsWith('item:')).length)`);
+  const before = await count();
   await ghostOpen(SITE + '/page');
   const ghost = await until(async () => (await tabs()).find((t) => t.ghost && t.url.startsWith(SITE)), 10000);
   await sleep(4000);  // The ghost profile's hidden setup step.
   await ghostOpen(SITE + '/fixture.user.js');
   await sleep(2500);
   const gts = (await tabs()).filter((t) => t.ghost);
-  check(ghost && gts.length === 2 && gts.every((t) => !t.url.includes(ID)) && gts.some((t) => t.url.endsWith('.user.js')),
-    `ghost tabs: a .user.js link stays raw, the extension is off there (${gts.map((t) => t.url).join(', ')})`);
+  const raw = gts.find((t) => t.url.endsWith('.user.js') || /install\.html/.test(t.url));
+  check(ghost && gts.length === 2 && raw && (raw.url.endsWith('.user.js') || raw.title === 'Can\'t install in a ghost tab') && (await count()) === before,
+    `ghost tabs: a .user.js link installs nothing (${gts.map((t) => `${t.url} "${t.title}"`).join(', ')})`);
   check(ghost && (await tabs()).find((t) => t.id === ghost.id)?.title === 'start:none', 'ghost tabs: the space\'s scripts don\'t run there by default');
   await closeGhosts();
 };
@@ -1011,6 +1031,66 @@ RUN['ghost'] = async () => {
   await open(SITE + '/page?after-ghost');
   const spaceRuns = await until(async () => { const t = (await tabs()).find((x) => !x.ghost && x.url.endsWith('?after-ghost') && !x.loading); return t && t.title !== t.url && t.title !== 'start:none' ? t.title : ''; }, 10000);
   check(!!spaceRuns, `and the space's own scripts still run in its tabs (${spaceRuns})`);
+};
+RUN['ghost-menu'] = async () => {
+  // A space script not set to run in ghost tabs: off in a ghost tab, but listed in its site menu, where the
+  // person turns it on for that ghost session only. The space's own copy (items, values, registry) never changes.
+  await closeGhosts();
+  await ensureManager();
+  const gmId = await evalIn(manager, `import('./lib/store.js').then((s) => s.installScript(${JSON.stringify(GMENU_SCRIPT)}, { url: '${GMSITE}/gmenu.user.js', fresh: true })).then((it) => it.id)`);
+  await sleep(1000);  // the debounced sync
+  await open(`${GMSITE}/g?set=space`);
+  const sp = await until(async () => { const t = (await tabs()).find((x) => !x.ghost && x.url.startsWith(GMSITE)); return t && !t.loading && t.title === 'gm:space' ? t.title : ''; }, 15000);
+  check(sp === 'gm:space', `the menu fixture runs in a space tab and stores a value there (${sp})`);
+  const spaceData = () => worker(`chrome.storage.local.get(null).then((a) => JSON.stringify(Object.keys(a).sort().map((k) => [k, a[k]])))`);
+  const registry = () => worker(`chrome.userScripts.getScripts().then((r) => JSON.stringify(r.map((x) => [x.id, x.js.map((j) => j.code || j.file)]).sort()))`);
+  const [dataBefore, regBefore] = [await spaceData(), await registry()];
+  const ghostTab = (pred) => until(async () => { const t = (await tabs()).find((x) => x.ghost && pred(x) && !x.loading); return t && t.title !== t.url ? t : null; }, 20000);
+
+  await ghostOpen(`${GMSITE}/g`);
+  const g = await ghostTab((x) => x.url === `${GMSITE}/g`);
+  await sleep(1500);
+  check(g && (await tabs()).find((x) => x.id === g.id)?.title === 'plain', `it is off in a ghost tab by default (${g?.title})`);
+  await sidebar(`ask({cmd:'tab.activate',id:${g?.id}})`);
+  check(await until(() => sidebar(`!document.getElementById('site').hidden || ''`), 5000) === true, 'a ghost tab has the address bar\'s site menu');
+  const gtw = await until(async () => { const r = await sidebar(`ask({cmd:'tab.tweaks',id:${g?.id}})`); return r?.items?.some((i) => i.id === gmId) ? r : null; }, 15000);
+  const row = gtw?.items?.find((i) => i.id === gmId);
+  check(row?.enabled === false && gtw?.enabled === true, `the ghost tab's Site tweaks list the space's script, off (${JSON.stringify(gtw?.items)})`);
+  const menu = await until(async () => { const t = await sidebar(`(async () => { await siteMenu(); await new Promise((r) => setTimeout(r, 400)); return document.getElementById('ctx').innerText; })()`); return /Ghost menu fixture/.test(t || '') ? t : ''; }, 15000);
+  check(!!menu && /this ghost session/.test(menu) && /Manage site tweaks/.test(menu) && !/New script for this site/.test(menu) && !/Allow pop-ups/.test(menu),
+    `the ghost tab's site menu shows the script to switch, for this session (${(menu || '').replace(/\n/g, ' | ')})`);
+  await shot('7-ghost-site-menu', (x) => x.url.includes('sidebar.html'));
+  // Switch it on in the real menu: the ghost tab reloads and the script runs there, without the space's stored value.
+  const clicked = await sidebar(`(() => { const b = document.querySelector('#ctx [data-act="tweak"][data-id="${gmId}"]'); if (b) b.click(); return !!b; })()`);
+  const on = await until(async () => { const t = (await tabs()).find((x) => x.id === g?.id); return t && !t.loading && t.title?.startsWith('gm:') ? t.title : ''; }, 15000);
+  check(clicked && on === 'gm:none', `switched on from the menu, it runs in the ghost tab, without the space's stored data (${on})`);
+  await ghostOpen(`${GMSITE}/g?set=ghost1`);
+  const set = (await ghostTab((x) => x.url.endsWith('?set=ghost1') && x.title?.startsWith('gm:')))?.title;
+  check(set === 'gm:ghost1', `it runs in the session's other ghost tabs too, and GM_setValue works there (${set})`);
+  const after = await until(async () => { const r = await sidebar(`ask({cmd:'tab.tweaks',id:${g?.id}})`); return r?.items?.find((i) => i.id === gmId); });
+  check(after?.enabled === true, 'the ghost tab\'s menu shows it on');
+  // Manage opens the ghost copy's manager in a ghost tab: never a space tab, whose address would carry the ghost page's.
+  const known = new Set((await tabs()).map((t) => t.id));
+  await sidebar(`(async () => { await siteMenu(); await new Promise((r) => setTimeout(r, 400)); document.querySelector('#ctx [data-act="tweaksmanage"]')?.click(); return 1; })()`);
+  const mgr = await until(async () => { const t = (await tabs()).find((x) => !known.has(x.id) && x.url.includes('manage.html')); return t && /^Site tweaks/.test(t.title || '') ? t : null; }, 10000);
+  check(mgr?.ghost === true && /^Site tweaks: ghost copy/.test(mgr.title) && !(await tabs()).some((t) => !t.ghost && t.url.includes('manage.html') && /gmenu/.test(decodeURIComponent(t.url))),
+    `Manage opens the ghost copy's manager in a ghost tab (${mgr?.ghost ? 'ghost' : 'space'} "${mgr?.title}")`);
+  // Nothing of it reached the space.
+  check(await spaceData() === dataBefore, 'the space\'s stored items, switches and values are unchanged');
+  check(await registry() === regBefore, 'the space\'s registered scripts are unchanged');
+  const spaceTab = (await tabs()).find((t) => !t.ghost && t.url.startsWith(GMSITE));
+  await sidebar(`ask({cmd:'tab.activate',id:${spaceTab.id}})`);
+  await evalIn((x) => x.type === 'page' && x.url.startsWith(GMSITE), `location.href = '${GMSITE}/g?space-again'`);
+  const back = await until(async () => { const t = (await tabs()).find((x) => x.id === spaceTab.id && x.url.endsWith('?space-again') && !x.loading); return t?.title?.startsWith('gm:') ? t.title : ''; });
+  check(back === 'gm:space', `the space tab still sees its own value (${back})`);
+  // The switch went with the session: a new one starts with the script off again.
+  await closeGhosts();
+  await ghostOpen(`${GMSITE}/g?new-session`);
+  const fresh = await ghostTab((x) => x.url.endsWith('?new-session'));
+  await sleep(1500);
+  const freshNow = (await tabs()).find((x) => x.id === fresh?.id)?.title;
+  check(freshNow === 'plain', `a new ghost session starts with it off again (${freshNow})`);
+  await closeGhosts();
 };
 for (const g of GROUPS) if (!RUN[g.name]) throw new Error(`no RUN for ${g.name}`);
 

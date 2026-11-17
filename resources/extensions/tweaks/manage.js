@@ -434,7 +434,7 @@ async function renderItem(r) {
         h('dt', { textContent: 'Version' }), h('dd', { textContent: it.meta.version || '1' }),
         h('dt', { textContent: 'Updated' }), h('dd', { textContent: relTime(it.updated) }),
         h('dt', { textContent: urlText ? (it.kind === 'style' ? 'Update URL' : 'Install URL') : 'URL' }), h('dd', {}, urlText ? h('span', { textContent: urlText }) : h('span', { className: 'muted', textContent: 'None' }), urlText ? copy : null, copied),
-        h('dt', { textContent: 'Ghost tabs' }), h('dd', {}, h('label', { className: 'row muted', style: 'gap:5px', title: 'Ghost tabs get a copy of it and its stored data when they open. Nothing a ghost tab changes comes back.' }, ghostBox, 'Run in ghost tabs')),
+        h('dt', { textContent: 'Ghost tabs' }), h('dd', {}, h('label', { className: 'row muted', style: 'gap:5px', title: 'Runs on its own in ghost tabs, with a copy of its stored data. Off, it is still listed in a ghost tab\'s site menu, to turn on for that ghost session only, without its stored data. Nothing a ghost tab changes comes back.' }, ghostBox, 'Run in ghost tabs')),
         h('dt', { textContent: 'Errors' }), h('dd', {}, st.errors?.[id] ? h('span', { className: 'bad', textContent: st.errors[id] }) : h('span', { className: 'muted', textContent: 'None.' }))),
       h('div', { className: 'row', style: 'margin-top:10px' }, checkNow, checked, h('span', { className: 'spacer' }), del));
   }

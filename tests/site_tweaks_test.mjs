@@ -343,22 +343,28 @@ check(JSON.parse(readFileSync(join(ext, 'manifest.json'), 'utf8')).key && JSON.p
   check(rounds < 10 && sig(profiles[0]) === sig(profiles[1]) && sig(profiles[1]) === sig(profiles[2]) && sig(profiles[0]) === 'a8,b6', `share: three profiles settle on the same list in ${rounds} rounds (${sig(profiles[0])})`);
 }
 
-// Ghost tabs: only the scripts switched to run there go, with their values; the copy is marked and keeps nothing private.
+// Ghost tabs: every tweak goes, but only the ones switched to run there go on, with their values; the copy is marked
+// and keeps nothing private.
 {
   const it = (id, extra = {}) => ({ id, kind: 'script', meta: { name: id, namespace: 'n' }, code: id, enabled: true, secret: 'sek-' + id, connectAllow: ['api.example'], update: { version: '9' }, skip: '8', ...extra });
   const items = [it('on', { ghost: true }), it('plain'), it('off', { ghost: true, enabled: false }), { ...it('st', { ghost: true }), kind: 'style', sections: [] }];
   const values = { on: { hidden: ['.ad', '#promo'] }, plain: { secret: 1 }, off: { x: 1 } };
   const b = ghostBundle(items, values, { enabled: true });
-  check(eq(b.items.map((i) => i.id), ['on', 'st']), 'ghost: only items that run and are set to run in ghost tabs go');
-  check(eq(b.values, { on: { hidden: ['.ad', '#promo'] } }), 'ghost: their GM values go with them, and no other script\'s');
+  check(eq(b.items.map((i) => i.id), ['on', 'plain', 'off', 'st']), 'ghost: every tweak goes, so a ghost tab\'s site menu can list it');
+  check(eq(b.items.map((i) => i.enabled), [true, false, false, true]) && eq(b.items.map((i) => !!i.ghost), [true, false, true, true]),
+    'ghost: only items that run and are set to run in ghost tabs go on; the rest go off, to turn on in the session');
+  check(eq(b.values, { on: { hidden: ['.ad', '#promo'] } }), 'ghost: GM values go with the ones that run there, and no other script\'s');
   check(b.items.every((i) => !('secret' in i) && !('update' in i) && !('skip' in i)) && eq(b.items[0].connectAllow, ['api.example']), 'ghost: the port secret and a pending update stay behind; allowed hosts go');
   check(!ghostBundle(items, values, { enabled: false }).items.length, 'ghost: nothing goes while Site tweaks is switched off');
   check(!ghostBundle(items, values, { enabled: true, ghost: { from: 'Home' } }).items.length, 'ghost: a ghost copy never exports');
-  check(!ghostBundle([it('a')], {}, {}).items.length && !Object.keys(ghostBundle([it('a')], {}, {}).values).length, 'ghost: with nothing switched on the bundle is empty');
+  const none = ghostBundle([it('a')], { a: { k: 1 } }, {});
+  check(eq(none.items.map((i) => [i.id, i.enabled]), [['a', false]]) && !Object.keys(none.values).length, 'ghost: with nothing switched to run there every item goes off, with no values');
+  check(!ghostBundle([], {}, {}).items.length, 'ghost: a space with no tweaks sends nothing');
   let n = 0;
   const w = seedWrites(JSON.parse(JSON.stringify({ ...b, from: 'Home' })), 'Home', () => 'fresh' + ++n);
   check(eq(w.settings, { enabled: true, ghost: { from: 'Home' } }), 'ghost: the copy is marked with the space it came from');
-  check(w['item:on'].secret === 'fresh1' && w['item:st'].secret === 'fresh2' && w['item:on'].ghost === true, 'ghost: each copy gets a new port secret');
+  check(w['item:on'].secret === 'fresh1' && w['item:st'].secret === 'fresh4' && w['item:on'].ghost === true, 'ghost: each copy gets a new port secret');
+  check(w['item:plain'].enabled === false && !('values:plain' in w), 'ghost: a script not set to run there is seeded off, without its values');
   check(eq(w['values:on'], { hidden: ['.ad', '#promo'] }) && !('values:st' in w), 'ghost: values are seeded under the same script id');
   const bad = seedWrites({ items: [{ id: '../x', kind: 'script' }, { id: 'ok', kind: 'nope' }, null, { id: 'v', kind: 'script' }], values: { v: [1] } }, '', () => 's');
   check(eq(Object.keys(bad).sort(), ['item:v', 'settings']) && bad.settings.ghost.from === 'your space', 'ghost: malformed items and values are dropped');

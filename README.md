@@ -188,8 +188,9 @@ port 9444) started on demand.
   their menu commands are in the address bar's site menu. Backups keep everything (settings, stored
   values, allowed hosts, downloaded @require files, run order). Importing one, or a Violentmonkey or
   Tampermonkey zip or a Stylus export, shows a preview where each item is added, replaced or skipped.
-  Off in ghost tabs, except scripts you switch to "Run in ghost tabs":
-  each ghost session gets a copy of those and their stored data, and nothing it changes comes back.
+  In ghost tabs, scripts you switch to "Run in ghost tabs" run with a copy of their stored data; the
+  others are off there, and a ghost tab's site menu turns them on for that ghost session only.
+  Nothing a ghost session changes comes back.
 
 **Getting around**
 - One command bar (⌘T, ⌘L) for addresses, search, open tabs, history and the text of pages

@@ -40,7 +40,11 @@ export function matcher(spec = 'sidebar') {
 export function cdpClient({ port, data, token } = {}) {
   const tok = () => token ?? (data ? (() => { try { return readFileSync(join(data, 'cdp-token'), 'utf8').trim(); } catch { return ''; } })() : '');
   const headers = () => ({ 'X-Roar-Token': tok() });
-  const list = async () => (await fetch0(`http://127.0.0.1:${port}/json/list`, { headers: headers() })).json();
+  // Retried: a socket the DevTools server just closed fails the odd request with "fetch failed".
+  const list = async (tries = 3) => {
+    try { return await (await fetch0(`http://127.0.0.1:${port}/json/list`, { headers: headers() })).json(); }
+    catch (e) { if (tries <= 1) throw e; await sleep(300); return list(tries - 1); }
+  };
   const find = async (m) => (await list()).find(matcher(m));
   // One call on a fresh socket; undefined when no target matches or it times out.
   async function send(m, method, params, timeout = 15000) {

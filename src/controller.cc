@@ -225,7 +225,7 @@ class MailPageClient : public CefClient, public CefRenderHandler, public CefDisp
 // (extensions.settings.<id>.user_scripts_enabled) is on. That pref sits in Secure
 // Preferences and is read once when the extension loads, so it can only be flipped the
 // way chrome://extensions does it. Ghost profiles get the extension switched off instead,
-// unless scripts were set to run in ghost tabs (Controller::SeedGhostTweaks).
+// unless their space has tweaks to copy into the session (Controller::SeedGhostTweaks).
 constexpr char kTweaksId[] = "mfbgmphllcfijgajblnepjfgopbgmnok";
 
 // Browser ids of the hidden pages below: agents never reach them, whatever their profile.
@@ -2479,12 +2479,13 @@ void Controller::OnSpaceReady(int space) {
 }
 
 // Site tweaks in a new ghost session (resources/extensions/tweaks/lib/ghost.js). Off, as before, unless
-// the space the ghost tab was opened from (else the active one) has scripts set to "Run in ghost
-// tabs": then its copy writes them and their GM values to a hidden ghost.html (console only, never a
-// web page or an agent), and the ghost profile's copy is seeded from that, its "Allow User Scripts"
-// switch turned on like a space's. Nothing goes back: the ghost copy refuses to share or export, and
-// is deleted with the profile. Every step looks the ghost context up again and gives up if the
-// session ended: calls on a ghost context after its last page closed crashed Roar.
+// the space the ghost tab was opened from (else the active one) has tweaks: then its copy writes them to a
+// hidden ghost.html (console only, never a web page or an agent), those set to "Run in ghost tabs" on and
+// with their GM values, the rest off for the ghost tabs' site menu to turn on, and the ghost profile's copy
+// is seeded from that, its "Allow User Scripts" switch turned on like a space's. Nothing goes back: the
+// ghost copy refuses to share or export, and is deleted with the profile. Every step looks the ghost
+// context up again and gives up if the session ended: calls on a ghost context after its last page
+// closed crashed Roar.
 void Controller::SeedGhostTweaks() {
   int session = ghost_session_;
   auto ghost_ctx = [this, session]() -> CefRefPtr<CefRequestContext> {
@@ -7136,12 +7137,22 @@ bool Controller::HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> 
     });
   } else if (cmd == "tab.tweaks") {
     // Site tweaks for the tab's site, from the extension's worker in the tab's own profile:
-    // what = get | toggle (arg: item id) | global | run (arg: menu command key).
+    // what = get | toggle (arg: item id) | global | run (arg: menu command key) | manage (ghost tabs only).
+    // A ghost tab's profile is its session's: its copy (lib/ghost.js) holds every tweak of the space, only the
+    // ones set to run in ghost tabs on, and what is switched here stays in that copy and goes with the session.
     Tab* tab = FindTab(int_arg("id"));
-    auto tab_browser = tab && !tab->ghost && tab->view ? tab->view->GetBrowser() : nullptr;
+    auto tab_browser = tab && tab->view ? tab->view->GetBrowser() : nullptr;
     if (!tab_browser || !(StartsWith(tab->url, "http://") || StartsWith(tab->url, "https://") || StartsWith(tab->url, "file://")))
       return callback->Success("null"), true;
     std::string what = msg->GetString("what").ToString();
+    if (what == "manage") {
+      // The ghost copy's own manager (arg: its route, e.g. site=<url> or item=<id>), in a ghost tab: opened the
+      // usual way it would be a space tab, and its address would carry the ghost page's into the space.
+      std::string route = msg->GetString("arg").ToString();
+      if (!tab->ghost || route.size() > 4096) return callback->Success("null"), true;
+      NewTab(std::string("chrome-extension://") + kTweaksId + "/manage.html#" + route, true, false, 0, -1, true);
+      return callback->Success("true"), true;
+    }
     if (what != "toggle" && what != "global" && what != "run") what = "get";
     std::string expr = "roarSite(" + JsString(what) + "," + JsString(tab->url) + "," + JsString(msg->GetString("arg").ToString()) + ")";
     int id = tab->id;
