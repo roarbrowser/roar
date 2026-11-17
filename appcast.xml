@@ -529,5 +529,14 @@
       <description><![CDATA[Fixes the Windows build of 1.29.0. Same features: tab groups close with their last tab, every closed tab shows in Recently Closed with whole groups and spaces restorable, PDF and HTML files open from Finder, ghost tabs can use Site tweaks scripts, and extensions like Bitwarden see the page you are looking at.]]></description>
       <enclosure url="https://github.com/roarbrowser/roar/releases/download/v1.29.1/Roar-1.29.1.dmg" type="application/octet-stream" sparkle:edSignature="h0+E6WXS8vSl2innI2yDNgv/CfUCJvIVP6HLLhozm7Eipbxs6FH/JlFcZpJZmDIB+HKTeLnnC5eVS/MrEJ95Dw==" length="193710044"/>
     </item>
+    <item>
+      <title>1.29.2</title>
+      <pubDate>Tue, 17 Nov 2026 20:05:38 +0000</pubDate>
+      <sparkle:version>12902</sparkle:version>
+      <sparkle:shortVersionString>1.29.2</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[Mail panel: an account's sign-out button now signs out every Google account in the space after a confirm, and its hover explains that Google cannot sign out just one account.]]></description>
+      <enclosure url="https://github.com/roarbrowser/roar/releases/download/v1.29.2/Roar-1.29.2.dmg" type="application/octet-stream" sparkle:edSignature="EizX8aRFDlwjK61uhscwKwbMF1u8+/mT9Vhr7+j9aAikhloe5CHWUX7mzUcAmiqulNM29BIlcMu1TWZy6F/wDA==" length="193713627"/>
+    </item>
   </channel>
 </rss>
