@@ -2078,16 +2078,19 @@ int Controller::TaskGroupFor(const std::string& owner, int space, const std::str
     if (!name.empty()) tg.auto_name.clear();
     return tg.id;
   }
-  // The task's first page, or the person removed its group: a group of that name of the person's (no other task's) takes it.
+  // The task's first page, or its group went (the person removed it, or its last page closed): a group of that
+  // name of the person's (no other task's) takes it. A task whose last page closed keeps its group's name.
+  std::string was = tg.last_name, was_auto = tg.auto_name;
   tg = {};
-  if (!name.empty())
+  std::string want = name.empty() ? was : name;
+  if (!want.empty())
     for (const auto& g : st.groups)
-      if (g.space == space && g.name == name && !HeldByTask(g.id)) return tg.id = g.id;
+      if (g.space == space && g.name == want && !HeldByTask(g.id)) return tg.id = g.id;
   TabGroup g;
   g.id = st.next_group_id++;
   g.space = space;
-  g.name = name.empty() ? SiteName(url) : name;
-  if (name.empty()) tg.auto_name = g.name;
+  g.name = want.empty() ? SiteName(url) : want;
+  if (name.empty()) tg.auto_name = was.empty() ? g.name : was == was_auto ? was : "";
   st.groups.push_back(g);
   return tg.id = g.id;
 }
@@ -2702,7 +2705,7 @@ void Controller::Relayout() {
   }
 }
 
-void Controller::CloseTab(int id) {
+void Controller::CloseTab(int id, bool moving) {
   auto it = std::find_if(tabs_.begin(), tabs_.end(), [&](const Tab& t) { return t.id == id; });
   if (it == tabs_.end()) return;
   Tab tab = *it;
@@ -2712,7 +2715,7 @@ void Controller::CloseTab(int id) {
   tabs_.erase(it);
   if (find_visible_ && find_tab_ == id) HideFind(false);
   std::erase_if(splits_, [&](const SplitPair& p) { return p.a == id || p.b == id; });
-  if (tab.group) DropGroupIfEmpty(tab.group);
+  if (tab.group) DropGroupIfEmpty(tab.group, !moving);
   if (tab.ghost && std::none_of(tabs_.begin(), tabs_.end(), [](const Tab& t) { return t.ghost; }))
     EndGhostSession();
   // Reading a PR or message changes the list; refetch once it's closed.
@@ -2849,15 +2852,20 @@ void Controller::SetGroup(int id, int group) {
   SaveSoon();
 }
 
-// An unpinned group lasts only as long as its tabs.
-void Controller::DropGroupIfEmpty(int group) {
+// A group lasts only as long as its tabs. Closing its last tab closes it, pinned or an agent's task group
+// alike (closed). Otherwise (a tab moved out, a group inside it went) a pinned group stays as a folder and an
+// agent's task group waits for its next page.
+void Controller::DropGroupIfEmpty(int group, bool closed) {
   State& state = State::Get();
   TabGroup* g = state.FindGroup(group);
-  if (!g || state.GroupPinned(group) || HeldByTask(group)) return;  // An agent's task group waits for its next page.
+  if (!g || (!closed && (state.GroupPinned(group) || HeldByTask(group)))) return;
   if (std::any_of(tabs_.begin(), tabs_.end(), [&](const Tab& t) { return t.group == group; })) return;
   // A group holding another group is not empty.
   if (std::any_of(state.groups.begin(), state.groups.end(), [&](const TabGroup& x) { return x.parent == group; })) return;
   int parent = g->parent;
+  // The task keeps the name, so its next page makes the group again under it.
+  for (auto& [key, tg] : task_groups_)
+    if (tg.id == group) tg.last_name = g->name;
   state.groups.erase(std::remove_if(state.groups.begin(), state.groups.end(),
                                     [&](const TabGroup& x) { return x.id == group; }),
                      state.groups.end());
@@ -5800,7 +5808,7 @@ bool Controller::HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> 
       int id = t->id;
       AgentMark mark = t->agent;
       FindTab(NewTab(t->url, false, t->pinned, t->last_active, space))->agent = mark;
-      CloseTab(id);
+      CloseTab(id, true);
     }
     callback->Success("");
   } else if (cmd == "tab.float") {

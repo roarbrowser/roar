@@ -167,13 +167,13 @@ class Controller {
   void ReloadBrowser(CefRefPtr<CefBrowser> browser, bool ignore_cache);
   void ActivateTab(int id);
   CefRefPtr<CefRequestContext> ContextFor(int space);
-  void CloseTab(int id);
+  void CloseTab(int id, bool moving = false);  // moving: the page reopens in another space, so it is not a close.
   void Navigate(int id, const std::string& url);
   void SetPinned(int id, bool pinned);
   void SetGroup(int id, int group);
   // Pinned tabs and tabs in pinned groups: restored on launch, kept by ⌘W.
   bool IsKept(const Tab& tab);
-  void DropGroupIfEmpty(int group);
+  void DropGroupIfEmpty(int group, bool closed = false);  // closed: its last tab was just closed.
   void CloseActiveUnlessKept();
   bool ExecuteScript(int id, const std::string& code);
   // AppleScript `execute javascript`: refuses Roar pages, ghost tabs and spaces with agents off.
@@ -519,7 +519,7 @@ class Controller {
   // One tab group per agent task: a roar-mcp connection's pages in a space all go to one group, held (even while
   // empty) until the connection lets go (done card, idle, exit). auto_name: the site name Roar gave it, which the
   // agent's first group name replaces.
-  struct TaskGroup { int id = 0; std::string auto_name; };
+  struct TaskGroup { int id = 0; std::string auto_name, last_name; };
   std::map<std::pair<std::string, int>, TaskGroup> task_groups_;  // (owner, space) -> its task's group.
   int TaskGroupFor(const std::string& owner, int space, const std::string& name, const std::string& url);
   bool HeldByTask(int group) const;

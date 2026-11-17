@@ -85,13 +85,11 @@ try {
   check(t.includes('Stay') && t.includes('L1') && t.includes('Keep'), 'tabs outside the group stay open');
   check(!(await ev(`state.groups.some((g) => g.name === 'Outer' || g.name === 'Inner')`)), 'emptied groups go, as they do when their last tab closes');
 
-  // A pinned group keeps its folder.
+  // A pinned group closes too once its last tab closes.
   await rightClick(await groupHead('Held')); await pick();
   t = await titles();
   check(!t.includes('P1'), 'a pinned group closes its tabs');
-  check(await ev(`state.groups.some((g) => g.name === 'Held')`), 'a pinned group stays, empty');
-  check((await rightClick(await groupHead('Held'))).includes('Close all tabs (off)'), 'an empty group has nothing to close, so the item is off');
-  await ev(`hideCtx()`);
+  check(!(await ev(`state.groups.some((g) => g.name === 'Held')`)), 'an emptied pinned group goes too');
 
   // The Tabs header: loose tabs only, the active one among them.
   check(await ev(`state.tabs.find((t) => t.active)?.title === 'L2'`), 'the active tab is one of the loose tabs');

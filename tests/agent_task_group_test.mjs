@@ -1,5 +1,6 @@
 // One tab group per agent task (Controller TaskGroupFor + roar-mcp new_page/group_page): every page a connection
-// opens goes into one group, whatever names it passes, held while empty, until its "done" card ends the task.
+// opens goes into one group, whatever names it passes, until its "done" card ends the task. Closing its last page
+// closes the group; its next page makes it again under the same name.
 // Starts a headless scratch Roar with its own data dir. Usage: node tests/agent_task_group_test.mjs <Roar binary>
 import { spawn } from 'node:child_process';
 import { createServer } from 'node:http';
@@ -68,7 +69,7 @@ try {
   // 1. The first name makes the task's group; other names and no name keep to it.
   const o1 = await A.call('new_page', { url: `${site}/a1`, group: 'Rivian docs' });
   check(!o1.err, `A opens a1 (${o1.err ? o1.text : ''})`);
-  const g = (await where('/a1')).group;
+  let g = (await where('/a1')).group;
   check(g && (await where('/a1')).name === 'Rivian docs', 'the first page makes the task group "Rivian docs"');
   const o2 = await A.call('new_page', { url: `${site}/a2`, group: 'Rivian paperwork' });
   const o3 = await A.call('new_page', { url: `${site}/a3` });
@@ -77,12 +78,18 @@ try {
   check((await where('/a3')).name === 'Rivian docs', 'a later name does not rename it');
   check((await sidebar(`ask({cmd:'state'})`)).groups.length === 1, 'still one group');
 
-  // 2. The agent closing all its pages does not end the group: the next page goes back to it.
-  for (const p of ['/a1', '/a2', '/a3']) await A.call('close_page', { pageId: idOf((await A.call('list_pages')).text, p) });
+  // 2. The agent closing its pages: the group stays while one is left, and closes with the last one.
+  for (const p of ['/a1', '/a2']) await A.call('close_page', { pageId: idOf((await A.call('list_pages')).text, p) });
+  check((await where('/a3')).group === g, 'the group stays while it still has a page');
+  await A.call('close_page', { pageId: idOf((await A.call('list_pages')).text, '/a3') });
   const empty = await where('/a1');
-  check(!empty.tab && empty.groups.some((x) => x.id === g), 'the emptied task group stays while the task runs');
-  const o4 = await A.call('new_page', { url: `${site}/a4`, group: 'Rivian docs' });
-  check(!o4.err && (await where('/a4')).group === g, 'the next page goes back to the same group');
+  check(!empty.tab && !empty.groups.some((x) => x.id === g), 'closing the last page closes the task group');
+  // The task's next page, even with no name, makes its group again under the old name.
+  const o4 = await A.call('new_page', { url: `${site}/a4` });
+  const a4 = await where('/a4');
+  check(!o4.err && a4.group && a4.group !== g && a4.name === 'Rivian docs', `the next page makes the group again as "Rivian docs" (${a4.name})`);
+  check(a4.groups.length === 1, 'still one group');
+  g = a4.group;
 
   // 3. The person renames it: the agent's old name does not make a second group.
   await sidebar(`ask({cmd:'group.update',id:${g},name:'Car stuff'})`);
