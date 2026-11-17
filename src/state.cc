@@ -441,7 +441,7 @@ void State::Save() {
     const ArchivedTab& a = archive[i];
     if (!a.kind.empty()) {
       t->SetString("kind", a.kind);
-      auto tl = CefListValue::Create();
+      auto unit_tabs = CefListValue::Create();
       for (const auto& x : a.tabs) {
         auto st = CefDictionaryValue::Create();
         st->SetString("url", x.url);
@@ -452,9 +452,9 @@ void State::Save() {
         if (!x.icon.empty()) st->SetString("icon", x.icon);
         if (!x.favicon.empty()) st->SetString("favicon", x.favicon);
         if (!x.name.empty()) st->SetString("name", x.name);
-        tl->SetDictionary(tl->GetSize(), st);
+        unit_tabs->SetDictionary(unit_tabs->GetSize(), st);
       }
-      t->SetList("tabs", tl);
+      t->SetList("tabs", unit_tabs);
       auto gl = CefListValue::Create();
       for (const auto& x : a.groups) {
         auto g = CefDictionaryValue::Create();
