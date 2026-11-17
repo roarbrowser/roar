@@ -28,6 +28,22 @@
   <key>SUPublicEDKey</key><string>dTKkB+OrdfD/zFbY1cIwwhY5K7nQdBZ3WO/Qdng8tyw=</string>
   <key>SUEnableAutomaticChecks</key><true/>
   <key>SUEnableSystemProfiling</key><false/>
+  <!-- Open With, a default app or a drop on the Dock icon; Alternate, so Roar never takes them over by itself. -->
+  <key>CFBundleDocumentTypes</key>
+  <array>
+    <dict>
+      <key>CFBundleTypeName</key><string>PDF document</string>
+      <key>CFBundleTypeRole</key><string>Viewer</string>
+      <key>LSHandlerRank</key><string>Alternate</string>
+      <key>LSItemContentTypes</key><array><string>com.adobe.pdf</string></array>
+    </dict>
+    <dict>
+      <key>CFBundleTypeName</key><string>HTML document</string>
+      <key>CFBundleTypeRole</key><string>Viewer</string>
+      <key>LSHandlerRank</key><string>Alternate</string>
+      <key>LSItemContentTypes</key><array><string>public.html</string><string>public.xhtml</string></array>
+    </dict>
+  </array>
   <key>CFBundleURLTypes</key>
   <array>
     <dict>

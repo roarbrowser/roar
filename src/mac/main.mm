@@ -64,6 +64,12 @@ static bool g_stay_behind = false;
   NSString* url = [[event paramDescriptorForKeyword:keyDirectObject] stringValue];
   if (url) roar::Controller::Get()->OpenLink(url.UTF8String);
 }
+// Files from Finder (CFBundleDocumentTypes): a tab each, like a link from another app. At launch they
+// can come before Controller::Start, which OpenLink waits for. Links still come through handleGetURL.
+- (void)application:(NSApplication*)app openURLs:(NSArray<NSURL*>*)urls {
+  for (NSURL* url in urls)
+    if (url.isFileURL && url.path) roar::Controller::Get()->OpenLink([NSURL fileURLWithPath:url.path].absoluteString.UTF8String);
+}
 - (void)applicationDidResignActive:(NSNotification*)notification {
   roar::Controller::Get()->PaintPreview();
 }

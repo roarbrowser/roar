@@ -1697,6 +1697,9 @@ void Controller::Start() {
   }
   if (state.settings.onboarded && state.settings.ask_default && !platform::Headless() && !platform::IsDefaultBrowser())
     AskDefaultBrowser();
+  // The file or link that launched Roar (application:openURLs: and GetURL can come before this).
+  started_ = true;
+  for (const auto& url : std::exchange(pending_links_, {})) OpenLink(url);
 
   if (platform::Headless()) platform::HideApp();
   AutoArchiveTick();
@@ -2022,6 +2025,7 @@ int Controller::NewTab(const std::string& url, bool activate, bool pinned, doubl
 }
 
 void Controller::OpenLink(const std::string& url) {
+  if (!started_) return pending_links_.push_back(url);
   int space = -1;
   if (std::string name = MatchSpaceRule(State::Get().settings.space_rules, url); !name.empty())
     for (const auto& s : State::Get().spaces)
