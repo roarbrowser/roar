@@ -511,5 +511,14 @@
       <description><![CDATA[An agent keeps each task in one tab group: different group names, renaming the group, or the agent closing its last tab no longer split a task into several groups. Site tweaks: Undo after deleting a tweak, a count of pending updates in the header, and New script for this site and Edit in the site menu.]]></description>
       <enclosure url="https://github.com/roarbrowser/roar/releases/download/v1.28.0/Roar-1.28.0.dmg" type="application/octet-stream" sparkle:edSignature="/taTWhrGWfTPv5hz9K8CV3VVhBFpQlmtBmcDx2r8IdjMNJn/O+OZcDoXkFkt1HWLd8XPYm8sWYS65Tuq6T/xBA==" length="210399445"/>
     </item>
+    <item>
+      <title>1.29.0</title>
+      <pubDate>Tue, 17 Nov 2026 04:24:29 +0000</pubDate>
+      <sparkle:version>12900</sparkle:version>
+      <sparkle:shortVersionString>1.29.0</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[Tab groups close when their last tab closes, pinned and agent groups too. Every closed tab now shows in Recently Closed, and whole groups and spaces can be restored at once. Open PDF and HTML files from Finder in Roar. Ghost tabs list your Site tweaks scripts and let you switch them on for the session. Extensions like Bitwarden now see the page you are looking at.]]></description>
+      <enclosure url="https://github.com/roarbrowser/roar/releases/download/v1.29.0/Roar-1.29.0.dmg" type="application/octet-stream" sparkle:edSignature="FvYvbHbrkMB6EnNmT8w7Keh+R5aTrkjqWKUSfXEszAIM3M6Vhk+7bsC6dSvYdwbkDTlW4ghgX0rQpIqu9VFMAw==" length="193709532"/>
+    </item>
   </channel>
 </rss>
