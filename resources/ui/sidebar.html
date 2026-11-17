@@ -871,9 +871,11 @@ window.roar = {
     $('gm-btn').title = (gm.accounts || []).map((a) => `${a.address}: ${a.unread} unread`).join('\n') || 'Unread mail';
     for (const b of document.querySelectorAll('.feed[data-feed][hidden]')) $(b.dataset.feed).classList.remove('open');
     syncFeeds();
+    const nAcct = (gm.accounts || []).length;
+    const signOutTip = nAcct > 1 ? `Sign out of all ${nAcct} Google accounts in this space. Google has no way to sign out just one account, so this signs them all out.` : 'Sign out of Gmail in this space';
     setHtml($('gm'), gm.status
       ? (folderTab('mail') ? tabRow(folderTab('mail'), 0) : '') + `<div class="note">${esc(gm.status)}</div>`
-      // Every signed-in account gets its section (even a lone one), so each has its count and sign-out.
+      // Every signed-in account gets its section (even a lone one), so each has its count and sign-out (all of them: Google can't sign out just one).
       : (gm.accounts || []).length
         ? (folderTab('mail') && !gm.shown.some((m) => m.url === folderTab('mail').folderItem) ? tabRow(folderTab('mail'), 0) : '') +
           accts.filter(([a]) => acctShowHidden || !acctHidden.has(a.address)).map(([a, n]) => {
@@ -882,7 +884,7 @@ window.roar = {
             const items = gm.shown.filter((m) => m.account === n);
             const more = Math.max(a.unread || 0, gm.items.filter((m) => m.account === n).length) - items.length;
             return `<div class="acct" style="--acct:${ACCT_HUES[n % ACCT_HUES.length]}">
-              <div class="acct-head" draggable="true" data-acct="${n}" data-addr="${esc(a.address)}" title="Open ${esc(a.address)} in a tab"><span class="swatch"></span><span class="who">${who}</span>${items.length ? `<button class="selacct" data-selacct="${n}" title="Select the messages shown for this account">${items.every((m) => mailSel.has(m.url)) ? 'None' : 'All'}</button>` : ''}<span class="n">${a.unread || ''}</span><button class="selacct acctout" data-acctout="${n}" title="Sign out of this account only…" aria-label="Sign out of ${esc(a.address)}"><svg viewBox="0 0 16 16" width="11" height="11" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6.5 2.5h-3a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1h3M10.5 11 13.5 8l-3-3M13.5 8H6"/></svg></button><button class="selacct" data-accthide="${esc(a.address)}" title="${acctHidden.has(a.address) ? 'Show this account again' : 'Hide this account (Show hidden brings it back)'}">${acctHidden.has(a.address) ? 'Show' : '−'}</button></div>
+              <div class="acct-head" draggable="true" data-acct="${n}" data-addr="${esc(a.address)}" title="Open ${esc(a.address)} in a tab"><span class="swatch"></span><span class="who">${who}</span>${items.length ? `<button class="selacct" data-selacct="${n}" title="Select the messages shown for this account">${items.every((m) => mailSel.has(m.url)) ? 'None' : 'All'}</button>` : ''}<span class="n">${a.unread || ''}</span><button class="selacct acctout" data-acctout title="${esc(signOutTip)}" aria-label="${esc(signOutTip)}"><svg viewBox="0 0 16 16" width="11" height="11" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6.5 2.5h-3a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1h3M10.5 11 13.5 8l-3-3M13.5 8H6"/></svg></button><button class="selacct" data-accthide="${esc(a.address)}" title="${acctHidden.has(a.address) ? 'Show this account again' : 'Hide this account (Show hidden brings it back)'}">${acctHidden.has(a.address) ? 'Show' : '−'}</button></div>
               ${items.map(mailRow).join('') || '<div class="note">No unread mail</div>'}${more > 0 ? `<button class="note cl-hidden acct-more" data-acct="${n}" title="Open ${esc(a.address)} in a tab">${more} more in Gmail</button>` : ''}</div>`;
           }).join('') + (acctHid ? `<button class="note cl-hidden" data-acctshowhidden>${acctShowHidden ? 'Done showing' : 'Show'} ${acctHid} hidden account${acctHid > 1 ? 's' : ''}</button>` : '')
         : gm.items.length
@@ -971,7 +973,7 @@ document.addEventListener('click', (e) => {
   if (selacct) { e.stopPropagation(); return selectMail(state.gmail.shown.filter((m) => m.account === +selacct.dataset.selacct)); }
   // Signs out that one account through Google's own page for it, after a native confirm menu (controller.cc).
   const acctout = e.target.closest('[data-acctout]');
-  if (acctout) { e.stopPropagation(); return ask({ cmd: 'run', id: 'gmailAcctSignOut:' + acctout.dataset.acctout }); }
+  if (acctout) { e.stopPropagation(); return ask({ cmd: 'run', id: 'gmailSignOutAll' }); }
   const mhide = e.target.closest('[data-mhide]');
   if (mhide) { e.stopPropagation(); mailHidden.add(mhide.closest('[data-murl]').dataset.murl); saveMail(); return roar.render(state); }
   const ah = e.target.closest('[data-accthide]');
