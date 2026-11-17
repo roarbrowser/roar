@@ -559,20 +559,25 @@ class TabViewDelegate : public CefBrowserViewDelegate {
 
 // An extension's action popup: sizes itself to its page like Chrome's bubble.
 // Pages that size to their window (Bitwarden) report no width, hence the floor.
-// The popup lives in its own focused window, so "the active tab in the current
-// window" is the popup itself, both for the popup page and for the extension's
-// service worker (Violentmonkey: "cannot run userscripts in this page"). A shim
-// in both answers that query with the Roar tab underneath instead: matched by
-// URL, else the most recently used tab in another window (an extension without
-// the tabs permission sees no URLs). Chrome won't inject DevTools scripts into
-// extension pages, so the popup starts blank, a breakpoint pauses it on the
-// extension's first line and the shim goes in there; the worker is reached by
-// attaching to it from the popup's DevTools session once the page runs.
+// Alloy style, so the popup is no Chromium tab or window: as a Chrome-style tab it
+// was "the active tab in the current window" itself, for the page and for the
+// extension's service worker (Violentmonkey: "cannot run userscripts in this
+// page"; Bitwarden: no logins for the site), it showed in tabs.query and fired
+// tabs.onActivated and windows.onFocusChanged. Every Roar tab is a window of its
+// own whose activation Chromium only learns from the key window, so the page's
+// "current window" is still whichever tab window was last key (Roar inactive, an
+// agent's tab: often another tab). A shim makes it the tab the person sees:
+// tabs.query on the current or last focused window and windows.getCurrent and
+// getLastFocused answer with Roar's active tab, matched by URL, else the most
+// recently used tab (an extension without the tabs permission sees no URLs);
+// tabs.getCurrent answers undefined, as in Chrome's popup. Chrome won't inject
+// DevTools scripts into extension pages, so the popup starts blank, a breakpoint
+// pauses it on the extension's first line and the shim goes in there.
 class ExtensionPopupViewDelegate : public CefBrowserViewDelegate {
  public:
   ExtensionPopupViewDelegate(const std::string& url, const std::string& tab_url)
       : url_(url), tab_url_(tab_url) {}
-  cef_runtime_style_t GetBrowserRuntimeStyle() override { return CEF_RUNTIME_STYLE_CHROME; }
+  cef_runtime_style_t GetBrowserRuntimeStyle() override { return CEF_RUNTIME_STYLE_ALLOY; }
   void OnBrowserCreated(CefRefPtr<CefBrowserView> view, CefRefPtr<CefBrowser> browser) override {
     auto host = browser->GetHost();
     registration_ = host->AddDevToolsMessageObserver(new ShimInstaller(url_, tab_url_));
@@ -580,44 +585,49 @@ class ExtensionPopupViewDelegate : public CefBrowserViewDelegate {
   }
 
  private:
-  // Steps: enable the debugger, patch the worker if it is awake, set the
-  // breakpoint, load the page, patch it when it pauses, then patch the worker
-  // again in case the page just woke it. Fixed ids, because a result can
-  // arrive before ExecuteDevToolsMethod returns.
+  // Steps: enable the debugger, set the breakpoint, load the page, patch it when
+  // it pauses, then let it run. A result can arrive before ExecuteDevToolsMethod
+  // returns, so each id's step is recorded first.
   class ShimInstaller : public CefDevToolsMessageObserver {
    public:
-    enum { kEnable = 1 << 20, kTargets, kAttach, kWorkerEval, kBreakpoint, kEval, kDisable, kResume };
+    enum { kEnable = 1 << 20, kBreakpoint, kEval, kDisable, kResume };
     ShimInstaller(const std::string& url, const std::string& tab_url) : url_(url) {
       static const char kShim[] = R"JS((() => {
-  const tabs = globalThis.chrome && chrome.tabs;
-  if (!tabs || !tabs.query) return;
-  // Each popup re-sends its tab: a worker patched by an earlier popup kept that tab.
-  globalThis.roarPopupTab = %s;
-  if (tabs.query.roar) return;
-  const self = chrome.runtime.getURL(''), query = tabs.query.bind(tabs);
-  const underneath = async res => {
-    const want = globalThis.roarPopupTab;
-    if (!res.length || !(res[0].url || res[0].pendingUrl || '').startsWith(self)) return res;
-    const others = (await query({})).filter(t => t.windowId !== res[0].windowId)
-                       .sort((a, b) => (b.lastAccessed || 0) - (a.lastAccessed || 0));
-    const hit = others.find(t => want && (t.url === want || t.pendingUrl === want)) || others[0];
-    return hit ? [hit] : res;
+  const tabs = globalThis.chrome && chrome.tabs, wins = globalThis.chrome && chrome.windows;
+  if (!tabs || !tabs.query || tabs.query.roar) return;
+  const want = %s, self = chrome.runtime.getURL(''), query = tabs.query.bind(tabs);
+  const CURRENT = wins ? wins.WINDOW_ID_CURRENT : -2;
+  const answer = (p, cb) => (typeof cb === 'function' ? void p.then(cb) : p);
+  // The tab the person sees: Roar's active tab, else the most recently used one.
+  const shown = async () => {
+    const all = (await query({})).filter((t) => !(t.url || t.pendingUrl || '').startsWith(self))
+                    .sort((a, b) => (b.lastAccessed || 0) - (a.lastAccessed || 0));
+    return all.find((t) => want && (t.url === want || t.pendingUrl === want)) || all[0];
   };
   tabs.query = (info, cb) => {
-    let p = query(info);
-    if (info && info.active && (info.currentWindow || info.lastFocusedWindow)) p = p.then(underneath);
-    if (typeof cb !== 'function') return p;
-    p.then(cb);
+    const i = info || {};
+    if (i.currentWindow !== true && i.lastFocusedWindow !== true && i.windowId !== CURRENT) return answer(query(i), cb);
+    return answer(shown().then((t) => {
+      if (!t) return query(i);
+      const { currentWindow, lastFocusedWindow, ...rest } = i;
+      return query({ ...rest, windowId: t.windowId });
+    }), cb);
   };
   tabs.query.roar = true;
+  tabs.getCurrent = (cb) => answer(Promise.resolve(undefined), cb);
+  if (!wins) return;
+  for (const name of ['getCurrent', 'getLastFocused']) {
+    const native = wins[name].bind(wins);
+    wins[name] = (opts, cb) => {
+      if (typeof opts === 'function') cb = opts, opts = undefined;
+      return answer(shown().then((t) => (t ? wins.get(t.windowId, opts || {}) : native(opts || {}))), cb);
+    };
+  }
 })())JS";
       auto quoted = CefValue::Create();
       quoted->SetString(tab_url);
       shim_ = kShim;
       shim_.replace(shim_.find("%s"), 2, ToJson(quoted));
-      // chrome-extension://<id>/, for finding this extension's worker.
-      size_t slash = url.find('/', strlen("chrome-extension://"));
-      origin_ = slash == std::string::npos ? url + "/" : url.substr(0, slash + 1);
     }
     void OnDevToolsEvent(CefRefPtr<CefBrowser> browser, const CefString& method,
                          const void* params, size_t params_size) override {
@@ -634,58 +644,26 @@ class ExtensionPopupViewDelegate : public CefBrowserViewDelegate {
       if (!frames || !frames->GetSize()) return Finish(host);
       auto eval = CefDictionaryValue::Create();
       eval->SetString("callFrameId", frames->GetDictionary(0)->GetString("callFrameId"));
-      // Also wake the worker, so it can be patched before the page runs: a
-      // worker the page woke itself answered the page before its patch landed.
-      eval->SetString("expression", shim_ + ";chrome.runtime.sendMessage({ roarWake: true }).catch(() => {})");
+      eval->SetString("expression", shim_);
       Send(host, kEval, "Debugger.evaluateOnCallFrame", eval);
     }
     void OnDevToolsMethodResult(CefRefPtr<CefBrowser> browser, int message_id, bool success,
                                 const void* result, size_t result_size) override {
       auto host = browser->GetHost();
-      auto value = success ? CefParseJSON(result, result_size, JSON_PARSER_RFC) : nullptr;
-      auto dict = value ? value->GetDictionary() : nullptr;
       auto kind = kinds_.find(message_id);
       if (kind == kinds_.end()) return;
       int step = kind->second;
       kinds_.erase(kind);
       switch (step) {
         case kEnable:
-          Send(host, kTargets, "Target.getTargets", nullptr);
-          break;
-        case kTargets:
-          if (waking_) {
-            // The page is paused; wait for the worker it just woke (up to ~2 s).
-            if (AttachWorker(host, dict)) break;
-            if (++polls_ < 40) {
-              PollTargets(host, 50);
-            } else {
-              waking_ = false;
-              Finish(host);
-            }
-            break;
-          }
-          if (!AttachWorker(host, dict) && !loaded_) SetBreakpoint(host);
-          break;
-        case kAttach:
-          // Results on a flattened session don't come back here; messages are
-          // handled in order, so the worker is patched before the page runs.
-          if (dict) EvalInWorker(host, dict->GetString("sessionId"));
-          if (waking_) {
-            waking_ = false;
-            Finish(host);
-          } else if (!loaded_) {
-            SetBreakpoint(host);
-          }
+          SetBreakpoint(host);
           break;
         case kBreakpoint:
           // Load the extension page only once the breakpoint is in place.
-          loaded_ = true;
           browser->GetMainFrame()->LoadURL(url_);
           break;
         case kEval:
-          // Posted: a call made from inside a result callback can be dropped.
-          waking_ = true;
-          PollTargets(host, 0);
+          Finish(host);
           break;
       }
     }
@@ -700,59 +678,23 @@ class ExtensionPopupViewDelegate : public CefBrowserViewDelegate {
       kinds_[id] = step;
       host->ExecuteDevToolsMethod(id, method, params);
     }
-    void PollTargets(CefRefPtr<CefBrowserHost> host, int64_t delay_ms) {
-      CefPostDelayedTask(TID_UI, base::BindOnce([](CefRefPtr<ShimInstaller> self, CefRefPtr<CefBrowserHost> h) {
-        self->Send(h, kTargets, "Target.getTargets", nullptr);
-      }, CefRefPtr<ShimInstaller>(this), host), delay_ms);
-    }
     void SetBreakpoint(CefRefPtr<CefBrowserHost> host) {
       auto params = CefDictionaryValue::Create();
       params->SetString("urlRegex", "^chrome-extension://");
       params->SetInt("lineNumber", 0);
       Send(host, kBreakpoint, "Debugger.setBreakpointByUrl", params);
     }
-    bool AttachWorker(CefRefPtr<CefBrowserHost> host, CefRefPtr<CefDictionaryValue> targets) {
-      auto infos = targets ? targets->GetList("targetInfos") : nullptr;
-      for (size_t i = 0; infos && i < infos->GetSize(); ++i) {
-        auto info = infos->GetDictionary(i);
-        if (info->GetString("type").ToString() != "service_worker" ||
-            !StartsWith(info->GetString("url").ToString(), origin_))
-          continue;
-        auto attach = CefDictionaryValue::Create();
-        attach->SetString("targetId", info->GetString("targetId"));
-        attach->SetBool("flatten", true);
-        Send(host, kAttach, "Target.attachToTarget", attach);
-        return true;
-      }
-      return false;
-    }
-    // Flattened sessions are addressed by a sessionId on the raw message.
-    void EvalInWorker(CefRefPtr<CefBrowserHost> host, const CefString& session) {
-      auto params = CefDictionaryValue::Create();
-      params->SetString("expression", shim_);
-      auto message = CefDictionaryValue::Create();
-      message->SetInt("id", ++next_id_);  // Unregistered: its result goes to the worker session.
-      message->SetString("method", "Runtime.evaluate");
-      message->SetString("sessionId", session);
-      message->SetDictionary("params", params);
-      auto wrapped = CefValue::Create();
-      wrapped->SetDictionary(message);
-      std::string json = ToJson(wrapped);
-      host->SendDevToolsMessage(json.data(), json.size());
-    }
     // Disabling the debugger drops the breakpoint and resumes the page.
     // Auto-resize starts only now: sized while blank, the popup stays too big.
-    // Posted, like PollTargets: called from a result callback, the calls can be dropped.
+    // Posted: called from a result callback, the calls can be dropped.
     void Finish(CefRefPtr<CefBrowserHost> host) {
       CefPostTask(TID_UI, base::BindOnce([](CefRefPtr<ShimInstaller> self, CefRefPtr<CefBrowserHost> host) {
         host->SetAutoResizeEnabled(true, CefSize(360, 120), CefSize(800, 600));
         self->Send(host, kDisable, "Debugger.disable", nullptr);
-        self->Send(host, kTargets, "Target.getTargets", nullptr);
       }, CefRefPtr<ShimInstaller>(this), host));
     }
-    std::string url_, shim_, origin_;
-    bool paused_ = false, loaded_ = false, waking_ = false;
-    int polls_ = 0;
+    std::string url_, shim_;
+    bool paused_ = false;
     std::map<int, int> kinds_ = {{kEnable, kEnable}};  // DevTools message id -> step.
     int next_id_ = kEnable + 100;
     IMPLEMENT_REFCOUNTING(ShimInstaller);
@@ -877,7 +819,7 @@ class PopupDelegate : public CefWindowDelegate {
   IMPLEMENT_REFCOUNTING(PopupDelegate);
 };
 
-// A frameless Chrome-style window for an extension popup; it closes when it
+// A frameless Alloy-style window for an extension popup; it closes when it
 // loses focus, as Chrome's does.
 class ExtensionPopupDelegate : public CefWindowDelegate {
  public:
@@ -902,7 +844,7 @@ class ExtensionPopupDelegate : public CefWindowDelegate {
   bool CanResize(CefRefPtr<CefWindow> window) override { return false; }
   bool CanMinimize(CefRefPtr<CefWindow> window) override { return false; }
   bool CanMaximize(CefRefPtr<CefWindow> window) override { return false; }
-  cef_runtime_style_t GetWindowRuntimeStyle() override { return CEF_RUNTIME_STYLE_CHROME; }
+  cef_runtime_style_t GetWindowRuntimeStyle() override { return CEF_RUNTIME_STYLE_ALLOY; }
 
  private:
   CefRefPtr<CefBrowserView> view_;
@@ -1941,6 +1883,16 @@ void Controller::ClearPreview() {
   for (auto& w : wins_) platform::ClearBackdrop(w->shell->GetWindowHandle());
 }
 
+// macOS gives the key window back to the shell (the tab window that had it is hidden now), and Chromium
+// learns which tab window is active only from the key window: until the page was clicked, extensions'
+// current window was the tab shown before (no logins from Bitwarden's inline menu). Synchronous: a click
+// that brought Roar forward lands after this and keeps its own window key.
+void Controller::OnAppActive() {
+  if (!focus_owed_) return;
+  focus_owed_ = false;
+  FocusTab(ActiveTab());
+}
+
 void Controller::Focus() {
   if (!win_->shell) return;
   win_->shell->Show();
@@ -2649,7 +2601,8 @@ void Controller::OnTabWindowActivated(CefRefPtr<CefWindow> window) {
 void Controller::FocusTab(Tab* tab, bool force) {
   if (!tab || !tab->window || !tab->view) return;
   // Window activation would pull Roar in front of the app the person is using (an agent's tab, a link it opened).
-  if (!force && !platform::AppActive()) return;
+  // It waits for Roar to come to the front (OnAppActive).
+  if (!force && !platform::AppActive()) return void(focus_owed_ = true);
   // Nor raise a window behind the one the person is in (a tab closing or loading there).
   if (!force && !tab->floating && WinOf(*tab)->id != focused_win_) return;
   tab->window->Activate();

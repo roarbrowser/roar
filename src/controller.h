@@ -132,6 +132,8 @@ class Controller {
   // so window previews that capture only it (Vorssaint) show the page.
   void PaintPreview();
   void ClearPreview();
+  // Roar came to the front: a tab shown meanwhile gets the key window it could not take then.
+  void OnAppActive();
   void OnPreviewShot(int tab_id, const std::string& jpeg);
   void Quit();
   // Sparkle's install-and-relaunch: unpinned tabs that a relaunch would drop, and saving the
@@ -426,6 +428,9 @@ class Controller {
   std::vector<std::string> pending_links_;
   int next_win_ = 1;
   int focused_win_ = 0;  // The window the person last activated.
+  // A tab was shown while Roar was in the background, so its window never became key, and Chromium (the
+  // current window of chrome.tabs and windows) still has the tab shown before it.
+  bool focus_owed_ = false;
   bool quitting_ = false;  // Quit: closing a shell quits instead of closing one window.
   CefRefPtr<CefWindow> command_window_;
   CefRefPtr<CefBrowserView> command_bar_;

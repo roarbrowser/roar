@@ -76,6 +76,7 @@ static bool g_stay_behind = false;
 - (void)applicationDidBecomeActive:(NSNotification*)notification {
   g_stay_behind = false;
   roar::Controller::Get()->ClearPreview();
+  roar::Controller::Get()->OnAppActive();
 }
 - (BOOL)applicationShouldHandleReopen:(NSApplication*)app hasVisibleWindows:(BOOL)visible {
   roar::Controller::Get()->Focus();
