@@ -225,7 +225,9 @@ function render() {
       title = esc(it.title || hostOf(it.url));
       const kind = { tab: 'Open tab', history: 'History', archived: 'Archived' }[it.type];
       sub = `<span class="kind">${kind}</span>`;
-      return `<button class="item${i === sel ? ' sel' : ''}" data-i="${i}" id="opt-${i}" role="option" aria-selected="${i === sel}"><span class="icon">${icon}</span><span class="text"><span class="title">${title}</span><span class="url">${esc(hostOf(it.url))}</span></span>${sub}</button>`;
+      // A closed group or space lists its tabs where a tab shows its host.
+      const under = it.type === 'archived' && it.detail ? it.detail : hostOf(it.url);
+      return `<button class="item${i === sel ? ' sel' : ''}" data-i="${i}" id="opt-${i}" role="option" aria-selected="${i === sel}"><span class="icon">${icon}</span><span class="text"><span class="title">${title}</span><span class="url">${esc(under)}</span></span>${sub}</button>`;
     }
     return `<button class="item${i === sel ? ' sel' : ''}" data-i="${i}" id="opt-${i}" role="option" aria-selected="${i === sel}"><span class="icon">${icon}</span><span class="text"><span class="title">${title}</span></span>${sub}</button>`;
   }).join('');

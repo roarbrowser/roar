@@ -41,14 +41,6 @@ struct TabGroup {
   int parent = 0;  // The group it is nested in (a folder in a folder); 0 is top level, same space.
 };
 
-// History, the archive and page text are kept per space, so one space's
-// browsing never surfaces in another's suggestions.
-struct ArchivedTab {
-  std::string url;
-  std::string title;
-  double archived_at = 0;
-  int space = 0;
-};
 
 struct HistoryEntry {
   std::string title;
@@ -73,6 +65,23 @@ struct Space {
   std::vector<std::string> pinned_extensions;  // Extension ids shown in the sidebar.
   bool agents = true;  // CDP clients (agents) may see and open this space's tabs.
   std::string icon;  // An emoji shown in place of the space's dot; empty shows the dot.
+};
+
+// History, the archive and page text are kept per space, so one space's
+// browsing never surfaces in another's suggestions.
+// A Recently Closed entry: one tab, or a unit that comes back whole (Controller::RestoreArchived).
+struct ArchivedTab {
+  std::string url;    // A tab; empty for a unit.
+  std::string title;  // A tab's title, a group's or space's name.
+  double archived_at = 0;
+  int space = 0;
+  // "" one tab; "group": a group closed as a whole (Close group, Close all tabs, its last tab);
+  // "space": a space's tabs closed together, or the space removed (removed).
+  std::string kind;
+  std::vector<SavedTab> tabs;  // A unit's tabs in sidebar order; SavedTab::group is an id in `groups` or a group still open.
+  std::vector<TabGroup> groups;  // Snapshots with their own ids, parents before children.
+  Space space_info;  // kind "space": the space as it was, so a removed one comes back with its own id (and profile).
+  bool removed = false;
 };
 
 // Visible text of a page, kept for full-text search in the command bar.
@@ -153,6 +162,10 @@ class State {
 
   void RecordVisit(int space, const std::string& url, const std::string& title);
   void AddArchived(int space, const std::string& url, const std::string& title);
+  void AddArchived(ArchivedTab unit);  // A group or space, newest first like a tab.
+  // Whether `space`'s Recently Closed lists the entry: its own space's, and a removed space's in every space
+  // (it has none of its own to show in until it comes back).
+  bool ArchiveShown(const ArchivedTab& a, int space);
 
  private:
   State() = default;
@@ -160,6 +173,9 @@ class State {
   std::set<int> filled_pinned_groups_;
   std::set<int> FilledPinnedGroups();
 };
+
+// A Recently Closed entry's label in menus: a tab's title, or "Name (3 tabs)".
+std::string ArchiveLabel(const ArchivedTab& a);
 
 double NowSeconds();
 std::string ReadFile(const std::string& path);  // "" when missing.

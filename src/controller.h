@@ -16,6 +16,7 @@
 #include "dictation.h"
 #include "notify_prefs.h"
 #include "hermes_server.h"
+#include "state.h"
 #include <memory>
 #include <functional>
 #include <deque>
@@ -167,7 +168,11 @@ class Controller {
   void ReloadBrowser(CefRefPtr<CefBrowser> browser, bool ignore_cache);
   void ActivateTab(int id);
   CefRefPtr<CefRequestContext> ContextFor(int space);
-  void CloseTab(int id, bool moving = false);  // moving: the page reopens in another space, so it is not a close.
+  // How CloseTab treats the tab. kArchive: a close by the person, a page or their script, kept in Recently Closed
+  // (ghost tabs and Roar's own pages never are). kDrop: never the person's to restore (the start page, an agent's
+  // page it closed or its task let go). kMove: the page reopens in another space, so it is not a close.
+  enum class Close { kArchive, kDrop, kMove };
+  void CloseTab(int id, Close how = Close::kArchive);
   void Navigate(int id, const std::string& url);
   void SetPinned(int id, bool pinned);
   void SetGroup(int id, int group);
@@ -373,7 +378,6 @@ class Controller {
   void ApplySettings(CefRefPtr<CefDictionaryValue> settings);
   void SaveSoon();
   void SaveNow();
-  void ArchiveTab(int id);
   void AutoArchiveTick();
   void GitHubTick();
   void GmailOpenTick();
@@ -515,6 +519,27 @@ class Controller {
   std::map<std::string, std::string> mcp_tokens_;  // roar-mcp owner pid -> the token it got from agent.hello.
   std::map<std::string, int> claude_idle_gen_;  // Per session, bumped on every state change: a stale close-pages timer does nothing.
   std::string cdp_token_;  // This launch's CDP token (<data>/cdp-token); agent.hello must present it.
+  // Tabs closed together, filed in Recently Closed when the outermost CloseScope ends (FileClosed): a group that
+  // went with its tabs as one entry, a space's tabs (space >= 0) as one, the rest one by one.
+  struct ClosedBatch {
+    std::map<int, size_t> order;  // Tab id -> its place in tabs_ when the scope began.
+    std::vector<std::pair<size_t, SavedTab>> tabs;
+    std::map<int, TabGroup> groups;  // Snapshots of the closed tabs' groups and the groups they sit in.
+    std::set<int> dropped;  // Groups that went because their tabs did.
+    int space = -1;
+    bool removed = false;  // The space itself went too.
+    Space space_info;
+  };
+  struct CloseScope {
+    explicit CloseScope(Controller* c, int space = -1, bool removed = false);
+    ~CloseScope();
+    Controller* c;
+    bool outer;
+    ClosedBatch batch;
+  };
+  ClosedBatch* closed_ = nullptr;
+  void RecordClosed(const Tab& tab);
+  void FileClosed(ClosedBatch& b);
   struct TargetClaim { std::string owner; int space = -1; double expires = 0; std::string group, url; } target_claim_;  // group: tab group name; url: the page new_page asked for.
   // One tab group per agent task: a roar-mcp connection's pages in a space all go to one group, held (even while
   // empty) until the connection lets go (done card, idle, exit). auto_name: the site name Roar gave it, which the

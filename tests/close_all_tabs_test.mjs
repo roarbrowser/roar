@@ -35,7 +35,8 @@ const open = async (...names) => { for (const n of names) { await ev(`ask({ cmd:
 const id = (n) => `state.tabs.find((t) => t.title === '${n}').id`;
 const gid = (n) => `state.groups.find((g) => g.name === '${n}').id`;
 const titles = () => ev(`state.tabs.map((t) => t.title)`);
-const fresh = async () => ev(`ask({ cmd: 'state' }).then((x) => { const s = typeof x === 'string' ? JSON.parse(x) : x; roar.render(s); return (s.archive || []).map((a) => a.title); })`);
+// Recently Closed's titles: each entry's, and for a group closed as a whole, its tabs' too.
+const fresh = async () => ev(`ask({ cmd: 'state' }).then((x) => { const s = typeof x === 'string' ? JSON.parse(x) : x; roar.render(s); return (s.archive || []).flatMap((a) => [a.title, ...(a.tabs || []).map((t) => t.title)]); })`);
 // Right-clicks a header, then reports the menu; `pick` presses Close all tabs.
 const rightClick = (selector) => ev(`(() => { const el = document.querySelector(${JSON.stringify(selector)}), r = el.getBoundingClientRect();
   el.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: r.left + 4, clientY: r.top + 4 }));
@@ -106,6 +107,8 @@ try {
 
   const recent = await fresh();
   check(['Keep', 'L1', 'L2', 'G1', 'N1', 'P1'].every((n) => recent.includes(n)), `every closed tab is in Recently Closed (${recent})`);
+  const units = await ev(`ask({ cmd: 'state' }).then((x) => (typeof x === 'string' ? JSON.parse(x) : x).archive.filter((a) => a.kind === 'group').map((a) => a.title + ':' + a.tabs.map((t) => t.title).join('+')))`);
+  check(units.includes('Outer:G1+N1') && units.includes('Held:P1'), `a group closed as a whole is one entry, groups inside it included (${units})`);
 
   // Ghost tabs close without leaving a trace.
   await ghost('Boo');

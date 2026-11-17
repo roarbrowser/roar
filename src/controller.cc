@@ -2013,7 +2013,7 @@ int Controller::NewTab(const std::string& url, bool activate, bool pinned, doubl
   if (Tab* start = start_tab_.id ? FindTab(start_tab_.id) : nullptr;
       start && ShouldCloseStartTab(start_tab_, start->url, start->pinned, tab.id, tab.space, ghost)) {
     start_tab_ = {};
-    CloseTab(start->id);
+    CloseTab(start->id, Close::kDrop);
   }
   if (activate) ActivateTab(tab.id);
   PushSidebar();
@@ -2055,7 +2055,7 @@ int Controller::OpenTargetTab(const std::string& url) {
   last_target_tab_ = id;
   auto browser = tab && tab->view ? tab->view->GetBrowser() : nullptr;
   if (browser) return browser->GetIdentifier();
-  CloseTab(id);
+  CloseTab(id, Close::kDrop);
   return -1;
 }
 
@@ -2131,7 +2131,7 @@ void Controller::ReleaseAgentPages(const std::string& owner) {
     if (t.window) platform::SetDrivenFrame(t.window->GetWindowHandle(), false);
     SaveSoon();
   }
-  for (int id : doomed) CloseTab(id);
+  for (int id : doomed) CloseTab(id, Close::kDrop);  // The agent's pages, not the person's: not in Recently Closed.
   for (int g : held) DropGroupIfEmpty(g);
   PushSidebar();
 }
@@ -2705,9 +2705,13 @@ void Controller::Relayout() {
   }
 }
 
-void Controller::CloseTab(int id, bool moving) {
+void Controller::CloseTab(int id, Close how) {
   auto it = std::find_if(tabs_.begin(), tabs_.end(), [&](const Tab& t) { return t.id == id; });
   if (it == tabs_.end()) return;
+  // Every close the person can undo goes through here, so none misses Recently Closed; a lone close is a
+  // batch of one (its group, if it was the last tab, comes back with it).
+  CloseScope closed(this);
+  if (how == Close::kArchive) RecordClosed(*it);
   Tab tab = *it;
   size_t index = it - tabs_.begin();
   Win* owner = WinOf(tab);
@@ -2715,7 +2719,7 @@ void Controller::CloseTab(int id, bool moving) {
   tabs_.erase(it);
   if (find_visible_ && find_tab_ == id) HideFind(false);
   std::erase_if(splits_, [&](const SplitPair& p) { return p.a == id || p.b == id; });
-  if (tab.group) DropGroupIfEmpty(tab.group, !moving);
+  if (tab.group) DropGroupIfEmpty(tab.group, how != Close::kMove);
   if (tab.ghost && std::none_of(tabs_.begin(), tabs_.end(), [](const Tab& t) { return t.ghost; }))
     EndGhostSession();
   // Reading a PR or message changes the list; refetch once it's closed.
@@ -2765,8 +2769,10 @@ bool Controller::CanCloseTabWindow(CefRefPtr<CefWindow> window) {
   int id = tab->id;
   CefPostTask(TID_UI, base::BindOnce([](int id) {
                 Controller* c = Controller::Get();
+                // A page closing itself (window.close) or a CDP client closing it is a close like any other,
+                // except an agent closing a page its task opened: that one was never the person's.
                 if (Tab* t = c->FindTab(id); t && t->floating) c->DockTab(id);
-                else c->CloseTab(id);
+                else if (t) c->CloseTab(id, t->mcp_owner.empty() ? Close::kArchive : Close::kDrop);
               }, id));
   return false;
 }
@@ -2866,6 +2872,7 @@ void Controller::DropGroupIfEmpty(int group, bool closed) {
   // The task keeps the name, so its next page makes the group again under it.
   for (auto& [key, tg] : task_groups_)
     if (tg.id == group) tg.last_name = g->name;
+  if (closed_) closed_->dropped.insert(group), closed_->groups.emplace(group, *g);  // It went with its tabs.
   state.groups.erase(std::remove_if(state.groups.begin(), state.groups.end(),
                                     [&](const TabGroup& x) { return x.id == group; }),
                      state.groups.end());
@@ -2994,12 +3001,103 @@ void Controller::ShowHint(const std::string& text) {
                      2200);
 }
 
-void Controller::ArchiveTab(int id) {
-  Tab* tab = FindTab(id);
-  if (!tab) return;
-  if (tab->ghost) return CloseTab(id);
-  State::Get().AddArchived(tab->space, tab->url, tab->title);
-  CloseTab(id);
+Controller::CloseScope::CloseScope(Controller* c, int space, bool removed) : c(c), outer(!c->closed_) {
+  if (!outer) return;
+  c->closed_ = &batch;
+  for (size_t i = 0; i < c->tabs_.size(); ++i) batch.order[c->tabs_[i].id] = i;
+  if (Space* sp = space >= 0 ? State::Get().FindSpace(space) : nullptr) {
+    batch.space = space, batch.removed = removed, batch.space_info = *sp;
+    // A removed space takes its groups along, empty pinned folders too.
+    if (removed)
+      for (const auto& g : State::Get().groups)
+        if (g.space == space) batch.groups.emplace(g.id, g);
+  }
+}
+
+Controller::CloseScope::~CloseScope() {
+  if (!outer) return;
+  c->closed_ = nullptr;
+  c->FileClosed(batch);
+}
+
+void Controller::RecordClosed(const Tab& t) {
+  // Ghost tabs leave no trace. Roar's own pages (the start page, Settings, an Ask chat) are nothing to restore;
+  // a tab in Reader mode comes back as its article.
+  std::string url = t.reader_origin.empty() ? t.url : t.reader_origin;
+  if (!closed_ || t.ghost || url.empty() || StartsWith(url, "roar:")) return;
+  SavedTab s;
+  s.url = url, s.title = t.title, s.pinned = t.pinned, s.last_active = t.last_active, s.space = t.space;
+  s.group = t.group, s.icon = t.icon, s.favicon = t.favicon, s.name = t.name;
+  auto at = closed_->order.find(t.id);
+  closed_->tabs.push_back({at != closed_->order.end() ? at->second : closed_->order.size() + closed_->tabs.size(), s});
+  for (TabGroup* g = State::Get().FindGroup(t.group); g && !closed_->groups.count(g->id); g = State::Get().FindGroup(g->parent))
+    closed_->groups.emplace(g->id, *g);
+}
+
+void Controller::FileClosed(ClosedBatch& b) {
+  State& st = State::Get();
+  if (b.tabs.empty() && !b.removed) return;
+  std::stable_sort(b.tabs.begin(), b.tabs.end(), [](const auto& x, const auto& y) { return x.first < y.first; });
+  auto parent_of = [&](int g) { auto it = b.groups.find(g); return it == b.groups.end() ? 0 : it->second.parent; };
+  // The snapshots of `want`, each after the group it sits in.
+  auto ordered = [&](const std::set<int>& want) {
+    std::vector<TabGroup> out;
+    std::set<int> have;
+    std::function<void(int)> add = [&](int id) {
+      auto it = b.groups.find(id);
+      if (it == b.groups.end() || !want.count(id) || have.count(id)) return;
+      add(it->second.parent);
+      have.insert(id);
+      out.push_back(it->second);
+    };
+    for (int id : want) add(id);
+    return out;
+  };
+  // A space's tabs closed together come back together, with their groups; a removed space comes back as itself.
+  if (b.space >= 0 && (b.removed || b.tabs.size() > 1)) {
+    ArchivedTab a;
+    a.kind = "space", a.space = b.space, a.title = b.space_info.name, a.space_info = b.space_info, a.removed = b.removed;
+    std::set<int> want;
+    for (const auto& [at, t] : b.tabs)
+      for (int g = t.group; g && !want.count(g); g = parent_of(g)) want.insert(g);
+    if (b.removed)
+      for (const auto& [id, g] : b.groups) want.insert(id);
+    a.groups = ordered(want);
+    for (const auto& [at, t] : b.tabs) a.tabs.push_back(t);
+    st.AddArchived(std::move(a));
+    return SaveSoon();
+  }
+  // A group that went with its tabs comes back as one entry: the outermost group that went, with the groups
+  // inside it. Tabs whose group stays come back one by one, as before.
+  auto top_of = [&](int g) {
+    int top = 0;
+    for (; g && b.dropped.count(g) && b.groups.count(g); g = parent_of(g)) top = g;
+    return top;
+  };
+  std::vector<int> tops;
+  std::map<int, ArchivedTab> units;
+  for (const auto& [at, t] : b.tabs) {
+    int top = top_of(t.group);
+    if (!top) {
+      st.AddArchived(t.space, t.url, t.title);
+      continue;
+    }
+    ArchivedTab& u = units[top];
+    if (u.kind.empty()) u.kind = "group", u.space = t.space, u.title = b.groups[top].name, tops.push_back(top);
+    u.tabs.push_back(t);
+  }
+  for (int top : tops) {
+    ArchivedTab& u = units[top];
+    std::set<int> want;
+    for (const auto& t : u.tabs)
+      for (int g = t.group; g; g = parent_of(g)) {
+        want.insert(g);
+        if (g == top) break;
+      }
+    u.groups = ordered(want);
+    st.AddArchived(std::move(u));
+  }
+  SaveSoon();
 }
 
 void Controller::CleanTabs() {
@@ -3007,7 +3105,10 @@ void Controller::CleanTabs() {
   for (const auto& t : tabs_)
     if (!IsKept(t) && !IsVisible(t.id) && !t.floating && t.space == State::Get().active_space)
       ids.push_back(t.id);
-  for (int id : ids) ArchiveTab(id);
+  {
+    CloseScope closed(this);
+    for (int id : ids) CloseTab(id);
+  }
   ShowHint(ids.empty() ? "Nothing to clean up"
                        : "Archived " + std::to_string(ids.size()) +
                              (ids.size() == 1 ? " tab" : " tabs"));
@@ -3021,28 +3122,78 @@ void Controller::AutoArchiveTick() {
     for (const auto& t : tabs_)
       if (!IsKept(t) && !IsVisible(t.id) && !t.floating && t.last_active < cutoff)
         ids.push_back(t.id);
-    for (int id : ids) ArchiveTab(id);
+    CloseScope closed(this);
+    for (int id : ids) CloseTab(id);
   }
   PushSidebar();  // Refreshes the cooling bars.
   CefPostDelayedTask(TID_UI, base::BindOnce([] { Controller::Get()->AutoArchiveTick(); }),
                      60 * 1000);
 }
 
-// Clears the active space's archive; other spaces keep theirs.
+// Clears what the active space's Recently Closed lists; other spaces keep theirs.
 void Controller::ClearArchive() {
-  auto& archive = State::Get().archive;
-  int space = State::Get().active_space;
-  archive.erase(std::remove_if(archive.begin(), archive.end(),
-                               [&](const ArchivedTab& a) { return a.space == space; }),
-                archive.end());
+  State& st = State::Get();
+  int space = st.active_space;
+  std::erase_if(st.archive, [&](const ArchivedTab& a) { return st.ArchiveShown(a, space); });
 }
 
 void Controller::RestoreArchived(size_t index) {
-  auto& archive = State::Get().archive;
-  if (index >= archive.size()) return;
-  ArchivedTab item = archive[index];
-  archive.erase(archive.begin() + index);
-  NewTab(item.url, true, false, 0, item.space);
+  State& st = State::Get();
+  if (index >= st.archive.size()) return;
+  ArchivedTab item = st.archive[index];
+  st.archive.erase(st.archive.begin() + index);
+  if (item.kind.empty()) return void(NewTab(item.url, true, false, 0, item.space));
+  int space = item.space;
+  if (!st.FindSpace(space)) {
+    if (item.kind == "space" && space > 0) {
+      // A removed space comes back as itself: its own id, so its own profile and logins. That is not reusing an
+      // id: Load keeps archived ids taken and NewSpaceId skips ids whose profile is on disk, so no other space holds it.
+      Space sp = item.space_info;
+      sp.id = space;
+      st.spaces.push_back(sp);
+      st.next_space_id = std::max(st.next_space_id, space + 1);
+    } else {
+      space = st.active_space;  // A group from a space removed since: into the space in front.
+    }
+  }
+  bool same = space == item.space;
+  // Groups come back under new ids (an agent's task may still hold the old one), nested where they were when that
+  // group is still open; a group still open (a space's tab closed out of a pinned folder) takes its tabs back.
+  std::map<int, int> ids;
+  for (const auto& g : item.groups) {
+    if (TabGroup* live = same ? st.FindGroup(g.id) : nullptr; live && live->space == space) {
+      ids[g.id] = g.id;
+      continue;
+    }
+    TabGroup n = g;
+    n.id = st.next_group_id++;
+    n.space = space;
+    TabGroup* p = same ? st.FindGroup(g.parent) : nullptr;
+    n.parent = ids.count(g.parent) ? ids[g.parent] : p && p->space == space ? p->id : 0;
+    st.groups.push_back(n);
+    ids[g.id] = n.id;
+  }
+  std::vector<int> opened;
+  for (const auto& t : item.tabs) {
+    int g = ids.count(t.group) ? ids[t.group] : 0;
+    Tab* nt = FindTab(NewTab(t.url, false, t.pinned && !g, 0, space));
+    if (!nt) continue;
+    nt->group = g;
+    nt->name = t.name, nt->icon = t.icon, nt->favicon = t.favicon;
+    if (!t.title.empty()) nt->title = t.title;
+    opened.push_back(nt->id);
+  }
+  // NewTab puts each beside the active tab: the unit goes back in its own order, after the tabs already open.
+  std::vector<Tab> moved;
+  for (int id : opened)
+    if (auto it = std::find_if(tabs_.begin(), tabs_.end(), [&](const Tab& t) { return t.id == id; });
+        it != tabs_.end() && !it->pinned)
+      moved.push_back(*it), tabs_.erase(it);
+  tabs_.insert(tabs_.end(), moved.begin(), moved.end());
+  if (item.kind == "space" && space != st.active_space) SwitchSpace(space);
+  else if (!opened.empty()) ActivateTab(opened.front());
+  PushSidebar();
+  SaveSoon();
 }
 
 // Chat apps "Ask <name> about page" opens, by command id suffix.
@@ -3750,7 +3901,7 @@ void Controller::ClaudeTick() {
     std::string sid = CefURIDecode(t.url.substr(prefix.size(), t.url.find('&') - prefix.size()), false, UU_SPACES).ToString();
     if (!sid.empty() && sid.rfind("new-", 0) != 0 && !seen.count(sid)) ended.push_back(t.id);
   }
-  for (int id : ended) CloseTab(id);
+  for (int id : ended) CloseTab(id, Close::kDrop);
   AgentStatsTick(list);
   std::string sig = ToJson([&] { auto x = CefValue::Create(); x->SetList(list); return x; }());
   if (sig != claude_sig_) {
@@ -4151,13 +4302,14 @@ void Controller::RenameSpace(int id, const std::string& name) {
 void Controller::RemoveSpace(int id) {
   State& state = State::Get();
   if (id == 0 || !state.FindSpace(id)) return;  // Space 0 is the default profile.
+  CloseScope closed(this, id, true);  // One Recently Closed entry brings the space back, tabs, groups and all.
   if (state.active_space == id) SwitchSpace(0);
   std::vector<int> ids;
   for (const auto& t : tabs_)
     if (t.space == id) ids.push_back(t.id);
   for (int tab_id : ids) {
     if (Tab* t = FindTab(tab_id); t && t->floating) t->floating = false;
-    ArchiveTab(tab_id);
+    CloseTab(tab_id);
   }
   state.spaces.erase(std::remove_if(state.spaces.begin(), state.spaces.end(),
                                     [&](const Space& s) { return s.id == id; }),
@@ -4314,7 +4466,10 @@ void Controller::RunCommand(const std::string& id) {
     std::vector<int> ids;
     for (const auto& t : tabs_)
       if (t.space == space && !IsKept(t) && !t.ghost) ids.push_back(t.id);
-    for (int tab : ids) CloseTab(tab);
+    {
+      CloseScope closed(this, space);  // One entry brings them all back.
+      for (int tab : ids) CloseTab(tab);
+    }
     if (space == State::Get().active_space && State::Get().spaces.size() > 1) CycleSpace(1);
   }
   else if (id == "lastSession") {
@@ -4334,9 +4489,9 @@ void Controller::RunCommand(const std::string& id) {
                last.end());
   }
   else if (id == "reopen") {
-    const auto& archive = State::Get().archive;
-    for (size_t i = 0; i < archive.size(); ++i)
-      if (archive[i].space == State::Get().active_space) {
+    State& st = State::Get();
+    for (size_t i = 0; i < st.archive.size(); ++i)
+      if (st.ArchiveShown(st.archive[i], st.active_space)) {
         RestoreArchived(i);
         break;
       }
@@ -5071,13 +5226,40 @@ std::string Controller::StateJson() {
   auto archive = CefListValue::Create();
   size_t archived = 0, archive_count = 0;
   for (size_t i = 0; i < state.archive.size(); ++i) {
-    if (state.archive[i].space != state.active_space) continue;
+    const ArchivedTab& a = state.archive[i];
+    if (!state.ArchiveShown(a, state.active_space)) continue;
     ++archive_count;
     if (archived >= 60) continue;
     auto d = CefDictionaryValue::Create();
-    d->SetString("title", state.archive[i].title);
-    d->SetString("url", state.archive[i].url);
-    d->SetDouble("archivedAt", state.archive[i].archived_at);
+    d->SetInt("index", static_cast<int>(i));  // What archive.restore takes.
+    d->SetString("title", a.title);
+    d->SetString("url", a.url);
+    d->SetDouble("archivedAt", a.archived_at);
+    if (!a.kind.empty()) {
+      d->SetString("kind", a.kind);
+      d->SetString("label", ArchiveLabel(a));
+      if (a.removed) d->SetBool("removed", true);
+      auto tl = CefListValue::Create();
+      for (const auto& t : a.tabs) {
+        auto x = CefDictionaryValue::Create();
+        x->SetString("title", t.title);
+        x->SetString("url", t.url);
+        x->SetInt("group", t.group);
+        tl->SetDictionary(tl->GetSize(), x);
+      }
+      d->SetList("tabs", tl);
+      auto gl = CefListValue::Create();
+      for (const auto& g : a.groups) {
+        auto x = CefDictionaryValue::Create();
+        x->SetInt("id", g.id);
+        x->SetString("name", g.name);
+        x->SetString("color", g.color);
+        x->SetBool("pinned", g.pinned);
+        x->SetInt("parent", g.parent);
+        gl->SetDictionary(gl->GetSize(), x);
+      }
+      d->SetList("groups", gl);
+    }
     archive->SetDictionary(archived++, d);
   }
   root->SetList("archive", archive);
@@ -5292,11 +5474,24 @@ std::string Controller::Suggest(const std::string& raw) {
         seen.insert(scored[i].second.second);
       }
     }
-    const auto& archive = State::Get().archive;
-    for (size_t i = 0; i < archive.size() && n < 8; ++i)
-      if (archive[i].space == space && !seen.count(archive[i].url) &&
-          matches(archive[i].title, archive[i].url))
-        add("archived", static_cast<int>(i), archive[i].title, archive[i].url);
+    State& st = State::Get();
+    for (size_t i = 0; i < st.archive.size() && n < 8; ++i) {
+      const ArchivedTab& a = st.archive[i];
+      if (!st.ArchiveShown(a, space)) continue;
+      if (a.kind.empty()) {
+        if (!seen.count(a.url) && matches(a.title, a.url)) add("archived", static_cast<int>(i), a.title, a.url);
+        continue;
+      }
+      // A group or space matches by its name or any of its tabs, and lists their titles.
+      std::string hay = a.title, titles;
+      for (const auto& t : a.tabs) {
+        hay += " " + t.title + " " + t.url;
+        titles += (titles.empty() ? "" : ", ") + (t.name.empty() ? t.title : t.name);
+      }
+      size_t cut = std::min<size_t>(titles.size(), 200);
+      while (cut < titles.size() && cut > 0 && (titles[cut] & 0xC0) == 0x80) --cut;  // Not inside a UTF-8 character.
+      if (matches(hay, "")) add("archived", static_cast<int>(i), ArchiveLabel(a), a.tabs.empty() ? "" : a.tabs[0].url, titles.substr(0, cut));
+    }
     if (q.size() >= 3) SuggestPageText(q, list, n);
   }
   return ToJson(Wrap(list));
@@ -5700,7 +5895,8 @@ bool Controller::HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> 
       for (size_t i = 0; i < list->GetSize(); ++i)
         if (Tab* t = FindTab(list->GetInt(i)); t && !t->pinned) ids.push_back(t->id);
     std::stable_partition(ids.begin(), ids.end(), [&](int id) { return id != win_->active_id; });
-    for (int id : ids) ArchiveTab(id);
+    CloseScope closed(this);  // A group whose tabs all went comes back as one.
+    for (int id : ids) CloseTab(id);
     callback->Success("");
   } else if (cmd == "newtab.used") {
     if (Tab* tab = FindTabByBrowser(browser); tab && tab->id == start_tab_.id) start_tab_ = {};
@@ -5766,6 +5962,7 @@ bool Controller::HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> 
     std::vector<int> ids;
     for (auto& t : tabs_)
       if (t.group == id) ids.push_back(t.id);
+    CloseScope closed(this);  // Close group: one Recently Closed entry for it and its tabs.
     for (int tab_id : ids) {
       if (close) CloseTab(tab_id);
       else if (Tab* t = FindTab(tab_id)) t->group = 0;
@@ -5773,7 +5970,10 @@ bool Controller::HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> 
     auto& groups = State::Get().groups;
     // Groups inside it move up a level.
     int parent = 0;
-    if (TabGroup* g = State::Get().FindGroup(id)) parent = g->parent;
+    if (TabGroup* g = State::Get().FindGroup(id)) {
+      parent = g->parent;
+      if (close && closed_) closed_->dropped.insert(id), closed_->groups.emplace(id, *g);
+    }
     for (auto& g : groups)
       if (g.parent == id) g.parent = parent;
     groups.erase(std::remove_if(groups.begin(), groups.end(),
@@ -5808,7 +6008,7 @@ bool Controller::HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> 
       int id = t->id;
       AgentMark mark = t->agent;
       FindTab(NewTab(t->url, false, t->pinned, t->last_active, space))->agent = mark;
-      CloseTab(id, true);
+      CloseTab(id, Close::kMove);
     }
     callback->Success("");
   } else if (cmd == "tab.float") {
@@ -7611,7 +7811,10 @@ void Controller::CloseWinTabs(Win* w) {
     }
   }
   // Archived, not dropped: ⇧⌘T and the archive bring a closed window's tabs back.
-  for (int id : doomed) ArchiveTab(id);
+  {
+    CloseScope closed(this);
+    for (int id : doomed) CloseTab(id);
+  }
   PushSidebar();
   SaveSoon();
 }

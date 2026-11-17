@@ -290,13 +290,18 @@ static const bool g_veil_windows = [] {
   if (last) add(menu, [NSString stringWithFormat:@"Reopen All Tabs from Last Session (%ld)", last], @"lastSession", nil);
   std::vector<size_t> closed;
   for (size_t i = 0; i < state.archive.size() && closed.size() < 10; ++i)
-    if (state.archive[i].space == space) closed.push_back(i);
+    if (state.ArchiveShown(state.archive[i], space)) closed.push_back(i);
   if (!closed.empty()) {
     [menu addItem:[NSMenuItem separatorItem]];
     [menu addItemWithTitle:@"Recently Closed" action:nil keyEquivalent:@""].enabled = NO;
     for (size_t i : closed) {
       const auto& a = state.archive[i];
-      add(menu, ns(a.title.empty() ? a.url : a.title), [NSString stringWithFormat:@"restore:%zu", i], ns(a.url));
+      // A closed group or space is one item that brings it all back; its tooltip lists the tabs.
+      std::string tip = a.url;
+      for (size_t j = 0; j < a.tabs.size() && j < 20; ++j)
+        tip += (tip.empty() ? "" : "\n") + (a.tabs[j].name.empty() ? a.tabs[j].title : a.tabs[j].name);
+      if (a.tabs.size() > 20) tip += "\n…";
+      add(menu, ns(roar::ArchiveLabel(a)), [NSString stringWithFormat:@"restore:%zu", i], ns(tip));
     }
   }
   std::vector<std::pair<std::string, const roar::HistoryEntry*>> recent;

@@ -220,8 +220,37 @@ void State::Load() {
   if (auto list = d->GetList("archive")) {
     for (size_t i = 0; i < list->GetSize(); ++i) {
       auto t = list->GetDictionary(i);
-      archive.push_back({Str(t, "url"), Str(t, "title"), Num(t, "archivedAt"),
-                         static_cast<int>(Num(t, "space"))});
+      ArchivedTab a{Str(t, "url"), Str(t, "title"), Num(t, "archivedAt"), static_cast<int>(Num(t, "space"))};
+      // A group or space: its tabs, groups and the space itself. Older files hold tabs only.
+      a.kind = Str(t, "kind");
+      if (a.kind != "group" && a.kind != "space") a.kind.clear();
+      if (auto tl = t->GetList("tabs"))
+        for (size_t j = 0; j < tl->GetSize(); ++j)
+          if (auto x = tl->GetDictionary(j)) {
+            SavedTab st;
+            st.url = Str(x, "url"), st.title = Str(x, "title"), st.pinned = Bool(x, "pinned");
+            st.last_active = Num(x, "lastActive"), st.group = static_cast<int>(Num(x, "group"));
+            st.icon = Str(x, "icon"), st.favicon = Str(x, "favicon"), st.name = Str(x, "name");
+            st.space = a.space;
+            if (!st.url.empty()) a.tabs.push_back(st);
+          }
+      if (auto gl = t->GetList("groups"))
+        for (size_t j = 0; j < gl->GetSize(); ++j)
+          if (auto g = gl->GetDictionary(j))
+            a.groups.push_back({static_cast<int>(Num(g, "id")), Str(g, "name", "Group"), Str(g, "color"), a.space,
+                                Bool(g, "pinned"), Bool(g, "collapsed"), static_cast<int>(Num(g, "parent"))});
+      if (auto sp = t->GetDictionary("spaceInfo")) {
+        a.space_info = {a.space, Str(sp, "name", "Space"), Str(sp, "color"), {}};
+        if (auto pins = sp->GetList("pinnedExtensions"))
+          for (size_t j = 0; j < pins->GetSize(); ++j) a.space_info.pinned_extensions.push_back(pins->GetString(j));
+        a.space_info.agents = Bool(sp, "agents", true);
+        a.space_info.icon = Str(sp, "icon");
+      }
+      a.removed = a.kind == "space" && Bool(t, "removed");
+      // A group with no tabs left to bring back is nothing to restore; a removed space still is.
+      if (a.tabs.empty() && (a.kind == "group" || (a.kind == "space" && !a.removed))) continue;
+      if (a.kind.empty() && a.url.empty()) continue;
+      archive.push_back(std::move(a));
     }
   }
   // A state.json that still holds history (before 1.7.4, or a restored backup) wins and moves it to history.json.
@@ -330,6 +359,11 @@ void State::Load() {
   }
   for (const auto& g : groups) next_group_id = std::max(next_group_id, g.id + 1);
   for (const auto& sp : spaces) next_space_id = std::max(next_space_id, sp.id + 1);
+  // Ids held in Recently Closed stay taken: restoring a group or a removed space finds itself by id.
+  for (const auto& a : archive) {
+    for (const auto& g : a.groups) next_group_id = std::max(next_group_id, g.id + 1);
+    if (a.kind == "space") next_space_id = std::max(next_space_id, a.space + 1);
+  }
   if (!FindSpace(active_space)) active_space = spaces.front().id;
   // Tabs from a space that no longer exists fall back to the first space.
   for (auto& t : tabs)
@@ -404,6 +438,48 @@ void State::Save() {
     t->SetString("title", archive[i].title);
     t->SetDouble("archivedAt", archive[i].archived_at);
     t->SetInt("space", archive[i].space);
+    const ArchivedTab& a = archive[i];
+    if (!a.kind.empty()) {
+      t->SetString("kind", a.kind);
+      auto tl = CefListValue::Create();
+      for (const auto& x : a.tabs) {
+        auto st = CefDictionaryValue::Create();
+        st->SetString("url", x.url);
+        st->SetString("title", x.title);
+        if (x.pinned) st->SetBool("pinned", true);
+        if (x.group) st->SetInt("group", x.group);
+        st->SetDouble("lastActive", x.last_active);
+        if (!x.icon.empty()) st->SetString("icon", x.icon);
+        if (!x.favicon.empty()) st->SetString("favicon", x.favicon);
+        if (!x.name.empty()) st->SetString("name", x.name);
+        tl->SetDictionary(tl->GetSize(), st);
+      }
+      t->SetList("tabs", tl);
+      auto gl = CefListValue::Create();
+      for (const auto& x : a.groups) {
+        auto g = CefDictionaryValue::Create();
+        g->SetInt("id", x.id);
+        g->SetString("name", x.name);
+        g->SetString("color", x.color);
+        g->SetBool("pinned", x.pinned);
+        g->SetBool("collapsed", x.collapsed);
+        g->SetInt("parent", x.parent);
+        gl->SetDictionary(gl->GetSize(), g);
+      }
+      t->SetList("groups", gl);
+    }
+    if (a.kind == "space") {
+      auto sp = CefDictionaryValue::Create();
+      sp->SetString("name", a.space_info.name);
+      sp->SetString("color", a.space_info.color);
+      sp->SetBool("agents", a.space_info.agents);
+      sp->SetString("icon", a.space_info.icon);
+      auto pins = CefListValue::Create();
+      for (size_t j = 0; j < a.space_info.pinned_extensions.size(); ++j) pins->SetString(j, a.space_info.pinned_extensions[j]);
+      sp->SetList("pinnedExtensions", pins);
+      t->SetDictionary("spaceInfo", sp);
+      if (a.removed) t->SetBool("removed", true);
+    }
     al->SetDictionary(i, t);
   }
   d->SetList("archive", al);
@@ -525,11 +601,31 @@ void State::RecordVisit(int space, const std::string& url, const std::string& ti
 
 void State::AddArchived(int space, const std::string& url, const std::string& title) {
   if (url.empty() || url.rfind("roar:", 0) == 0) return;
+  // The same page closed again moves up; a group or space holding it keeps its copy.
   archive.erase(std::remove_if(archive.begin(), archive.end(),
-                               [&](const ArchivedTab& a) { return a.url == url && a.space == space; }),
+                               [&](const ArchivedTab& a) { return a.kind.empty() && a.url == url && a.space == space; }),
                 archive.end());
   archive.insert(archive.begin(), {url, title, NowSeconds(), space});
   if (archive.size() > kMaxArchive) archive.resize(kMaxArchive);
+}
+
+void State::AddArchived(ArchivedTab unit) {
+  unit.archived_at = NowSeconds();
+  unit.url.clear();
+  archive.insert(archive.begin(), std::move(unit));
+  if (archive.size() > kMaxArchive) archive.resize(kMaxArchive);
+}
+
+bool State::ArchiveShown(const ArchivedTab& a, int space) {
+  return a.space == space || (a.kind == "space" && !FindSpace(a.space));
+}
+
+std::string ArchiveLabel(const ArchivedTab& a) {
+  if (a.kind.empty()) return a.title.empty() ? a.url : a.title;
+  std::string n = std::to_string(a.tabs.size()) + (a.tabs.size() == 1 ? " tab" : " tabs");
+  if (a.kind == "group") return a.title + " (" + n + ")";
+  if (a.removed) return "Space “" + a.title + "” (" + n + ")";
+  return "All tabs in " + a.title + " (" + n + ")";
 }
 
 }  // namespace roar
