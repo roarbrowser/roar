@@ -26,7 +26,7 @@ inline const std::vector<NotifyType>& NotifyTypes() {
       {"sessionNeeds", {true, 120, true}},  // An agent session needs you.
       {"agentDone", {true, 45, true}},      // notify_user "done"/"info" cards.
       {"agentNeeds", {true, 120, true}},    // notify_user "needs_you" cards (ask_user always shows: it waits on you).
-      {"agentPage", {true, 45, false}},     // An agent opened a page for you (beside your tab, with an Open button).
+      {"agentPage", {true, 15, false}},     // An agent opened a page for you (beside your tab, with an Open button).
       {"update", {false, 45, false}},       // A Roar update is available.
       {"download", {false, 15, false}},     // A download finished.
       {"dictation", {false, 15, false}},    // Dictation stopped with a problem.
@@ -91,6 +91,20 @@ inline std::string NotifyMigrate(const Settings& s) {
     if (id == "sessionNeeds") p = {s.claude_alert_needs, 120, s.claude_alert_system};
     if (id == "agentDone" && !s.auto_dismiss_done) p.dismiss = 30;  // Auto-dismiss off meant a 30 s timer, for notify_user's done cards too.
     list.emplace_back(id, p);
+  }
+  return NotifyEncode(list);
+}
+
+// 1.29.3 cut the "Agent opened a page" card from 45 s to 15 s. Every install saved all types at its first
+// launch, so a saved 45 s there is the old default, not a choice: move it once (Settings::agent_page_15).
+inline std::string NotifyAgentPage15(const std::string& prefs) {
+  NotifyPref p = NotifyGet(prefs, "agentPage");
+  if (p.dismiss != 45) return prefs;
+  std::vector<std::pair<std::string, NotifyPref>> list;
+  for (const auto& t : NotifyTypes()) {
+    NotifyPref q = NotifyGet(prefs, t.id);
+    if (std::string(t.id) == "agentPage") q.dismiss = 15;
+    list.emplace_back(t.id, q);
   }
   return NotifyEncode(list);
 }

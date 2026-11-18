@@ -261,6 +261,7 @@ void State::Load() {
   }
   if (auto s = d->GetDictionary("settings")) {
     settings.search_migrated = false;  // A file without the key predates the picker.
+    settings.agent_page_15 = false;  // A file without it predates the 15 s agent page card.
     settings.chat_defaults_seen = "openai,anthropic";  // A file without it predates Perplexity.
     for (const auto& f : SettingFields())
       std::visit([&](auto m) {
@@ -279,6 +280,8 @@ void State::Load() {
     if (!settings.sidebar_counts && settings.hidden_counts.empty()) settings.hidden_counts = R"({"cl-btn":1,"gh-btn":1,"gm-btn":1})";
     settings.sidebar_counts = true;
     if (settings.notifications.empty()) settings.notifications = NotifyMigrate(settings);
+    if (!settings.agent_page_15) settings.notifications = NotifyAgentPage15(settings.notifications);
+    settings.agent_page_15 = true;
     // Key providers added to the defaults later (Perplexity) join a saved list once (ChatDefaultsToAdd).
     if (auto saved = CefParseJSON(settings.chat_providers, JSON_PARSER_RFC); saved && saved->GetType() == VTYPE_LIST) {
       auto have = saved->GetList();
