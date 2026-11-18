@@ -13,7 +13,8 @@ struct Settings {
   bool onboarded = false;
   std::string search_url = "https://duckduckgo.com/?q=";
   bool search_migrated = true;  // False only in a state.json from before the search picker (State::Load).
-  bool agent_page_15 = true;  // False only in a state.json from before 1.29.3 (State::Load, NotifyAgentPage15).
+  bool agent_page_15 = true;  // False only in a state.json from before 1.29.3 (State::Load, NotifyMoveDefault).
+  bool agent_needs_45 = true;  // False only in a state.json from before 1.29.4 (State::Load, NotifyMoveDefault).
   std::string github_query = "is:open is:pr author:@me archived:false";
   bool github_folder = true;
   bool artifact_group = true;  // Claude Artifact tabs the person opens get their own sidebar section.
@@ -111,6 +112,7 @@ inline const std::vector<SettingField>& SettingFields() {
       {"searchUrl", &Settings::search_url, true},
       {"searchMigrated", &Settings::search_migrated, false},
       {"agentPage15", &Settings::agent_page_15, false},
+      {"agentNeeds45", &Settings::agent_needs_45, false},
       {"githubQuery", &Settings::github_query, false},
       {"githubFolder", &Settings::github_folder, false},
       {"artifactGroup", &Settings::artifact_group, true},
