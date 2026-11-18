@@ -538,5 +538,14 @@
       <description><![CDATA[Mail panel: an account's sign-out button now signs out every Google account in the space after a confirm, and its hover explains that Google cannot sign out just one account.]]></description>
       <enclosure url="https://github.com/roarbrowser/roar/releases/download/v1.29.2/Roar-1.29.2.dmg" type="application/octet-stream" sparkle:edSignature="EizX8aRFDlwjK61uhscwKwbMF1u8+/mT9Vhr7+j9aAikhloe5CHWUX7mzUcAmiqulNM29BIlcMu1TWZy6F/wDA==" length="193713627"/>
     </item>
+    <item>
+      <title>1.29.3</title>
+      <pubDate>Wed, 18 Nov 2026 14:29:11 +0000</pubDate>
+      <sparkle:version>12903</sparkle:version>
+      <sparkle:shortVersionString>1.29.3</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[The "agent opened a page" card now clears after 15 seconds instead of 45. Installs still on the old 45 s move to 15 s once.]]></description>
+      <enclosure url="https://github.com/roarbrowser/roar/releases/download/v1.29.3/Roar-1.29.3.dmg" type="application/octet-stream" sparkle:edSignature="x3wFdDJ/Oy5nGxQz4H6GtwWzD5k0oH1MHqwrjgym05IGLUZu5qdTO+z3J7uT9ZKBy//98qZo52GVj/WBVDlsBw==" length="193711580"/>
+    </item>
   </channel>
 </rss>
