@@ -51,11 +51,18 @@ int main() {
   // 1.29.3: a saved 45 s agent page card moves to the new 15 s default; anything else stays.
   check(NotifyGet("", "agentPage").dismiss == 15, "agent page card defaults to 15 s");
   std::string old = "sessionDone:1:45:1,agentPage:1:45:0,download:0:15:0";
-  std::string moved = NotifyAgentPage15(old);
+  std::string moved = NotifyMoveDefault(old, "agentPage", 45, 15);
   check(NotifyGet(moved, "agentPage").dismiss == 15 && NotifyGet(moved, "agentPage").on, "saved 45 s moves to 15 s");
   check(NotifyGet(moved, "sessionDone").dismiss == 45 && NotifyGet(moved, "sessionDone").mac, "other types keep their saved values");
-  check(NotifyAgentPage15("agentPage:1:30:0") == "agentPage:1:30:0", "a saved non-default stays");
-  check(NotifyAgentPage15("agentPage:0:0:0") == "agentPage:0:0:0", "never stays never");
+  check(NotifyMoveDefault("agentPage:1:30:0", "agentPage", 45, 15) == "agentPage:1:30:0", "a saved non-default stays");
+  check(NotifyMoveDefault("agentPage:0:0:0", "agentPage", 45, 15) == "agentPage:0:0:0", "never stays never");
+
+  // 1.29.4: a saved 2 min agent needs-you card moves to the new 45 s default.
+  check(NotifyGet("", "agentNeeds").dismiss == 45 && NotifyGet("", "agentNeeds").mac, "agent needs-you card defaults to 45 s");
+  std::string needs = NotifyMoveDefault("sessionNeeds:1:120:1,agentNeeds:1:120:1", "agentNeeds", 120, 45);
+  check(NotifyGet(needs, "agentNeeds").dismiss == 45 && NotifyGet(needs, "agentNeeds").mac, "saved 2 min moves to 45 s");
+  check(NotifyGet(needs, "sessionNeeds").dismiss == 120, "session needs-you keeps 2 min");
+  check(NotifyMoveDefault("agentNeeds:1:30:1", "agentNeeds", 120, 45) == "agentNeeds:1:30:1", "a saved non-default needs-you stays");
 
   // Dismiss timing per type and level.
   for (int secs : {0, 5, 15, 30, 45, 120}) {

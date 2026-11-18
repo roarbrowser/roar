@@ -25,7 +25,7 @@ inline const std::vector<NotifyType>& NotifyTypes() {
       {"sessionDone", {true, 45, true}},    // An agent session finished its turn (hooks, ClaudeAlert).
       {"sessionNeeds", {true, 120, true}},  // An agent session needs you.
       {"agentDone", {true, 45, true}},      // notify_user "done"/"info" cards.
-      {"agentNeeds", {true, 120, true}},    // notify_user "needs_you" cards (ask_user always shows: it waits on you).
+      {"agentNeeds", {true, 45, true}},     // notify_user "needs_you" cards (ask_user always shows: it waits on you).
       {"agentPage", {true, 15, false}},     // An agent opened a page for you (beside your tab, with an Open button).
       {"update", {false, 45, false}},       // A Roar update is available.
       {"download", {false, 15, false}},     // A download finished.
@@ -36,7 +36,7 @@ inline const std::vector<NotifyType>& NotifyTypes() {
 }
 
 // Roar's own question cards with no Settings row (make Roar the default browser, connect agents):
-// they clear after 2 minutes like a needs-you card, which answers nothing (same as Dismiss).
+// they clear after 2 minutes like a session needs-you card, which answers nothing (same as Dismiss).
 inline constexpr NotifyPref kRoarCardPref{true, 120, false};
 
 inline const NotifyType* FindNotifyType(const std::string& id) {
@@ -95,15 +95,15 @@ inline std::string NotifyMigrate(const Settings& s) {
   return NotifyEncode(list);
 }
 
-// 1.29.3 cut the "Agent opened a page" card from 45 s to 15 s. Every install saved all types at its first
-// launch, so a saved 45 s there is the old default, not a choice: move it once (Settings::agent_page_15).
-inline std::string NotifyAgentPage15(const std::string& prefs) {
-  NotifyPref p = NotifyGet(prefs, "agentPage");
-  if (p.dismiss != 45) return prefs;
+// A changed default: every install saved all types at its first launch, so a saved |from| for |id| is
+// the old default, not a choice. State::Load moves it to |to| once, each change behind its own flag:
+// 1.29.3 agentPage 45 -> 15 s (Settings::agent_page_15), 1.29.4 agentNeeds 120 -> 45 s (agent_needs_45).
+inline std::string NotifyMoveDefault(const std::string& prefs, const std::string& id, int from, int to) {
+  if (NotifyGet(prefs, id).dismiss != from) return prefs;
   std::vector<std::pair<std::string, NotifyPref>> list;
   for (const auto& t : NotifyTypes()) {
     NotifyPref q = NotifyGet(prefs, t.id);
-    if (std::string(t.id) == "agentPage") q.dismiss = 15;
+    if (id == t.id) q.dismiss = to;
     list.emplace_back(t.id, q);
   }
   return NotifyEncode(list);
