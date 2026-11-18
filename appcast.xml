@@ -547,5 +547,14 @@
       <description><![CDATA[The "agent opened a page" card now clears after 15 seconds instead of 45. Installs still on the old 45 s move to 15 s once.]]></description>
       <enclosure url="https://github.com/roarbrowser/roar/releases/download/v1.29.3/Roar-1.29.3.dmg" type="application/octet-stream" sparkle:edSignature="x3wFdDJ/Oy5nGxQz4H6GtwWzD5k0oH1MHqwrjgym05IGLUZu5qdTO+z3J7uT9ZKBy//98qZo52GVj/WBVDlsBw==" length="193711580"/>
     </item>
+    <item>
+      <title>1.29.4</title>
+      <pubDate>Wed, 18 Nov 2026 14:50:18 +0000</pubDate>
+      <sparkle:version>12904</sparkle:version>
+      <sparkle:shortVersionString>1.29.4</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[The "agent needs you" card now clears after 45 seconds instead of 2 minutes. Questions an agent asks still wait for you. Installs still on the old 2 minutes move to 45 s once.]]></description>
+      <enclosure url="https://github.com/roarbrowser/roar/releases/download/v1.29.4/Roar-1.29.4.dmg" type="application/octet-stream" sparkle:edSignature="FRTwzLU+VWQkbQkRazQ6RDkwCR12WSsrBttHl9dr+ZcNr5YWE/UK9giePbSysaBV4tylNwSroyauU7P14haABw==" length="193711579"/>
+    </item>
   </channel>
 </rss>
