@@ -36,6 +36,9 @@ const list = async () => (await fetch(`http://127.0.0.1:${port}/json/list`)).jso
 async function start() {
   roar = spawn(bin, ['--headless=new', '--noerrdialogs'], { env: { ...process.env, ROAR_UI_CDP: '1', ROAR_CDP_PORT: port, ROAR_DATA_DIR: data }, stdio: 'ignore' });
   for (let i = 0; i < 60; i++) { try { if ((await list()).some((x) => x.url.includes('sidebar.html'))) break; } catch {} await sleep(500); }
+  // The sidebar is listed before Roar acts on its commands (CEF 158 lists it sooner): wait for its first tab.
+  for (let i = 0; i < 60; i++) { try { if ((await tabs()).length) break; } catch {} await sleep(250); }
+  await sleep(500);
 }
 async function cdp(match, method, params) {
   const t = (await list()).find(match);
