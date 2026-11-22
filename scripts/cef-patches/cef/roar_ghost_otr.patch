@@ -90,10 +90,10 @@ index 93653ac1f..5e69842e0 100644
 +      // and |otr_profile| so the flow below initializes the OTR profile
 +      // exactly like the fallback path above.
 +      parent_profile = profile;
-+      const auto& profile_id =
-+          Profile::OTRProfileID::CreateUniqueForCEF();
++      // Roar: the primary OTR profile, as Chrome's incognito: extensions
++      // (tab lookups by id, split mode) only reach that one.
 +      profile_ =
-+          profile->GetOffTheRecordProfile(profile_id, /*create_if_needed=*/true);
++          profile->GetPrimaryOTRProfile(/*create_if_needed=*/true);
 +      otr_profile = static_cast<OffTheRecordProfileImpl*>(profile_);
 +      should_destroy_ = true;
 +    } else {
