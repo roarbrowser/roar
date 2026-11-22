@@ -35,4 +35,16 @@ export function seedWrites(bundle, from, secret) {
   return write;
 }
 
+// What a seed clears first, or throws when the profile holds data that is not a ghost copy's. Off the record (Mac)
+// everything this copy holds is an earlier ghost session's: Chromium can hand a new session the same off-the-record
+// profile while the last one is still held, and its in-memory data with it. That copy goes, values and all, so
+// nothing of one session reaches the next. Elsewhere (a fresh per-session profile) only a stale item or the share
+// bookkeeping a share left before the seed goes; a profile with values or already seeded is somebody's real data.
+export function seedClears(all, write, otr) {
+  const keys = Object.keys(all || {});
+  if (otr) return keys.filter((k) => !(k in write));
+  if (all.settings?.ghost || keys.some((k) => k.startsWith(VALUES))) throw new Error('This profile already has Site tweaks data');
+  return keys.filter((k) => (k.startsWith(ITEM) && !(k in write)) || k === 'shareGone');
+}
+
 export const ghostNote = (settings) => settings?.ghost ? `Copied from ${settings.ghost.from} for this ghost session; changes here are not kept.` : '';

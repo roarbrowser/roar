@@ -7,7 +7,7 @@ import { worldOf, parseMeta, compareVersions } from './lib/meta.js';
 import { nativeMatches, compileMatcher, testMatcher, connectAllowed } from './lib/match.js';
 import { nativeStyleMatches, parseUserCSS, cssFor } from './lib/usercss.js';
 import { scriptCode, bridgeCode, styleCode } from './lib/gm.js';
-import { seedWrites } from './lib/ghost.js';
+import { seedWrites, seedClears } from './lib/ghost.js';
 import { OTR, storageLocal, storageSession, storageChanged } from './lib/area.js';
 
 const RUN_AT = { 'document-start': 'document_start', 'document-end': 'document_end', 'document-idle': 'document_idle', 'document-body': 'document_end' };
@@ -518,10 +518,8 @@ chrome.runtime.onMessage.addListener((m, sender, respond) => {
 const ghostSeed = (bundle) => new Promise((ok, fail) => serial(async () => {
   try {
     const all = await storageLocal.get(null);
-    // Only ever a fresh profile: one with stored values or already seeded is somebody's real data.
-    if (all.settings?.ghost || Object.keys(all).some((k) => k.startsWith(VALUES))) throw new Error('This profile already has Site tweaks data');
     const write = seedWrites(bundle, bundle?.from, () => newItemIds().secret);
-    const stale = Object.keys(all).filter((k) => (k.startsWith(ITEM) && !(k in write)) || k === GONE);
+    const stale = seedClears(all, write, OTR);
     if (stale.length) await storageLocal.remove(stale);
     await storageLocal.set(write);
     ok();

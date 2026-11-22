@@ -15,7 +15,7 @@ const { parseUserCSS, splitSections, sectionMatches, cssFor, withVars, compileSt
 const { importBackup, vmValue, exportJSON, decide } = await lib('importers.js');
 const { scriptCode } = await lib('gm.js');
 const { shareIdOf, snapshot, plan, adopt } = await lib('share.js');
-const { ghostBundle, seedWrites, ghostNote } = await lib('ghost.js');
+const { ghostBundle, seedWrites, seedClears, ghostNote } = await lib('ghost.js');
 
 let fail = 0;
 const check = (ok, what) => { if (!ok) fail++; console.log((ok ? 'ok   ' : 'FAIL ') + what); };
@@ -368,6 +368,14 @@ check(JSON.parse(readFileSync(join(ext, 'manifest.json'), 'utf8')).key && JSON.p
   check(eq(w['values:on'], { hidden: ['.ad', '#promo'] }) && !('values:st' in w), 'ghost: values are seeded under the same script id');
   const bad = seedWrites({ items: [{ id: '../x', kind: 'script' }, { id: 'ok', kind: 'nope' }, null, { id: 'v', kind: 'script' }], values: { v: [1] } }, '', () => 's');
   check(eq(Object.keys(bad).sort(), ['item:v', 'settings']) && bad.settings.ghost.from === 'your space', 'ghost: malformed items and values are dropped');
+  // An earlier session's copy in the same off-the-record profile (Mac): cleared, values too, never a refusal.
+  const prev = { settings: { enabled: true, ghost: { from: 'Home' } }, 'item:on': {}, 'item:old': {}, 'values:on': { k: 'session1' }, 'values:old': {}, shareGone: {} };
+  check(eq(seedClears(prev, w, true).sort(), ['item:old', 'shareGone', 'values:old']), 'ghost: off the record, an earlier session\'s copy is cleared (keys the seed writes are replaced)');
+  check(eq(seedClears({}, w, true), []), 'ghost: off the record, a fresh copy clears nothing');
+  let refused = '';
+  try { seedClears(prev, w, false); } catch (e) { refused = e.message; }
+  check(/already has Site tweaks data/.test(refused), 'ghost: a per-session profile with data is still refused');
+  check(eq(seedClears({ 'item:old': {}, 'item:on': {}, shareGone: {} }, w, false).sort(), ['item:old', 'shareGone']), 'ghost: a per-session profile drops only what a share left before the seed');
   check(ghostNote(w.settings) === 'Copied from Home for this ghost session; changes here are not kept.' && ghostNote({ enabled: true }) === '', 'ghost: the manager\'s note names the space');
   check(snapshot([it('on', { ghost: true, touched: 3 })]).items[0].ghost === true, 'share: the ghost-tab switch spreads with the item');
 }

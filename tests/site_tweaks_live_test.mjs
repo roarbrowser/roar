@@ -1024,6 +1024,14 @@ RUN['ghost'] = async () => {
   await ghostOpen(`${GSITE}/g`);
   const fresh = await until(() => gstate((t) => t.ghost && t.url.startsWith(GSITE)), 20000);
   check(fresh === 'marker:space1', `a new ghost session starts from the space's copy again (${fresh})`);
+  // A ghost tab opened right as the last one closes: Chromium can hand the new session the old off-the-record
+  // profile, with the last session's copy and values still in memory. It must be seeded again from the space.
+  await ghostOpen(`${GSITE}/g?set=ghost3`);
+  const third = await until(async () => { const v = await gstate((t) => t.ghost && t.url.startsWith(GSITE)); return v?.split(',').includes('marker:ghost3') && v; });
+  for (const t of (await tabs()).filter((x) => x.ghost)) await sidebar(`ask({cmd:'tab.close',id:${t.id}})`);
+  await ghostOpen(`${GSITE}/g?quick`);
+  const quick = await until(async () => { const t = (await tabs()).find((x) => x.ghost && x.url.endsWith('?quick') && !x.loading); return t && t.title !== t.url ? t.title : ''; }, 20000);
+  check(!!third && quick === 'marker:space1', `a ghost tab opened as the last one closes runs the copy again, with the space's values (${third}; ${quick})`);
   await closeGhosts();
   await sleep(4000);
   const regAfter = await registry();
