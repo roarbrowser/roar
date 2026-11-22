@@ -51,6 +51,8 @@ struct Settings {
   bool agent_section = true;  // The sidebar's Agents section, toggled by its footer button.
   std::string hermes_url;  // A Hermes Agent dashboard whose sessions show in the sidebar (controller_hermes.cc).
   int hermes_space = 0;  // The space signed in to it: Roar reads the list with that space's cookies.
+  std::string hermit_url;  // A Hermit service whose opencode sessions and board show in the sidebar (controller_hermit.cc).
+                           // Its password lives in the Keychain (kHermitSecret), never here.
   bool clean_links = true;
   bool clean_safelinks = true, clean_mcas = true, clean_tracking = true;  // Which cleanups CleanLink does (CleanOptions).
   std::string clean_params;  // The user's own query parameters to drop from copied links, comma-separated.
@@ -149,6 +151,7 @@ inline const std::vector<SettingField>& SettingFields() {
       {"agentSection", &Settings::agent_section, true},
       {"hermesUrl", &Settings::hermes_url, true},
       {"hermesSpace", &Settings::hermes_space, true},
+      {"hermitUrl", &Settings::hermit_url, true},
       // "cdpOpen", not 0.5.0's "cdpEnabled": that release saved false for everyone. Pages call it cdpEnabled.
       {"cdpOpen", &Settings::cdp_enabled, false},
       {"cdpWinOff", &Settings::cdp_win_off, false},

@@ -1533,6 +1533,7 @@ void Controller::Start() {
   GmailOpenTick();
   ClaudeTick();
   HermesTick();
+  HermitTick();
   ReportExtensionCopies();
   // MCP entries left pointing at a moved or older Roar are repointed here; none are added.
   if (!platform::Headless() && !InCheckout()) agents::RepairStale(platform::HomeDir(), platform::ResourcePath("roar-mcp"));
@@ -3626,7 +3627,7 @@ void Controller::ClaudeAlert(CefRefPtr<CefDictionaryValue> d) {
   if (remote && state != "needs_you") return;
   NotifyPref pref = NotifyGet(set.notifications, state == "idle" ? "sessionDone" : "sessionNeeds");
   if (!set.claude_sidebar || !pref.on) return;
-  static const std::map<std::string, std::string> kNames = {{"codex", "Codex"}, {"gemini", "Gemini CLI"}, {"qwen", "Qwen Code"}, {"copilot", "Copilot CLI"}, {"opencode", "OpenCode"}, {"hermes", "Hermes"}};
+  static const std::map<std::string, std::string> kNames = {{"codex", "Codex"}, {"gemini", "Gemini CLI"}, {"qwen", "Qwen Code"}, {"copilot", "Copilot CLI"}, {"opencode", "OpenCode"}, {"hermes", "Hermes"}, {"hermit", "Hermit"}};
   auto name = kNames.find(d->GetString("tool").ToString());
   std::string tool = name == kNames.end() ? std::string("Claude Code") : name->second;
   std::string title = d->GetString("project").ToString() + (state == "idle" ? " is done" : " needs you");
@@ -3735,6 +3736,12 @@ void Controller::ClaudeTick() {
   // Sessions and cards on a Hermes server: no file, so nothing above ends them; HermesResult keeps this list current.
   // Their states still count, so a card that starts waiting on a person raises a card and the dock badge.
   for (const auto& row : hermes_rows_) {
+    list->SetDictionary(list->GetSize(), row->Copy(false));
+    seen.insert(row->GetString("id"));
+    ClaudeAlert(row->Copy(false));
+  }
+  // The same for a Hermit service's opencode sessions and board cards (controller_hermit.cc).
+  for (const auto& row : hermit_rows_) {
     list->SetDictionary(list->GetSize(), row->Copy(false));
     seen.insert(row->GetString("id"));
     ClaudeAlert(row->Copy(false));
@@ -5191,6 +5198,7 @@ std::string Controller::StateJson() {
     if (auto d = cl_items->GetDictionary(i); d && claude_acked_.count(d->GetString("id"))) d->SetBool("acked", true);
   cl->SetList("items", cl_items);
   cl->SetString("hermes", hermes_status_);
+  cl->SetString("hermit", hermit_status_);
   root->SetDictionary("claude", cl);
   if (!chats_) {
     std::ifstream in(state.Dir() + "/chats.json");
@@ -5425,6 +5433,7 @@ void Controller::ApplySettings(CefRefPtr<CefDictionaryValue> d) {
                             d->HasKey("autoUpdateDownloads") ? d->GetBool("autoUpdateDownloads") : platform::AutoUpdateDownloads());
   if (d->HasKey("dockBadge")) SyncAlertBadge();
   if (d->HasKey("hermesUrl") || d->HasKey("hermesSpace") || d->HasKey("claudeSidebar")) HermesPoll(true);
+  if (d->HasKey("hermitUrl") || d->HasKey("claudeSidebar")) HermitPoll(true);
   if (d->HasKey("dictation") && !s.dictation) DictationOff();
   // Turned on: agents already on the extension go, then every worker shares. Off: each keeps the copy it has.
   if (d->HasKey("tweaksShared") && d->GetBool("tweaksShared") != tweaks_were_shared) {
@@ -6559,10 +6568,12 @@ bool Controller::HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> 
     http->SetURL(url);
     http->SetFlags(UR_FLAG_DISABLE_CACHE);
     CefRequest::HeaderMap headers;
-    std::string key = platform::SecretGet(id);
+    // An opencode server at a Hermit service's /oc signs in as hermit with the service's password (Settings > Agents).
+    bool hermit = kind == "opencode" && HermitRidesOn(base, State::Get().settings.hermit_url);
+    std::string key = platform::SecretGet(hermit ? kHermitSecret : id);
     if (!key.empty() && (kind == "opencode" ? ChatServerAuthAllowed(url) : ChatKeyAllowed(url))) {
       if (kind == "opencode") {
-        std::string login = "opencode:" + key;
+        std::string login = (hermit ? std::string(kHermitUser) : std::string("opencode")) + ":" + key;
         headers.insert({"Authorization", "Basic " + CefBase64Encode(login.data(), login.size()).ToString()});
       } else if (kind == "anthropic") headers.insert({"x-api-key", key});
       else headers.insert({"Authorization", "Bearer " + key});
@@ -6694,6 +6705,14 @@ bool Controller::HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> 
       return callback->Failure(0, "bad provider"), true;
     if (!platform::SecretSet(id, msg->GetString("key"))) return callback->Failure(0, "Couldn't save to the Keychain"), true;
     callback->Success("");
+  } else if (cmd == "hermit.keySet") {
+    // {key}: the Hermit service's password, into the Keychain ("" removes it). The next poll signs in with it.
+    if (!platform::SecretSet(kHermitSecret, msg->GetString("key"))) return callback->Failure(0, "Couldn't save to the Keychain"), true;
+    HermitPoll(true);
+    callback->Success("");
+  } else if (cmd == "hermit.keyHas") {
+    // Whether a password is saved, never the password.
+    callback->Success(platform::SecretHas(kHermitSecret) ? "true" : "false");
   } else if (cmd == "chat.search") {
     // {query}: web results [{title,url,snippet}] for a local model; {url}: the text of one of those results.
     // Runs in a hidden page with a fresh ghost profile, so no cookies, logins or tabs reach the chat.

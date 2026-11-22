@@ -171,7 +171,7 @@
   // why: what a failed probe got back. 'page' (an answer that isn't a model list), 'auth' (401/403), else ''.
   const providerStatus = (p, { probe = null, installed = false, hasKey = false, why = '' } = {}) => {
     if (p.kind === 'opencode') return probe ? { state: 'running', label: `Connected · ${p.tools ? 'its agent can use tools there' : 'answers only, no tools'}` }
-      : { state: 'missing', label: hasKey ? 'Not answering. Check its URL and password.' : 'Not answering. Save its password if it has one.' };
+      : { state: 'missing', label: p.hermit ? 'Not answering. Check the Hermit service and its password in Agents.' : hasKey ? 'Not answering. Check its URL and password.' : 'Not answering. Save its password if it has one.' };
     if (p.optional) {
       if (probe?.length) return { state: 'running', label: `Running · ${probe.length} model${probe.length === 1 ? '' : 's'}${hasKey ? ' · API key in Keychain' : ''}` };
       // Nothing usable: say why, rather than "Running · 0 models".
@@ -544,10 +544,19 @@
   // "local" when a URL points at this Mac, else "remote".
   const urlWhere = (u) => /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:|\/|$)/i.test(String(u || '')) ? 'local' : 'remote';
 
+  // A Hermit service's address as Settings › Agents holds it, without a trailing / or /oc; '' when it isn't one.
+  const hermitBase = (u) => {
+    const b = String(u || '').trim().replace(/\/+$/, '').replace(/\/oc$/, '');
+    return /^https?:\/\/[^\s/?#@]+(\/[^\s?#@]*)?$/i.test(b) ? b : '';
+  };
+  // Whether an OpenCode server is that service's /oc pass-through, which signs in as hermit with the service's
+  // password. Roar decides that for real (HermitRidesOn, src/hermit_server.h); this words Settings to match.
+  const hermitOc = (url, service) => { const b = hermitBase(service); return !!b && String(url || '').trim().replace(/\/+$/, '') === b + '/oc'; };
+
   // A server URL typed with no path gets /v1, where Hermes and oMLX serve their API ("https://host" -> "https://host/v1").
   const withApiPath = (u) => (/^https?:\/\/[^/?#]+\/?$/i.test(u) ? u.replace(/\/?$/, '/v1') : u);
 
-  const api = { VENDORS, vendorOf, urlWhere, withApiPath, keyGoesTo, modelList, idList, chatList, chatOrdered, chatOn, modelLabel, opencodeEvents, defaultModel, renamePrompt, renameKeys, autoNameKeys, parseNames, oneShot, SEARCH_SYSTEM, searchMode, openRequest, addSources, webSearchTool, CLI_PROVIDERS, CLI_LOGIN, signedOutError, pageRefusal, shotRefusal, cliStatus, cliPrompt, cliParser, parseProviders, sseParser, streamDelta, requestBody, modelIds, providerStatus, detectProviders, renderMarkdown };
+  const api = { VENDORS, vendorOf, urlWhere, withApiPath, hermitBase, hermitOc, keyGoesTo, modelList, idList, chatList, chatOrdered, chatOn, modelLabel, opencodeEvents, defaultModel, renamePrompt, renameKeys, autoNameKeys, parseNames, oneShot, SEARCH_SYSTEM, searchMode, openRequest, addSources, webSearchTool, CLI_PROVIDERS, CLI_LOGIN, signedOutError, pageRefusal, shotRefusal, cliStatus, cliPrompt, cliParser, parseProviders, sseParser, streamDelta, requestBody, modelIds, providerStatus, detectProviders, renderMarkdown };
   if (typeof module === 'object') module.exports = api;
   else globalThis.chatCore = api;
 })();

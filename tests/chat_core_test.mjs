@@ -373,5 +373,15 @@ check(JSON.stringify(core.parseNames('no json here', ['tab:1'])) === '{}', 'pars
   check(core.shotRefusal(oc[0]) === '' && /can use tools/.test(core.pageRefusal(oc[0])), 'tools on: names may go through it, Ask still refuses pages');
   check(/won't send it web pages/.test(core.shotRefusal(core.CLI_PROVIDERS.find((p) => p.cli === 'codex'))), 'a CLI that cannot drop its tools is still refused');
 }
+// An OpenCode server at a Hermit service's /oc pass-through signs in with the service's password (HermitRidesOn).
+check(core.hermitBase(' http://127.0.0.1:9121/ ') === 'http://127.0.0.1:9121' && core.hermitBase('http://127.0.0.1:9121/oc/') === 'http://127.0.0.1:9121'
+  && core.hermitBase('') === '' && core.hermitBase('ftp://x') === '' && core.hermitBase('https://u@x') === '', 'hermit: the service address, /oc dropped, web only');
+check(core.hermitOc('http://127.0.0.1:9121/oc', 'http://127.0.0.1:9121') && core.hermitOc('http://127.0.0.1:9121/oc/', 'http://127.0.0.1:9121/oc')
+  && !core.hermitOc('http://127.0.0.1:4096', 'http://127.0.0.1:9121') && !core.hermitOc('http://127.0.0.1:9121/oc', ''), 'hermit: only the service\'s own /oc rides on it');
+{
+  const [hp] = core.parseProviders(JSON.stringify([{ id: 'hermit', name: 'Hermit', kind: 'opencode', url: 'http://127.0.0.1:9121/oc/' }]));
+  check(hp.kind === 'opencode' && hp.url === 'http://127.0.0.1:9121/oc', 'hermit: the opencode kind keeps a /oc path');
+  check(/Hermit service/.test(core.providerStatus({ ...hp, hermit: true }).label) && !/Hermit/.test(core.providerStatus(hp).label), 'hermit: a silent one points at the Hermit service');
+}
 console.log(fail ? `${fail} failure(s)` : 'ok');
 process.exit(fail ? 1 : 0);

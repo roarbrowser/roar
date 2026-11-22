@@ -1688,10 +1688,13 @@ var aiBusy = {};  // "kind:id" -> {old, until}: the agent is renaming it.
 // A tabs-only bulk key ("ungrouped:space") is never in aiBusy itself: its run is any of its tabs' run.
 // A Hermes server's rows keep the order Hermes's own apps give them (Needs you, then the latest move first, `order`),
 // in the places the list's own order gave them, so other agents' rows don't move.
+// A Hermit service's rows (tool hermit) keep theirs the same way, each server among its own rows.
 function hermesOrder(list) {
-  const at = list.flatMap((c, i) => (c.remote && c.tool === 'hermes' ? [i] : []));
-  const rows = at.map((i) => list[i]).sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
-  at.forEach((i, n) => { list[i] = rows[n]; });
+  for (const tool of ['hermes', 'hermit']) {
+    const at = list.flatMap((c, i) => (c.remote && c.tool === tool ? [i] : []));
+    const rows = at.map((i) => list[i]).sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+    at.forEach((i, n) => { list[i] = rows[n]; });
+  }
   return list;
 }
 const aiSessions = () => (state.claude?.items || []).filter((c) => !c.remote);  // Rename asks the session itself; a remote row can't be asked.
@@ -1973,9 +1976,9 @@ document.addEventListener('click', (e) => {
   e.stopPropagation();
   closeFeeds();
   dropDone(r.dataset.clid);
-  // A session on a Hermes server opens in its dashboard, in the space signed in to it.
+  // A session on a Hermes server opens in its dashboard, in the space signed in to it. A Hermit row has no page.
   const far = (state.claude?.items || []).find((c) => c.id === r.dataset.clid && c.remote);
-  if (far) return ask({ cmd: 'open', text: far.url, newTab: true, space: far.space });
+  if (far) return far.url ? ask({ cmd: 'open', text: far.url, newTab: true, space: far.space }) : undefined;
   // Every row opens its session: the full-view tab if it's open, else a new one.
   if (r.dataset.cltab) return ask({ cmd: 'tab.activate', id: +r.dataset.cltab });
   return ask({ cmd: 'open', text: 'roar://ui/claude.html?id=' + encodeURIComponent(r.dataset.clid), newTab: true });

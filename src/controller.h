@@ -16,6 +16,7 @@
 #include "dictation.h"
 #include "notify_prefs.h"
 #include "hermes_server.h"
+#include "hermit_server.h"
 #include "state.h"
 #include <memory>
 #include <functional>
@@ -212,6 +213,9 @@ class Controller {
   void RefreshGmail(int space, int attempt = 0);
   void HermesResult(int generation, int kind, int code, const std::string& body);  // controller_hermes.cc
   void HermesNext();
+  void HermitResult(int generation, int kind, int code, const std::string& body);  // controller_hermit.cc
+  void HermitEvent(int generation, const std::string& data);  // One event off the stream; "" when only bytes came.
+  void HermitStreamEnd(int generation, int code);
   void RefreshOutlook(int space);
   void FetchOutlookMail(int space, const std::string& host);
   void ImportBrowser(const std::string& browser);
@@ -388,12 +392,20 @@ class Controller {
   // Claude Code sessions reported by the roar-mcp claude-hook (<data>/claude-sessions/*.json).
   void ClaudeTick();
   void HermesTick();
+  void HermitTick();
   void AgentStatsTick(CefRefPtr<CefListValue> sessions);  // controller_share.cc
   void AgentStatsVisit(Tab& tab);
   void AgentStatsFlush();  // controller_share.cc: unsaved badge counts to disk now.  // controller_share.cc: a page the person opened counts today for the badge.
   void HermesPoll(bool restart = false);
   void HermesAsk(int kind, const std::string& url);
   void HermesBuild(bool board);  // The poll's rows and status, built once the chain is done (controller_hermes.cc).
+  void HermitPoll(bool restart = false);  // controller_hermit.cc
+  void HermitAsk(int kind, const std::string& url);
+  void HermitNext();
+  void HermitBuild(bool poll);
+  void HermitSoon();
+  void HermitDone();
+  void HermitStreamStart();
   CefRefPtr<CefListValue> claude_ = CefListValue::Create();
   std::string claude_sig_;
   std::map<std::string, std::string> claude_states_;  // Session id -> last state, for its notification.
@@ -525,6 +537,19 @@ class Controller {
   std::map<std::string, std::pair<double, HermesCardChat>> hermes_chats_;  // Card id -> (run started, its worker's chat).
   int hermes_task_skip_ = 0;                   // A 404 on a task: no links, so the queue waits this many polls.
   double hermes_asked_ = 0;
+  std::vector<CefRefPtr<CefDictionaryValue>> hermit_rows_;  // Sessions and cards on the Hermit service, as ClaudeTick lists them.
+  std::vector<HermitSession> hermit_sessions_;  // The last session list.
+  std::vector<HermitCard> hermit_cards_;        // The last board.
+  std::set<std::string> hermit_active_;         // Sessions mid-turn, from /session/active and the turn events since.
+  std::map<std::string, std::pair<int, double>> hermit_turns_;  // Session -> (its newest turn event, when), till a read covers it.
+  std::map<std::string, std::map<std::string, std::string>> hermit_asks_;  // Session -> "p:"/"f:" + request id -> HermitAskWord.
+  std::map<std::string, std::string> hermit_steps_;  // Session -> the tool its turn is using.
+  std::vector<std::pair<int, std::string>> hermit_checks_;  // (kind, session) still to ask about, the next one last.
+  std::string hermit_base_, hermit_status_, hermit_auth_;  // hermit_auth_: the Authorization header, in memory only.
+  CefRefPtr<CefURLRequest> hermit_request_, hermit_stream_;
+  int hermit_generation_ = 0, hermit_failures_ = 0, hermit_board_skip_ = 0;
+  bool hermit_board_ = false, hermit_soon_ = false, hermit_again_ = false;
+  double hermit_asked_ = 0, hermit_active_asked_ = 0, hermit_stream_heard_ = 0;
   std::map<std::string, std::string> mcp_tokens_;  // roar-mcp owner pid -> the token it got from agent.hello.
   std::map<std::string, int> claude_idle_gen_;  // Per session, bumped on every state change: a stale close-pages timer does nothing.
   std::string cdp_token_;  // This launch's CDP token (<data>/cdp-token); agent.hello must present it.

@@ -48,6 +48,8 @@ const AGENT_TOOLS = {
   copilot: ['Copilot CLI', 'var(--ink-2)', '<rect x="1.8" y="5" width="5.4" height="5" rx="2.2"/><rect x="8.8" y="5" width="5.4" height="5" rx="2.2"/><path d="M7.2 7.2h1.6"/>', true],
   opencode: ['OpenCode', 'var(--ink-2)', '<path d="M5.8 4.2L2.2 8l3.6 3.8M10.2 4.2L13.8 8l-3.6 3.8"/>', true],
   hermes: ['Hermes', 'var(--ink-2)', '<path d="M8 1.8v12.4M3 4.6c1.6 2 3 2.6 5 2.6s3.4-.6 5-2.6M5.2 11.4c.9.7 1.7 1 2.8 1s1.9-.3 2.8-1"/>', true],
+  // A Hermit service's opencode sessions and board cards (controller_hermit.cc): watch-only rows, nothing to start here.
+  hermit: ['Hermit', 'var(--ink-2)', '<path d="M2.4 13.2L8 2.8l5.6 10.4z"/><path d="M8 8.8v4.4"/>', true],
 };
 // Rows shown in the sidebar: same agents (all startable from New; New opens Hermes' dashboard, not a CLI).
 const AGENT_ROWS = AGENT_TOOLS;
