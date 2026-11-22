@@ -556,5 +556,14 @@
       <description><![CDATA[The "agent needs you" card now clears after 45 seconds instead of 2 minutes. Questions an agent asks still wait for you. Installs still on the old 2 minutes move to 45 s once.]]></description>
       <enclosure url="https://github.com/roarbrowser/roar/releases/download/v1.29.4/Roar-1.29.4.dmg" type="application/octet-stream" sparkle:edSignature="FRTwzLU+VWQkbQkRazQ6RDkwCR12WSsrBttHl9dr+ZcNr5YWE/UK9giePbSysaBV4tylNwSroyauU7P14haABw==" length="193711579"/>
     </item>
+    <item>
+      <title>1.29.5</title>
+      <pubDate>Sun, 22 Nov 2026 04:16:17 +0000</pubDate>
+      <sparkle:version>12905</sparkle:version>
+      <sparkle:shortVersionString>1.29.5</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[Ghost tabs: site tweaks set to run in ghost tabs work again when a new ghost session gets the last session's leftover copy.]]></description>
+      <enclosure url="https://github.com/roarbrowser/roar/releases/download/v1.29.5/Roar-1.29.5.dmg" type="application/octet-stream" sparkle:edSignature="UAPGq1ksBSDl/7tQXVnhdDXM3IADP+H3zV4Cky8kbRgkUPzNsU5t2R9XjggxHy+2p3wDbOXLp9yIEQzlY0KAAA==" length="193712091"/>
+    </item>
   </channel>
 </rss>
