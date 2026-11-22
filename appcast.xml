@@ -565,5 +565,14 @@
       <description><![CDATA[Ghost tabs: site tweaks set to run in ghost tabs work again when a new ghost session gets the last session's leftover copy.]]></description>
       <enclosure url="https://github.com/roarbrowser/roar/releases/download/v1.29.5/Roar-1.29.5.dmg" type="application/octet-stream" sparkle:edSignature="UAPGq1ksBSDl/7tQXVnhdDXM3IADP+H3zV4Cky8kbRgkUPzNsU5t2R9XjggxHy+2p3wDbOXLp9yIEQzlY0KAAA==" length="193712091"/>
     </item>
+    <item>
+      <title>1.29.6</title>
+      <pubDate>Sun, 22 Nov 2026 04:43:24 +0000</pubDate>
+      <sparkle:version>12906</sparkle:version>
+      <sparkle:shortVersionString>1.29.6</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[Ghost tabs: an extension popup (Bitwarden and others) acts on the ghost tab in front, never on a space tab behind it. Split extensions open their popup in the ghost session.]]></description>
+      <enclosure url="https://github.com/roarbrowser/roar/releases/download/v1.29.6/Roar-1.29.6.dmg" type="application/octet-stream" sparkle:edSignature="W2ATFQdgo1YyOfdSjooH2zNX3TQK1yBO8/9dgCCWRcCMQi0fR/i/4FdqJusVSjdfRawuysRq690ThRUfG0y4AA==" length="193713115"/>
+    </item>
   </channel>
 </rss>
