@@ -583,5 +583,14 @@
       <description><![CDATA[CEF 158 (Chromium 158). Extensions you allow in ghost tabs, such as Bitwarden, now work fully there: they can fill and act on the ghost tab in front.]]></description>
       <enclosure url="https://github.com/roarbrowser/roar/releases/download/v1.30.0/Roar-1.30.0.dmg" type="application/octet-stream" sparkle:edSignature="2nCl+8Dgnb87qRVqG+kEgisgglslqQfn8zmB/KkEB7/fBC48EyqT/7oW7XB6sKtC4ShCpERS1S38lFFQHTeQCw==" length="199449052"/>
     </item>
+    <item>
+      <title>1.31.0</title>
+      <pubDate>Sun, 22 Nov 2026 13:33:04 +0000</pubDate>
+      <sparkle:version>13100</sparkle:version>
+      <sparkle:shortVersionString>1.31.0</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[Hermit service: opencode sessions and the Hermit board in the sidebar]]></description>
+      <enclosure url="https://github.com/roarbrowser/roar/releases/download/v1.31.0/Roar-1.31.0.dmg" type="application/octet-stream" sparkle:edSignature="F7R5EH9006zifVyQh8FqYu11RwZn/gbKZyJNhp2tGohmYRzr/utV+dIMqEW/wThDc2kJoYsQs1/wf506efpQCw==" length="199469532"/>
+    </item>
   </channel>
 </rss>
