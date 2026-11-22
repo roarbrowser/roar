@@ -455,12 +455,12 @@ class TabViewDelegate : public CefBrowserViewDelegate {
 // pauses it on the extension's first line and the shim goes in there.
 class ExtensionPopupViewDelegate : public CefBrowserViewDelegate {
  public:
-  ExtensionPopupViewDelegate(const std::string& url, const std::string& tab_url)
-      : url_(url), tab_url_(tab_url) {}
+  ExtensionPopupViewDelegate(const std::string& url, const std::string& tab_url, bool ghost)
+      : url_(url), tab_url_(tab_url), ghost_(ghost) {}
   cef_runtime_style_t GetBrowserRuntimeStyle() override { return CEF_RUNTIME_STYLE_ALLOY; }
   void OnBrowserCreated(CefRefPtr<CefBrowserView> view, CefRefPtr<CefBrowser> browser) override {
     auto host = browser->GetHost();
-    registration_ = host->AddDevToolsMessageObserver(new ShimInstaller(url_, tab_url_));
+    registration_ = host->AddDevToolsMessageObserver(new ShimInstaller(url_, tab_url_, ghost_));
     host->ExecuteDevToolsMethod(ShimInstaller::kEnable, "Debugger.enable", nullptr);
   }
 
@@ -471,24 +471,26 @@ class ExtensionPopupViewDelegate : public CefBrowserViewDelegate {
   class ShimInstaller : public CefDevToolsMessageObserver {
    public:
     enum { kEnable = 1 << 20, kBreakpoint, kEval, kDisable, kResume };
-    ShimInstaller(const std::string& url, const std::string& tab_url) : url_(url) {
+    ShimInstaller(const std::string& url, const std::string& tab_url, bool ghost) : url_(url) {
       static const char kShim[] = R"JS((() => {
   const tabs = globalThis.chrome && chrome.tabs, wins = globalThis.chrome && chrome.windows;
   if (!tabs || !tabs.query || tabs.query.roar) return;
-  const want = %s, self = chrome.runtime.getURL(''), query = tabs.query.bind(tabs);
+  const want = %s, ghost = %g, self = chrome.runtime.getURL(''), query = tabs.query.bind(tabs);
   const CURRENT = wins ? wins.WINDOW_ID_CURRENT : -2;
   const answer = (p, cb) => (typeof cb === 'function' ? void p.then(cb) : p);
-  // The tab the person sees: Roar's active tab, else the most recently used one.
+  // The tab the person sees: Roar's active tab, else the most recently used one of the same kind (ghost or not).
+  // A ghost tab in front that this extension can't see answers no tab, never a space tab behind it.
   const shown = async () => {
-    const all = (await query({})).filter((t) => !(t.url || t.pendingUrl || '').startsWith(self))
+    const all = (await query({})).filter((t) => !(t.url || t.pendingUrl || '').startsWith(self) && !!t.incognito === ghost)
                     .sort((a, b) => (b.lastAccessed || 0) - (a.lastAccessed || 0));
-    return all.find((t) => want && (t.url === want || t.pendingUrl === want)) || all[0];
+    const hit = all.find((t) => want && (t.url === want || t.pendingUrl === want));
+    return hit || (ghost && all.some((t) => t.url) ? undefined : all[0]);
   };
   tabs.query = (info, cb) => {
     const i = info || {};
     if (i.currentWindow !== true && i.lastFocusedWindow !== true && i.windowId !== CURRENT) return answer(query(i), cb);
     return answer(shown().then((t) => {
-      if (!t) return query(i);
+      if (!t) return ghost ? [] : query(i);
       const { currentWindow, lastFocusedWindow, ...rest } = i;
       return query({ ...rest, windowId: t.windowId });
     }), cb);
@@ -508,6 +510,7 @@ class ExtensionPopupViewDelegate : public CefBrowserViewDelegate {
       quoted->SetString(tab_url);
       shim_ = kShim;
       shim_.replace(shim_.find("%s"), 2, ToJson(quoted));
+      shim_.replace(shim_.find("%g"), 2, ghost ? "true" : "false");
     }
     void OnDevToolsEvent(CefRefPtr<CefBrowser> browser, const CefString& method,
                          const void* params, size_t params_size) override {
@@ -580,6 +583,7 @@ class ExtensionPopupViewDelegate : public CefBrowserViewDelegate {
     IMPLEMENT_REFCOUNTING(ShimInstaller);
   };
   std::string url_, tab_url_;
+  bool ghost_;
   CefRefPtr<CefRegistration> registration_;
   IMPLEMENT_REFCOUNTING(ExtensionPopupViewDelegate);
 };
@@ -2072,6 +2076,19 @@ std::set<std::string> Controller::GhostReachExtensions(int space) {
   return out;
 }
 
+// A split extension ("incognito": "split") allowed in ghost tabs in |space|: its ghost copy is the one that acts on them.
+bool Controller::SplitInGhost(int space, const std::string& id) {
+  auto ctx = space == 0 ? CefRequestContext::GetGlobalContext() : contexts_.count(space) ? contexts_[space] : nullptr;
+  auto all = ctx ? ctx->GetPreference("extensions.settings") : nullptr;
+  auto settings = all && all->GetType() == VTYPE_DICTIONARY ? all->GetDictionary() : nullptr;
+  auto ext = settings ? settings->GetDictionary(id) : nullptr;
+  if (!ext || !ext->GetBool("incognito")) return false;
+  std::string path = ext->GetString("path");
+  if (!path.empty() && path[0] != '/') path = State::Get().ProfileDir(space) + "/Extensions/" + path;
+  auto manifest = path.empty() ? nullptr : ReadJsonFile(path + "/manifest.json");
+  return manifest && manifest->GetString("incognito") == "split";
+}
+
 bool Controller::GhostReachGuarded(int space, const std::string& url) {
   const std::string ext = "chrome-extension://";
   bool page = StartsWith(url, ext);
@@ -2384,6 +2401,8 @@ void Controller::SeedGhostTweaks() {
 // Ends the ghost session once its last tab closes: the next ghost tab starts
 // with no cookies, logins or cache.
 void Controller::EndGhostSession() {
+  // A split extension's popup may be open in the ghost context (ShowExtensionPopup): it must not outlive it.
+  CloseExtensionPopup();
   std::erase_if(downloads_, [](const Download& d) { return d.ghost; });
   PushSidebar();
   auto it = contexts_.find(kGhostContext);
@@ -7594,9 +7613,17 @@ void Controller::ShowExtensionPopup(const std::string& url, int x, int y) {
   int space = State::Get().active_space;
   if (space != 0 && !ready_spaces_.count(space)) return;
   Tab* tab = ActiveTab();
+  bool ghost = tab && tab->ghost;
+  // A ghost tab in front: a split extension allowed there has a ghost copy of its own, which alone reaches the
+  // ghost tabs, so its popup opens there. Every other extension's popup is its space's (the shim keeps it off the
+  // space's tabs when it can't see the ghost tab).
+  int popup_space = space;
+  if (ghost && g_ghost_otr && ghost_space_ == space && ready_spaces_.count(kGhostContext) &&
+      SplitInGhost(space, url.substr(19, url.find('/', 19) - 19)))
+    popup_space = kGhostContext;
   auto view = CefBrowserView::CreateBrowserView(
-      client_, "about:blank", CefBrowserSettings(), nullptr, ContextFor(space),
-      new ExtensionPopupViewDelegate(url, tab ? tab->url : ""));
+      client_, "about:blank", CefBrowserSettings(), nullptr, ContextFor(popup_space),
+      new ExtensionPopupViewDelegate(url, tab ? tab->url : "", ghost));
   ext_popup_ = CefWindow::CreateTopLevelWindow(
       new ExtensionPopupDelegate(view, CefRect(at.x, at.y, 25, 25)));
   platform::StyleWindow(ext_popup_->GetWindowHandle(), 10, true);

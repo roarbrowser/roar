@@ -227,6 +227,7 @@ class Controller {
   void ReportExtensionCopies();  // A card for what the last launch copied (ext_copy.h).
   void PushActions(const std::string& json);
   void ShowExtensionPopup(const std::string& url, int x, int y);
+  bool SplitInGhost(int space, const std::string& id);
   void CloseExtensionPopup();
   void OnExtensionPopupDestroyed(CefRefPtr<CefWindow> window);
   bool IsExtensionPopup(CefRefPtr<CefBrowser> browser);
