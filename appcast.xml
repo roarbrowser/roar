@@ -574,5 +574,14 @@
       <description><![CDATA[Ghost tabs: an extension popup (Bitwarden and others) acts on the ghost tab in front, never on a space tab behind it. Split extensions open their popup in the ghost session.]]></description>
       <enclosure url="https://github.com/roarbrowser/roar/releases/download/v1.29.6/Roar-1.29.6.dmg" type="application/octet-stream" sparkle:edSignature="W2ATFQdgo1YyOfdSjooH2zNX3TQK1yBO8/9dgCCWRcCMQi0fR/i/4FdqJusVSjdfRawuysRq690ThRUfG0y4AA==" length="193713115"/>
     </item>
+    <item>
+      <title>1.30.0</title>
+      <pubDate>Sun, 22 Nov 2026 07:17:07 +0000</pubDate>
+      <sparkle:version>13000</sparkle:version>
+      <sparkle:shortVersionString>1.30.0</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[CEF 158 (Chromium 158). Extensions you allow in ghost tabs, such as Bitwarden, now work fully there: they can fill and act on the ghost tab in front.]]></description>
+      <enclosure url="https://github.com/roarbrowser/roar/releases/download/v1.30.0/Roar-1.30.0.dmg" type="application/octet-stream" sparkle:edSignature="2nCl+8Dgnb87qRVqG+kEgisgglslqQfn8zmB/KkEB7/fBC48EyqT/7oW7XB6sKtC4ShCpERS1S38lFFQHTeQCw==" length="199449052"/>
+    </item>
   </channel>
 </rss>
