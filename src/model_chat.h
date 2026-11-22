@@ -101,8 +101,15 @@ inline bool ChatServerAuthAllowed(const std::string& url) {
 }
 
 // The only calls Model chat makes to an OpenCode server. It's the user's agent, with their tools: nothing else goes through.
-inline bool OpencodeCallAllowed(const std::string& method, const std::string& path) {
+// One read: a session's newest messages (opening a Hermit session in Ask shows what was said), with this exact query.
+constexpr const char* kOpencodeHistoryQuery = "?order=desc&limit=40";
+inline bool OpencodeCallAllowed(const std::string& method, std::string path) {
   if (path == "/api/event") return method == "GET";
+  if (auto q = path.find('?'); q != std::string::npos) {
+    if (method != "GET" || path.substr(q) != kOpencodeHistoryQuery) return false;
+    path.erase(q);
+    if (path.size() < 8 || path.compare(path.size() - 8, 8, "/message") != 0) return false;
+  }
   if (path == "/api/session") return method == "POST";
   std::vector<std::string> p;
   for (size_t a = 1, b; a <= path.size(); a = b + 1) {
@@ -115,6 +122,7 @@ inline bool OpencodeCallAllowed(const std::string& method, const std::string& pa
   };
   if (path.empty() || path[0] != '/' || p.size() < 3 || p[0] != "api" || p[1] != "session" || !id(p[2])) return false;
   if (p.size() == 3) return method == "DELETE";
+  if (p.size() == 4 && method == "GET") return p[3] == "message";
   if (p.size() == 4) return method == "POST" && (p[3] == "prompt" || p[3] == "interrupt");
   return p.size() == 6 && method == "POST" && p[3] == "permission" && id(p[4]) && p[5] == "reply";
 }

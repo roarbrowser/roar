@@ -553,10 +553,23 @@
   // password. Roar decides that for real (HermitRidesOn, src/hermit_server.h); this words Settings to match.
   const hermitOc = (url, service) => { const b = hermitBase(service); return !!b && String(url || '').trim().replace(/\/+$/, '') === b + '/oc'; };
 
+  // A session's messages as GET /api/session/<id>/message gives them (newest first or not), as chat turns oldest first:
+  // a user's or the agent's text, nothing else (tool runs, reasoning). Opening a Hermit session in Ask shows these.
+  const opencodeHistory = (r) => {
+    let j = r;
+    if (typeof j === 'string') { try { j = JSON.parse(j); } catch { return []; } }
+    const list = Array.isArray(j?.data) ? j.data : [];
+    const text = (m) => [typeof m.text === 'string' ? m.text : '', ...(Array.isArray(m.content) ? m.content : []).filter((p) => p?.type === 'text').map((p) => String(p.text || ''))]
+      .map((t) => t.trim()).filter(Boolean).join('\n\n');
+    return list.filter((m) => m && (m.type === 'user' || m.type === 'assistant'))
+      .map((m, i) => ({ at: +(m.time?.created || 0), i, role: m.type, text: text(m).slice(0, 20000) }))
+      .filter((m) => m.text).sort((a, b) => a.at - b.at || b.i - a.i).map(({ role, text: t }) => ({ role, text: t }));
+  };
+
   // A server URL typed with no path gets /v1, where Hermes and oMLX serve their API ("https://host" -> "https://host/v1").
   const withApiPath = (u) => (/^https?:\/\/[^/?#]+\/?$/i.test(u) ? u.replace(/\/?$/, '/v1') : u);
 
-  const api = { VENDORS, vendorOf, urlWhere, withApiPath, hermitBase, hermitOc, keyGoesTo, modelList, idList, chatList, chatOrdered, chatOn, modelLabel, opencodeEvents, defaultModel, renamePrompt, renameKeys, autoNameKeys, parseNames, oneShot, SEARCH_SYSTEM, searchMode, openRequest, addSources, webSearchTool, CLI_PROVIDERS, CLI_LOGIN, signedOutError, pageRefusal, shotRefusal, cliStatus, cliPrompt, cliParser, parseProviders, sseParser, streamDelta, requestBody, modelIds, providerStatus, detectProviders, renderMarkdown };
+  const api = { VENDORS, vendorOf, urlWhere, withApiPath, hermitBase, hermitOc, opencodeHistory, keyGoesTo, modelList, idList, chatList, chatOrdered, chatOn, modelLabel, opencodeEvents, defaultModel, renamePrompt, renameKeys, autoNameKeys, parseNames, oneShot, SEARCH_SYSTEM, searchMode, openRequest, addSources, webSearchTool, CLI_PROVIDERS, CLI_LOGIN, signedOutError, pageRefusal, shotRefusal, cliStatus, cliPrompt, cliParser, parseProviders, sseParser, streamDelta, requestBody, modelIds, providerStatus, detectProviders, renderMarkdown };
   if (typeof module === 'object') module.exports = api;
   else globalThis.chatCore = api;
 })();

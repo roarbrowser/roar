@@ -1976,9 +1976,17 @@ document.addEventListener('click', (e) => {
   e.stopPropagation();
   closeFeeds();
   dropDone(r.dataset.clid);
-  // A session on a Hermes server opens in its dashboard, in the space signed in to it. A Hermit row has no page.
+  // A session on a Hermes server opens in its dashboard, in the space signed in to it. A Hermit row opens its opencode
+  // session in Ask (its tab if one is open), or Settings > Agents while no service is set; a card with no session, nothing.
   const far = (state.claude?.items || []).find((c) => c.id === r.dataset.clid && c.remote);
-  if (far) return far.url ? ask({ cmd: 'open', text: far.url, newTab: true, space: far.space }) : undefined;
+  if (far?.tool === 'hermit') {
+    if (!chatCore.hermitBase(state.settings?.hermitUrl)) return ask({ cmd: 'open', text: 'roar://ui/settings.html#agents', newTab: true });
+    const sid = /^roar:\/\/ui\/chat\.html#hermit=([\w-]+)$/.exec(far.url || '')?.[1];
+    if (!sid) return far.url ? ask({ cmd: 'open', text: far.url, newTab: true }) : undefined;
+    const open = state.tabs.find((t) => t.url === 'roar://ui/chat.html#hermit-' + sid || t.url === far.url);
+    return open ? ask({ cmd: 'tab.activate', id: open.id }) : ask({ cmd: 'open', text: far.url, newTab: true });
+  }
+  if (far) return ask({ cmd: 'open', text: far.url, newTab: true, space: far.space });
   // Every row opens its session: the full-view tab if it's open, else a new one.
   if (r.dataset.cltab) return ask({ cmd: 'tab.activate', id: +r.dataset.cltab });
   return ask({ cmd: 'open', text: 'roar://ui/claude.html?id=' + encodeURIComponent(r.dataset.clid), newTab: true });

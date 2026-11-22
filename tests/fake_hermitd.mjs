@@ -19,7 +19,7 @@ const nowMs = () => Date.now();
 export function fakeHermitd({ password = 'pw' } = {}) {
   const f = {
     password, sessions: new Map(), active: new Set(), permissions: new Map(), forms: new Map(),
-    jobs: [], board: 'on', mode: 'ok', log: [], streams: [], eventAsks: [], badAuth: 0,
+    jobs: [], board: 'on', mode: 'ok', log: [], streams: [], eventAsks: [], badAuth: 0, messages: new Map(), prompts: [], deleted: [],
     // Test drivers, each sending what 2.3.2 sends.
     emit(type, data = {}) {
       const ev = { id: newId('evt'), type, created: nowMs(), data };
@@ -57,7 +57,7 @@ export function fakeHermitd({ password = 'pw' } = {}) {
       f.emit('permission.asked', p);
       return p;
     },
-    reply(rid) { const p = f.permissions.get(rid); f.permissions.delete(rid); f.emit('permission.replied', { sessionID: p.sessionID, requestID: rid, reply: 'once' }); },
+    allow(rid) { const p = f.permissions.get(rid); f.permissions.delete(rid); f.emit('permission.replied', { sessionID: p.sessionID, requestID: rid, reply: 'once' }); },
     form(id, title = 'SECRET QUESTION') {
       const form = { id: newId('frm'), sessionID: id, title, fields: [{ key: 'answer', type: 'string', title: 'Answer', required: true }] };
       f.forms.set(form.id, form);
@@ -66,7 +66,22 @@ export function fakeHermitd({ password = 'pw' } = {}) {
     },
     answer(fid) { const form = f.forms.get(fid); f.forms.delete(fid); f.emit('form.replied', { id: fid, sessionID: form.sessionID, answer: {} }); },
     archive(id) { const s = f.sessions.get(id); s.time.archived = nowMs(); f.active.delete(id); f.emit('session.archived', { sessionID: id }); },
-    remove(id) { f.sessions.delete(id); f.active.delete(id); f.emit('session.deleted', { sessionID: id }); },
+    remove(id) { f.sessions.delete(id); f.active.delete(id); f.deleted.push(id); f.emit('session.deleted', { sessionID: id }); },
+    // A message in a session's history, as GET /api/session/<id>/message gives it (2.3.2: type, text or content parts).
+    say(id, type, text) {
+      const list = f.messages.get(id) || [];
+      list.push({ id: newId('msg'), sessionID: id, type, time: { created: nowMs() + list.length },
+        ...(type === 'user' ? { text } : { content: [{ type: 'reasoning', text: 'SECRET THINKING' }, { type: 'text', text }, { type: 'tool', name: 'bash' }] }) });
+      f.messages.set(id, list);
+    },
+    // Answers a prompt the way 2.3.2 streams it: started, the text, succeeded.
+    reply(id, text) {
+      f.start(id);
+      f.emit('session.text.delta', { sessionID: id, delta: text });
+      f.emit('session.text.ended', { sessionID: id });
+      f.say(id, 'assistant', text);
+      f.finish(id, 'succeeded');
+    },
     close() { for (const s of f.streams) s.res.end(); f.server.close(); f.server.closeAllConnections?.(); },
   };
   const send = (res, code, body) => { res.writeHead(code, { 'Content-Type': 'application/json' }); res.end(body === undefined ? '' : JSON.stringify(body)); };
@@ -74,6 +89,7 @@ export function fakeHermitd({ password = 'pw' } = {}) {
   f.server = createServer((q, res) => {
     const url = new URL(q.url, 'http://x');
     f.log.push({ method: q.method, path: url.pathname, url: q.url, auth: q.headers.authorization || '' });
+    if (url.pathname === '/page') { res.writeHead(200, { 'Content-Type': 'text/html' }); return res.end('<title>a web page</title><p>hi</p>'); }
     if (url.pathname === '/api/status') return send(res, 200, { ok: true, service: 'hermitd', up: true, opencode: { ok: true, version: '2.3.2' } });
     if (!authed(q)) { f.badAuth++; return send(res, 401, { detail: 'Unauthorized' }); }
     if (f.mode === 'down') return send(res, 503, { detail: 'down' });
@@ -110,8 +126,27 @@ export function fakeHermitd({ password = 'pw' } = {}) {
       });
       return;
     }
-    const m = p.match(/^\/api\/session\/([A-Za-z0-9_-]+)(\/permission|\/form)?$/);
+    const m = p.match(/^\/api\/session\/([A-Za-z0-9_-]+)(\/permission|\/form|\/message|\/prompt|\/interrupt)?$/);
     if (m && f.sessions.has(m[1])) {
+      if (m[2] === '/message' && q.method === 'GET') {
+        const all = [...(f.messages.get(m[1]) || [])];
+        if (url.searchParams.get('order') === 'desc') all.reverse();
+        return send(res, 200, { data: all.slice(0, +(url.searchParams.get('limit') || 50)), cursor: { previous: null, next: null } });
+      }
+      if (m[2] === '/prompt' && q.method === 'POST') {
+        let body = '';
+        q.on('data', (c) => (body += c));
+        q.on('end', () => {
+          let j = {};
+          try { j = JSON.parse(body || '{}'); } catch {}
+          f.prompts.push({ session: m[1], text: j.text, auth: q.headers.authorization || '' });
+          f.say(m[1], 'user', j.text);
+          send(res, 200, { data: { id: newId('msg') } });
+          setTimeout(() => f.reply(m[1], 'Reply to: ' + j.text), 300);
+        });
+        return;
+      }
+      if (m[2] === '/interrupt') return send(res, 200, { data: true });
       if (m[2] === '/permission') return send(res, 200, { data: [...f.permissions.values()].filter((x) => x.sessionID === m[1]) });
       if (m[2] === '/form') return send(res, 200, { data: [...f.forms.values()].filter((x) => x.sessionID === m[1]) });
       if (q.method === 'DELETE') { f.remove(m[1]); return send(res, 204); }

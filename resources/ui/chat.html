@@ -147,7 +147,7 @@ const CODE_COPY = /^Win/.test(navigator.platform)
 function show(c) {
   if (streaming) stop();
   chat = c;
-  history.replaceState(null, '', c.messages.length ? '#' + c.id : location.pathname);
+  history.replaceState(null, '', c.messages.length || c.oc?.attached ? '#' + c.id : location.pathname);
   if (c.model && [...$('model').options].some((o) => o.value === c.model)) $('model').value = c.model;
   chat.search ??= searchDefault;
   paintAttach();
@@ -186,6 +186,8 @@ function pickWebTab(st) {
   paintAttach();
 }
 const picked = () => providers.find((x) => x.id === $('model').value.split('|')[0]);
+// A Hermit session opened here is the agent's own, under its own rules: treat it as one that may use tools.
+const effective = (p) => (p && chat?.oc?.attached && chat.oc.provider === p.id ? { ...p, tools: true } : p);
 // A CLI that can't be fully cut off from the user's files never gets page text (src/model_chat.h ChatCliToolless).
 function paintAttach() {
   const how = searchMode(picked());
@@ -193,7 +195,7 @@ function paintAttach() {
   $('search').setAttribute('aria-pressed', String(!!(how && how !== 'builtin' && chat?.search)));
   $('search').title = how === 'builtin' ? `${picked().name} searches the web on its own` : !how ? "Agent CLIs run with their own tools off, so they can't search the web" : how === 'local'
     ? 'Roar searches in a private page (no cookies or logins) and gives the model the results' : "Uses the provider's own web search";
-  const no = pageRefusal(picked());
+  const no = pageRefusal(effective(picked()));
   if (no && page) { page = null; $('attach').setAttribute('aria-pressed', 'false'); $('attach-name').textContent = ''; }
   $('attach').disabled = !webTab || !!no;
   $('attach').title = no || (webTab ? `Attach “${webTab.title || webTab.url}” as Markdown` : 'Open a web page first');
@@ -229,7 +231,7 @@ async function send() {
   const text = $('text').value.trim(), [pid, ...rest] = $('model').value.split('|'), model = rest.join('|');
   const p = providers.find((x) => x.id === pid);
   if ((!text && !page) || !p || streaming) return;
-  const no = pageRefusal(p);
+  const no = pageRefusal(effective(p));
   if (no && (page || chat.messages.some((m) => m.page))) return note(no);
   const mode = chat.search ? searchMode(p) : '';
   chat.model = $('model').value;
@@ -263,6 +265,7 @@ async function send() {
 function run(p, model, mode, user, mayOpen) {
   const reply = { role: 'assistant', text: '' };
   const cli = p.kind === 'cli', oc = p.kind === 'opencode', kind = mode === 'responses' ? 'responses' : p.kind;
+  const att = oc && chat.oc?.attached && chat.oc.provider === p.id;  // A Hermit session opened from the sidebar.
   // OpenCode: the server's event stream carries the reply, so it opens first; the prompt goes once it's connected.
   let sid = '', ended = false;
   const events = oc && opencodeEvents(() => sid);
@@ -270,7 +273,7 @@ function run(p, model, mode, user, mayOpen) {
   const startTurn = async () => {
     try {
       // With tools the session is the agent's work, kept for the next turn. Without, each turn is a fresh session holding the whole chat.
-      let keep = p.tools && chat.oc?.provider === p.id ? chat.oc.session : '';
+      let keep = (p.tools || att) && chat.oc?.provider === p.id ? chat.oc.session : '';
       for (;;) {
         if (!keep) {
           const made = await call('POST', '/api/session');
@@ -280,7 +283,7 @@ function run(p, model, mode, user, mayOpen) {
           if (p.tools) chat.oc = { provider: p.id, session: sid };
         } else sid = keep;
         try { await call('POST', `/api/session/${sid}/prompt`, { text: keep ? user.text : cliPrompt(chat.messages) }); return; }
-        catch (e) { if (!keep) throw e; keep = ''; chat.oc = null; }  // Deleted on the server: start again.
+        catch (e) { if (!keep || att) throw e; keep = ''; chat.oc = null; }  // Deleted on the server: start again (never for an opened session).
       }
     } catch (e) {
       if (streaming?.qid) window.roarQueryCancel(streaming.qid);
@@ -322,7 +325,7 @@ function run(p, model, mode, user, mayOpen) {
       reply.text = reply.text.trim();
       for (const c of $('log').querySelectorAll('.ask-ok')) c.remove();
       const stopping = sid && !ended ? call('POST', `/api/session/${sid}/interrupt`).catch(() => {}) : null;
-      if (sid && !p.tools) Promise.resolve(stopping).then(() => call('DELETE', `/api/session/${sid}`)).catch(() => {});
+      if (sid && !p.tools && !att) Promise.resolve(stopping).then(() => call('DELETE', `/api/session/${sid}`)).catch(() => {});
     }
     if (err) { reply.text = (reply.text ? reply.text + '\n\n' : '') + err; reply.error = !reply.text || reply.text === err; if (cli && signedOutError(p.cli, err)) reply.signin = p.cli; }
     const want = !err && user.search && openRequest(reply.text);
@@ -411,16 +414,63 @@ $('log').addEventListener('click', (e) => {
   });
 });
 
+// #hermit=<session id>: a Hermit row opened here (src/hermit_server.h HermitChatUrl). The chat talks to that opencode
+// session through a chat server at the service's /oc, signed in as hermit; one is added to Chat models if none is
+// there yet. It shows the session's newest messages and sends the next prompt to that same session.
+async function attachHermit(sid, st) {
+  const base = chatCore.hermitBase(st.settings.hermitUrl);
+  if (!base) {
+    note('Set up the Hermit service in Settings > Agents first.');
+    ask({ cmd: 'open', text: 'roar://ui/settings.html#agents', newTab: true });
+    return null;
+  }
+  let p = parseProviders(st.settings.chatProviders).find((x) => x.kind === 'opencode' && chatCore.hermitOc(x.url, st.settings.hermitUrl));
+  if (!p) {
+    let raw = [];
+    try { raw = JSON.parse(st.settings.chatProviders || '[]'); } catch {}
+    if (!Array.isArray(raw)) raw = [];
+    let id = 'hermit';
+    while (raw.some((x) => x?.id === id)) id += '-2';
+    raw.push({ id, name: 'Hermit', url: base + '/oc', kind: 'opencode', tools: false });
+    st.settings.chatProviders = JSON.stringify(raw);
+    await ask({ cmd: 'settings.set', settings: { chatProviders: st.settings.chatProviders } });
+    p = { id, name: 'Hermit' };
+  }
+  const id = 'hermit-' + sid, row = (st.claude?.items || []).find((c) => c.id === id);
+  const c = chats.find((x) => x.id === id) || { id, title: '', created: Date.now(), messages: [] };
+  Object.assign(c, { oc: { provider: p.id, session: sid, attached: true }, model: p.id + '|default', brand: 'opencode', brandName: p.name });
+  if (row?.project) c.title = row.project.slice(0, 60);
+  try {
+    const said = chatCore.opencodeHistory(await ask({ cmd: 'chat.request', provider: p.id, what: 'opencode', method: 'GET', path: `/api/session/${sid}/message?order=desc&limit=40` }));
+    if (said.length || !c.messages.length) c.messages = said;
+  } catch (e) { note(`Couldn't read that session: ${e.message}`); }
+  if (!c.title) c.title = c.messages.find((m) => m.role === 'user')?.text.slice(0, 60) || 'Hermit session';
+  if (!chats.includes(c)) chats.unshift(c);
+  return c;
+}
+const hermitHash = () => /^#hermit=([\w-]{1,160})$/.exec(location.hash)?.[1];
+
 (async () => {
   // #ask=<tab id>: opened by "Ask a model about this page" (⌘T with Model chat chosen); attach that tab, never another.
   const askId = /^#ask=(\d+)$/.exec(location.hash)?.[1];
+  const hermitSid = hermitHash();  // Read now: the first show() below rewrites the address.
   if (askId) history.replaceState(null, '', location.href.split('#')[0]);
   try { chats = await ask({ cmd: 'chat.history' }); } catch { chats = []; }
   if (!Array.isArray(chats)) chats = [];
   show(chats.find((c) => c.id === location.hash.slice(1)) || newChat());
   // The sidebar opens another chat in this tab by changing the hash.
-  addEventListener('hashchange', () => { const c = chats.find((x) => x.id === location.hash.slice(1)); if (c && c !== chat) show(c); });
+  addEventListener('hashchange', async () => {
+    const sid = hermitHash();
+    if (sid) {
+      const st = await ask({ cmd: 'state' }).then((x) => typeof x === 'string' ? JSON.parse(x) : x);
+      const c = await attachHermit(sid, st);
+      if (c) show(c), loadModels(st);
+      return;
+    }
+    const c = chats.find((x) => x.id === location.hash.slice(1)); if (c && c !== chat) show(c);
+  });
   const st = await ask({ cmd: 'state' }).then((x) => typeof x === 'string' ? JSON.parse(x) : x);
+  if (hermitSid) { const c = await attachHermit(hermitSid, st); if (c) show(c); }
   searchDefault = !!st.settings.chatSearch;
   if (!chat.messages.length) chat.search = searchDefault;
   pickWebTab(st);

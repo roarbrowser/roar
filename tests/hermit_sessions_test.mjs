@@ -93,7 +93,7 @@ try {
     ...[...f.sessions.values()].filter((s) => s.title === '<img src=x onerror=alert(1)>').map((s) => 'hermit-' + s.id)].sort();
   check(JSON.stringify(ids) === JSON.stringify(want), 'running, waiting and new sessions and running and waiting cards only: no answered, old, archived, subagent, worker, dependency, review or done rows: ' + ids);
   const a = got?.find((c) => c.id === 'hermit-' + live.id);
-  check(a?.state === 'working' && a?.doing === 'Live · build' && a?.project === 'Fix the build' && a?.remote === true && a?.url === '', 'a live session: Live and its agent; watch-only: ' + a?.doing);
+  check(a?.state === 'working' && a?.doing === 'Live · build' && a?.project === 'Fix the build' && a?.remote === true && a?.url === 'roar://ui/chat.html#hermit=' + live.id, 'a live session: Live and its agent; it leads to its session in Ask: ' + a?.doing);
   const b = got?.find((c) => c.id === 'hermit-' + asking.id);
   check(b?.state === 'needs_you' && b?.doing === 'build · Asks you to allow bash', 'one waiting on an approval needs you: ' + b?.doing);
   const p = got?.find((c) => c.id === 'hermit-' + parent.id);
@@ -131,8 +131,8 @@ try {
   const asked = await until(async () => { const r = await row('hermit-' + fresh.id); return r?.state === 'needs_you' && r; }, 5000);
   check(asked?.doing === 'build · Asks you to allow webfetch', `an approval needs you in ${Date.now() - t0} ms`);
   const alert = await until(async () => (await items()).alerts.find((x) => x.level === 'needs_you' && x.title === 'Brand new needs you'), 5000);
-  check(!!alert && alert.agent === 'Hermit' && !alert.url, 'and raises a needs-you card from Hermit, with no page to open: ' + JSON.stringify(alert && { agent: alert.agent, url: alert.url }));
-  f.reply(per.id);
+  check(!!alert && alert.agent === 'Hermit' && alert.url === 'roar://ui/chat.html#hermit=' + fresh.id, 'and raises a needs-you card from Hermit that opens the session: ' + JSON.stringify(alert && { agent: alert.agent, url: alert.url }));
+  f.allow(per.id);
   check(!!(await until(async () => (await row('hermit-' + fresh.id))?.state === 'working', 5000)), 'answered: back to working');
   t0 = Date.now();
   f.finish(fresh.id, 'succeeded');
@@ -155,11 +155,49 @@ try {
   const xss = [...f.sessions.values()].find((s) => s.title?.startsWith('<img'));
   const html = await side(`document.querySelector('[data-clid="hermit-${xss.id}"]')?.outerHTML || ''`);
   check(html.includes('&lt;img') && !(await side(`!!document.querySelector('[data-clid="hermit-${xss.id}"] img')`)), 'a title is text, not markup');
-  check(!html.includes('data-clbeside') && !html.includes('data-clfocus') && !html.includes('data-clquit') && html.includes('data-clhide'), 'watch-only, but it can be hidden');
-  const tabs = await side(`ask({ cmd: 'state' }).then((s) => s.tabs.length)`);
+  check(!html.includes('data-clbeside') && !html.includes('data-clfocus') && !html.includes('data-clquit') && html.includes('data-clhide'), 'no reply, terminal or side by side on the row, but it can be hidden');
+  // A click opens the session in Ask: a card's worker session here, through a chat server at <service>/oc.
+  const tabUrls = async () => (await side(`ask({ cmd: 'state' }).then((s) => JSON.stringify(s.tabs.map((t) => t.url)))`).then((j) => JSON.parse(j || '[]')));
+  f.say(worker.id, 'user', 'Fix the login page please');
+  f.say(worker.id, 'assistant', 'Looking at the form now.');
+  let tabs = (await tabUrls()).length;
+  await side(`document.querySelector('[data-clid="hermit-card-t_ask"] .clmain')?.click()`);
+  await sleep(800);
+  check((await tabUrls()).length === tabs, 'a card with no session opens nothing new');
+  await side(`document.querySelector('[data-clid="hermit-card-t_run"] .clmain')?.click()`);
+  const chatUrl = 'roar://ui/chat.html#hermit-' + worker.id;
+  check(!!(await until(async () => (await tabUrls()).includes(chatUrl), 8000)), 'a card with a worker session opens it in Ask: ' + JSON.stringify(await tabUrls()));
+  const inChat = (e) => page((x) => x.url.includes('chat.html#hermit-' + worker.id), e);
+  check(!!(await until(() => inChat(`[...document.querySelectorAll('#log .msg')].map((m) => m.textContent).join('|').includes('Looking at the form now.')`), 8000)), 'with the session\'s history');
+  check(await inChat(`[...document.querySelectorAll('#log .msg.user')].some((m) => m.textContent.includes('Fix the login page please')) && !document.getElementById('log').textContent.includes('SECRET')`), 'its words only: no reasoning or tool output');
+  check(!!(await until(() => inChat(`document.getElementById('model').value === 'hermit|default'`), 10000)), 'on a Hermit chat server, added to Chat models: ' + await inChat(`document.getElementById('model').value`));
+  const sessionsMade = f.log.filter((l) => l.method === 'POST' && l.path === '/oc/api/session').length;
+  await inChat(`document.getElementById('text').value = 'Use the new endpoint'; send(); 1`);
+  const prompt = await until(async () => f.prompts.find((x) => x.text === 'Use the new endpoint'), 8000);
+  check(prompt?.session === worker.id && prompt.auth === 'Basic ' + Buffer.from('hermit:' + PW).toString('base64'), 'a prompt goes to that same session, signed in as hermit');
+  check(!!(await until(() => inChat(`document.getElementById('log').textContent.includes('Reply to: Use the new endpoint')`), 8000)), 'and its reply streams in');
+  await sleep(800);
+  check(f.log.filter((l) => l.method === 'POST' && l.path === '/oc/api/session').length === sessionsMade && !f.deleted.includes(worker.id), 'no new session is made. The opened one is never deleted');
+  tabs = (await tabUrls()).length;
   await side(`document.querySelector('[data-clid="hermit-card-t_run"] .clmain')?.click()`);
   await sleep(800);
-  check(await side(`ask({ cmd: 'state' }).then((s) => s.tabs.length)`) === tabs, 'clicking a row opens nothing: the service has no page for it');
+  check((await tabUrls()).length === tabs, 'a second click goes back to that tab');
+  // No service set: Settings > Agents, as for Hermes.
+  await side(`state.settings.hermitUrl = ''; document.querySelector('[data-clid="hermit-${parent.id}"] .clmain')?.click(); 1`);
+  check(!!(await until(async () => (await tabUrls()).some((u) => u === 'roar://ui/settings.html#agents'), 8000)), 'with no service set, a click opens Settings > Agents');
+
+  // A web page can never set or read the service password: only Roar's own pages may (HandleQuery's trusted gate).
+  await side(`ask({ cmd: 'open', text: ${JSON.stringify(base + '/page')}, newTab: true }).then(() => 1)`);
+  await until(async () => (await list()).some((x) => x.title === 'a web page'), 10000);
+  const fromPage = (cmd) => page((x) => x.title === 'a web page', `new Promise((ok) => { if (!window.roarQuery) return ok('no bridge'); const t = setTimeout(() => ok('no answer'), 3000);
+    window.roarQuery({ request: ${JSON.stringify(JSON.stringify(cmd))}, onSuccess: (r) => { clearTimeout(t); ok('answered ' + r); }, onFailure: (c) => { clearTimeout(t); ok('refused ' + c); } }); })`);
+  const setTry = await fromPage({ cmd: 'hermit.keySet', key: 'from-a-web-page' });
+  const hasTry = await fromPage({ cmd: 'hermit.keyHas' });
+  check(!/^answered/.test(setTry || '') && !/^answered/.test(hasTry || ''), 'a web page\'s hermit.keySet and hermit.keyHas are refused: ' + setTry + ', ' + hasTry);
+  const n = f.log.length;
+  await set({ hermitUrl: base });
+  await until(async () => f.log.slice(n).some((l) => l.path === '/oc/api/session/active'), 8000);
+  check(f.log.slice(n).filter((l) => l.path.startsWith('/oc/')).every((l) => l.auth === 'Basic ' + Buffer.from('hermit:' + PW).toString('base64')), 'and the saved password is still the real one');
 
   // No board: sessions only. The board isn't asked every poll.
   f.board = 'off';

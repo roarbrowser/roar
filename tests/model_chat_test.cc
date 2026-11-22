@@ -164,9 +164,12 @@ int main() {
     check(roar::ChatServerAuthAllowed(u), (std::string("password may go to ") + u).c_str());
   for (const char* u : {"http://8.8.8.8:4096", "http://example.com:4096", "http://172.32.0.1", "http://192.169.1.1", "http://192.168.1.1.evil.com", "http://local:80", "http://x@192.168.1.1/", "ftp://192.168.1.1", "http://100.128.0.1"})
     check(!roar::ChatServerAuthAllowed(u), (std::string("no password to ") + u).c_str());
-  for (auto [m, p] : std::vector<std::pair<const char*, const char*>>{{"GET", "/api/event"}, {"POST", "/api/session"}, {"POST", "/api/session/ses_1/prompt"}, {"POST", "/api/session/ses_1/interrupt"}, {"DELETE", "/api/session/ses_1"}, {"POST", "/api/session/ses_1/permission/per_2/reply"}})
+  for (auto [m, p] : std::vector<std::pair<const char*, const char*>>{{"GET", "/api/event"}, {"POST", "/api/session"}, {"POST", "/api/session/ses_1/prompt"}, {"POST", "/api/session/ses_1/interrupt"}, {"DELETE", "/api/session/ses_1"}, {"POST", "/api/session/ses_1/permission/per_2/reply"},
+                                                                        {"GET", "/api/session/ses_1/message"}, {"GET", "/api/session/ses_1/message?order=desc&limit=40"}})
     check(roar::OpencodeCallAllowed(m, p), (std::string("allowed: ") + m + " " + p).c_str());
-  for (auto [m, p] : std::vector<std::pair<const char*, const char*>>{{"GET", "/api/session"}, {"DELETE", "/api/session"}, {"POST", "/api/event"}, {"POST", "/api/session/ses_1/shell"}, {"POST", "/api/session/ses_1/command"}, {"GET", "/api/session/ses_1"}, {"POST", "/api/session/../prompt"}, {"POST", "/api/config"}, {"POST", "api/session/s/prompt"}, {"POST", "/api/session/s/permission/p/other"}, {"POST", "/api/session/s/prompt?x=1"}, {"POST", ""}})
+  for (auto [m, p] : std::vector<std::pair<const char*, const char*>>{{"GET", "/api/session"}, {"DELETE", "/api/session"}, {"POST", "/api/event"}, {"POST", "/api/session/ses_1/shell"}, {"POST", "/api/session/ses_1/command"}, {"GET", "/api/session/ses_1"}, {"POST", "/api/session/../prompt"}, {"POST", "/api/config"}, {"POST", "api/session/s/prompt"}, {"POST", "/api/session/s/permission/p/other"}, {"POST", "/api/session/s/prompt?x=1"}, {"POST", ""},
+                                                                        {"POST", "/api/session/ses_1/message"}, {"GET", "/api/session/ses_1/message?limit=9999"}, {"GET", "/api/session/ses_1/prompt?order=desc&limit=40"},
+                                                                        {"GET", "/api/session/ses_1/permission"}, {"GET", "/api/session?order=desc&limit=40"}})
     check(!roar::OpencodeCallAllowed(m, p), (std::string("refused: ") + m + " [" + p + "]").c_str());
   check(roar::OpencodeSessionBody(false, "/w") == R"({"title":"Roar Ask","permissions":[{"action":"*","resource":"*","effect":"deny"}]})", "tools off: deny-all, no folder");
   check(roar::OpencodeSessionBody(true, "") == R"({"title":"Roar Ask"})", "tools on: no rules of Roar's");

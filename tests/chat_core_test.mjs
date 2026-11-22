@@ -383,5 +383,15 @@ check(core.hermitOc('http://127.0.0.1:9121/oc', 'http://127.0.0.1:9121') && core
   check(hp.kind === 'opencode' && hp.url === 'http://127.0.0.1:9121/oc', 'hermit: the opencode kind keeps a /oc path');
   check(/Hermit service/.test(core.providerStatus({ ...hp, hermit: true }).label) && !/Hermit/.test(core.providerStatus(hp).label), 'hermit: a silent one points at the Hermit service');
 }
+{
+  // A Hermit session opened in Ask: its words, oldest first, from GET /api/session/<id>/message?order=desc.
+  const h = core.opencodeHistory({ data: [
+    { type: 'assistant', time: { created: 3 }, content: [{ type: 'reasoning', text: 'hidden' }, { type: 'text', text: 'Done.' }, { type: 'tool', name: 'bash' }] },
+    { type: 'user', time: { created: 2 }, text: 'Now fix it' },
+    { type: 'assistant', time: { created: 1 }, content: [{ type: 'tool', name: 'read' }] },
+    { type: 'synthetic', time: { created: 0 }, text: 'x' }, null] });
+  check(JSON.stringify(h) === JSON.stringify([{ role: 'user', text: 'Now fix it' }, { role: 'assistant', text: 'Done.' }]), 'history: text only, oldest first: ' + JSON.stringify(h));
+  check(core.opencodeHistory('{"data":[{"type":"user","text":"hi"}]}').length === 1 && core.opencodeHistory('oops').length === 0 && core.opencodeHistory({}).length === 0, 'history: a string or nothing usable');
+}
 console.log(fail ? `${fail} failure(s)` : 'ok');
 process.exit(fail ? 1 : 0);

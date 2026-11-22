@@ -63,6 +63,12 @@ inline std::string HermitEventUrl(const std::string& base) {
 }
 
 inline bool HermitIdOk(const std::string& s) { return HermesIdOk(s); }
+
+// Where a row leads: that opencode session in Ask (chat.html attaches it through a chat server at the service's /oc,
+// signed in as hermit). "" for an id that isn't plain.
+inline std::string HermitChatUrl(const std::string& session) {
+  return HermitIdOk(session) ? "roar://ui/chat.html#hermit=" + session : "";
+}
 inline std::string HermitRowId(const std::string& id) { return HermitIdOk(id) ? "hermit-" + id : ""; }
 inline std::string HermitCardRowId(const std::string& id) { return HermitIdOk(id) ? "hermit-card-" + id : ""; }
 
@@ -129,7 +135,7 @@ struct HermitCard {
   double run_started = 0, heartbeat = 0, step_at = 0;
 };
 
-using HermitRow = HermesRow;  // state: working, idle or needs_you; url "" (watch-only) except the sign-in row.
+using HermitRow = HermesRow;  // state: working, idle or needs_you; url: the session in Ask (HermitChatUrl), "" for a card with none.
 
 // A session made but not yet asked anything shows this long, so a new chat appears at once and an abandoned one goes.
 constexpr double kHermitLiveWindow = 120;
@@ -201,6 +207,7 @@ inline std::vector<HermitRow> HermitRows(const std::vector<HermitSession>& sessi
     HermitRow r;
     r.id = id;
     r.name = c.title.empty() ? c.id : HermesCut(c.title, kHermesMaxTitle);
+    r.url = HermitChatUrl(c.session);  // A card with no worker session yet opens nothing new: its row says how it stands.
     r.started = r.updated = c.run_started;
     std::string who = HermitWho(c.agent);
     if (s) r.started = std::max(r.started, s->created), r.updated = std::max(r.updated, s->updated);
@@ -232,6 +239,7 @@ inline std::vector<HermitRow> HermitRows(const std::vector<HermitSession>& sessi
     if (!s.ask.empty()) r.state = "needs_you", r.doing = who + " · " + s.ask;
     else if (s.pending) r.state = "working", r.doing = "Live · " + who + (step.empty() ? "" : " · " + step);
     else r.state = "idle", r.doing = "New · " + who + " · No prompt yet";
+    r.url = HermitChatUrl(s.id);
     r.started = s.created;
     r.updated = std::max(s.updated, s.created);
     if (r.updated <= 0) r.updated = now;

@@ -58,6 +58,10 @@ int main() {
   check(HermitRowId("").empty() && HermitCardRowId("").empty(), "an id is needed");
   check(HermitRowId("a/b").empty() && HermitRowId("a&x=y").empty() && HermitRowId("<b>").empty() && HermitCardRowId("t/../x").empty(), "only plain ids");
 
+  // Where a row leads: its opencode session, opened in Ask.
+  check(HermitChatUrl("ses_1") == "roar://ui/chat.html#hermit=ses_1", "a session's chat link");
+  check(HermitChatUrl("").empty() && HermitChatUrl("a&b").empty() && HermitChatUrl("../x").empty(), "only for a plain id");
+
   // Where the opencode chat kind reaches the service: <service>/oc, signed in as hermit with the service's password.
   check(HermitOcBase("http://127.0.0.1:9121") == "http://127.0.0.1:9121/oc", "the chat's server address");
   check(HermitRidesOn("http://127.0.0.1:9121/oc", "http://127.0.0.1:9121") && HermitRidesOn("http://127.0.0.1:9121/oc/", "http://127.0.0.1:9121/"),
@@ -156,9 +160,10 @@ int main() {
   check(rows.size() == 8, "rows: five cards, one live, one new and one waiting session: " + std::to_string(rows.size()));
   const HermitRow* r1 = findIn(rows, "hermit-card-t_1");
   check(r1 && r1->state == "working" && r1->tone.empty() && r1->doing == "coder · Working · last step 30s ago", "a running card says how it's going: " + (r1 ? r1->doing : ""));
-  check(r1 && r1->url.empty() && r1->name == "Fix the login page", "a card is watch-only: no page to open");
+  check(r1 && r1->url == "roar://ui/chat.html#hermit=ses_w1" && r1->name == "Fix the login page", "a card with a worker session opens that session in Ask");
   const HermitRow* r2 = findIn(rows, "hermit-card-t_2");
   check(r2 && r2->state == "needs_you" && r2->doing == "coder · Asks you", "a card waiting on input asks you, without its question");
+  check(r2 && r2->url.empty(), "a card with no session opens nothing new: its row is all there is");
   const HermitRow* r6 = findIn(rows, "hermit-card-t_6");
   check(r6 && r6->state == "working" && r6->tone == "quiet" && r6->doing == "coder · May be stuck · no check-in for 6m", "a quiet card: amber, may be stuck");
   const HermitRow* r7 = findIn(rows, "hermit-card-t_7");
@@ -170,6 +175,7 @@ int main() {
   check(!findIn(rows, "hermit-done") && !findIn(rows, "hermit-stale") && !findIn(rows, "hermit-archived") && !findIn(rows, "hermit-sub"),
         "no row for an ended turn, a new session left waiting, an archived one or a subagent");
   const HermitRow* c1 = findIn(rows, "hermit-ses_live");
+  check(c1 && c1->url == "roar://ui/chat.html#hermit=ses_live", "a session row opens that session in Ask");
   check(c1 && c1->state == "working" && c1->doing == "Live · build · Bash" && c1->name == "ses_live", "a live session: Live, its agent and the tool it's using: " + (c1 ? c1->doing : ""));
   const HermitRow* cf = findIn(rows, "hermit-fresh");
   check(cf && cf->state == "idle" && cf->doing == "New · build · No prompt yet", "a new session: idle, no prompt yet");

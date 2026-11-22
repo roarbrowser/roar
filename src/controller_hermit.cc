@@ -1,5 +1,5 @@
-// opencode sessions and board cards on a Hermit service as watch-only rows among the sidebar's agent sessions, like
-// the Hermes source (controller_hermes.cc). The service runs beside opencode, often on another machine; Roar signs in
+// opencode sessions and board cards on a Hermit service as rows among the sidebar's agent sessions, like the Hermes
+// source (controller_hermes.cc). A row opens its session in Ask (chat.html #hermit=<id>). The service runs beside opencode, often on another machine; Roar signs in
 // to it as hermit with the password kept in the Keychain (Settings > Agents), never opencode's own. Each poll reads
 // /oc/api/session/active (what runs now), then the newest sessions, then the approvals and questions of each running
 // or asking session (capped), then the board at /api/x/jobs. An event stream (/oc/api/event, one `types` per event)
@@ -114,14 +114,14 @@ CefRefPtr<CefDictionaryValue> Row(const HermitRow& r) {
   auto row = CefDictionaryValue::Create();
   row->SetString("id", r.id);
   row->SetString("tool", "hermit");
-  row->SetBool("remote", true);  // No hook, terminal or chat view: watch-only, like a Hermes row.
+  row->SetBool("remote", true);  // No hook or terminal: a click opens `url`, like a Hermes row.
   row->SetString("project", r.name);  // HermitTitle and HermitRows cut it.
   row->SetString("state", r.state);
   if (!r.tone.empty()) row->SetString("tone", r.tone);
   row->SetString("doing", r.doing);
   row->SetDouble("started", r.started * 1000);
   row->SetDouble("updated", r.updated * 1000);
-  row->SetString("url", r.url);  // "" for sessions and cards: the service has no page of its own to open.
+  row->SetString("url", r.url);  // The session in Ask (HermitChatUrl); "" for a card with no session yet.
   row->SetInt("space", 0);
   return row;
 }
