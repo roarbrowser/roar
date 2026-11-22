@@ -70,7 +70,7 @@ diff --git content/browser/devtools/devtools_pipe_handler.cc content/browser/dev
 +  return "RoarPipe";
  }
  
- }  // namespace content
+ DevToolsAgentHostClient::PeerMetadata DevToolsPipeHandler::GetPeerMetadata() {
 diff --git content/browser/devtools/protocol/target_handler.cc content/browser/devtools/protocol/target_handler.cc
 --- content/browser/devtools/protocol/target_handler.cc
 +++ content/browser/devtools/protocol/target_handler.cc
