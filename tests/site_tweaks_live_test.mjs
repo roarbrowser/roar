@@ -907,11 +907,11 @@ RUN['main'] = async () => {
   const bAfter = await worker(`chrome.userScripts.getScripts().then((rs) => { const mine = rs.filter((r) => r.id.endsWith('-bridge') && (r.matches || []).some((m) => /mainprobe|maindl/.test(m))); return JSON.stringify(mine.map((r) => r.id.endsWith('-bridge') && (r.matches || []).some((x) => /mainprobe/.test(x)) ? 'probe' : 'dl')); })`);
   check(bAfter === '["dl"]', `@grant none script gets no bridge; the granted one gets exactly one (${bAfter})`);
   await open(MP);
-  const mpTitle = await until(async () => { const t = (await tabs()).find((x) => sameUrl(x.url, MP) && !x.loading && /^MAIN /.test(t.title || '')); return t ? t.title : undefined; }, 25000);
+  const mpTitle = await until(async () => { const t = (await tabs()).find((x) => sameUrl(x.url, MP) && !x.loading && /^MAIN /.test(x.title || '')); return t ? t.title : undefined; }, 25000);
   check(mpTitle === 'MAIN none', `mainprobe page: nothing to answer, no forged download (${mpTitle})`);
   // The download round trip for the granted script: GM_download through its bridge really lands.
   await open(MD);
-  const mdTitle = await until(async () => { const t = (await tabs()).find((x) => sameUrl(x.url, MD) && !x.loading && /^MAINDL /.test(t.title || '')); return t ? t.title : undefined; }, 25000);
+  const mdTitle = await until(async () => { const t = (await tabs()).find((x) => sameUrl(x.url, MD) && !x.loading && /^MAINDL /.test(x.title || '')); return t ? t.title : undefined; }, 25000);
   check(mdTitle === 'MAINDL called', `maindl: the bridge exists and its GM_download lands (${mdTitle})`);
   const landed = await new Promise((ok) => {
     const roots = [data, join(homedir(), 'Downloads')];
