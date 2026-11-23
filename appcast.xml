@@ -610,5 +610,14 @@
       <description><![CDATA[One AI menu in Settings: Chat models and Agents sit under it, and each AI feature shows which model or agent answers it. Ask about this page names Roar Ask and each website properly. Model and rename pickers say where each choice comes from (Claude Code, OpenCode, Hermes). Hermes and Hermit join the agent order once connected.]]></description>
       <enclosure url="https://github.com/roarbrowser/roar/releases/download/v1.32.0/Roar-1.32.0.dmg" type="application/octet-stream" sparkle:edSignature="s4R/LWk9pMWhOqV7L44NqHsMWrLtzV4Qvn/BXWurfDdU3H5KpiL81Gbg3cfDcNjqPKQH7W5YTfLfw8pm4HFSCQ==" length="199473628"/>
     </item>
+    <item>
+      <title>1.32.1</title>
+      <pubDate>Mon, 23 Nov 2026 13:35:06 +0000</pubDate>
+      <sparkle:version>13201</sparkle:version>
+      <sparkle:shortVersionString>1.32.1</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[The sidebar AI section names each coding session agent: sessions sit under a Claude Code, OpenCode or Hermes heading even when only one agent has sessions.]]></description>
+      <enclosure url="https://github.com/roarbrowser/roar/releases/download/v1.32.1/Roar-1.32.1.dmg" type="application/octet-stream" sparkle:edSignature="Nv2Djs3Bla7UrctpUEjgiQ/RzdIcHZ3qinzyb8Y/xltziGTgbdVwv8/+ToNQ1BWGGzwQzWBG9iCcq+Q4rVofBQ==" length="199473627"/>
+    </item>
   </channel>
 </rss>
