@@ -601,5 +601,14 @@
       <description><![CDATA[Hermit rows open their opencode session in chat]]></description>
       <enclosure url="https://github.com/roarbrowser/roar/releases/download/v1.31.1/Roar-1.31.1.dmg" type="application/octet-stream" sparkle:edSignature="9lS+kpJJ1zTOVljDFd6htXFzrrQfBonuAjmQv5V9KMB1/1mB3J//3H8uDa9VPz3QdKQyVPHBVAK9YKdooXWvDQ==" length="199471068"/>
     </item>
+    <item>
+      <title>1.32.0</title>
+      <pubDate>Mon, 23 Nov 2026 13:11:25 +0000</pubDate>
+      <sparkle:version>13200</sparkle:version>
+      <sparkle:shortVersionString>1.32.0</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[One AI menu in Settings: Chat models and Agents sit under it, and each AI feature shows which model or agent answers it. Ask about this page names Roar Ask and each website properly. Model and rename pickers say where each choice comes from (Claude Code, OpenCode, Hermes). Hermes and Hermit join the agent order once connected.]]></description>
+      <enclosure url="https://github.com/roarbrowser/roar/releases/download/v1.32.0/Roar-1.32.0.dmg" type="application/octet-stream" sparkle:edSignature="s4R/LWk9pMWhOqV7L44NqHsMWrLtzV4Qvn/BXWurfDdU3H5KpiL81Gbg3cfDcNjqPKQH7W5YTfLfw8pm4HFSCQ==" length="199473628"/>
+    </item>
   </channel>
 </rss>
