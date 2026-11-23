@@ -546,6 +546,7 @@ class Controller {
   std::map<std::string, std::string> hermit_steps_;  // Session -> the tool its turn is using.
   std::vector<std::pair<int, std::string>> hermit_checks_;  // (kind, session) still to ask about, the next one last.
   std::string hermit_base_, hermit_status_, hermit_auth_;  // hermit_auth_: the Authorization header, in memory only.
+  int hermit_key_ = -1;  // Whether a service password is in the Keychain: -1 not looked yet (hermit.keySet/keyHas keep it).
   CefRefPtr<CefURLRequest> hermit_request_, hermit_stream_;
   int hermit_generation_ = 0, hermit_failures_ = 0, hermit_board_skip_ = 0;
   bool hermit_board_ = false, hermit_soon_ = false, hermit_again_ = false;

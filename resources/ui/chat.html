@@ -158,7 +158,7 @@ function show(c) {
 // Models: only from providers detected now (a server that answers, or an API with a Keychain key), through
 // Roar, which adds the key. Detected providers come first.
 async function loadModels(st) {
-  providers = chatList(st.settings);
+  providers = chatList(st.settings, { hermitKey: st.claude?.hermitKey });
   const all = chatOrdered(await detectProviders(providers, ask), st.settings), found = all.filter((p) => p.models.length);
   const sel = $('model'), want = chat?.model || st.settings.chatModel;
   sel.innerHTML = found.map((p) => `<optgroup label="${esc(p.kind === 'cli' ? p.name + ' (your subscription)' : p.name)}">${p.models.map((m) => `<option value="${esc(p.id + '|' + m)}">${esc(chatCore.sourceLabel(p, m))}</option>`).join('')}</optgroup>`).join('');
@@ -415,27 +415,17 @@ $('log').addEventListener('click', (e) => {
 });
 
 // #hermit=<session id>: a Hermit row opened here (src/hermit_server.h HermitChatUrl). The chat talks to that opencode
-// session through a chat server at the service's /oc, signed in as hermit; one is added to Chat models if none is
-// there yet. It shows the session's newest messages and sends the next prompt to that same session.
+// session through a chat server at the service's /oc, signed in as hermit: a saved one, else Chat models' own Hermit
+// row (chatCore.hermitChat). It shows the session's newest messages and sends the next prompt to that same session.
 async function attachHermit(sid, st) {
   const base = chatCore.hermitBase(st.settings.hermitUrl);
   if (!base) {
-    note('Set up the Hermit service in Settings > Agents first.');
+    note('Set up the Hermit service in Settings > Agents > OpenCode first.');
     ask({ cmd: 'open', text: 'roar://ui/settings.html#agents', newTab: true });
     return null;
   }
-  let p = parseProviders(st.settings.chatProviders).find((x) => x.kind === 'opencode' && chatCore.hermitOc(x.url, st.settings.hermitUrl));
-  if (!p) {
-    let raw = [];
-    try { raw = JSON.parse(st.settings.chatProviders || '[]'); } catch {}
-    if (!Array.isArray(raw)) raw = [];
-    let id = 'hermit';
-    while (raw.some((x) => x?.id === id)) id += '-2';
-    raw.push({ id, name: 'Hermit', url: base + '/oc', kind: 'opencode', tools: false });
-    st.settings.chatProviders = JSON.stringify(raw);
-    await ask({ cmd: 'settings.set', settings: { chatProviders: st.settings.chatProviders } });
-    p = { id, name: 'Hermit' };
-  }
+  const p = parseProviders(st.settings.chatProviders).find((x) => x.kind === 'opencode' && chatCore.hermitOc(x.url, st.settings.hermitUrl))
+    || chatCore.hermitChat(st.settings, true);
   const id = 'hermit-' + sid, row = (st.claude?.items || []).find((c) => c.id === id);
   const c = chats.find((x) => x.id === id) || { id, title: '', created: Date.now(), messages: [] };
   Object.assign(c, { oc: { provider: p.id, session: sid, attached: true }, model: p.id + '|default', brand: 'opencode', brandName: p.name });

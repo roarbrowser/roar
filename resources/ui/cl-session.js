@@ -86,12 +86,16 @@ const clHiddenPrune = (m, ids) => {
   return Object.keys(out).length === Object.keys(m).length ? null : out;
 };
 // Agent order (settings.agentOrder, a JSON list of tool ids): agent actions go to the first live session
-// of the first tool in it; tools not listed follow in AGENT_TOOLS order, and newer sessions win ties.
+// of the first tool in it; tools not listed follow in AGENT_TOOLS order, and newer sessions win ties. A Hermit service
+// is part of OpenCode (Settings > Agents > OpenCode), so its rows come right after OpenCode's; a saved place of its own
+// (Roar 1.31 had one) is ignored.
 const agentOrder = (s) => {
   let o = [];
   try { o = JSON.parse(s?.settings?.agentOrder || '[]'); } catch {}
-  o = Array.isArray(o) ? o.filter((t) => AGENT_TOOLS[t]) : [];
-  return [...new Set([...o, ...Object.keys(AGENT_TOOLS)])];
+  o = Array.isArray(o) ? o.filter((t) => AGENT_TOOLS[t] && t !== 'hermit') : [];
+  const all = [...new Set([...o, ...Object.keys(AGENT_TOOLS).filter((t) => t !== 'hermit')])];
+  all.splice(all.indexOf('opencode') + 1, 0, 'hermit');
+  return all;
 };
 const agentRank = (s, live) => {
   const o = agentOrder(s);

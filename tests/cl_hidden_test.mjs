@@ -17,8 +17,14 @@ check(clHiddenPrune({ a: 1, b: 2 }, ['a', 'b', 'c']) === null, 'nothing gone: no
 check(j(clHiddenPrune({ a: 1, b: 2 }, ['b', 'c'])) === '{"b":2}', 'drops ids of sessions that are gone');
 check(clHiddenPrune({ a: 1 }, []) === null, 'an empty session list prunes nothing');
 const st = (o) => ({ settings: { agentOrder: o } });
-check(agentOrder(st('["gemini","bogus"]'))[0] === 'gemini' && agentOrder(st('["gemini"]')).length === 7, 'order: listed tools first, unknown dropped, rest follow');
+check(agentOrder(st('["gemini","bogus"]'))[0] === 'gemini' && agentOrder(st('["gemini"]')).length === 8, 'order: listed tools first, unknown dropped, rest follow');
 check(agentOrder(st('nope'))[0] === 'claude', 'order: bad JSON falls back to default');
+{
+  // Hermit is part of OpenCode: right after it, wherever OpenCode is; a saved place of its own (1.31) is ignored.
+  const o = agentOrder(st('["hermes","claude","codex","gemini","qwen","copilot","opencode","hermit"]')), p = agentOrder(st('["hermit","opencode","claude"]'));
+  check(o.indexOf('hermit') === o.indexOf('opencode') + 1 && p[0] === 'opencode' && p[1] === 'hermit' && p[2] === 'claude', 'order: hermit follows opencode, its saved place ignored');
+  check(new Set(o).size === o.length && o.length === agentOrder(st('')).length, 'order: no tool twice, none lost');
+}
 const live = [{ id: 'a', tool: 'claude', updated: 1 }, { id: 'b', tool: 'codex', updated: 2 }, { id: 'c', tool: 'codex', updated: 3 }];
 check(agentRank(st('["codex","claude"]'), live).map((c) => c.id).join() === 'c,b,a', 'rank: order first, newest within a tool');
 check(agentRank(st(''), live)[0].id === 'a', 'rank: default order puts claude first');

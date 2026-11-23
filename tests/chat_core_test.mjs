@@ -384,6 +384,30 @@ check(core.hermitOc('http://127.0.0.1:9121/oc', 'http://127.0.0.1:9121') && core
   check(/Hermit service/.test(core.providerStatus({ ...hp, hermit: true }).label) && !/Hermit/.test(core.providerStatus(hp).label), 'hermit: a silent one points at the Hermit service');
 }
 {
+  // Chat models' own Hermit row: with the service's address and a password, unless a saved server already rides on its /oc.
+  const svc = 'https://hermit.example.com/';
+  const ids = (l) => l.filter((p) => p.kind !== 'cli').map((p) => p.id).join();
+  const auto = core.chatList({ hermitUrl: svc }, { hermitKey: true }).find((p) => p.id === core.HERMIT_CHAT);
+  check(!!auto && auto.name === 'Hermit' && auto.kind === 'opencode' && auto.url === 'https://hermit.example.com/oc' && auto.hermit && auto.auto && !auto.tools && !auto.key,
+    'hermit row: an OpenCode server named Hermit at the service\'s /oc, no tools, no key of its own');
+  check(core.vendorOf(auto).join() === 'opencode,opencode' && core.chatOn(auto), 'hermit row: in the OpenCode group, set up');
+  check(ids(core.chatList({ hermitUrl: svc }, { hermitKey: false })) === '' && ids(core.chatList({ hermitUrl: '' }, { hermitKey: true })) === ''
+    && ids(core.chatList({ hermitUrl: svc })) === '', 'hermit row: none without a password or without an address');
+  const saved = JSON.stringify([{ id: 'hermit', name: 'Hermit', kind: 'opencode', url: 'https://hermit.example.com/oc' }, { id: 'oc', name: 'Mine', kind: 'opencode', url: 'http://127.0.0.1:4096' }]);
+  const both = core.chatList({ hermitUrl: svc, chatProviders: saved }, { hermitKey: true });
+  check(ids(both) === 'hermit,oc' && both[0].hermit && !both[1].hermit, 'hermit row: a saved server at its /oc is the one row, marked as the service\'s');
+  check(ids(core.chatList({ hermitUrl: svc, chatHidden: JSON.stringify([core.HERMIT_CHAT]) }, { hermitKey: true })) === '', 'hermit row: turned off, it stays off');
+  check(core.hermitChat({ hermitUrl: svc }, true)?.id === core.HERMIT_CHAT && !core.parseProviders(JSON.stringify([{ id: core.HERMIT_CHAT, url: 'http://x' }])).length,
+    'hermit row: its id is none a saved server can have');
+  // A Hermes default that stopped answering falls back to the Hermit row, else the first that answers.
+  const H = [{ id: 'ollama', models: ['llama3'] }, { ...auto, models: ['default'] }, { id: 'hermes', models: [] }];
+  check(core.defaultModel(H, 'hermes|hermes-agent') === core.HERMIT_CHAT + '|default', 'default: a dead Hermes goes to Hermit');
+  check(core.defaultModel(H.filter((p) => !p.hermit), 'hermes|hermes-agent') === 'ollama|llama3', 'default: with no Hermit row, to the first that answers');
+  check(core.defaultModel([{ id: 'hermes', models: ['hermes-agent'] }, ...H.slice(0, 2)], 'hermes|hermes-agent') === 'hermes|hermes-agent', 'default: a Hermes that answers stays');
+  check(core.defaultModel(H, 'lmstudio|x') === 'ollama|llama3', 'default: another offline default still goes to the first that answers');
+  check(core.defaultModel(H, core.HERMIT_CHAT + '|default') === core.HERMIT_CHAT + '|default', 'default: Hermit can be the default');
+}
+{
   // A Hermit session opened in Ask: its words, oldest first, from GET /api/session/<id>/message?order=desc.
   const h = core.opencodeHistory({ data: [
     { type: 'assistant', time: { created: 3 }, content: [{ type: 'reasoning', text: 'hidden' }, { type: 'text', text: 'Done.' }, { type: 'tool', name: 'bash' }] },

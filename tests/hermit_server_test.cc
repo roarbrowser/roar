@@ -70,6 +70,12 @@ int main() {
   check(!HermitRidesOn("http://127.0.0.1:4096", "http://127.0.0.1:9121") && !HermitRidesOn("http://127.0.0.1:9122/oc", "http://127.0.0.1:9121"),
         "another server never gets that password");
   check(!HermitRidesOn("https://evil.example/oc", "") && !HermitRidesOn("http://127.0.0.1:9121/oc", "http://hermit.example.com"), "nor does any server while no usable service is set");
+  // Chat models' own Hermit row (no saved provider): its id stands for the service's /oc, nothing else.
+  check(HermitChatBase("@hermit", "https://hermit.example.com/") == "https://hermit.example.com/oc" && HermitChatBase("@hermit", "http://127.0.0.1:9121/oc") == "http://127.0.0.1:9121/oc",
+        "the Hermit chat row is the service's /oc");
+  check(HermitChatBase("hermit", "http://127.0.0.1:9121").empty() && HermitChatBase("@hermit", "").empty() && HermitChatBase("@hermit", "http://hermit.example.com").empty(),
+        "any other id, no service or one Roar won't sign in to: no server");
+  check(HermitRidesOn(HermitChatBase("@hermit", "http://127.0.0.1:9121"), "http://127.0.0.1:9121"), "and it signs in with the service's password");
   check(HermitBasic("pw") == "Basic aGVybWl0OnB3" && HermitBasic("p") == "Basic aGVybWl0OnA=" && HermitBasic("pwx") == "Basic aGVybWl0OnB3eA==",
         "Basic hermit:<password>, padded");
   check(HermitBasic("").empty(), "no password, no header");

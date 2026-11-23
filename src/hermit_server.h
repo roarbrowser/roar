@@ -33,6 +33,15 @@ inline std::string HermitOrigin(const std::string& base) { return HermesOrigin(b
 
 // opencode's API through the service.
 inline std::string HermitOcBase(const std::string& base) { return base + "/oc"; }
+
+// Model chat's own row for the service (chatCore.hermitChat): offered once the service has an address and a password,
+// with no saved provider behind it. Not an id a server added in Settings can get ([\w-] only), so it never shadows one.
+constexpr const char* kHermitChatId = "@hermit";
+// The chat server that id stands for: the service's /oc, or "" for any other id or no usable service.
+inline std::string HermitChatBase(const std::string& id, const std::string& service) {
+  std::string base = HermitBase(service);
+  return id == kHermitChatId && !base.empty() ? HermitOcBase(base) : "";
+}
 // Running sessions: {"data": {"<session id>": {"type": "running"}, ...}}, empty while nothing runs.
 inline std::string HermitActiveUrl(const std::string& base) { return base + "/oc/api/session/active"; }
 // The newest sessions: {"data": [{id, title, agent, parentID, time: {created, updated, busy, archived} (ms), outcome}]}.

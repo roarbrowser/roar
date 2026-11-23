@@ -61,7 +61,9 @@ function llmPicker(sel, after) {
 // (drag a handle, or arrow keys on it), then one card per agent with a status on the right and its Connect
 // inside: CLIs on this Mac, other apps here together, |slot| (Settings' Hermes card), then "More agents" for
 // the rest. One "Reconnect all" banner for outdated ones. Cards stay open across repaints.
-function agentSetup(root, { llm = true, list: asList = false, slot = null } = {}) {
+// |inside|: {tool: element} kept at the end of that tool's card, which then always shows, on this Mac or not
+// (Settings' Hermit service goes in OpenCode's).
+function agentSetup(root, { llm = true, list: asList = false, slot = null, inside = {} } = {}) {
   root.innerHTML = asList ? `<div class="as-banner" role="status" hidden></div><div class="as-banner as-cmux" role="status" hidden><span></span></div>
     <div class="as-order"><p class="empty">Looking for agent tools…</p></div>
     <h3>All agents</h3><div class="vendors"><div class="as-cards"></div><div class="as-slot"></div><div class="as-rest"></div></div>`
@@ -70,8 +72,14 @@ function agentSetup(root, { llm = true, list: asList = false, slot = null } = {}
     <details class="as-more"><summary>Show more / copy config</summary><div class="as-away"></div></details>`;
   if (slot) root.querySelector('.as-slot').append(slot);
   const sel = root.querySelector('#as-llm'), showLlm = sel ? llmPicker(sel, () => refresh()) : () => {}, box = root.querySelector('.as-tools'), away = root.querySelector('.as-away');
-  let st = null, clients = [], cli = '';
+  let st = null, clients = [], cli = '', cardsHtml = '';
   const errors = {}, opened = new Set();
+  // OpenCode on another machine through a Hermit service (its part of OpenCode's card): [state, text], or null with none set.
+  const viaHermit = (r) => {
+    if (r.key !== 'opencode' || !st?.settings?.hermitUrl) return null;
+    const said = st.claude?.hermit || '';
+    return /^Connected/.test(said) ? ['available', 'Connected · Hermit service'] : said ? ['warn', 'Not connected · Hermit service'] : ['', 'Signing in · Hermit service'];
+  };
 
   function rows() {
     const hooks = st?.claude?.tools || {};
@@ -97,15 +105,17 @@ function agentSetup(root, { llm = true, list: asList = false, slot = null } = {}
     const list = rows(), order = agentOrder(st), live = (st.claude?.items || []).filter((c) => c.live);
     // Hook agents only: an MCP-only app can share a tool's id (Hermes Agent's MCP config is "hermes") and goes with Other apps.
     const tools = order.map((t) => list.find((r) => r.hook && r.key === t)).filter(Boolean);
-    const here = tools.filter((r) => r.here), gone = tools.filter((r) => !r.here);
+    const here = tools.filter((r) => r.here), gone = tools.filter((r) => !r.here && !inside[r.key]);
+    const own = tools.filter((r) => r.here || inside[r.key]);
     const others = list.filter((r) => !r.hook && r.here), away = list.filter((r) => !r.hook && !r.here);
-    // Hermes and a Hermit service connect by address (their cards in Settings), not hooks; once set they're in the order
-    // too, since it also orders the sidebar's agent groups.
-    const servers = ['hermes', 'hermit'].map((k) => {
+    // Hermes connects by address (its card in Settings), not hooks; once set it's in the order too, since that also
+    // orders the sidebar's agent groups. A Hermit service is part of OpenCode, so OpenCode is there while one is set.
+    const servers = ['hermes'].map((k) => {
       const url = st.settings?.[k + 'Url'] || '', said = url ? st.claude?.[k] || '' : '';
       return url && { key: k, hook: k, name: AGENT_TOOLS[k][0], server: true, url, said, connected: /^Connected/.test(said) };
     }).filter(Boolean);
-    const ordered = order.map((t) => here.find((r) => r.key === t && (r.connected || r.outdated)) || servers.find((r) => r.key === t)).filter(Boolean);
+    const ordered = order.map((t) => here.find((r) => r.key === t && (r.connected || r.outdated)) || servers.find((r) => r.key === t)
+      || own.find((r) => r.key === t && viaHermit(r))).filter(Boolean);
     const old = list.filter((r) => r.outdated && (r.needHook || r.needMcp));
     const names = (v) => v.map((r) => r.name).reduce((s, n, i) => s + (i ? (i + 1 === v.length ? ' and ' : ', ') : '') + n, '');
     const banner = root.querySelector('.as-banner');
@@ -131,6 +141,8 @@ function agentSetup(root, { llm = true, list: asList = false, slot = null } = {}
       if (r.connected) return ['available', 'Connected' + (n ? ` · ${n} running` : '')];
       return ['', !r.here ? 'Not on this Mac' : r.mcp?.snippet && !r.needMcp && !r.needHook ? 'Set up by hand' : 'Not connected'];
     };
+    // A card's pill and its line in the order list: OpenCode not connected here but through a Hermit service says that.
+    const pill = (r) => (!r.connected && !r.outdated && !errors[r.key] && viaHermit(r)) || status(r);
     const what = (r) => r.needHook ? `Connect lists ${r.name}’s sessions in the sidebar, tells you when one needs you or finishes, and lets it browse with Roar.`
       : r.needMcp ? `Connect adds Roar to ${r.name}’s MCP config, so it can browse with Roar.`
       : r.mcp?.snippet ? `Roar can’t change ${r.name}’s config itself. Copy the setup and paste it into its settings.` : '';
@@ -144,9 +156,10 @@ function agentSetup(root, { llm = true, list: asList = false, slot = null } = {}
     };
     const icon = (r) => r.hook ? agentIcon(r.hook, 16) : clientIcon(r.key);
     const card = (id, name, ico, [state, text], inner) => `<details class="vendor" data-agent="${esc(id)}"${opened.has(id) ? ' open' : ''}><summary><span class="v-name">${ico}${esc(name)}</span><span class="v-st" data-state="${state}">${esc(text)}</span></summary>${inner}</details>`;
-    const one = (r) => card(r.key, r.name, icon(r), status(r), (what(r) ? `<p class="reason">${esc(what(r))}</p>` : '') + line(r, false));
+    const one = (r) => card(r.key, r.name, icon(r), pill(r), (what(r) ? `<p class="reason">${esc(what(r))}</p>` : '') + line(r, false)
+      + (inside[r.key] ? `<div class="as-inside" data-inside="${esc(r.key)}"></div>` : ''));
     const item = (r, i, of) => {
-      const [state, text] = status(r);
+      const [state, text] = pill(r);
       return `<li class="ch-item" data-tool="${esc(r.key)}"><button class="grip" draggable="true" data-grip="${esc(r.key)}" title="Drag to reorder" aria-label="${esc(r.name)}, ${i + 1} of ${of}. Arrow keys move it.">${'<i></i>'.repeat(3)}</button><div class="ch-body"><div class="row"><span class="name">${icon(r)}${esc(r.name)}<small data-state="${state}">${esc(text)}</small></span><button class="btn" data-open-agent="${esc(r.key)}">Settings</button></div></div>${action(r, true)}</li>`;
     };
     const a = document.activeElement, inOrder = !!a?.closest?.('.as-order');
@@ -154,8 +167,14 @@ function agentSetup(root, { llm = true, list: asList = false, slot = null } = {}
     root.querySelector('.as-order').innerHTML = ordered.length ? `<h3>In this order</h3><p class="as-hint">Drag to reorder. The sidebar lists agents’ sessions in this order. With no chat model set up, Rename with AI asks the first one here that has a session running on this Mac. Shift-click Rename with AI to pick another.<span hidden>Agent order. Tools you use. Show more, copy config.</span></p><ol class="ch-list ch-order">${ordered.map((r, i) => item(r, i, ordered.length)).join('')}</ol>`
       : '<p class="empty">No agent connected yet. Pick one below.</p>';
     const on = others.filter((r) => r.connected);
-    root.querySelector('.as-cards').innerHTML = here.map(one).join('') + (others.length ? card('apps', 'Other apps on this Mac', '', on.length ? ['available', on.map((r) => r.name).join(' · ')] : ['', 'Not connected'],
+    const cards = own.map(one).join('') + (others.length ? card('apps', 'Other apps on this Mac', '', on.length ? ['available', on.map((r) => r.name).join(' · ')] : ['', 'Not connected'],
       '<p class="reason">Apps that reach Roar through its MCP server: Connect adds Roar to their config.</p>' + others.map((r) => line(r)).join('')) : '');
+    // The |inside| parts are live fields: rebuild only on a change and never while one is being typed in.
+    if (cards !== cardsHtml && !Object.values(inside).some((el) => el.contains(document.activeElement))) {
+      cardsHtml = cards;
+      root.querySelector('.as-cards').innerHTML = cards;
+      for (const [k, el] of Object.entries(inside)) root.querySelector(`.as-cards [data-inside="${CSS.escape(k)}"]`)?.append(el);
+    }
     root.querySelector('.as-rest').innerHTML = gone.length || away.length ? card('more', 'More agents', '', ['', `${gone.length + away.length} more`],
       (gone.length ? `<h3>Not on this Mac</h3>${gone.map((r) => line(r)).join('')}` : '') + (away.length ? `<h3>Other apps: set up by hand<span hidden>copy their config</span></h3>${away.map((r) => line(r)).join('')}` : '')) : '';
     if (had) root.querySelector(had)?.focus();
@@ -254,7 +273,7 @@ function agentSetup(root, { llm = true, list: asList = false, slot = null } = {}
       navigator.clipboard.writeText(c.snippet).then(() => { const was = copy.textContent; copy.textContent = 'Copied'; setTimeout(() => copy.textContent = was, 1500); });
       return;
     }
-    // Hermes or a Hermit service in the order list: Turn off clears its address, as Off in its card does.
+    // Hermes in the order list: Turn off clears its address, as Off in its card does.
     const off = e.target.closest('[data-server-off]');
     if (off) {
       const k = off.dataset.serverOff;

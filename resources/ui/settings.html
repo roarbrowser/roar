@@ -123,6 +123,9 @@ details.vendor[open] > summary::before { transform: rotate(45deg); }
 .vendor .segmented { margin: 2px 0 6px; }
 .vendor .segmented i { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--ok); margin-left: 6px; vertical-align: 1px; }
 .vendor .reason { margin: 0 0 6px; font-size: 12px; }
+.as-inside { border-top: 1px solid var(--rule); margin-top: 8px; padding-top: 2px; }
+.as-inside h3 { display: flex; align-items: center; gap: 10px; }
+.as-inside h3 .v-st { margin-left: auto; font: 400 12px var(--sans, inherit); }
 .v-p { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 6px; }
 .v-add { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; padding: 10px 0 2px; }
 .ch-order .row { min-height: 34px; }
@@ -289,14 +292,14 @@ nav a.ai-nav.in { color: var(--ink); }
           <span class="end"><input type="text" id="hermes-url" class="query" placeholder="https://hermes.example.com" aria-label="Hermes dashboard address" spellcheck="false" style="width:230px"><select id="hermes-space" data-set="hermesSpace" data-kind="number" aria-label="Space signed in to Hermes"></select></span></div>
         <p class="reason">To chat with Hermes in Ask, connect it in <a href="#chat" data-goto="chat">Chat models</a>.</p>
       </details>
-      <details class="vendor" data-agent="hermit" id="hermit-card"><summary><span class="v-name" id="hermit-ico">Hermit</span><span class="v-st" id="hermit-st">Off</span></summary>
-        <p class="reason">opencode sessions and board cards on a Hermit service show in the sidebar to watch.</p>
-        <div class="row"><label class="name" for="hermit-url">Hermit service<small id="hermit-note"></small><span hidden>Hermit service opencode sessions board cards</span></label>
+      <div id="hermit-sub" role="group" aria-labelledby="hermit-head">
+        <h3 id="hermit-head">Hermit service<span class="v-st" id="hermit-st">Off</span></h3>
+        <p class="reason">OpenCode sessions and board cards on a Hermit service show in the sidebar to watch.</p>
+        <div class="row"><label class="name" for="hermit-url">Address<small id="hermit-note"></small><span hidden>Hermit service opencode sessions board cards</span></label>
           <span class="end"><input type="text" id="hermit-url" class="query" placeholder="http://127.0.0.1:9121" aria-label="Hermit service address" spellcheck="false" style="width:230px"></span></div>
         <div class="row" id="hermit-pw"><span class="name">Password<small id="hermit-pw-note">Kept in your Keychain. Roar signs in as hermit.</small></span>
           <span class="end"><input type="password" id="hermit-key" placeholder="Password" aria-label="Hermit service password" autocomplete="off" style="width:170px"><button class="btn" id="hermit-savekey">Save password</button><button class="btn" id="hermit-delkey" hidden>Remove password</button></span></div>
-        <p class="reason">To chat through it in Ask, add it as an OpenCode server in <a href="#chat" data-goto="chat">Chat models</a>.</p>
-      </details>
+      </div>
       <h3>Sessions</h3>
       <div class="row"><span class="name" id="view-label">Show sessions as<small>Each session can switch on its own.</small></span>
         <div class="segmented" role="group" aria-labelledby="view-label" data-seg="agentTerminal">
@@ -391,10 +394,9 @@ if (/^Win/.test(navigator.platform)) document.getElementById('code-copy').textCo
 const $ = (id) => document.getElementById(id);
 const GH_DEFAULT = 'is:open is:pr author:@me archived:false';  // Matches Settings::github_query.
 let last = null;
-const setup = agentSetup($('agent-setup'), { llm: false, list: true, slot: $('hermes-card') });
+// The Hermit service is part of OpenCode: agentSetup keeps its fields at the end of OpenCode's card.
+const setup = agentSetup($('agent-setup'), { llm: false, list: true, slot: $('hermes-card'), inside: { opencode: $('hermit-sub') } });
 $('hermes-ico').insertAdjacentHTML('afterbegin', agentIcon('hermes', 16));
-$('hermes-card').after($('hermit-card'));  // agentSetup took the Hermes card into its list; the Hermit card goes beside it.
-$('hermit-ico').insertAdjacentHTML('afterbegin', agentIcon('hermit', 16));
 $('ask-llm-row').innerHTML = llmRowHtml('<span class="ai-uses" data-uses="ask"></span>');  // ⌘T's AI lives in AI's table; onboarding keeps it with agents.
 const showLlm = llmPicker($('as-llm'), () => refresh());
 const ICO_CHAT = '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 3.5h11v7h-6l-3 2.5v-2.5h-2z"/></svg>';
@@ -423,7 +425,7 @@ function aiShow(s = last) {
     else chip(el, chatFound.some((p) => p.models.length) ? '<span>No model can do this</span>' : '<span>Nothing connected</span>', 'warn', 'Set up a chat model that can be sent page titles, or start an agent session');
   }
   const models = chatCore.chatOrdered(chatFound.filter(chatCore.chatOn), st), tools = s.claude?.tools || {};
-  const agents = agentOrder(s).filter((t) => (t === 'hermes' || t === 'hermit' ? !!st[t + 'Url'] : tools[t] === 'installed')).map((t) => AGENT_TOOLS[t][0]);
+  const agents = agentOrder(s).filter((t) => (t === 'hermes' ? !!st.hermesUrl : t === 'hermit' ? false : tools[t] === 'installed' || (t === 'opencode' && !!st.hermitUrl))).map((t) => AGENT_TOOLS[t][0]);
   const sum = (id, names, none) => { $(id).textContent = names.length ? names.join(', ') : none; $(id).dataset.state = names.length ? 'on' : ''; };
   if (chatChecked) sum('ai-chat-sum', [...new Set(models.map((p) => p.name))], 'Nothing set up yet');
   sum('ai-agent-sum', agents, 'Nothing connected yet');
@@ -513,10 +515,15 @@ $('hermes-where').onclick = (e) => {
   if (chatCore.urlWhere(url) === 'local' || !url) { $('hermes-url').value = ''; if (url) set({ hermesUrl: '' }); else hermesRow(last); }
   $('hermes-url').focus();
 };
-// The Hermit service: an address in settings like Hermes's, its password in the Keychain (hermit.keySet), never here.
-const HERMIT_NOTE = 'opencode sessions and board cards on a Hermit service show in the sidebar to watch.';
+// The Hermit service (Agents > OpenCode): an address in settings like Hermes's, its password in the Keychain
+// (hermit.keySet), never here. With both, Chat models lists it as Hermit (chatCore.hermitChat).
+const HERMIT_NOTE = 'Its address, such as https://hermit.example.com.';
 let hermitHasKey = false;
-const hermitKeyCheck = () => ask({ cmd: 'hermit.keyHas' }).then((v) => { hermitHasKey = v === 'true' || v === true; if (last) hermitRow(last); }).catch(() => {});
+const hermitKeyCheck = () => ask({ cmd: 'hermit.keyHas' }).then((v) => {
+  const was = hermitHasKey;
+  hermitHasKey = v === 'true' || v === true;
+  if (last) { hermitRow(last); if (was !== hermitHasKey) chatRefresh(last.settings); }
+}).catch(() => {});
 function hermitRow(s) {
   const url = s.settings.hermitUrl || '', u = $('hermit-url'), said = url ? s.claude?.hermit || '' : '';
   if (document.activeElement !== u) u.value = url;
@@ -524,19 +531,19 @@ function hermitRow(s) {
   $('hermit-note').textContent = said || HERMIT_NOTE;
   $('hermit-key').placeholder = hermitHasKey ? '••••••••' : 'Password';
   $('hermit-delkey').hidden = !hermitHasKey;
-  const pill = $('hermit-st');
-  pill.textContent = !url ? 'Off' : chatCore.urlWhere(url) === 'local' ? 'This Mac' : 'Another machine';
+  const pill = $('hermit-st'), where = chatCore.urlWhere(url) === 'local' ? 'This Mac' : 'Another machine';
+  pill.textContent = !url ? 'Off' : !said ? 'Signing in · ' + where : /^Connected/.test(said) ? 'On · ' + where : 'Not signed in · ' + where;
   pill.dataset.state = !url || !said ? '' : /^Connected/.test(said) ? 'available' : 'warn';
 }
 $('hermit-url').onchange = (e) => {
   const v = e.target.value.trim();
   if (v && !/^https?:\/\/\S+$/.test(v)) return void (e.target.value = last.settings.hermitUrl || '');
-  set({ hermitUrl: v });
+  set({ hermitUrl: v }).then(() => chatRefresh(last.settings));
 };
 $('hermit-savekey').onclick = async () => {
   const k = $('hermit-key').value.trim();
   if (!k) return $('hermit-key').focus();
-  try { await ask({ cmd: 'hermit.keySet', key: k }); $('hermit-key').value = ''; await hermitKeyCheck(); } catch (err) { alert(err.message); }
+  try { await ask({ cmd: 'hermit.keySet', key: k }); $('hermit-key').value = ''; $('hermit-key').blur(); await hermitKeyCheck(); } catch (err) { alert(err.message); }
 };
 $('hermit-delkey').onclick = async () => {
   if (!confirm('Remove the Hermit service password from your Keychain?')) return;
@@ -923,13 +930,18 @@ $('search').oninput = () => {
 // Cards: which are open, which way each shows, where a new server runs; kept across repaints.
 let chatFound = [], chatChecked = false, chatRows = [], chatPaint = () => {}, chatOpen = new Set(), chatWay = {}, chatWhere = {}, chatOcUrl = '';
 async function chatRefresh(st) {
-  // An OpenCode server at the Hermit service's /oc signs in with the service's password (Agents), not one of its own.
-  const list = chatCore.chatList(st).map((p) => (p.kind === 'opencode' && chatCore.hermitOc(p.url, st.hermitUrl) ? { ...p, hermit: true } : p)), box = $('chat-providers'), sel = $('chat-default');
+  // An OpenCode server at the Hermit service's /oc signs in with the service's password (Agents > OpenCode), not one of
+  // its own; with none saved, the service's own row (auto) is there while it has a password.
+  const list = chatCore.chatList(st, { hermitKey: hermitHasKey }), box = $('chat-providers'), sel = $('chat-default');
   // An OpenCode server: a password instead of a key, and whether its agent may use tools.
   const plain = (u) => /^http:/.test(u) && !/^http:\/\/(localhost|127\.0\.0\.1)[:/]/.test(u);
-  const ocRow = (p) => `<div class="row" data-p="${esc(p.id)}"><span class="name">${esc(p.name)}<small data-state="${p.state || ''}">${esc(p.label || 'Checking…')}</small>${plain(p.url) ? '<small>Its password crosses your network unencrypted.</small>' : ''}</span>
+  const HERMIT_SIGNIN = '<small>Signs in with the Hermit service password (<a href="#agents" data-goto="agents">Agents &gt; OpenCode</a>).</small>';
+  // The service's own row: its address and password live in Agents > OpenCode, so nothing here to edit.
+  const autoRow = (p) => `<div class="row" data-p="${esc(p.id)}"><span class="name">${esc(p.name)}<small data-state="${p.state || ''}">${esc(p.label || 'Checking…')}</small>${HERMIT_SIGNIN}</span>
+    <span class="end"><small>${esc(p.url)}</small></span></div>`;
+  const ocRow = (p) => p.auto ? autoRow(p) : `<div class="row" data-p="${esc(p.id)}"><span class="name">${esc(p.name)}<small data-state="${p.state || ''}">${esc(p.label || 'Checking…')}</small>${plain(p.url) ? '<small>Its password crosses your network unencrypted.</small>' : ''}</span>
     <span class="end"><input type="text" class="query" data-url value="${esc(p.url)}" aria-label="${esc(p.name)} URL" spellcheck="false" style="width:240px">
-    ${p.hermit ? '<small>Signs in with the Hermit service password (Agents).</small>' : `<input type="password" data-key placeholder="${p.hasKey ? '••••••••' : 'Password (if it has one)'}" aria-label="${esc(p.name)} password" autocomplete="off" style="width:170px"><button class="btn" data-savekey>Save password</button>${p.hasKey ? '<button class="btn" data-delkey>Remove password</button>' : ''}`}</span></div>
+    ${p.hermit ? HERMIT_SIGNIN : `<input type="password" data-key placeholder="${p.hasKey ? '••••••••' : 'Password (if it has one)'}" aria-label="${esc(p.name)} password" autocomplete="off" style="width:170px"><button class="btn" data-savekey>Save password</button>${p.hasKey ? '<button class="btn" data-delkey>Remove password</button>' : ''}`}</span></div>
     <div class="row" data-p="${esc(p.id)}"><label class="name" for="oc-t-${esc(p.id)}">Let ${esc(p.name)} use tools<small>Ask runs as its agent, under that server's own permission rules: it can read files and run commands there. Web pages can't be included in Ask while this is on. Naming tabs and downloads always runs without tools.</small></label><input type="checkbox" class="switch" id="oc-t-${esc(p.id)}" data-tools${p.tools ? ' checked' : ''}></div>
     ${p.tools ? `<div class="row" data-p="${esc(p.id)}"><span class="name">Work in<small>A folder on that server. Blank uses its default.</small></span><input type="text" class="query" data-dir value="${esc(p.dir)}" aria-label="${esc(p.name)} working folder" spellcheck="false" style="width:240px"></div>` : ''}`;
   const row = (p) => p.kind === 'opencode' ? ocRow(p) : p.kind === 'cli' ? `<div class="row" data-p="${esc(p.id)}"><span class="name">${esc(p.name)}<small data-state="${p.state || ''}">${esc(p.label || 'Checking…')}</small>${p.run ? `<span class="fix"><code>${esc(p.run)}</code><button class="btn" data-copy="${esc(p.run)}">Copy</button><button class="btn" data-recheck>Check again</button></span>` : ''}${p.login ? `<span class="fix"><button class="btn" data-login="${esc(p.login)}">Sign in</button></span>` : ''}${p.after ? `<small>${esc(p.after)}</small>` : ''}</span><span class="end"><small style="max-width:360px">${esc(p.isolation.replace(/\s*Runs under a macOS sandbox.*$/, ''))}</small></span></div>`
@@ -938,11 +950,11 @@ async function chatRefresh(st) {
     ${p.get ? `<button class="btn" data-get="${esc(p.get)}">Get ${esc(p.name)}</button>` : ''}
     ${p.key ? `<input type="password" data-key placeholder="${p.hasKey ? '••••••••' : p.optional ? 'API key (optional)' : 'API key'}" aria-label="${esc(p.name)} API key" autocomplete="off" style="width:150px"><button class="btn" data-savekey>Save key</button>${p.hasKey ? '<button class="btn" data-delkey>Remove key</button>' : ''}` : ''}</span></div>`;
   // Every row can go: a server you added for good, a built-in or an assistant until Turn on.
-  const added = (p) => p.optional || p.kind === 'opencode';
+  const added = (p) => p.optional || (p.kind === 'opencode' && !p.auto);  // The Hermit service's own row only turns off.
   const removeBtn = (p) => `<button class="btn" data-remove title="${p.kind === 'cli' ? `Takes it out of Chat models. ${esc(p.name)} itself stays on this Mac.` : added(p) ? 'Deletes it from Chat models' : 'Takes it out of Chat models'}" aria-label="${added(p) ? 'Remove' : 'Turn off'} ${esc(p.name)}">${added(p) ? 'Remove' : 'Turn off'}</button>`;
   // In this order: what's set up, one line each; its settings live in its provider's card.
   const item = (p, i, of) => `<li class="ch-item" data-item="${esc(p.id)}" data-p="${esc(p.id)}"><button class="grip" draggable="true" data-grip="${esc(p.id)}" title="Drag to reorder" aria-label="${esc(p.name)}, ${i + 1} of ${of}. Arrow keys move it.">${'<i></i>'.repeat(3)}</button><div class="ch-body"><div class="row"><span class="name">${esc(p.name)}<small data-state="${p.state || ''}">${esc(p.label || 'Checking…')}</small></span><button class="btn" data-open-vendor="${chatCore.vendorOf(p)[0]}">Settings</button></div></div>${removeBtn(p)}</li>`;
-  const gone = [...chatCore.parseProviders(st.chatProviders), ...chatCore.CLI_PROVIDERS].filter((p) => chatCore.idList(st.chatHidden).includes(p.id));
+  const gone = [...chatCore.parseProviders(st.chatProviders), chatCore.hermitChat(st, hermitHasKey), ...chatCore.CLI_PROVIDERS].filter((p) => p && chatCore.idList(st.chatHidden).includes(p.id));
   const inWay = (v, w) => (p) => { const [vi, wi] = chatCore.vendorOf(p); return vi === v.id && wi === w.id; };
   const onDot = (ps) => ps.some(chatCore.chatOn) ? '<i aria-label="set up"></i>' : '';
   // One provider in a card: its settings and a way out; one that was turned off: a way back.
@@ -957,7 +969,7 @@ async function chatRefresh(st) {
       const where = chatWhere[v.id] || 'local';
       return whereSeg(v, where, 'data-where') + `<div class="v-add">${where === 'local' ? `<small>${esc(sv.local)}</small>` : `<input type="text" class="query" data-conn-url placeholder="${esc(sv.remote)}" aria-label="${esc(v.name)} address" spellcheck="false">`}<button class="btn primary" data-connect="${v.id}">Connect</button></div>`;
     }
-    const add = w.id === 'opencode' ? `<div class="v-add"><input type="text" class="query" data-add-url placeholder="http://127.0.0.1:4096" aria-label="OpenCode server address" spellcheck="false"${chatOcUrl ? ` value="${esc(chatOcUrl)}"` : ''}><button class="btn" data-add="opencode">Add server</button>${chatCore.hermitBase(st.hermitUrl) && !rows.some((p) => p.hermit) ? '<button class="btn" data-add-hermit>Use the Hermit service</button>' : ''}</div><p class="reason">An OpenCode server on this Mac or another machine (opencode serve), answering with its own default model. The Hermit service from Agents works too.</p>`
+    const add = w.id === 'opencode' ? `<div class="v-add"><input type="text" class="query" data-add-url placeholder="http://127.0.0.1:4096" aria-label="OpenCode server address" spellcheck="false"${chatOcUrl ? ` value="${esc(chatOcUrl)}"` : ''}><button class="btn" data-add="opencode">Add server</button></div><p class="reason">An OpenCode server on this Mac or another machine (opencode serve), answering with its own default model.</p>`
       : w.id === 'other' ? `<div class="v-add"><input type="text" data-add-name placeholder="Name" aria-label="New server name" style="width:110px"><input type="text" class="query" data-add-url placeholder="http://localhost:8000/v1" aria-label="New server address" spellcheck="false"><button class="btn" data-add="openai">Add a server</button></div>` : '';
     return ps.map(one).join('') + was.map(off).join('') + add;
   };
@@ -993,8 +1005,13 @@ async function chatRefresh(st) {
   aiShow();
   if (document.activeElement === sel) return;
   sel.innerHTML = '<option value="">First available</option>' + found.filter((p) => p.models.length).map((p) => `<optgroup label="${esc(p.kind === 'cli' ? p.name + ' (your subscription)' : p.name)}">${p.models.map((x) => `<option value="${esc(p.id + '|' + x)}">${esc(chatCore.sourceLabel(p, x))}</option>`).join('')}</optgroup>`).join('');
-  if (st.chatModel && ![...sel.options].some((o) => o.value === st.chatModel)) sel.add(new Option(chatCore.sourceLabel(list.find((p) => p.id === st.chatModel.split('|')[0]), st.chatModel.split('|').pop()) + ' (offline)', st.chatModel));
+  const named = (m) => chatCore.sourceLabel(list.find((p) => p.id === m.split('|')[0]), m.split('|').pop());
+  if (st.chatModel && ![...sel.options].some((o) => o.value === st.chatModel)) sel.add(new Option(named(st.chatModel) + ' (offline)', st.chatModel));
   sel.value = st.chatModel || '';
+  // A saved default that stopped answering (Hermes after a Hermit service replaced it) says who answers meanwhile.
+  const now = chatCore.defaultModel(found, st.chatModel || '');
+  const stale = list.find((p) => p.id === (st.chatModel || '').split('|')[0])?.name || named(st.chatModel || '');
+  $('chat-default-note').textContent = st.chatModel && now && now !== st.chatModel ? `${stale} isn't answering, so ${named(now)} answers for now.` : 'Every feature below uses it unless you pick otherwise.';
 }
 const chatSave = (list) => set({ chatProviders: JSON.stringify(list) }).then(() => chatRefresh(last.settings));
 const chatPatch = (patch) => set(patch).then(() => chatRefresh(last.settings));
@@ -1133,14 +1150,6 @@ $('chat-providers').addEventListener('click', async (e) => {
     if (!/^https?:\/\/\S+$/.test(url)) return card.querySelector('[data-conn-url]')?.focus();
     if (list.some((x) => x.id === sv.id)) return;
     list.push({ id: sv.id, name: sv.name, url, key: true, optional: true });
-    t.blur(); return chatSave(list);
-  }
-  if (t.hasAttribute('data-add-hermit')) {
-    const base = chatCore.hermitBase(last.settings.hermitUrl);
-    if (!base) return;
-    let id = 'hermit';
-    while (list.some((p) => p.id === id)) id += '-2';
-    list.push({ id, name: 'Hermit', url: base + '/oc', kind: 'opencode', tools: false });
     t.blur(); return chatSave(list);
   }
   if (t.dataset.add) {

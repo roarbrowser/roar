@@ -378,9 +378,12 @@
 
   // The Ask default ("<provider id>|<model>"): the person's saved choice while it's offered, else the first
   // model of the first connected provider (detectProviders ranks running/available first).
+  // A Hermes default that stopped answering (a Hermit service took its place) goes to the Hermit's OpenCode first.
   const defaultModel = (found, saved = '') => {
     const all = found.filter((p) => p.models.length).flatMap((p) => p.models.map((m) => p.id + '|' + m));
-    return saved && all.includes(saved) ? saved : all[0] || '';
+    if (saved && all.includes(saved)) return saved;
+    const hermit = /^hermes\|/.test(saved) && found.find((p) => p.hermit && p.models.length);
+    return hermit ? hermit.id + '|' + hermit.models[0] : all[0] || '';
   };
   // Rename with AI through a chat model: one request for any number of items [{key, title, url}].
   // Titles and URLs are page text, so CLI providers that can't run tool-free never get one (pageRefusal).
@@ -500,10 +503,22 @@
   const idList = (json) => {
     try { const v = JSON.parse(json || '[]'); return Array.isArray(v) ? v.filter((x) => typeof x === 'string') : []; } catch { return []; }
   };
-  // Everything Model chat may use: the saved servers and the coding assistants, minus what was removed.
-  const chatList = (settings = {}) => {
-    const off = new Set(idList(settings.chatHidden));
-    return [...parseProviders(settings.chatProviders), ...CLI_PROVIDERS].filter((p) => !off.has(p.id));
+  // The Hermit service's OpenCode as Chat models offers it by itself: once Settings > Agents > OpenCode has the service's
+  // address and a password (hermitKey: state's claude.hermitKey), unless a saved OpenCode server already points at its
+  // /oc. '@hermit' is no id a saved server can have ([\w-]) and has no key of its own; Roar resolves it to that /oc
+  // and signs in with the service's password (src/hermit_server.h HermitChatBase).
+  const HERMIT_CHAT = '@hermit';
+  const hermitChat = (settings = {}, hermitKey = false) => {
+    const b = hermitBase(settings.hermitUrl);
+    if (!b || !hermitKey || parseProviders(settings.chatProviders).some((p) => p.kind === 'opencode' && hermitOc(p.url, settings.hermitUrl))) return null;
+    return { id: HERMIT_CHAT, kind: 'opencode', name: 'Hermit', url: b + '/oc', key: false, optional: false, tools: false, dir: '', hermit: true, auto: true };
+  };
+  // Everything Model chat may use: the saved servers, the Hermit service's row and the coding assistants, minus what was
+  // removed. An OpenCode server at the service's /oc signs in with the service's password (hermit).
+  const chatList = (settings = {}, { hermitKey = false } = {}) => {
+    const off = new Set(idList(settings.chatHidden)), auto = hermitChat(settings, hermitKey);
+    const saved = parseProviders(settings.chatProviders).map((p) => (p.kind === 'opencode' && hermitOc(p.url, settings.hermitUrl) ? { ...p, hermit: true } : p));
+    return [...saved, ...(auto ? [auto] : []), ...CLI_PROVIDERS].filter((p) => !off.has(p.id));
   };
   // The person's order first; the rest keep the order they came in, so "First available" follows it too.
   const chatOrdered = (found, settings = {}) => {
@@ -574,7 +589,7 @@
   // A server URL typed with no path gets /v1, where Hermes and oMLX serve their API ("https://host" -> "https://host/v1").
   const withApiPath = (u) => (/^https?:\/\/[^/?#]+\/?$/i.test(u) ? u.replace(/\/?$/, '/v1') : u);
 
-  const api = { VENDORS, vendorOf, urlWhere, withApiPath, hermitBase, hermitOc, opencodeHistory, keyGoesTo, modelList, idList, chatList, chatOrdered, chatOn, modelLabel, sourceLabel, sourceTool, opencodeEvents, defaultModel, renamePrompt, renameKeys, autoNameKeys, parseNames, oneShot, SEARCH_SYSTEM, searchMode, openRequest, addSources, webSearchTool, CLI_PROVIDERS, CLI_LOGIN, signedOutError, pageRefusal, shotRefusal, cliStatus, cliPrompt, cliParser, parseProviders, sseParser, streamDelta, requestBody, modelIds, providerStatus, detectProviders, renderMarkdown };
+  const api = { VENDORS, vendorOf, urlWhere, withApiPath, hermitBase, hermitOc, HERMIT_CHAT, hermitChat, opencodeHistory, keyGoesTo, modelList, idList, chatList, chatOrdered, chatOn, modelLabel, sourceLabel, sourceTool, opencodeEvents, defaultModel, renamePrompt, renameKeys, autoNameKeys, parseNames, oneShot, SEARCH_SYSTEM, searchMode, openRequest, addSources, webSearchTool, CLI_PROVIDERS, CLI_LOGIN, signedOutError, pageRefusal, shotRefusal, cliStatus, cliPrompt, cliParser, parseProviders, sseParser, streamDelta, requestBody, modelIds, providerStatus, detectProviders, renderMarkdown };
   if (typeof module === 'object') module.exports = api;
   else globalThis.chatCore = api;
 })();

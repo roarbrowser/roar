@@ -170,7 +170,8 @@ try {
   const inChat = (e) => page((x) => x.url.includes('chat.html#hermit-' + worker.id), e);
   check(!!(await until(() => inChat(`[...document.querySelectorAll('#log .msg')].map((m) => m.textContent).join('|').includes('Looking at the form now.')`), 8000)), 'with the session\'s history');
   check(await inChat(`[...document.querySelectorAll('#log .msg.user')].some((m) => m.textContent.includes('Fix the login page please')) && !document.getElementById('log').textContent.includes('SECRET')`), 'its words only: no reasoning or tool output');
-  check(!!(await until(() => inChat(`document.getElementById('model').value === 'hermit|default'`), 10000)), 'on a Hermit chat server, added to Chat models: ' + await inChat(`document.getElementById('model').value`));
+  check(!!(await until(() => inChat(`document.getElementById('model').value === '@hermit|default'`), 10000)), 'on the service\'s own Hermit chat row: ' + await inChat(`document.getElementById('model').value`));
+  check(!/\/oc/.test((await side(`ask({ cmd: 'state' }).then((s) => (typeof s === 'string' ? JSON.parse(s) : s).settings.chatProviders)`)) || ''), 'and nothing is added to the saved chat servers');
   const sessionsMade = f.log.filter((l) => l.method === 'POST' && l.path === '/oc/api/session').length;
   await inChat(`document.getElementById('text').value = 'Use the new endpoint'; send(); 1`);
   const prompt = await until(async () => f.prompts.find((x) => x.text === 'Use the new endpoint'), 8000);

@@ -5199,6 +5199,9 @@ std::string Controller::StateJson() {
   cl->SetList("items", cl_items);
   cl->SetString("hermes", hermes_status_);
   cl->SetString("hermit", hermit_status_);
+  // Whether the service has a password saved (never the password), so Ask and naming can offer its row. One Keychain look, then kept.
+  if (hermit_key_ < 0) hermit_key_ = platform::SecretHas(kHermitSecret);
+  cl->SetBool("hermitKey", hermit_key_ == 1);
   root->SetDictionary("claude", cl);
   if (!chats_) {
     std::ifstream in(state.Dir() + "/chats.json");
@@ -6557,6 +6560,9 @@ bool Controller::HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> 
           base = p->GetString("url").ToString();
           while (!base.empty() && base.back() == '/') base.pop_back();
         }
+    // The Hermit service's own row (Settings > Agents > OpenCode), which no saved provider holds: its /oc, no tools.
+    if (base.empty())
+      if (std::string oc = HermitChatBase(id, State::Get().settings.hermit_url); !oc.empty()) kind = "opencode", base = oc;
     std::string what = msg->GetString("what"), method = msg->GetString("method"), path = msg->GetString("path"), body = msg->GetString("body");
     bool server = what == "opencode";
     if (server && (kind != "opencode" || !OpencodeCallAllowed(method, path))) return callback->Failure(-1, "Not a call Model chat makes"), true;
@@ -6708,11 +6714,14 @@ bool Controller::HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> 
   } else if (cmd == "hermit.keySet") {
     // {key}: the Hermit service's password, into the Keychain ("" removes it). The next poll signs in with it.
     if (!platform::SecretSet(kHermitSecret, msg->GetString("key"))) return callback->Failure(0, "Couldn't save to the Keychain"), true;
+    hermit_key_ = !msg->GetString("key").empty();
     HermitPoll(true);
+    PushSidebar();  // Chat models lists the service's own row only while it has a password (state's claude.hermitKey).
     callback->Success("");
   } else if (cmd == "hermit.keyHas") {
     // Whether a password is saved, never the password.
-    callback->Success(platform::SecretHas(kHermitSecret) ? "true" : "false");
+    hermit_key_ = platform::SecretHas(kHermitSecret);
+    callback->Success(hermit_key_ ? "true" : "false");
   } else if (cmd == "chat.search") {
     // {query}: web results [{title,url,snippet}] for a local model; {url}: the text of one of those results.
     // Runs in a hidden page with a fresh ghost profile, so no cookies, logins or tabs reach the chat.
