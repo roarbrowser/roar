@@ -822,14 +822,18 @@ window.roar = {
       `<span class="label"><span class="cl-name"><b>${esc(c.title || 'Untitled')}</b><time>${clAgo(c.updated)}</time></span><small>${esc(chatWho(c))}</small></span></button>` +
       `<span class="cl-acts">${chatTab(c) ? `<button data-chatclose="${chatTab(c).id}" title="Close" aria-label="Close ${esc(c.title)}">${x}</button>` : ''}<button data-chatdel="${esc(c.id)}" title="Delete this chat" aria-label="Delete ${esc(c.title)}">${ico.hide}</button></span></div>`;
     const clHidRow = clHid ? `<button class="note cl-hidden" data-clshowhidden>${clShowHidden ? 'Done showing' : 'Show'} ${clHid} hidden</button>` : '';
-    // One heading per service once more than one is listed. Sessions keep Agent order so a group never jumps when one
-    // starts; a single service stays a plain list under Code and Ask.
+    // Coding sessions always sit under their agent's name (Claude Code, OpenCode, Hermes...), even when only one agent is
+    // listed: the icons alone don't say which tool a session is. Groups keep Agent order so one never jumps when a session
+    // starts. Ask chats get one heading per service once more than one is listed (each row already names its model).
     const clSub = (t) => `<div class="cl-sub" aria-hidden="true">${esc(t)}</div>`;
     const codeGroups = clGroups(clVis, agentTool, agentOrder(s)), chatGroups = clGroups(chatList, chatService);
-    const codeRows = codeGroups.length > 1 ? codeGroups.map((g) => clSub(AGENT_ROWS[g.key][0]) + g.rows.map(clRow).join('')).join('') : clVis.map(clRow).join('');
+    // A session starting here goes first under its agent's heading, or under a heading of its own.
+    const wantTool = clWant ? agentTool({ tool: clWant.tool }) : '';
+    const codeRows = (starting && !codeGroups.some((g) => g.key === wantTool) ? clSub(AGENT_ROWS[wantTool][0]) + starting : '')
+      + codeGroups.map((g) => clSub(AGENT_ROWS[g.key][0]) + (g.key === wantTool ? starting : '') + g.rows.map(clRow).join('')).join('');
     const chatRows = newChats + (chatGroups.length > 1 ? chatGroups.map((g) => clSub('Ask · ' + g.key) + g.rows.map(chatRow).join('')).join('') : chatList.map(chatRow).join(''));
     const both = (starting || clVis.length) && chatRows;
-    setHtml($('cl'), (both && codeGroups.length < 2 ? clSub('Code') : '') + starting + (codeRows + (both && (chatGroups.length < 2 || newChats) ? clSub('Ask') : '') + chatRows || (starting || afRow ? '' : '<div class="note">No sessions yet. Press Code to start a coding agent, or Ask to talk to a model.</div>')) + clHidRow + afRow);
+    setHtml($('cl'), (codeRows + (both && (chatGroups.length < 2 || newChats) ? clSub('Ask') : '') + chatRows || (starting || afRow ? '' : '<div class="note">No sessions yet. Press Code to start a coding agent, or Ask to talk to a model.</div>')) + clHidRow + afRow);
     // An Ask tab becoming active opens AI, so its row (the only place it shows) is visible.
     const askNow = state.tabs.find((t) => t.active && askTab(t))?.id || 0;
     if (askNow && askNow !== askActive) {
