@@ -619,5 +619,14 @@
       <description><![CDATA[The sidebar AI section names each coding session agent: sessions sit under a Claude Code, OpenCode or Hermes heading even when only one agent has sessions.]]></description>
       <enclosure url="https://github.com/roarbrowser/roar/releases/download/v1.32.1/Roar-1.32.1.dmg" type="application/octet-stream" sparkle:edSignature="Nv2Djs3Bla7UrctpUEjgiQ/RzdIcHZ3qinzyb8Y/xltziGTgbdVwv8/+ToNQ1BWGGzwQzWBG9iCcq+Q4rVofBQ==" length="199473627"/>
     </item>
+    <item>
+      <title>1.33.0</title>
+      <pubDate>Mon, 23 Nov 2026 18:10:19 +0000</pubDate>
+      <sparkle:version>13300</sparkle:version>
+      <sparkle:shortVersionString>1.33.0</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[The Hermit service now lives under Settings > Agents > OpenCode. With its address and password saved, Chat models lists it as Hermit by itself, ready to be the default. A default model that stops answering now says who answers meanwhile.]]></description>
+      <enclosure url="https://github.com/roarbrowser/roar/releases/download/v1.33.0/Roar-1.33.0.dmg" type="application/octet-stream" sparkle:edSignature="mVSiLqL4+EDChaq/kJCO4UxReT5+tFnApM9iIoXfAf/pOQB57EO6uGIlENxnPwYjT55cQTZHbZf9zLqzWtA8Dg==" length="199475163"/>
+    </item>
   </channel>
 </rss>
