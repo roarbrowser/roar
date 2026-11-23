@@ -1,7 +1,8 @@
 // Agent actions through roar-mcp (Roar's patch of chrome-devtools-mcp, mcp/patches/): a click refuses a covered
 // target and names the cover; action results say navigated / page changed / no change; the wait covers a fetch the
 // action started but not a long poll; fill handles date inputs, field limits and combobox overlays; snapshots mark new
-// elements with * and cut long trees in the middle; domain rules stop navigation off the allowed sites.
+// elements with * and cut long trees in the middle; domain rules stop navigation off the allowed sites; get_css_styles
+// works although agent universes defer CSS.enable.
 // Headless scratch Roar, roar-mcp from source (or the app's with --compiled).
 // Usage: node tests/agent_actions_test.mjs <Roar.app> [--compiled]
 import { spawn } from 'node:child_process';
@@ -196,6 +197,12 @@ try {
   check(r.err && /off limits: 127\.0\.0\.1:\d+ is outside/.test(r.text), 'a page that left the allowed sites between calls cannot be read', r.text.slice(0, 300));
   r = await d.call('navigate_page', { url: `${site}/react2` });
   check(!r.err, 'and can be sent back to an allowed page', r.text);
+  // CSS.enable is deferred in agent universes (the CSS agent crashed Vanguard's renderer,
+  // tests/agent_css_defer_test.mjs); get_css_styles turns it on for itself.
+  await d.call('navigate_page', { url: `${site}/cover` });
+  snap = (await d.call('take_snapshot')).text;
+  r = await d.call('get_css_styles', { uid: uid(snap, /button "Accept all"/) });
+  check(!r.err && /display|font|color/i.test(r.text), 'get_css_styles still reads styles with CSS.enable deferred', r.text.slice(0, 400));
 } catch (e) {
   check(false, String(e.stack || e));
 } finally {

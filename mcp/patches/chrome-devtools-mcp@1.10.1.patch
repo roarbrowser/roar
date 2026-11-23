@@ -1,5 +1,5 @@
 diff --git a/build/src/McpPage.js b/build/src/McpPage.js
-index 3be93a33ad4afb206223290c96fd8749cd49a131..93ffed7556da2b83b36108f48af8061702972780 100644
+index 3be93a33ad4afb206223290c96fd8749cd49a131..5967111343be9000602c68f4ee9d95438ce8dd92 100644
 --- a/build/src/McpPage.js
 +++ b/build/src/McpPage.js
 @@ -3,6 +3,7 @@
@@ -28,6 +28,17 @@ index 3be93a33ad4afb206223290c96fd8749cd49a131..93ffed7556da2b83b36108f48af80617
          this.networkCollector = new NetworkCollector(page);
          this.consoleCollector = new ConsoleCollector(page, collect => {
              return {
+@@ -672,6 +677,10 @@ export class McpPage {
+         if (!targetElement) {
+             throw new Error(`Element with uid "${uid}" is not an element node and has no parent element.`);
+         }
++        // Roar: agent universes defer CSS.enable until a tool needs styles (DevtoolsUtils.js).
++        if (!cssModel.isEnabled()) {
++            await cssModel.enable();
++        }
+         const matchedStyles = await cssModel.getMatchedStyles(targetElement.id);
+         if (!matchedStyles) {
+             throw new Error(`Could not retrieve matched styles for element with uid "${uid}".`);
 diff --git a/build/src/McpResponse.js b/build/src/McpResponse.js
 index 88ef0a358ed37cd5549bc37ecd47d177513c3786..9e5acd5b76dcb68450ed5d9ad73bf7e9ef0da282 100644
 --- a/build/src/McpResponse.js
@@ -137,6 +148,20 @@ index 84dbed65947c6d4755745911839c8697301f5f0c..52d34222a110eca888f69a57a4d33841
                      }
                  }
                  catch (err) {
+diff --git a/build/src/devtools/DevtoolsUtils.js b/build/src/devtools/DevtoolsUtils.js
+index 4ce7cbe2643e643e105b8ae102e7f346b2110301..7fe86bbbdf0303f355ca2184f810b39828fc33cc 100644
+--- a/build/src/devtools/DevtoolsUtils.js
++++ b/build/src/devtools/DevtoolsUtils.js
+@@ -118,6 +118,9 @@ export async function createTargetUniverse(session, options) {
+     // @ts-expect-error devtools-frontend has diffrent types.
+     const connection = new DevTools.PuppeteerDevToolsConnection(session);
+     const targetManager = universe.context.get(DevTools.TargetManager);
++    // Roar: CSSModel waits for get_css_styles before it sends CSS.enable (see CSSModel's
++    // constructor in third_party/index.js): the CSS agent crashes some pages' renderers.
++    targetManager.roarDeferCssEnable = true;
+     targetManager.observeModels(DevTools.NetworkManager.NetworkManager, DISABLE_NETWORK);
+     const target = targetManager.createTarget('main', '', 'frame', // eslint-disable-line @typescript-eslint/no-explicit-any
+     /* parentTarget */ null, session.id(), undefined, connection);
 diff --git a/build/src/formatters/SnapshotFormatter.js b/build/src/formatters/SnapshotFormatter.js
 index b8e684b83b475038216ccd735c50970b7b2a55c4..b5e8f111208ebf17fe1d0f1fae17057f97c4de46 100644
 --- a/build/src/formatters/SnapshotFormatter.js
@@ -209,6 +234,53 @@ index b8e684b83b475038216ccd735c50970b7b2a55c4..b5e8f111208ebf17fe1d0f1fae17057f
              attributes.join(' ') +
              (node.id === this.#snapshot.selectedElementUid
                  ? ' [selected in the DevTools Elements panel]'
+diff --git a/build/src/third_party/index.js b/build/src/third_party/index.js
+index 063743d3719f071e046c3fe692ec68a5bb69a6be..f75502ffe281545997d3493362fed3b63b624229 100644
+--- a/build/src/third_party/index.js
++++ b/build/src/third_party/index.js
+@@ -141569,6 +141569,8 @@ class CSSModel extends SDKModel {
+     #isRuleUsageTrackingEnabled = false;
+     #isTrackingRequestPending = false;
+     #colorScheme;
++    // Roar: true until something asks for CSS (enable()); see the constructor.
++    #roarDeferEnable = false;
+     constructor(target) {
+         super(target);
+         this.#domModel = target.model(DOMModel);
+@@ -141580,7 +141582,14 @@ class CSSModel extends SDKModel {
+             this.#resourceTreeModel.addEventListener(Events$c.PrimaryPageChanged, this.onPrimaryPageChanged, this);
+         }
+         target.registerCSSDispatcher(new CSSDispatcher(this));
+-        if (!target.suspended()) {
++        // Roar: an agent's per-page universe (roarDeferCssEnable, set in DevtoolsUtils.js) does not
++        // send CSS.enable on its own. CSS.enable turns on Blink's InspectorCSSAgent for the page,
++        // and its style sheet walk (InspectorCSSAgent::CollectStyleSheets -> CSSStyleSheet::item)
++        // CHECK-fails on some pages (Vanguard's 2026-11 dashboard) and kills the tab. Many SDK
++        // parts create this model (ResourceMapping, the workspace bindings, EmulationModel), so
++        // the model itself waits until get_css_styles calls enable().
++        this.#roarDeferEnable = Boolean(target.targetManager().roarDeferCssEnable);
++        if (!target.suspended() && !this.#roarDeferEnable) {
+             void this.enable();
+         }
+         const settings = this.target().targetManager().settings;
+@@ -141769,6 +141778,7 @@ class CSSModel extends SDKModel {
+         return this.#isEnabled;
+     }
+     async enable() {
++        this.#roarDeferEnable = false;
+         await this.agent.invoke_enable();
+         this.#isEnabled = true;
+         if (this.#isRuleUsageTrackingEnabled) {
+@@ -142271,6 +142281,9 @@ class CSSModel extends SDKModel {
+         this.resetFontFaces();
+     }
+     async resumeModel() {
++        if (this.#roarDeferEnable) {
++            return;
++        }
+         return await this.enable();
+     }
+     setEffectivePropertyValueForNode(nodeId, propertyName, value) {
 diff --git a/build/src/tools/input.js b/build/src/tools/input.js
 index e7da4d2d95904f494df1292b58bcd7f430ca316a..db40fdc3ba9f64dd1ace0a765f973766866f2bb5 100644
 --- a/build/src/tools/input.js
@@ -753,7 +825,7 @@ index 733dc4e1909124f8962ca6f5d9a6e4a1acd759fa..169e64ee65205d83bdbca700ea2ecb84
          };
      }
  }
-diff --git a/build/src/utils/roarDomains.js b/build/src/utils/roarDomains.js
+diff --git a/node_modules/chrome-devtools-mcp/build/src/utils/roarDomains.js b/build/src/utils/roarDomains.js
 new file mode 100644
 index 0000000000000000000000000000000000000000..da0ad7fffdb7562a9a21cfcc2f5dd41bd49a1f54
 --- /dev/null
