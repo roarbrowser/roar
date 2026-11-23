@@ -126,6 +126,43 @@ details.vendor[open] > summary::before { transform: rotate(45deg); }
 .v-p { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 6px; }
 .v-add { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; padding: 10px 0 2px; }
 .ch-order .row { min-height: 34px; }
+.ch-order .agent-icon { vertical-align: -3px; margin-right: 8px; }
+/* AI: one nav entry, Chat models and Agents hang off it on a rule. */
+nav a.sub { margin-left: 12px; padding-left: 12px; border-radius: 0 7px 7px 0; box-shadow: inset 1px 0 0 var(--rule); font-size: 13px; }
+nav a.sub[aria-current="true"] { box-shadow: inset 2px 0 0 var(--mane); }
+nav a.ai-nav.in { color: var(--ink); }
+/* AI › who answers what: feature | answered by | control, lined up on one grid so a shared model reads as one column. */
+.ai-jobs { display: grid; grid-template-columns: minmax(0, 1fr) minmax(150px, auto) auto; column-gap: 14px; margin-top: 14px; }
+.ai-jobs > .ai-head, .ai-jobs > .row, .ai-jobs > div > .row { grid-column: 1 / -1; display: grid; grid-template-columns: subgrid; align-items: center; }
+.ai-jobs > #ask-llm-row { display: contents; }
+.ai-head { font-size: 12px; color: var(--ink-3); padding: 4px 0; border-bottom: 1px solid var(--rule); }
+.ai-jobs .row > .name { min-width: 0; }
+.ai-ask { display: grid; gap: 6px; justify-items: start; min-width: 0; }
+.ai-ask select { max-width: 240px; }
+.ai-jobs .row > .switch { justify-self: end; }
+.ai-uses { justify-self: start; display: inline-flex; align-items: center; gap: 7px; max-width: 230px; padding: 4px 11px 4px 9px; border-radius: 999px; font-size: 12.5px; color: var(--ink); background: var(--ground); box-shadow: inset 0 0 0 1px var(--rule); white-space: nowrap; transition: opacity .15s; }
+.ai-uses:empty { visibility: hidden; }
+.ai-uses span { overflow: hidden; text-overflow: ellipsis; }
+.ai-uses .agent-icon, .ai-uses svg { flex: none; }
+.ai-uses[data-state="warn"] { background: var(--mane-soft); color: var(--mane-ink); box-shadow: none; }
+.ai-ask .ai-uses:empty { display: none; }
+.ai-uses[data-state="off"] { opacity: .45; }
+.ai-uses a { color: inherit; }
+.ai-parts { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 22px; }
+.ai-part { display: grid; gap: 3px; padding: 13px 15px; border: 1px solid var(--rule); border-radius: 10px; color: var(--ink); text-decoration: none; }
+.ai-part:hover { background: var(--ground); }
+.ai-part:focus-visible { outline: 2px solid var(--mane); outline-offset: 2px; }
+.ai-part-name { font: 600 14px var(--round); }
+.ai-part small { font-size: 12.5px; color: var(--ok); }
+.ai-part small:not([data-state="on"]) { color: var(--ink-3); }
+.ai-part-what { font-size: 12px; color: var(--ink-3); }
+@media (max-width: 640px) {
+  nav a.sub { margin-left: 0; box-shadow: none; }
+  .ai-jobs { display: block; }
+  .ai-jobs > .ai-head { display: none; }
+  .ai-jobs > .row, .ai-jobs > div > .row { display: flex; }
+  .ai-parts { grid-template-columns: 1fr; }
+}
 </style>
 </head>
 <body>
@@ -133,7 +170,9 @@ details.vendor[open] > summary::before { transform: rotate(45deg); }
   <div class="top"><h1>Settings</h1><input id="search" type="search" placeholder="Search settings" aria-label="Search settings" spellcheck="false"><button class="btn" id="close">Close</button></div>
   <nav aria-label="Settings categories">
     <a href="#general">General</a><a href="#tabs">Tabs &amp; Sidebar</a><a href="#modules">Sidebar modules</a><a href="#extensions">Extensions</a>
-    <a href="#dictation">Dictation</a><a href="#chat">Chat models</a><a href="#agents">Agents</a><a href="#notifications">Notifications</a><a href="#privacy">Privacy</a><a href="#backup">Backup</a><a href="#advanced">Advanced</a>
+    <a href="#dictation">Dictation</a>
+    <a href="#ai" class="ai-nav">AI</a><a href="#chat" class="sub">Chat models</a><a href="#agents" class="sub">Agents</a>
+    <a href="#notifications">Notifications</a><a href="#privacy">Privacy</a><a href="#backup">Backup</a><a href="#advanced">Advanced</a>
     <a href="#" class="tips" id="tips">Tips &amp; shortcuts</a>
   </nav>
   <main>
@@ -157,7 +196,6 @@ details.vendor[open] > summary::before { transform: rotate(45deg); }
       <div class="row"><span class="name" id="archive-label">Archive idle tabs after<small>Pinned tabs stay. Archived brings one back.</small></span>
         <div class="segmented" role="group" aria-labelledby="archive-label" data-seg="archiveAfterHours">
           <button data-v="6">6 h</button><button data-v="12">12 h</button><button data-v="24">1 day</button><button data-v="168">1 week</button><button data-v="0">Never</button></div></div>
-      <div class="row"><label class="name" for="auto-name">Name tabs with AI<small>Gives a tab a short name for the page it's on, and a new one when it goes to another page, using your default chat model. A name you give a tab stays. Sends page titles and URLs to that model. Ghost tabs are never named automatically.</small></label><input type="checkbox" class="switch" id="auto-name" data-set="autoNameTabs"></div>
       <h3>Pinned tiles</h3>
       <div class="row"><label class="name" for="pin-cols">Most tiles per row<small>Pinned tabs are icon tiles that stretch to fill each row; this caps how many sit in one row. Point at a tile for its name.</small></label><select id="pin-cols" data-set="pinnedColumns" data-kind="number">
         <option value="0">Fit to width</option><option>2</option><option>3</option><option>4</option><option>5</option><option>6</option><option>7</option><option>8</option></select></div>
@@ -219,16 +257,29 @@ details.vendor[open] > summary::before { transform: rotate(45deg); }
       </fieldset>
     </section>
 
+    <section id="ai"><h2>AI</h2>
+      <p class="reason">Two kinds of AI work in Roar. Chat models answer questions and name things. Agents are coding tools such as Claude Code, OpenCode or Hermes: their sessions show in the sidebar and they can browse with Roar.</p>
+      <div class="row ai-default"><label class="name" for="chat-default">Default chat model<small id="chat-default-note">Every feature below uses it unless you pick otherwise.</small></label><select id="chat-default"></select></div>
+      <div class="ai-jobs" id="ai-jobs" role="group" aria-label="What AI does in Roar and who answers">
+        <div class="ai-head" aria-hidden="true"><span></span><span>Answered by</span><span></span></div>
+        <div id="ask-llm-row"></div>
+        <div class="row"><label class="name" for="auto-name">Name tabs with AI<small>Names each tab for the page it’s on. A name you give a tab stays. Sends page titles and addresses, never from ghost tabs.</small></label><span class="ai-uses" data-uses="model"></span><input type="checkbox" class="switch" id="auto-name" data-set="autoNameTabs"></div>
+        <div class="row"><label class="name" for="auto-name-dl">Name downloads with AI<small>Gives a finished download a clearer file name. Sends its name, address and page title, never from ghost tabs.</small></label><span class="ai-uses" data-uses="model"></span><input type="checkbox" class="switch" id="auto-name-dl" data-set="autoNameDownloads"></div>
+        <div class="row"><span class="name">Rename with AI<small>The sparkle button on tabs, groups, spaces and sessions. Shift-click it to choose who answers.</small></span><span class="ai-uses" data-uses="rename"></span><span></span></div>
+      </div>
+      <div class="ai-parts">
+        <a href="#chat" data-goto="chat" class="ai-part"><span class="ai-part-name">Chat models</span><small id="ai-chat-sum">Checking…</small><span class="ai-part-what">Keys, servers and the order Ask tries them in</span></a>
+        <a href="#agents" data-goto="agents" class="ai-part"><span class="ai-part-name">Agents</span><small id="ai-agent-sum">Checking…</small><span class="ai-part-what">Connect coding tools, session view, browsing</span></a>
+      </div>
+    </section>
+
     <section id="chat"><h2>Chat models</h2>
-      <p class="reason">The models behind Ask and naming tabs and downloads. Open a provider below to set it up. Keys and passwords stay in your Keychain.<span hidden>Model chat</span></p>
-      <div class="row"><label class="name" for="chat-default">Default model<small id="chat-default-note">Models from the servers that answer now.</small></label><select id="chat-default"></select></div>
-      <div class="row"><label class="name" for="auto-name-dl">Name downloads with AI<small>When a download finishes, the default model gives it a clearer file name. Sends the file name, the page title and the download's address to that model. Never for ghost tabs.</small></label><input type="checkbox" class="switch" id="auto-name-dl" data-set="autoNameDownloads"></div>
-      <div id="ask-llm-row"></div>
+      <p class="reason">Open a provider below to set it up. Keys and passwords stay in your Keychain. The default model and what uses it are in <a href="#ai" data-goto="ai">AI</a>.<span hidden>Model chat</span></p>
       <div id="chat-providers"></div>
     </section>
 
     <section id="agents"><h2>Agents</h2>
-      <p class="reason">The coding agents whose sessions show in the sidebar and that can browse with Roar. Open one below to connect it.</p>
+      <p class="reason">Coding tools whose sessions show in the sidebar and that can browse with Roar. Open one below to connect it.</p>
       <div id="agent-setup"></div>
       <details class="vendor" data-agent="hermes" id="hermes-card"><summary><span class="v-name" id="hermes-ico">Hermes</span><span class="v-st" id="hermes-st">Off</span></summary>
         <p class="reason">Live chats and board cards on a Hermes dashboard show in the sidebar to watch.</p>
@@ -344,8 +395,39 @@ const setup = agentSetup($('agent-setup'), { llm: false, list: true, slot: $('he
 $('hermes-ico').insertAdjacentHTML('afterbegin', agentIcon('hermes', 16));
 $('hermes-card').after($('hermit-card'));  // agentSetup took the Hermes card into its list; the Hermit card goes beside it.
 $('hermit-ico').insertAdjacentHTML('afterbegin', agentIcon('hermit', 16));
-$('ask-llm-row').innerHTML = llmRowHtml();  // ⌘T's AI lives with Chat models; onboarding keeps it with agents.
+$('ask-llm-row').innerHTML = llmRowHtml('<span class="ai-uses" data-uses="ask"></span>');  // ⌘T's AI lives in AI's table; onboarding keeps it with agents.
 const showLlm = llmPicker($('as-llm'), () => refresh());
+const ICO_CHAT = '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 3.5h11v7h-6l-3 2.5v-2.5h-2z"/></svg>';
+// AI › Answered by: who each feature goes to, from the providers chatRefresh found (chatFound). Naming and Rename with AI
+// pick like the sidebar does (aiTarget): the default model among providers that may get page titles, else the first
+// agent session in Agents order; Roar Ask takes the default among all of them, like chat.html.
+function aiShow(s = last) {
+  if (!s) return;
+  const st = s.settings, from = (list) => {
+    const pick = chatCore.defaultModel(list, st.chatModel || ''), p = list.find((x) => pick.startsWith(x.id + '|'));
+    return p && { label: chatCore.sourceLabel(p, pick.slice(p.id.length + 1)), ico: chatCore.sourceTool(p) ? agentIcon(chatCore.sourceTool(p), 14) : ICO_CHAT };
+  };
+  const askModel = from(chatFound), nameModel = from(chatFound.filter((p) => !chatCore.shotRefusal(p)));
+  const agent = agentRank(s, (s.claude?.items || []).filter((c) => c.live && !c.remote))[0];
+  const chip = (el, html, state = '', title = '') => { if (el.innerHTML !== html) el.innerHTML = html; el.dataset.state = state; el.title = title; };
+  const modelChip = (el, m, on = true) => !chatChecked ? chip(el, '<span>Checking…</span>')
+    : m ? chip(el, `${m.ico}<span>${esc(m.label)}</span>`, on ? '' : 'off', on ? m.label : `${m.label}, while this is on`)
+    : chatFound.some((p) => p.models.length) && el.dataset.uses !== 'ask' ? chip(el, '<span>No model can do this</span>', 'warn', 'Your chat models can’t be sent page titles. Set up another in Chat models.')
+    : chip(el, '<span>No chat model yet</span>', 'warn', 'Set one up in Chat models');
+  for (const el of document.querySelectorAll('[data-uses]')) {
+    const u = el.dataset.uses, ask = (st.askLlms || '').split(',')[0];
+    if (u === 'model') modelChip(el, nameModel, el.closest('.row').querySelector('.switch').checked);
+    else if (u === 'ask') ask === 'model' ? modelChip(el, askModel) : chip(el, '');
+    else if (nameModel || !chatChecked) modelChip(el, nameModel);
+    else if (agent) chip(el, `${agentIcon(agent, 14)}<span>${esc(agentName(agent) + ' · ' + (agentNames(s)[agent.id] || agent.project))}</span>`, '', 'No chat model is set up, so the first agent in Agents with a session running');
+    else chip(el, chatFound.some((p) => p.models.length) ? '<span>No model can do this</span>' : '<span>Nothing connected</span>', 'warn', 'Set up a chat model that can be sent page titles, or start an agent session');
+  }
+  const models = chatCore.chatOrdered(chatFound.filter(chatCore.chatOn), st), tools = s.claude?.tools || {};
+  const agents = agentOrder(s).filter((t) => (t === 'hermes' || t === 'hermit' ? !!st[t + 'Url'] : tools[t] === 'installed')).map((t) => AGENT_TOOLS[t][0]);
+  const sum = (id, names, none) => { $(id).textContent = names.length ? names.join(', ') : none; $(id).dataset.state = names.length ? 'on' : ''; };
+  if (chatChecked) sum('ai-chat-sum', [...new Set(models.map((p) => p.name))], 'Nothing set up yet');
+  sum('ai-agent-sum', agents, 'Nothing connected yet');
+}
 $('reset-all').onclick = () => { if (confirm('Reset every setting to its default? Tabs, spaces, bookmarks, extensions and logins stay.')) ask({ cmd: 'settings.reset' }).then(apply); };
 $('licenses').onclick = () => ask({ cmd: 'open', text: 'roar://ui/THIRD_PARTY_NOTICES.txt', newTab: true });
 $('credits').onclick = () => ask({ cmd: 'open', text: 'roar://ui/CREDITS.html', newTab: true });
@@ -516,6 +598,7 @@ function apply(s) {
   // Only a build without Roar's CEF patch needs a relaunch to apply it.
   $('cdp-relaunch').hidden = st.cdpLive || st.cdpEnabled === st.cdpOn;
   notifyShow(st);
+  aiShow(s);
   // One switch per space (the same flag as "Allow agents" in a space's sidebar menu).
   if (!$('agent-spaces').contains(document.activeElement))
     $('agent-spaces').innerHTML = s.spaces.map((sp) => `<label class="sp-chip"><input type="checkbox" data-space-agents="${sp.id}"${sp.agents ? ' checked' : ''}>${esc(sp.name)}</label>`).join('');
@@ -792,12 +875,13 @@ $('tips').onclick = (e) => { e.preventDefault(); ask({ cmd: 'open', text: 'roar:
 // Tabs: one section shown at a time; the last one opened comes back next time.
 const tabs = [...document.querySelectorAll('nav a[href^="#"]:not(.tips)')];
 function showTab(id) {
-  if (id === 'ask') id = 'chat';  // Ask's settings live in Chat models, not a tab of their own.
+  if (id === 'ask') id = 'ai';  // Ask's settings live in AI, not a tab of their own.
   if (!document.getElementById(id)?.matches('main section')) id = 'general';
   for (const sec of document.querySelectorAll('main section')) sec.hidden = sec.id !== id;
   if (id === 'extensions') exLoad().catch((e) => { $('ex-none').hidden = false; $('ex-none').textContent = 'Couldn’t list extensions: ' + e.message; });
   if (id === 'extensions') exgLoad().catch(() => {});
   for (const a of tabs) a.setAttribute('aria-current', String(a.hash === '#' + id));
+  document.querySelector('nav a.ai-nav').classList.toggle('in', id === 'chat' || id === 'agents');  // AI holds both.
   try { localStorage.setItem('settingsTab', id); } catch {}
   // Keeps the hash current so a later link to #agents is a change and fires hashchange.
   if (location.hash !== '#' + id) history.replaceState(null, '', '#' + id);
@@ -837,7 +921,7 @@ $('search').oninput = () => {
 // Each provider is probed in the background (chatCore.detectProviders); rows show "Checking…" until then,
 // and detected providers move to the top.
 // Cards: which are open, which way each shows, where a new server runs; kept across repaints.
-let chatFound = [], chatRows = [], chatPaint = () => {}, chatOpen = new Set(), chatWay = {}, chatWhere = {}, chatOcUrl = '';
+let chatFound = [], chatChecked = false, chatRows = [], chatPaint = () => {}, chatOpen = new Set(), chatWay = {}, chatWhere = {}, chatOcUrl = '';
 async function chatRefresh(st) {
   // An OpenCode server at the Hermit service's /oc signs in with the service's password (Agents), not one of its own.
   const list = chatCore.chatList(st).map((p) => (p.kind === 'opencode' && chatCore.hermitOc(p.url, st.hermitUrl) ? { ...p, hermit: true } : p)), box = $('chat-providers'), sel = $('chat-default');
@@ -904,10 +988,12 @@ async function chatRefresh(st) {
   const found = chatCore.chatOrdered(await chatCore.detectProviders(list, ask), st);
   if (gen !== chatRefresh.gen) return;  // A newer refresh started meanwhile.
   chatFound = found;
+  chatChecked = true;
   paint(found);
+  aiShow();
   if (document.activeElement === sel) return;
-  sel.innerHTML = '<option value="">First available</option>' + found.filter((p) => p.models.length).map((p) => `<optgroup label="${esc(p.kind === 'cli' ? p.name + ' (your subscription)' : p.name)}">${p.models.map((x) => `<option value="${esc(p.id + '|' + x)}">${esc(chatCore.modelLabel(p, x))}</option>`).join('')}</optgroup>`).join('');
-  if (st.chatModel && ![...sel.options].some((o) => o.value === st.chatModel)) sel.add(new Option(chatCore.modelLabel(list.find((p) => p.id === st.chatModel.split('|')[0]), st.chatModel.split('|').pop()) + ' (offline)', st.chatModel));
+  sel.innerHTML = '<option value="">First available</option>' + found.filter((p) => p.models.length).map((p) => `<optgroup label="${esc(p.kind === 'cli' ? p.name + ' (your subscription)' : p.name)}">${p.models.map((x) => `<option value="${esc(p.id + '|' + x)}">${esc(chatCore.sourceLabel(p, x))}</option>`).join('')}</optgroup>`).join('');
+  if (st.chatModel && ![...sel.options].some((o) => o.value === st.chatModel)) sel.add(new Option(chatCore.sourceLabel(list.find((p) => p.id === st.chatModel.split('|')[0]), st.chatModel.split('|').pop()) + ' (offline)', st.chatModel));
   sel.value = st.chatModel || '';
 }
 const chatSave = (list) => set({ chatProviders: JSON.stringify(list) }).then(() => chatRefresh(last.settings));

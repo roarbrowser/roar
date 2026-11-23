@@ -1734,8 +1734,9 @@ async function aiChatList() {
 async function aiTarget(e, what, ghost = false) {
   const chats = await aiChatList().catch(() => []), sessions = ghost ? [] : agentRank(state, clLive);
   const pick = chatCore.defaultModel(chats, state.settings.chatModel || '');
-  const opts = [...chats.map((p) => { const m = pick.startsWith(p.id + '|') ? pick.slice(p.id.length + 1) : p.models[0]; return { key: 'chat:' + p.id, p, model: m, label: `${p.name} · ${m}`, ico: ico_chat }; }),
-    ...sessions.map((c) => ({ key: 'agent:' + c.id, session: c, label: c.project, ico: agentIcon(c, 14) }))];
+  // Each choice says where it comes from: the provider for a model, the agent (Claude Code, OpenCode, Hermes…) for a session.
+  const opts = [...chats.map((p) => { const m = pick.startsWith(p.id + '|') ? pick.slice(p.id.length + 1) : p.models[0]; return { key: 'chat:' + p.id, p, model: m, label: chatCore.sourceLabel(p, m), ico: chatCore.sourceTool(p) ? agentIcon(chatCore.sourceTool(p), 14) : ico_chat }; }),
+    ...sessions.map((c) => ({ key: 'agent:' + c.id, session: c, label: `${agentName(c)} · ${agentNames(state)[c.id] || c.project}`, ico: agentIcon(c, 14) }))];
   const at = e?.target?.getBoundingClientRect?.() || { left: e?.clientX || 8, bottom: e?.clientY || 8 };
   if (!opts.length) {
     showCtx('<button class="wrap" data-act="set">No agent or model is connected. Open Settings › Agents to connect one.</button>', { clientX: at.left, clientY: at.bottom + 4 }, agentSettings);
@@ -1744,7 +1745,10 @@ async function aiTarget(e, what, ghost = false) {
   const first = opts.find((o) => o.p && o.p.id + '|' + o.model === pick) || opts[0];
   if (!e?.shiftKey) return first;
   // Shift always shows the list, even with one choice, so it never looks ignored.
-  return new Promise((done) => showCtx(`<div class="head">${esc(what)}</div>${opts.map((o) => `<button data-act="pick" data-id="${esc(o.key)}">${o.ico}${esc(o.label)}</button>`).join('')}<button data-act="set">Connect more in Settings › Agents…</button>`,
+  const optBtn = (o) => `<button data-act="pick" data-id="${esc(o.key)}" title="${esc(o.label)}">${o.ico}${esc(o.label)}</button>`;
+  const both = opts.some((o) => o.p) && opts.some((o) => o.session);
+  const list = both ? `<div class="head">Chat models</div>${opts.filter((o) => o.p).map(optBtn).join('')}<div class="head">Agent sessions</div>${opts.filter((o) => o.session).map(optBtn).join('')}` : opts.map(optBtn).join('');
+  return new Promise((done) => showCtx(`<div class="head">${esc(what)}</div>${list}<button data-act="set">Connect more in Settings › Agents…</button>`,
     { clientX: at.left, clientY: at.bottom + 4 }, (act, d) => { hideCtx(); if (act === 'set') return agentSettings(), done(null); done(opts.find((o) => o.key === d.id)); }));
 }
 // Settings › Agents, reusing this space's Settings tab (its hashchange switches section) so clicks never stack copies.
@@ -2212,7 +2216,7 @@ $('brand-rank').onclick = async (e) => {
 };
 brandRank();
 setInterval(brandRank, 60000);
-// Name downloads with AI (Settings › Model chat): Roar sends each finished download here; the Ask default model
+// Name downloads with AI (Settings › AI): Roar sends each finished download here; the Ask default model
 // suggests a name and downloads.rename cleans it (DownloadName) and renames the file. No model, no rename.
 roar.autoName = async (d) => {
   try {

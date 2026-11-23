@@ -514,6 +514,11 @@
   // What a model is called on screen. "default" is a stored id meaning whatever that tool is set to, and a closed
   // <select> hides its group heading, so it would read as a bare "default"; the tool's name says what you picked.
   const modelLabel = (p, m) => (m === 'default' && p?.name) || m;
+  // A model with where it comes from ("Claude Code · sonnet", "Hermes"), for places that show one choice on its own:
+  // a closed <select>, a pick list mixing providers and agents, Settings › AI's "uses" chips.
+  const sourceLabel = (p, m) => (!p ? m || '' : !m || m === 'default' || m === p.name ? p.name : `${p.name} · ${m}`);
+  // The agent tool a provider runs through (an AGENT_TOOLS id, for its icon), or '' for a plain model server.
+  const sourceTool = (p) => (!p ? '' : p.cli ? p.cli : p.hermit ? 'hermit' : p.kind === 'opencode' ? 'opencode' : p.id === 'hermes' ? 'hermes' : '');
   const chatOn = (p) => (p.kind === 'cli' ? p.state !== 'missing' : p.optional || p.kind === 'opencode' || !!p.hasKey || p.state === 'running');
 
   // Settings › Chat models groups providers by who makes them: one card per vendor, holding each way to reach it
@@ -569,7 +574,7 @@
   // A server URL typed with no path gets /v1, where Hermes and oMLX serve their API ("https://host" -> "https://host/v1").
   const withApiPath = (u) => (/^https?:\/\/[^/?#]+\/?$/i.test(u) ? u.replace(/\/?$/, '/v1') : u);
 
-  const api = { VENDORS, vendorOf, urlWhere, withApiPath, hermitBase, hermitOc, opencodeHistory, keyGoesTo, modelList, idList, chatList, chatOrdered, chatOn, modelLabel, opencodeEvents, defaultModel, renamePrompt, renameKeys, autoNameKeys, parseNames, oneShot, SEARCH_SYSTEM, searchMode, openRequest, addSources, webSearchTool, CLI_PROVIDERS, CLI_LOGIN, signedOutError, pageRefusal, shotRefusal, cliStatus, cliPrompt, cliParser, parseProviders, sseParser, streamDelta, requestBody, modelIds, providerStatus, detectProviders, renderMarkdown };
+  const api = { VENDORS, vendorOf, urlWhere, withApiPath, hermitBase, hermitOc, opencodeHistory, keyGoesTo, modelList, idList, chatList, chatOrdered, chatOn, modelLabel, sourceLabel, sourceTool, opencodeEvents, defaultModel, renamePrompt, renameKeys, autoNameKeys, parseNames, oneShot, SEARCH_SYSTEM, searchMode, openRequest, addSources, webSearchTool, CLI_PROVIDERS, CLI_LOGIN, signedOutError, pageRefusal, shotRefusal, cliStatus, cliPrompt, cliParser, parseProviders, sseParser, streamDelta, requestBody, modelIds, providerStatus, detectProviders, renderMarkdown };
   if (typeof module === 'object') module.exports = api;
   else globalThis.chatCore = api;
 })();

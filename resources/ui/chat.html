@@ -161,7 +161,7 @@ async function loadModels(st) {
   providers = chatList(st.settings);
   const all = chatOrdered(await detectProviders(providers, ask), st.settings), found = all.filter((p) => p.models.length);
   const sel = $('model'), want = chat?.model || st.settings.chatModel;
-  sel.innerHTML = found.map((p) => `<optgroup label="${esc(p.kind === 'cli' ? p.name + ' (your subscription)' : p.name)}">${p.models.map((m) => `<option value="${esc(p.id + '|' + m)}">${esc(modelLabel(p, m))}</option>`).join('')}</optgroup>`).join('');
+  sel.innerHTML = found.map((p) => `<optgroup label="${esc(p.kind === 'cli' ? p.name + ' (your subscription)' : p.name)}">${p.models.map((m) => `<option value="${esc(p.id + '|' + m)}">${esc(chatCore.sourceLabel(p, m))}</option>`).join('')}</optgroup>`).join('');
   if (!sel.options.length) sel.innerHTML = '<option value="">No models found</option>';
   if (sel.options[0].value) sel.value = defaultModel(found, want);
   sel.disabled = !sel.options[0].value;

@@ -72,12 +72,12 @@ try {
   const o1 = await waitFor(async () => { const o = await order(); return /claude/.test(o) && /opencode/.test(o) && o; });
   check(!!o1, 'connected CLIs in the order list: ' + o1);
   check(await st(`!document.querySelector('.as-card, .as-list')`), 'no card grid left');
-  check(/Shift-click to pick another/.test(await st(`document.querySelector('#agent-setup .as-order .as-hint')?.textContent`) || ''), 'rename hint over the order list');
+  check(/Shift-click Rename with AI to pick another/.test(await st(`document.querySelector('#agent-setup .as-order .as-hint')?.textContent`) || ''), 'rename hint over the order list');
   const first = (o1 || '').split(',')[0];
   await st(`(() => { const g = document.querySelector('#agent-setup [data-grip="${first}"]'); g.focus(); g.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true })); return true; })()`);
   check(await waitFor(async () => (await order()).split(',')[1] === first), 'Arrow Down moves a row down: ' + await order());
   check(await st(`document.activeElement?.dataset?.grip`) === first, 'focus stays on its handle');
-  check(await st(`[...document.querySelectorAll('#agent-setup .as-order [data-tool]')].every((li) => li.querySelector('[data-open-agent]') && li.querySelector('[data-key]'))`), 'each row has Settings and Disconnect');
+  check(await st(`[...document.querySelectorAll('#agent-setup .as-order [data-tool]')].every((li) => li.querySelector('[data-open-agent]') && li.querySelector('[data-key], [data-server-off]'))`), 'each row has Settings and Disconnect (Hermes and Hermit: Turn off)');
   await st(`document.querySelector('#agent-setup .as-order [data-open-agent=opencode]').click()`);
   check(await st(`document.querySelector('#agent-setup details[data-agent=opencode]').open`), 'Settings opens its card');
   await st(`setup.refresh().then(() => true)`);
@@ -88,8 +88,20 @@ try {
   check(await st(`(() => { const c = [...document.querySelectorAll('#agent-setup .vendors details')].map((d) => d.dataset.agent); return c.indexOf('hermes') > c.indexOf('opencode') && (!c.includes('more') || c.at(-1) === 'more'); })()`), 'card order: CLIs, Hermes, More agents');
   await st(`document.querySelector('#hermes-where [data-hw=local]').click()`);
   check(await waitFor(async () => (await st(`document.getElementById('hermes-st').textContent`)) === 'This Mac'), 'Hermes pill follows its mode (This Mac)');
+  check(await waitFor(async () => /hermes/.test(await order())), 'a Hermes address puts Hermes in the order list: ' + await order());
+  check(await st(`!!document.querySelector('#agent-setup .as-order [data-tool=hermes] [data-open-agent=hermes]') && !!document.querySelector('#agent-setup .as-order [data-tool=hermes] [data-server-off=hermes]') && !!document.querySelector('#agent-setup .as-order [data-tool=hermes] .agent-icon')`), 'with its icon and Settings');
   await st(`document.querySelector('#hermes-where [data-hw=off]').click()`);
   check(await waitFor(async () => (await st(`document.getElementById('hermes-st').textContent`)) === 'Off'), 'and Off');
+  check(await waitFor(async () => !/hermes/.test(await order())), 'Off takes Hermes out of the order list');
+  // AI holds Chat models and Agents: one nav entry with both under it, and the features that use a model in one table.
+  check(await st(`(() => { const n = [...document.querySelectorAll('nav a')].map((a) => a.hash + (a.classList.contains('sub') ? '>' : '')); const i = n.indexOf('#ai'); return i >= 0 && n[i + 1] === '#chat>' && n[i + 2] === '#agents>'; })()`), 'nav: AI, then Chat models and Agents under it');
+  check(await st(`document.querySelector('nav a.ai-nav').classList.contains('in')`), 'AI marked while Agents shows');
+  check(await st(`['chat-default', 'as-llm', 'auto-name', 'auto-name-dl'].every((id) => document.getElementById(id)?.closest('#ai')) && !document.querySelector('#tabs #auto-name, #chat #chat-default')`), 'default model, Ask about this page and both naming switches live in AI');
+  check(await st(`document.querySelectorAll('#ai [data-uses]').length === 4`), 'each AI feature shows who answers it');
+  check(await st(`[...document.querySelectorAll('#as-llm option')].every((o) => o.textContent !== 'Chat models') && !!document.querySelector('#as-llm optgroup[label="Opens the website"] option[value=claude]')`), 'Ask about this page: Roar Ask plus named websites');
+  await st(`showTab('ask')`);
+  check(await st(`!document.getElementById('ai').hidden`), '#ask opens AI');
+  await st(`showTab('agents')`);
   check(await st(`['cl-side', 'cdp-on', 'agent-spaces', 'card-diag'].every((id) => document.getElementById(id)?.closest('#agents')) && !!document.querySelector('#agents [data-goto=notifications]') && /space’s dot/.test(document.getElementById('agents').textContent)`), 'Sessions, Browsing and More stay, with their links');
   // Settings open elsewhere: switching to another section then clicking again reuses the tab and shows Agents.
   await cdp((x) => x.url.includes('settings.html'), 'Runtime.evaluate', { expression: `showTab('general')` });

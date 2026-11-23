@@ -59,7 +59,7 @@ const COMMANDS = [
     { id: 'askLlm:deepseek', title: 'DeepSeek', keys: '', words: 'llm ai' },
     { id: 'askLlm:copilot', title: 'Copilot', keys: '', words: 'llm ai microsoft bing' },
     { id: 'askLlm:kimi', title: 'Kimi', keys: '', words: 'llm ai moonshot' },
-    { id: 'askLlm:model', title: 'Chat models', ask: 'Ask a model about this page', keys: '', words: 'llm ai local model chat ollama' },
+    { id: 'askLlm:model', title: 'Roar Ask (default model)', ask: 'Ask Roar about this page', keys: '', words: 'llm ai local model chat ollama' },
   ] },
   { id: 'modelChat', title: 'Ask a model', keys: '', words: 'ask ai llm chat ollama lm studio llama jan openai anthropic gpt claude local model direct' },
   { id: 'agentChat', title: 'Ask your terminal agent about this page', keys: '', words: 'ai chat claude code codex gemini qwen copilot opencode hermes cli session terminal' },
@@ -129,7 +129,7 @@ const syncLlms = () => ask({ cmd: 'state' }).then((st) => {
     if (!want && at >= 0) COMMANDS.splice(at, 1);
     else if (want && at < 0) COMMANDS.splice(3, 0, c);
   }
-  // The AI chosen in Settings > Model chat "Ask about this page with" (askLlms; older saves listed several, the first wins), listed first.
+  // The AI chosen in Settings › AI "Ask about this page with" (askLlms; older saves listed several, the first wins), listed first.
   const pick = ALL_LLMS.find((c) => c.id.slice(7) === (st.settings?.askLlms || '').split(',')[0]);
   const at = COMMANDS.indexOf(ASK);
   if (at >= 0) COMMANDS.splice(at, 1);

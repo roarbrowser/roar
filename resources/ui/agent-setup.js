@@ -1,11 +1,13 @@
 // "Ask about this page with" and "Tools you use", shared by Settings and onboarding (Settings shows the
-// first under Model chat: agentSetup(root, {llm: false}) and llmPicker()). One row per agent tool:
+// first in Settings › AI: agentSetup(root, {llm: false}) and llmPicker()). One row per agent tool:
 // Connect installs Roar's session hooks (claude.hooks) and adds Roar to its MCP config (agents.connect).
 // Needs bridge.js and cl-session.js (AGENT_TOOLS, agentIcon).
 
-// Same ids and order as kLlms (controller.cc), plus "model": Roar's own Model chat (askModel in command.html, sidebar.html).
-const LLMS = [['model', 'Chat models'], ['chatgpt', 'ChatGPT'], ['claude', 'Claude'], ['gemini', 'Gemini'], ['perplexity', 'Perplexity'], ['grok', 'Grok'],
-  ['mistral', 'Le Chat'], ['deepseek', 'DeepSeek'], ['copilot', 'Copilot'], ['kimi', 'Kimi']];
+// Same ids and order as kLlms (controller.cc), plus "model": Roar's own Ask with the default chat model (askModel in
+// command.html, sidebar.html). The sites are named with their address so Claude the website never reads as a Claude model.
+const LLMS = [['model', 'Roar Ask (default model)'], ['chatgpt', 'ChatGPT (chatgpt.com)'], ['claude', 'Claude (claude.ai)'], ['gemini', 'Gemini (gemini.google.com)'],
+  ['perplexity', 'Perplexity (perplexity.ai)'], ['grok', 'Grok (grok.com)'], ['mistral', 'Le Chat (chat.mistral.ai)'], ['deepseek', 'DeepSeek (chat.deepseek.com)'],
+  ['copilot', 'Copilot (copilot.microsoft.com)'], ['kimi', 'Kimi (kimi.com)']];
 // A hooked CLI's id in agents.list (agent_connect.cc).
 const CLI_MCP = { claude: 'claude-code', codex: 'codex', gemini: 'gemini', copilot: 'copilot-cli', opencode: 'opencode' };
 // Claude Desktop without the claude CLI (chat.clis "desktop-only"): every Claude Code row and button shows this instead.
@@ -42,9 +44,14 @@ const clientIcon = (id, size = 16) => {
   return `<svg class="agent-icon" width="${size}" height="${size}" viewBox="0 0 16 16" fill="none" stroke="${tint}" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${glyph}</svg>`;
 };
 
-// The ⌘T AI picker row: settings.askLlms (older saves listed several, the first wins).
-const llmRowHtml = () => `<div class="row"><label class="name" for="as-llm">Ask about this page with<small>⌘T opens this AI with “Ask about this page” already typed in.</small></label><select id="as-llm"><option value="">None</option>${
-  LLMS.map(([id, name]) => `<option value="${id}">${name}</option>`).join('')}</select></div>`;
+// The ⌘T AI picker row: settings.askLlms (older saves listed several, the first wins). |chip|: Settings › AI's
+// "Answered by" chip; the picker then sits in that column with the chip under it, and the control column stays empty.
+const llmOption = ([id, name]) => `<option value="${id}">${name}</option>`;
+const llmRowHtml = (chip = '') => {
+  const pick = `<select id="as-llm"><option value="">None</option>${llmOption(LLMS[0])}<optgroup label="Opens the website">${LLMS.slice(1).map(llmOption).join('')}</optgroup></select>`;
+  return `<div class="row" id="as-llm-row"><label class="name" for="as-llm">Ask about this page with<small>⌘T opens it with “Ask about this page” already typed in.</small></label>${
+    chip ? `<span class="ai-ask">${pick}${chip}</span><span></span>` : pick}</div>`;
+};
 function llmPicker(sel, after) {
   sel.onchange = () => ask({ cmd: 'settings.set', settings: { askLlms: sel.value } }).then(after);
   return (settings) => { if (document.activeElement !== sel) sel.value = (settings.askLlms || '').split(',')[0]; };
@@ -88,17 +95,24 @@ function agentSetup(root, { llm = true, list: asList = false, slot = null } = {}
 
   function renderList() {
     const list = rows(), order = agentOrder(st), live = (st.claude?.items || []).filter((c) => c.live);
-    const tools = order.map((t) => list.find((r) => r.key === t)).filter(Boolean);
+    // Hook agents only: an MCP-only app can share a tool's id (Hermes Agent's MCP config is "hermes") and goes with Other apps.
+    const tools = order.map((t) => list.find((r) => r.hook && r.key === t)).filter(Boolean);
     const here = tools.filter((r) => r.here), gone = tools.filter((r) => !r.here);
     const others = list.filter((r) => !r.hook && r.here), away = list.filter((r) => !r.hook && !r.here);
-    const ordered = here.filter((r) => r.connected || r.outdated);
+    // Hermes and a Hermit service connect by address (their cards in Settings), not hooks; once set they're in the order
+    // too, since it also orders the sidebar's agent groups.
+    const servers = ['hermes', 'hermit'].map((k) => {
+      const url = st.settings?.[k + 'Url'] || '', said = url ? st.claude?.[k] || '' : '';
+      return url && { key: k, hook: k, name: AGENT_TOOLS[k][0], server: true, url, said, connected: /^Connected/.test(said) };
+    }).filter(Boolean);
+    const ordered = order.map((t) => here.find((r) => r.key === t && (r.connected || r.outdated)) || servers.find((r) => r.key === t)).filter(Boolean);
     const old = list.filter((r) => r.outdated && (r.needHook || r.needMcp));
     const names = (v) => v.map((r) => r.name).reduce((s, n, i) => s + (i ? (i + 1 === v.length ? ' and ' : ', ') : '') + n, '');
     const banner = root.querySelector('.as-banner');
     banner.hidden = !old.length;
     banner.innerHTML = old.length ? `<span>${esc(names(old))} still ${old.length === 1 ? 'points' : 'point'} at an old copy of Roar.</span><button class="btn" data-reconnect-all>Reconnect all</button>` : '';
     // |small|: the order list's size, like its Settings button; a card's Connect is primary, as in Chat models.
-    const action = (r, small) => r.needHook || r.needMcp
+    const action = (r, small) => r.server ? `<button class="btn" data-server-off="${esc(r.key)}">Turn off</button>` : r.needHook || r.needMcp
       ? r.connected ? (r.needHook ? `<button class="btn" data-key="${esc(r.key)}">Disconnect</button>` : '')
         : `<button class="btn${small ? '' : ' primary'}" data-key="${esc(r.key)}">${r.outdated ? 'Reconnect' : 'Connect'}</button>`
       : r.mcp?.snippet ? `<button class="btn" data-copy="${esc(r.key)}">Copy setup</button>` : '';
@@ -106,6 +120,10 @@ function agentSetup(root, { llm = true, list: asList = false, slot = null } = {}
     // [state, text]: the pill on a card and the line in the order list.
     const status = (r) => {
       const n = running(r);
+      if (r.server) {
+        const where = /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:|\/|$)/i.test(r.url) ? 'This Mac' : 'Another machine';
+        return r.connected ? ['available', `Connected · ${where}` + (n ? ` · ${n} running` : '')] : r.said ? ['warn', `Not connected · ${where}`] : ['', `Checking · ${where}`];
+      }
       if (r.desktop) return ['warn', 'Needs Claude Code'];
       if (r.outdated && !errors[r.key]) return ['warn', 'Needs reconnecting'];
       if (errors[r.key]) return ['warn', 'Couldn’t connect'];
@@ -129,11 +147,11 @@ function agentSetup(root, { llm = true, list: asList = false, slot = null } = {}
     const one = (r) => card(r.key, r.name, icon(r), status(r), (what(r) ? `<p class="reason">${esc(what(r))}</p>` : '') + line(r, false));
     const item = (r, i, of) => {
       const [state, text] = status(r);
-      return `<li class="ch-item" data-tool="${esc(r.key)}"><button class="grip" draggable="true" data-grip="${esc(r.key)}" title="Drag to reorder" aria-label="${esc(r.name)}, ${i + 1} of ${of}. Arrow keys move it.">${'<i></i>'.repeat(3)}</button><div class="ch-body"><div class="row"><span class="name">${esc(r.name)}<small data-state="${state}">${esc(text)}</small></span><button class="btn" data-open-agent="${esc(r.key)}">Settings</button></div></div>${action(r, true)}</li>`;
+      return `<li class="ch-item" data-tool="${esc(r.key)}"><button class="grip" draggable="true" data-grip="${esc(r.key)}" title="Drag to reorder" aria-label="${esc(r.name)}, ${i + 1} of ${of}. Arrow keys move it.">${'<i></i>'.repeat(3)}</button><div class="ch-body"><div class="row"><span class="name">${icon(r)}${esc(r.name)}<small data-state="${state}">${esc(text)}</small></span><button class="btn" data-open-agent="${esc(r.key)}">Settings</button></div></div>${action(r, true)}</li>`;
     };
     const a = document.activeElement, inOrder = !!a?.closest?.('.as-order');
     const had = root.contains(a) && (a.dataset.grip ? `[data-grip="${CSS.escape(a.dataset.grip)}"]` : a.dataset.key ? `${inOrder ? '.as-order' : '.vendors'} [data-key="${CSS.escape(a.dataset.key)}"]` : '');
-    root.querySelector('.as-order').innerHTML = ordered.length ? `<h3>In this order</h3><p class="as-hint">Drag to reorder. Rename with AI uses the first agent with a running session; Shift-click to pick another.<span hidden>Agent order. Tools you use. Show more, copy config.</span></p><ol class="ch-list ch-order">${ordered.map((r, i) => item(r, i, ordered.length)).join('')}</ol>`
+    root.querySelector('.as-order').innerHTML = ordered.length ? `<h3>In this order</h3><p class="as-hint">Drag to reorder. The sidebar lists agents’ sessions in this order. With no chat model set up, Rename with AI asks the first one here that has a session running on this Mac. Shift-click Rename with AI to pick another.<span hidden>Agent order. Tools you use. Show more, copy config.</span></p><ol class="ch-list ch-order">${ordered.map((r, i) => item(r, i, ordered.length)).join('')}</ol>`
       : '<p class="empty">No agent connected yet. Pick one below.</p>';
     const on = others.filter((r) => r.connected);
     root.querySelector('.as-cards').innerHTML = here.map(one).join('') + (others.length ? card('apps', 'Other apps on this Mac', '', on.length ? ['available', on.map((r) => r.name).join(' · ')] : ['', 'Not connected'],
@@ -235,6 +253,13 @@ function agentSetup(root, { llm = true, list: asList = false, slot = null } = {}
       const c = clients.find((x) => x.id === copy.dataset.copy);
       navigator.clipboard.writeText(c.snippet).then(() => { const was = copy.textContent; copy.textContent = 'Copied'; setTimeout(() => copy.textContent = was, 1500); });
       return;
+    }
+    // Hermes or a Hermit service in the order list: Turn off clears its address, as Off in its card does.
+    const off = e.target.closest('[data-server-off]');
+    if (off) {
+      const k = off.dataset.serverOff;
+      if (!confirm(`Turn off ${AGENT_TOOLS[k][0]}? Its sessions leave the sidebar. To turn it back on, enter its address in its card.`)) return;
+      return void ask({ cmd: 'settings.set', settings: { [k + 'Url']: '' } }).then(refresh);
     }
     const all = e.target.closest('[data-reconnect-all]');
     if (all) {
