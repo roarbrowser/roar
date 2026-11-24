@@ -637,5 +637,14 @@
       <description><![CDATA[Hermit rows have a Thinking box that shows what the session is thinking as it happens. Hermit rows update at once and their ages keep counting. Renamed chats take their new name: Claude Code renames and its own chat titles, Hermit renames and the Ask chats opened from them.]]></description>
       <enclosure url="https://github.com/roarbrowser/roar/releases/download/v1.34.0/Roar-1.34.0.dmg" type="application/octet-stream" sparkle:edSignature="fyrVAj6w2mFLKnYr7C+aPe8kIqHX3u72JFHu9etuJYFGOpDCatZz7lfh05tJZHW7NtoYMkJrKtCES2PV0FyTDg==" length="199486428"/>
     </item>
+    <item>
+      <title>1.35.0</title>
+      <pubDate>Tue, 24 Nov 2026 04:29:31 +0000</pubDate>
+      <sparkle:version>13500</sparkle:version>
+      <sparkle:shortVersionString>1.35.0</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[A Hermit session opened from the sidebar now follows along live: replies, its current step, prompts from anywhere, new approvals and renames. A Thinking box in its header shows what it is thinking as it happens. The Thinking boxes on the sidebar rows are gone.]]></description>
+      <enclosure url="https://github.com/roarbrowser/roar/releases/download/v1.35.0/Roar-1.35.0.dmg" type="application/octet-stream" sparkle:edSignature="ps5ZsC2SiAX7cBMLZpZ/PnbJxIzAzFpWEbBRSKVYhC902S/T/lvGL6BEzn4R5A8vCoCDTiDs3IZ2bvXaTg53DQ==" length="199496156"/>
+    </item>
   </channel>
 </rss>
