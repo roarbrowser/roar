@@ -586,10 +586,87 @@
       .filter((m) => m.text).sort((a, b) => a.at - b.at || b.i - a.i).map(({ role, text: t }) => ({ role, text: t }));
   };
 
+  // One opencode session as it runs, for a Hermit session opened in Ask: what was said (GET …/message) plus what the event
+  // stream (GET /api/event) adds since. Text and thinking stream in parts, keyed by message, kind and number; a part may start
+  // before the last one ended. A step that ended is read again from the server, whose copy replaces the streamed one.
+  // event(data) -> { reload, paint, connected, title, permission, replied, form, gone, done }; turns() -> [{ role, key, parts: [{ key, kind: text|think, text }] }].
+  const opencodeView = (sid) => {
+    let said = [], busy = false, step = '';
+    const live = new Map(), kids = new Set(), cut = (t) => t.slice(-20000);
+    const open = (id) => { if (!live.has(id)) live.set(id, { parts: new Map(), ended: false }); return live.get(id); };
+    const load = (r, ended = []) => {
+      let j = r;
+      if (typeof j === 'string') { try { j = JSON.parse(j); } catch { return false; } }
+      if (!Array.isArray(j?.data)) return false;
+      said = j.data.filter((m) => m && (m.type === 'user' || m.type === 'assistant')).map((m, i) => {
+        const n = {}, parts = [];
+        const add = (kind, t) => { const key = kind + '/' + (n[kind] = (n[kind] ?? -1) + 1); if (String(t || '').trim()) parts.push({ key, kind, text: cut(String(t).trim()) }); };
+        if (typeof m.text === 'string') add('text', m.text);
+        for (const p of Array.isArray(m.content) ? m.content : []) if (p?.type === 'text') add('text', p.text); else if (p?.type === 'reasoning') add('think', p.text);
+        return { id: String(m.id || i), role: m.type, at: +(m.time?.created || 0), i, parts };
+      }).sort((a, b) => a.at - b.at || b.i - a.i);
+      for (const id of ended) live.delete(id);
+      return true;
+    };
+    // The messages a read asked for now will hold in full: hand them to load() with its answer.
+    const ended = () => [...live].filter(([, m]) => m.ended).map(([id]) => id);
+    const event = (data) => {
+      let e;
+      try { e = JSON.parse(data); } catch { return {}; }
+      const d = e.data || {}, from = d.sessionID || d.form?.sessionID;
+      if (e.type === 'server.connected') return { connected: true };
+      if (e.type === 'session.created' && d.parentID && (d.parentID === sid || kids.has(d.parentID))) { kids.add(d.sessionID); return {}; }
+      if (from !== sid && !kids.has(from)) return {};
+      if (e.type === 'permission.asked') return { permission: { id: d.id, session: from, text: d.message || [d.action, d.resources?.[0]].filter(Boolean).join(': ') } };
+      if (e.type === 'permission.replied') return { replied: d.requestID || d.id };
+      if (e.type === 'form.created') return { form: d.form?.title || 'a question' };
+      if (from !== sid) return {};
+      const id = String(d.assistantMessageID || ''), say = (w) => { const was = step; busy = true; step = w; return { paint: was !== w }; };
+      const m = /^session\.(text|reasoning)\.(started|delta|ended)$/.exec(e.type);
+      if (m) {
+        const kind = m[1] === 'text' ? 'text' : 'think', parts = open(id).parts, key = kind + '/' + (d.ordinal || 0);
+        const part = parts.get(key) || { key, kind, text: '' };
+        if (m[2] === 'delta') part.text += d.delta || '';
+        if (m[2] === 'ended' && typeof d.text === 'string' && d.text) part.text = d.text;
+        parts.set(key, part);
+        if (m[2] !== 'ended') say(kind === 'text' ? 'Writing' : 'Thinking');
+        return { paint: true };
+      }
+      switch (e.type) {
+        case 'session.execution.started': return { ...say(''), paint: true, reload: true };
+        case 'session.inbox.delivered': return { reload: true };
+        case 'session.step.started': return say('Thinking');
+        case 'session.tool.input.started': return say(String(d.name || '').slice(0, 60).replace(/^./, (c) => c.toUpperCase()));
+        case 'session.step.ended': case 'session.step.failed': if (live.has(id)) live.get(id).ended = true; return { reload: true };
+        case 'session.renamed': return { title: String(d.title || '') };
+        case 'session.deleted': busy = false; return { gone: true, paint: true };
+        case 'session.execution.interrupted': if (d.reason === 'superseded') return {};  // falls through
+        case 'session.execution.succeeded': case 'session.execution.failed':
+          busy = false, step = '';
+          for (const x of live.values()) x.ended = true;
+          return { done: true, paint: true, reload: true, ...(e.type.endsWith('failed') && { failed: String(d.error?.message || 'it failed') }) };
+      }
+      return {};
+    };
+    const turns = () => {
+      const out = said.map((m) => {
+        const now = m.role === 'assistant' && live.get(m.id);
+        if (!now) return { role: m.role, key: m.id, parts: m.parts };
+        const parts = m.parts.map((p) => { const l = now.parts.get(p.key); return l && l.text.trim().length > p.text.length ? { ...p, text: cut(l.text.trim()) } : p; });
+        for (const l of now.parts.values()) if (l.text.trim() && !parts.some((p) => p.key === l.key)) parts.push({ ...l, text: cut(l.text.trim()) });
+        return { role: m.role, key: m.id, parts };
+      });
+      const known = new Set(said.map((m) => m.id));
+      for (const [id, m] of live) if (!known.has(id)) out.push({ role: 'assistant', key: 'live-' + id, parts: [...m.parts.values()].filter((p) => p.text.trim()).map((p) => ({ ...p, text: cut(p.text.trim()) })) });
+      return out.filter((t) => t.parts.length);
+    };
+    return { load, ended, event, turns, get busy() { return busy; }, set busy(v) { busy = v; }, get step() { return step; } };
+  };
+
   // A server URL typed with no path gets /v1, where Hermes and oMLX serve their API ("https://host" -> "https://host/v1").
   const withApiPath = (u) => (/^https?:\/\/[^/?#]+\/?$/i.test(u) ? u.replace(/\/?$/, '/v1') : u);
 
-  const api = { VENDORS, vendorOf, urlWhere, withApiPath, hermitBase, hermitOc, HERMIT_CHAT, hermitChat, opencodeHistory, keyGoesTo, modelList, idList, chatList, chatOrdered, chatOn, modelLabel, sourceLabel, sourceTool, opencodeEvents, defaultModel, renamePrompt, renameKeys, autoNameKeys, parseNames, oneShot, SEARCH_SYSTEM, searchMode, openRequest, addSources, webSearchTool, CLI_PROVIDERS, CLI_LOGIN, signedOutError, pageRefusal, shotRefusal, cliStatus, cliPrompt, cliParser, parseProviders, sseParser, streamDelta, requestBody, modelIds, providerStatus, detectProviders, renderMarkdown };
+  const api = { VENDORS, vendorOf, urlWhere, withApiPath, hermitBase, hermitOc, HERMIT_CHAT, hermitChat, opencodeHistory, opencodeView, keyGoesTo, modelList, idList, chatList, chatOrdered, chatOn, modelLabel, sourceLabel, sourceTool, opencodeEvents, defaultModel, renamePrompt, renameKeys, autoNameKeys, parseNames, oneShot, SEARCH_SYSTEM, searchMode, openRequest, addSources, webSearchTool, CLI_PROVIDERS, CLI_LOGIN, signedOutError, pageRefusal, shotRefusal, cliStatus, cliPrompt, cliParser, parseProviders, sseParser, streamDelta, requestBody, modelIds, providerStatus, detectProviders, renderMarkdown };
   if (typeof module === 'object') module.exports = api;
   else globalThis.chatCore = api;
 })();

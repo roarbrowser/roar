@@ -415,6 +415,22 @@ check(core.hermitOc('http://127.0.0.1:9121/oc', 'http://127.0.0.1:9121') && core
     { type: 'assistant', time: { created: 1 }, content: [{ type: 'tool', name: 'read' }] },
     { type: 'synthetic', time: { created: 0 }, text: 'x' }, null] });
   check(JSON.stringify(h) === JSON.stringify([{ role: 'user', text: 'Now fix it' }, { role: 'assistant', text: 'Done.' }]), 'history: text only, oldest first: ' + JSON.stringify(h));
+  {
+    const v = core.opencodeView('a'), ev = (type, data) => v.event(JSON.stringify({ type: 'session.' + type, data: { sessionID: 'a', ...data } }));
+    const text = () => v.turns().map((t) => t.role[0] + ':' + t.parts.map((p) => p.kind[0] + '=' + p.text).join(',')).join(' ');
+    v.load({ data: [{ id: 'm1', type: 'user', text: 'hi', time: { created: 1 } }] });
+    ev('execution.started', {}); ev('reasoning.started', { assistantMessageID: 'm2', ordinal: 0 }); ev('reasoning.delta', { assistantMessageID: 'm2', ordinal: 0, delta: 'hm' });
+    check(v.busy && v.step === 'Thinking' && text() === 'u:t=hi a:t=hm', 'live view: thinking streams after what was said: ' + text());
+    check(JSON.stringify(v.event('{"type":"session.reasoning.delta","data":{"sessionID":"b","delta":"x"}}')) === '{}' && !text().includes('x'), 'live view: another session is ignored');
+    v.load({ data: [{ id: 'm2', type: 'assistant', time: { created: 2 }, content: [{ type: 'reasoning', text: 'h' }] }, { id: 'm1', type: 'user', text: 'hi', time: { created: 1 } }] });
+    check(v.turns()[1].parts.length === 1 && v.turns()[1].parts[0].text === 'hm', "live view: a read mid-part doesn't cut or double it");
+    ev('step.ended', { assistantMessageID: 'm2' });
+    const done = v.ended();
+    ev('text.started', { assistantMessageID: 'm3', ordinal: 0 }); ev('text.delta', { assistantMessageID: 'm3', ordinal: 0, delta: 'yo' });
+    v.load({ data: [{ id: 'm2', type: 'assistant', time: { created: 2 }, content: [{ type: 'reasoning', text: 'hm.' }] }] }, done);
+    check(v.turns().map((t) => t.parts[0].text).join() === 'hm.,yo', "live view: a step that ended is the server's, a newer one stays");
+    check(ev('execution.interrupted', { reason: 'superseded' }).done === undefined && ev('execution.succeeded', {}).done && !v.busy, 'live view: the turn ends');
+  }
   check(core.opencodeHistory('{"data":[{"type":"user","text":"hi"}]}').length === 1 && core.opencodeHistory('oops').length === 0 && core.opencodeHistory({}).length === 0, 'history: a string or nothing usable');
 }
 console.log(fail ? `${fail} failure(s)` : 'ok');

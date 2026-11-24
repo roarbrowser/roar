@@ -5477,7 +5477,6 @@ void Controller::ApplySettings(CefRefPtr<CefDictionaryValue> d) {
   if (d->HasKey("dockBadge")) SyncAlertBadge();
   if (d->HasKey("hermesUrl") || d->HasKey("hermesSpace") || d->HasKey("claudeSidebar")) HermesPoll(true);
   if (d->HasKey("hermitUrl") || d->HasKey("claudeSidebar")) HermitPoll(true);
-  if (d->HasKey("agentThinking")) HermitThinkSync();
   if (d->HasKey("dictation") && !s.dictation) DictationOff();
   // Turned on: agents already on the extension go, then every worker shares. Off: each keeps the copy it has.
   if (d->HasKey("tweaksShared") && d->GetBool("tweaksShared") != tweaks_were_shared) {
@@ -6759,9 +6758,6 @@ bool Controller::HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> 
     HermitPoll(true);
     PushSidebar();  // Chat models lists the service's own row only while it has a password (state's claude.hermitKey).
     callback->Success("");
-  } else if (cmd == "hermit.thinking") {
-    // {rowId: text} for the rows whose Thinking box is checked; the sidebar asks once, then roar.thinking keeps it current.
-    callback->Success(HermitThinkJson());
   } else if (cmd == "hermit.keyHas") {
     // Whether a password is saved, never the password.
     hermit_key_ = platform::SecretHas(kHermitSecret);

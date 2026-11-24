@@ -251,14 +251,6 @@ body.drag-active .pinned:empty::before { content: 'Drop to pin'; color: var(--in
 .cl-acts button:hover { background: var(--hover); color: var(--ink); }
 .cl-acts button[aria-disabled=true] { opacity: .35; cursor: default; }
 .cl-acts button[aria-pressed=true] { color: var(--mane, #d9822b); }
-/* A Hermit row's Thinking box sits at the end of its second line; what it thinks goes under the row. */
-.cl.can-think .label small { padding-right: 74px; }
-.cl-thinkbox { position: absolute; right: 6px; bottom: 4px; display: flex; align-items: center; gap: 4px; font-size: 10.5px; line-height: 1.3; color: var(--ink-3); cursor: pointer; }
-.cl-thinkbox:hover, .cl-thinkbox:has(:checked) { color: var(--ink-2); }
-.cl-thinkbox input { width: 12px; height: 12px; margin: 0; accent-color: var(--mane, #d9822b); cursor: pointer; }
-.cl.can-think .cl-acts { top: 2px; } .cl.can-think .cl-acts button { height: 20px; }
-.cl-think { margin: 0 6px 6px 32px; padding: 5px 8px; max-height: 108px; overflow-y: auto; overscroll-behavior: contain; border-left: 2px solid var(--rule); color: var(--ink-2); font-size: 11px; line-height: 1.4; white-space: pre-wrap; overflow-wrap: anywhere; user-select: text; }
-.cl-think:empty::before { content: "No thinking yet"; color: var(--ink-3); }
 .cl .cl-reply { align-self: flex-start; margin-top: 4px; padding: 2px 8px; border-radius: 999px; font: 600 11px var(--ui); background: var(--mane-soft, rgba(217,130,43,.18)); color: var(--mane, #d9822b); }
 .af-row { width: 100%; } .af-row .agent-icon { color: var(--ink-2); }
 .cl .clmain { display: flex; align-items: flex-start; gap: 8px; flex: 1; min-width: 0; height: 100%; text-align: left; cursor: pointer; }
@@ -742,7 +734,6 @@ window.roar = {
     const needs = (c) => c.state === 'needs_you' && !c.acked;
     const names = agentNames(s);
     const cl = hermesOrder((s.settings?.claudeSidebar !== false && s.claude?.items || []).map((c) => names[c.id] ? { ...c, project: names[c.id] } : c).sort((a, b) => (b.started || b.updated) - (a.started || a.updated) || (a.id < b.id ? -1 : 1)));
-    clThink = clThinkMap(s);
     // Hidden sessions live in settings so they stay hidden after a restart; ids of gone sessions are dropped.
     clHiddenAt = clHiddenMap(s);
     const clPruned = clHiddenPrune(clHiddenAt, cl.map((c) => c.id));
@@ -767,12 +758,11 @@ window.roar = {
       // A Hermes server's line is already in Hermes's own words ("home · Working …"): no tidying.
       const sub = c.remote ? c.doing || '' : tidy(c.doing || (c.prompt || '').split('\n')[0]);
       const open = false;
-      const tint = clColor(s, c.id), thinks = clThinkSession(c), thinkOn = !!thinks && Object.hasOwn(clThink, c.id);
-      return `<div class="row pr cl${tint ? ' tint' : ''}${thinks ? ' can-think' : ''}${needs(c) ? ' needs' : ''}${c.state === 'starting' ? ' starting' : ''}${clFull[c.id]?.active ? ' active' : ''}" data-clid="${esc(c.id)}"${tint ? ` style="--cl-bg:${tint}"` : ''} data-cltab="${clFull[c.id]?.id || ''}" title="${esc((needs(c) && c.ask) || c.prompt || c.cwd || '')}">` +
+      const tint = clColor(s, c.id);
+      return `<div class="row pr cl${tint ? ' tint' : ''}${needs(c) ? ' needs' : ''}${c.state === 'starting' ? ' starting' : ''}${clFull[c.id]?.active ? ' active' : ''}" data-clid="${esc(c.id)}"${tint ? ` style="--cl-bg:${tint}"` : ''} data-cltab="${clFull[c.id]?.id || ''}" title="${esc((needs(c) && c.ask) || c.prompt || c.cwd || '')}">` +
         `<button class="clmain" aria-label="${esc(agentName(c))}: ${esc(c.project)}, ${clStates[st] || st}${sub ? ': ' + esc(sub) : ''}. Open"><span class="cl-ic">${agentIcon(c, 16)}<span class="dot ${esc(st === 'working' && c.tone || st)}" aria-hidden="true"></span></span>` +
         `<span class="label"><span class="cl-name"><b>${esc(c.project)}</b><time data-at="${+c.updated || 0}">${clAgo(c.updated)}</time></span><small><span class="vh">${clStates[st] || st}: </span>${esc(sub)}</small>` +
         `</span></button>` +
-        (thinks ? `<label class="cl-thinkbox" title="Show what it's thinking, live"><input type="checkbox" data-clthink="${esc(c.id)}"${thinkOn ? ' checked' : ''} aria-label="Show thinking: ${esc(c.project)}">Thinking</label>` : '') +
         `<span class="cl-acts">` +
         (c.remote ? '' : aiRn('session', c.id, c.project)) +
         (c.remote ? '' : `<button data-clbeside="${esc(c.id)}" aria-pressed="${!!clFull[c.id]?.split}" aria-label="${clFull[c.id]?.split ? `Stop showing ${esc(c.project)} side by side` : `Show ${esc(c.project)} side by side with the page you're on`}" title="${clFull[c.id]?.split ? 'Back to one page' : 'Side by side with this page'}">${ico.beside}</button>`) +
@@ -780,7 +770,6 @@ window.roar = {
         (c.live ? `<button data-clquit="${esc(c.id)}" aria-label="End ${esc(c.project)}" title="End this session (closes its terminal)">${ico.quit}</button>` : '') +
         (c.live || c.remote ? `<button data-clhide="${esc(c.id)}" title="${clIsHidden(c.id) ? 'Show this session again' : 'Hide (Show hidden brings it back)'}" aria-label="${clIsHidden(c.id) ? 'Unhide' : 'Hide'} ${esc(c.project)}">${ico.hide}</button></span></div>`
           : `<button data-cldismiss="${esc(c.id)}" title="Hide this session" aria-label="Hide ${esc(c.project)}">${ico.hide}</button></span></div>`) +
-        (thinkOn ? `<div class="cl-think" role="log" aria-live="off" aria-label="Thinking: ${esc(c.project)}" tabindex="0" data-clthought="${esc(c.id)}"></div>` : '') +
         (open ? `<form class="clq" data-clq="${esc(c.id)}"><input placeholder="Reply to ${esc(c.project)}…" title="Empty Enter accepts the highlighted choice" autocomplete="off" spellcheck="false" aria-label="Reply to ${esc(c.project)}" value="${esc(clDraft[c.id] || '')}"><span class="clq-acts"><button type="button" data-tab aria-label="Attach this tab" ${attachAttrs}>${ico.attach}</button><button class="send" aria-label="Send">${ico.send}</button></span></form>` : '') ;
     };
     // A session started here shows at once, until its hook (or claude-ctl's stand-in) reports.
@@ -847,7 +836,6 @@ window.roar = {
     const chatRows = newChats + (chatGroups.length > 1 ? chatGroups.map((g) => clSub('Ask · ' + g.key) + g.rows.map(chatRow).join('')).join('') : chatList.map(chatRow).join(''));
     const both = (starting || clVis.length) && chatRows;
     setHtml($('cl'), (codeRows + (both && (chatGroups.length < 2 || newChats) ? clSub('Ask') : '') + chatRows || (starting || afRow ? '' : '<div class="note">No sessions yet. Press Code to start a coding agent, or Ask to talk to a model.</div>')) + clHidRow + afRow);
-    clThoughtsFill();
     // An Ask tab becoming active opens AI, so its row (the only place it shows) is visible.
     const askNow = state.tabs.find((t) => t.active && askTab(t))?.id || 0;
     if (askNow && askNow !== askActive) {
@@ -1957,7 +1945,6 @@ document.addEventListener('click', (e) => {
   ask({ cmd: 'tab.unsplit', id: +b.dataset.unsplit || 0 });
 }, true);
 document.addEventListener('click', (e) => {
-  if (e.target.closest('.cl-thinkbox, .cl-think')) return;  // Its own box and text: never opens the session.
   const rp = e.target.closest('[data-clreply]');
   if (rp) {
     e.stopPropagation();
@@ -2035,26 +2022,7 @@ $('ol-open').onclick = () => state?.outlook && ask({ cmd: 'open', text: `https:/
 // Multi-select delete: ticked messages go to Gmail in one Delete per account.
 const mailSel = new Set();
 // Agent sessions hidden by the viewer, {id: when hidden} (settings.agentHidden): one that asks for you after that comes back.
-// Thinking boxes on Hermit rows: {rowId: when checked} (settings.agentThinking) and each checked row's text (roar.thinking).
-var clThink = {}, clThoughts = {}, clAge = null;
-function clThoughtsFill() {
-  for (const el of document.querySelectorAll('#cl [data-clthought]')) {
-    const text = clThoughts[el.dataset.clthought] || '';
-    if (el.textContent === text) continue;
-    // Follows the newest words unless you scrolled up to read.
-    const follow = !el.textContent || el.scrollHeight - el.scrollTop - el.clientHeight < 24, top = el.scrollTop;
-    el.textContent = text;
-    el.scrollTop = follow ? el.scrollHeight : top;
-  }
-}
-roar.thinking = (all) => { clThoughts = all || {}; clThoughtsFill(); };
-ask({ cmd: 'hermit.thinking' }).then((j) => roar.thinking(typeof j === 'string' ? JSON.parse(j) : j)).catch(() => {});
-document.addEventListener('change', (e) => {
-  const b = e.target.closest?.('[data-clthink]');
-  if (!b) return;
-  clThink = clThinkSet(clThink, b.dataset.clthink, b.checked);
-  ask({ cmd: 'settings.set', settings: { agentThinking: JSON.stringify(clThink) } });
-});
+var clAge = null;
 // Ages move on between renders.
 setInterval(() => { if (clAge && !document.hidden) for (const t of document.querySelectorAll('#cl time[data-at]')) { const w = clAge(+t.dataset.at); if (t.textContent !== w) t.textContent = w; } }, 10000);
 let clHiddenAt = {}, clShowHidden = false;

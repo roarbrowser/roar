@@ -156,32 +156,9 @@ try {
   const html = await side(`document.querySelector('[data-clid="hermit-${xss.id}"]')?.outerHTML || ''`);
   check(html.includes('&lt;img') && !(await side(`!!document.querySelector('[data-clid="hermit-${xss.id}"] img')`)), 'a title is text, not markup');
   check(!html.includes('data-clbeside') && !html.includes('data-clfocus') && !html.includes('data-clquit') && html.includes('data-clhide'), 'no reply, terminal or side by side on the row, but it can be hidden');
-  // Thinking: a box on each row with a session, off until checked, its words live under the row and never in the rows.
-  const box = (id) => `document.querySelector('[data-clthink="${id}"]')`, thought = (id) => side(`document.querySelector('[data-clthought="${id}"]')?.textContent ?? null`);
-  const pid = 'hermit-' + parent.id, cid = 'hermit-card-t_run';
-  check(await side(`${box(pid)}?.checked === false && ${box(cid)}?.checked === false && !document.querySelector('[data-clthink="hermit-card-t_ask"]')`), 'each row with a session has a Thinking box, unchecked');
-  check((await thought(pid)) === null && !f.eventAsks.at(-1).types.includes('session.reasoning.delta'), 'unchecked: no thinking shown, none asked for');
-  f.say(parent.id, 'assistant', 'Earlier words.');
-  const tabsBefore = (await side(`ask({ cmd: 'state' }).then((s) => s.tabs.length)`));
-  await side(`${box(pid)}.click()`);
-  check(!!(await until(async () => (await thought(pid)) === 'SECRET THINKING', 5000)), 'checked: the thinking it did before shows: ' + await thought(pid));
-  check(!!(await until(() => f.eventAsks.at(-1).types.includes('session.reasoning.delta') && f.streams.length === 1, 5000)), 'and the stream now carries thinking');
-  t0 = Date.now();
-  f.think(parent.id, 'Let me ', 'look at <b>trains</b>.');
-  check(!!(await until(async () => (await thought(pid)) === 'Let me look at <b>trains</b>.', 3000)), `new thinking replaces it as it streams, in ${Date.now() - t0} ms, as text`);
-  check(!!(await until(async () => /Thinking$|question$/.test((await row(pid))?.doing || ''), 5000)), 'the row keeps its own words: ' + (await row(pid))?.doing);
-  f.emit('session.reasoning.delta', { sessionID: worker.id, delta: 'UNCHECKED WORDS' });
-  f.thought(parent.id, 'Let me look at trains. Done.');
-  check(!!(await until(async () => (await thought(pid)) === 'Let me look at trains. Done.', 3000)), 'the finished thinking stays up');
-  check(!JSON.stringify(await items()).includes('trains') && !(await side(`JSON.stringify(clThoughts)`)).includes('UNCHECKED'), 'no thinking reaches the rows, none of an unchecked row reaches the sidebar');
-  f.think(worker.id, 'x');
-  check(!!(await until(async () => /^coder · Working/.test((await row(cid))?.doing || ''), 3000)), 'a card keeps its pace line');
-  check((await side(`ask({ cmd: 'state' }).then((s) => s.tabs.length)`)) === tabsBefore, 'checking a box opens nothing');
   f.rename(parent.id, 'Plan the long trip');
-  check(!!(await until(async () => (await row(pid))?.project === 'Plan the long trip', 5000)), 'a renamed session takes its new name');
-  await side(`${box(pid)}.click()`);
-  check(!!(await until(async () => (await thought(pid)) === null && (await side(`JSON.stringify(clThoughts)`)) === '{}', 5000)), 'unchecked again: the box and its text go');
-  if (process.env.SHOT_HOLD) { f.form(sub.id); await side(`${box(cid)}.click()`); f.think(worker.id, 'The login form posts to the old endpoint. I should read the route table first, then change the handler so the session cookie is set before the redirect.'); await sleep(+process.env.SHOT_HOLD); await side(`${box(cid)}.click()`); await sleep(500); }
+  check(!!(await until(async () => (await row('hermit-' + parent.id))?.project === 'Plan the long trip', 5000)), 'a renamed session takes its new name');
+  check(await side(`!document.querySelector('#cl input[type=checkbox]')`), 'the sidebar rows have no Thinking box');
 
   // A click opens the session in Ask: a card's worker session here, through a chat server at <service>/oc.
   const tabUrls = async () => (await side(`ask({ cmd: 'state' }).then((s) => JSON.stringify(s.tabs.map((t) => t.url)))`).then((j) => JSON.parse(j || '[]')));
@@ -199,6 +176,47 @@ try {
   check(await inChat(`[...document.querySelectorAll('#log .msg.user')].some((m) => m.textContent.includes('Fix the login page please')) && !document.getElementById('log').textContent.includes('SECRET')`), 'its words only: no reasoning or tool output');
   check(!!(await until(() => inChat(`document.getElementById('model').value === '@hermit|default'`), 10000)), 'on the service\'s own Hermit chat row: ' + await inChat(`document.getElementById('model').value`));
   check(!/\/oc/.test((await side(`ask({ cmd: 'state' }).then((s) => (typeof s === 'string' ? JSON.parse(s) : s).settings.chatProviders)`)) || ''), 'and nothing is added to the saved chat servers');
+  // Followed live: what others prompt, its thinking behind a box, its step. Nothing of another session.
+  const log = () => inChat(`document.getElementById('log').textContent`), thinks = () => inChat(`[...document.querySelectorAll('#log .think')].map((e) => e.textContent).join('|')`);
+  check(!!(await until(() => inChat(`!document.getElementById('think').hidden && !document.getElementById('think-on').checked`), 5000)) && (await thinks()) === '', 'the view has a Thinking box, unchecked, with no thinking shown');
+  check(!!(await until(() => f.eventAsks.some((a) => a.types.length === 0), 5000)), 'it opens the event stream');
+  check(/Working/.test(await inChat(`document.querySelector('.live .now')?.textContent`) || ''), 'a running session says it is working: ' + await inChat(`document.querySelector('.live .now')?.textContent`));
+  await until(() => inChat(`live?.read`), 5000);
+  f.think(worker.id, 'msg_w2', 'First the ', 'route <b>table</b>.');
+  f.think(parent.id, 'msg_p2', 'OTHER SESSION');
+  t0 = Date.now();
+  check(!!(await until(async () => /Thinking/.test(await inChat(`document.querySelector('.live .now').textContent`)), 3000)) && !(await log()).includes('route'), 'thinking unchecked: the step says so, its words stay out');
+  await inChat(`document.getElementById('think-on').click(); 1`);
+  check(!!(await until(async () => (await thinks()) === 'SECRET THINKING|First the route <b>table</b>.', 3000)), 'checked: all of it shows, as text: ' + await thinks());
+  f.emit('session.reasoning.delta', { sessionID: worker.id, assistantMessageID: 'msg_w2', ordinal: 0, delta: ' Then the form.' });
+  check(!!(await until(async () => (await thinks()).endsWith('table</b>. Then the form.'), 2000)), 'and goes on live');
+  f.emit('session.text.started', { sessionID: worker.id, assistantMessageID: 'msg_w2', ordinal: 0 });
+  f.emit('session.text.delta', { sessionID: worker.id, assistantMessageID: 'msg_w2', ordinal: 0, delta: 'Found the bug' });
+  f.thought(worker.id, 'msg_w2', 'First the route table. Then the form. Done.');
+  check(!!(await until(async () => (await thinks()).endsWith('Then the form. Done.') && (await log()).includes('Found the bug'), 2000)), 'a reply that starts before the thinking ends shows beside it');
+  f.tool(worker.id, 'webfetch');
+  check(!!(await until(async () => (await inChat(`document.querySelector('.live .now').textContent`)) === 'Working · Webfetch', 2000)), 'its step follows: ' + await inChat(`document.querySelector('.live .now').textContent`));
+  f.say(worker.id, 'assistant', 'Found the bug in the form.', { mid: 'msg_w2', think: 'First the route table. Then the form. Done.' });
+  f.emit('session.step.ended', { sessionID: worker.id, assistantMessageID: 'msg_w2' });
+  check(!!(await until(async () => (await log()).includes('Found the bug in the form.'), 3000)) && (await log()).split('Found the bug').length === 2 && (await thinks()).split('Done.').length === 2, "a step that ended is the server's copy, once");
+  f.say(worker.id, 'user', 'Prompt from the phone');
+  f.emit('session.inbox.delivered', { sessionID: worker.id, inboxID: 'i' });
+  check(!!(await until(() => inChat(`[...document.querySelectorAll('#log .msg.user')].some((m) => m.textContent === 'Prompt from the phone')`), 3000)), 'a prompt from elsewhere shows');
+  const wp = f.ask(worker.id, 'bash');
+  check(!!(await until(() => inChat(`document.querySelectorAll('#log .ask-ok button').length === 3`), 3000)), 'an approval can be answered here');
+  f.allow(wp.id);
+  check(!!(await until(() => inChat(`!document.querySelector('#log .ask-ok')`), 3000)), 'and goes once it was answered elsewhere');
+  check(!(await log()).includes('OTHER SESSION'), "none of another session's words");
+  f.rename(worker.id, 'Fix the sign-in page');
+  check(!!(await until(() => inChat(`document.getElementById('title').textContent === 'Fix the sign-in page' && document.title === 'Fix the sign-in page'`), 3000)), 'a rename shows at once');
+  if (process.env.SHOT) { const t = (await list()).find((x) => x.url.includes('chat.html#hermit-' + worker.id)); const ws = new WebSocket(t.webSocketDebuggerUrl); await new Promise((r) => (ws.onopen = r)); const r = await new Promise((ok) => { ws.onmessage = (e) => ok(JSON.parse(e.data)); ws.send(JSON.stringify({ id: 1, method: 'Page.captureScreenshot' })); }); ws.close(); (await import('node:fs')).writeFileSync(process.env.SHOT, Buffer.from(r.result.data, 'base64')); }
+  // A dropped stream comes back and catches up.
+  for (const s of f.streams.filter((s) => !s.types.size)) s.res.destroy();
+  f.say(worker.id, 'assistant', 'Said while away.');
+  check(!!(await until(async () => (await log()).includes('Said while away.'), 8000)), 'a dropped stream comes back and catches up');
+  await inChat(`document.getElementById('think-on').click(); 1`);
+  check(!!(await until(async () => (await thinks()) === '', 2000)) && !(await log()).includes('route table'), 'unchecked: the thinking goes');
+  check(!(await inChat(`JSON.stringify(chats)`)).includes('THINKING') && !(await inChat(`JSON.stringify(chats)`)).includes('route table'), 'no thinking is kept with the chat');
   const sessionsMade = f.log.filter((l) => l.method === 'POST' && l.path === '/oc/api/session').length;
   await inChat(`document.getElementById('text').value = 'Use the new endpoint'; send(); 1`);
   const prompt = await until(async () => f.prompts.find((x) => x.text === 'Use the new endpoint'), 8000);

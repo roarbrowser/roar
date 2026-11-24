@@ -213,7 +213,6 @@ class Controller {
   void RefreshGmail(int space, int attempt = 0);
   void HermesResult(int generation, int kind, int code, const std::string& body);  // controller_hermes.cc
   void HermesNext();
-  void HermitThinkRead(int generation, const std::string& session, int code, const std::string& body);
   void HermitResult(int generation, int kind, int code, const std::string& body);  // controller_hermit.cc
   void HermitEvent(int generation, const std::string& data);  // One event off the stream; "" when only bytes came.
   void HermitStreamEnd(int generation, int code);
@@ -407,9 +406,6 @@ class Controller {
   void HermitSoon();
   void HermitDone();
   void HermitStreamStart();
-  void HermitThinkSync();  // Which sessions' thinking is shown, after the rows or the boxes changed.
-  void HermitThinkPush();
-  std::string HermitThinkJson() const;
   CefRefPtr<CefListValue> claude_ = CefListValue::Create();
   std::string claude_sig_;
   std::map<std::string, std::string> claude_states_;  // Session id -> last state, for its notification.
@@ -553,10 +549,7 @@ class Controller {
   std::map<std::string, std::map<std::string, std::string>> hermit_asks_;  // Session -> "p:"/"f:" + request id -> HermitAskWord.
   std::map<std::string, std::string> hermit_steps_;  // Session -> the tool its turn is using.
   std::map<std::string, double> hermit_heard_;       // Session -> its last event.
-  struct HermitThought { std::string text; bool next = false, live = false; };  // next: new thinking replaces it; live: events, not a read, filled it.
-  std::map<std::string, HermitThought> hermit_think_;       // Session -> its thinking, only while a row of it is checked.
-  std::map<std::string, std::string> hermit_think_rows_;    // Row -> its session, rows with a checked box only.
-  bool hermit_think_stream_ = false, hermit_think_push_ = false, hermit_stream_now_ = false, hermit_show_ = false;
+  bool hermit_show_ = false;  // A ClaudeTick for changed rows is on its way.
   std::vector<std::pair<int, std::string>> hermit_checks_;  // (kind, session) still to ask about, the next one last.
   std::string hermit_base_, hermit_status_, hermit_auth_;  // hermit_auth_: the Authorization header, in memory only.
   int hermit_key_ = -1;  // Whether a service password is in the Keychain: -1 not looked yet (hermit.keySet/keyHas keep it).

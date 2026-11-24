@@ -78,16 +78,6 @@ const clColor = (s, id) => { const p = clPair(s, id); return p.w || p.t; };
 const clHiddenMap = (s) => {
   try { const m = JSON.parse(s?.settings?.agentHidden || '{}'); return m && typeof m === 'object' && !Array.isArray(m) ? m : {}; } catch { return {}; }
 };
-// Hermit rows whose Thinking box is checked (settings.agentThinking, {rowId: checkedAtMs}). A row leaves when its turn ends
-// and comes back with the next, so ids aren't pruned by what's listed: only the newest 100 checks are kept.
-const clThinkMap = (s) => clHiddenMap({ settings: { agentHidden: s?.settings?.agentThinking } });
-const clThinkSet = (m, id, on, now = Date.now()) => {
-  const out = { ...m };
-  if (on) out[id] = now; else delete out[id];
-  return Object.fromEntries(Object.entries(out).sort(([, a], [, b]) => b - a).slice(0, 100));
-};
-// The opencode session a Hermit row leads to, '' for none (no session yet, or not a Hermit row).
-const clThinkSession = (c) => (c?.tool === 'hermit' && /^roar:\/\/ui\/chat\.html#hermit=([\w-]+)$/.exec(c.url || '')?.[1]) || '';
 // Drops ids not in |ids|; null when nothing changed. An empty list (sessions not read yet) prunes nothing.
 const clHiddenPrune = (m, ids) => {
   if (!ids.length) return null;
@@ -146,4 +136,4 @@ const URL_RE = /https?:\/\/[^\s<>"'`]+[^\s<>"'`.,;:!?)\]}]/g;
 const alertLink = (body) => (String(body || '').match(URL_RE) || [])[0] || '';
 const linkify = (body, e = typeof esc === 'function' ? esc : (s) => String(s).replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`)) =>
   String(body).split(/(https?:\/\/[^\s<>"'`]+[^\s<>"'`.,;:!?)\]}])/).map((p, i) => i % 2 ? `<a data-alert-link="${e(p)}">${e(p)}</a>` : e(p)).join('');
-if (typeof module === 'object') module.exports = { clHiddenMap, clHiddenPrune, clThinkMap, clThinkSet, clThinkSession, agentOrder, agentRank, clGroups, agentTool, agentNames, alertSession, alertChat, alertWhy, alertLink, linkify };
+if (typeof module === 'object') module.exports = { clHiddenMap, clHiddenPrune, agentOrder, agentRank, clGroups, agentTool, agentNames, alertSession, alertChat, alertWhy, alertLink, linkify };

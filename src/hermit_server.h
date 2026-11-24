@@ -65,29 +65,11 @@ inline const std::vector<std::string>& HermitEventTypes() {
 }
 
 // One `types` per event type: 2.3.2 refuses a comma list with a 400.
-// `thinking`: also the words of the running turn's thinking, asked for only while a row's Thinking box is checked.
-inline std::string HermitEventUrl(const std::string& base, bool thinking = false) {
+inline std::string HermitEventUrl(const std::string& base) {
   std::string url = base + "/oc/api/event";
   char sep = '?';
   for (const auto& t : HermitEventTypes()) url += sep + std::string("types=") + t, sep = '&';
-  if (thinking) url += "&types=session.reasoning.delta&types=session.reasoning.ended";
   return url;
-}
-
-// A session's newest messages, for the thinking it did before its box was checked:
-// {"data": [{type, content: [{type: "reasoning", text}, ...]}]}, newest first.
-inline std::string HermitThinkingUrl(const std::string& base, const std::string& id) {
-  return base + "/oc/api/session/" + id + "/message?order=desc&limit=4";
-}
-
-// What a thinking box holds: the last kHermitMaxThinking bytes, cut at a word so it never starts inside a character.
-constexpr size_t kHermitMaxThinking = 4000;
-inline std::string HermitThinkingTail(const std::string& s) {
-  if (s.size() <= kHermitMaxThinking) return s;
-  size_t at = s.size() - kHermitMaxThinking, space = s.find_first_of(" \n", at);
-  if (space != std::string::npos && space - at < 200) at = space + 1;
-  while (at < s.size() && (static_cast<unsigned char>(s[at]) & 0xC0) == 0x80) at++;
-  return "…" + s.substr(at);
 }
 
 // What a turn is doing between tools, in a step's words; "" for events that don't say.

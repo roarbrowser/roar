@@ -86,14 +86,8 @@ int main() {
   check(HermitTurnOf("session.execution.succeeded", "") == kHermitTurnEnded && HermitTurnOf("session.execution.failed", "") == kHermitTurnEnded, "succeeded or failed ends it");
   check(HermitTurnOf("session.execution.interrupted", "") == kHermitTurnEnded, "interrupted ends it too");
   check(HermitTurnOf("session.execution.interrupted", "superseded") == kHermitTurnNone, "unless a newer prompt took over");
-  check(HermitEventUrl("http://h").find("reasoning.delta") == std::string::npos && HermitEventUrl("http://h", true).find("&types=session.reasoning.delta&types=session.reasoning.ended") != std::string::npos,
-        "thinking's words are asked for only when shown");
   check(HermitPhase("session.reasoning.started") == "thinking" && HermitPhase("session.step.started") == "thinking" && HermitPhase("session.text.started") == "writing" && HermitPhase("session.tool.called").empty(), "phases");
   check(HermitUrlSession(HermitChatUrl("ses_1")) == "ses_1" && HermitUrlSession("").empty() && HermitUrlSession("roar://ui/settings.html#agents").empty(), "a row's session from its url");
-  std::string longer(3 * kHermitMaxThinking, 'a');
-  for (size_t i = 0; i < longer.size(); i += 2) longer.replace(i, 2, "é");
-  std::string tail = HermitThinkingTail(longer);
-  check(HermitThinkingTail("short") == "short" && tail.size() <= kHermitMaxThinking + 3 && tail.compare(3, 2, "é") == 0, "thinking keeps its end, never half a character");
   check(HermitTurnOf("session.idle", "") == kHermitTurnNone && HermitTurnOf("session.status", "") == kHermitTurnNone && HermitTurnOf("session.step.ended", "") == kHermitTurnNone,
         "nothing else counts (2.3.2 sends no session.idle)");
   check(HermitPending(true, kHermitTurnNone) && !HermitPending(false, kHermitTurnNone), "no newer event: /session/active says");

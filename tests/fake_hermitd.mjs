@@ -47,11 +47,11 @@ export function fakeHermitd({ password = 'pw' } = {}) {
     },
     tool(id, name) { f.emit('session.tool.input.started', { sessionID: id, id: 'call_' + randomBytes(4).toString('hex'), name }); },
     // Thinking as 2.3.2 streams it: started, deltas, ended with the whole text.
-    think(id, ...words) {
-      f.emit('session.reasoning.started', { sessionID: id });
-      for (const w of words) f.emit('session.reasoning.delta', { sessionID: id, delta: w });
+    think(id, mid, ...words) {
+      f.emit('session.reasoning.started', { sessionID: id, assistantMessageID: mid, ordinal: 0, native: {} });
+      for (const w of words) f.emit('session.reasoning.delta', { sessionID: id, assistantMessageID: mid, ordinal: 0, delta: w });
     },
-    thought(id, text) { f.emit('session.reasoning.ended', { sessionID: id, text }); },
+    thought(id, mid, text) { f.emit('session.reasoning.ended', { sessionID: id, assistantMessageID: mid, ordinal: 0, native: {}, text }); },
     rename(id, title) { f.sessions.get(id).title = title; f.emit('session.renamed', { sessionID: id, title }); },
     finish(id, how = 'succeeded') {
       f.active.delete(id);
@@ -76,10 +76,10 @@ export function fakeHermitd({ password = 'pw' } = {}) {
     archive(id) { const s = f.sessions.get(id); s.time.archived = nowMs(); f.active.delete(id); f.emit('session.archived', { sessionID: id }); },
     remove(id) { f.sessions.delete(id); f.active.delete(id); f.deleted.push(id); f.emit('session.deleted', { sessionID: id }); },
     // A message in a session's history, as GET /api/session/<id>/message gives it (2.3.2: type, text or content parts).
-    say(id, type, text) {
+    say(id, type, text, { mid = newId('msg'), think = 'SECRET THINKING' } = {}) {
       const list = f.messages.get(id) || [];
-      list.push({ id: newId('msg'), sessionID: id, type, time: { created: nowMs() + list.length },
-        ...(type === 'user' ? { text } : { content: [{ type: 'reasoning', text: 'SECRET THINKING' }, { type: 'text', text }, { type: 'tool', name: 'bash' }] }) });
+      list.push({ id: mid, sessionID: id, type, time: { created: nowMs() + list.length },
+        ...(type === 'user' ? { text } : { content: [{ type: 'reasoning', text: think }, { type: 'text', text }, { type: 'tool', name: 'bash' }] }) });
       f.messages.set(id, list);
     },
     // Answers a prompt the way 2.3.2 streams it: started, the text, succeeded.

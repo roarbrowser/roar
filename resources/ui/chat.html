@@ -35,7 +35,14 @@ select { font: 13px var(--ui); padding: 5px 9px; border-radius: 7px; border: 1px
 .page { display: flex; width: fit-content; align-items: center; gap: 6px; font-size: 12px; color: var(--ink-2); background: var(--ground); border-radius: 999px; padding: 2px 10px; margin-bottom: 6px; max-width: 100%; }
 .page span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .msg.user .page { background: var(--panel); }
-.cursor::after { content: '▍'; color: var(--mane); animation: blink 1s steps(2) infinite; }
+#think { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--ink-2); cursor: pointer; white-space: nowrap; }
+#think[hidden] { display: none; }
+#think input { margin: 0; accent-color: var(--mane); cursor: pointer; }
+.think { align-self: flex-start; max-width: min(760px, 88%); padding: 2px 14px; border-left: 2px solid var(--rule); color: var(--ink-2); font-size: 13px; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; }
+.live { display: flex; flex-direction: column; gap: 14px; }
+.live .now { font-size: 12px; color: var(--ink-3); padding-left: 14px; }
+.live .now:empty { display: none; }
+.cursor::after, .live .now.on::after { content: '▍'; color: var(--mane); animation: blink 1s steps(2) infinite; }
 @keyframes blink { 50% { opacity: 0; } }
 form { padding: 10px 20px 16px; display: grid; gap: 6px; }
 /* Text size zooms the messages and the box's text, never the scrolling log itself (it outgrew the window). */
@@ -64,6 +71,7 @@ textarea { flex: 1; resize: none; border: 0; background: none; color: var(--ink)
 <main>
   <header>
     <h1 id="title">Ask</h1>
+    <label id="think" title="Show what Hermit is thinking, live" hidden><input type="checkbox" id="think-on">Thinking</label>
     <button class="btn" id="new" type="button">New</button>
     <select id="model" aria-label="Model"></select>
     <button class="btn" id="refresh-models" type="button" title="Look for models again" aria-label="Refresh models">↻</button>
@@ -133,6 +141,7 @@ function sourcesHtml(list) {
   return ok.length ? `<div class="sources">Sources<ol>${ok.map((x) => `<li><a href="${esc(x.url)}" target="_blank" rel="noopener noreferrer">${esc(x.title || x.url)}</a></li>`).join('')}</ol></div>` : '';
 }
 function renderLog() {
+  if (live?.chat === chat) { $('title').textContent = document.title = chat.title || 'Ask'; return livePaint(); }
   $('title').textContent = chat.title || 'Ask';
   document.title = chat.title || 'Ask';
   $('log').innerHTML = chat.messages.length ? '' : `<p class="empty">${picked()?.kind === 'cli' ? CODE_COPY : ASK_COPY}</p>`;
@@ -146,11 +155,13 @@ const CODE_COPY = /^Win/.test(navigator.platform)
   : "Coding assistants you've installed (Claude Code, Codex, Gemini CLI, Qwen Code) run in a locked-down sandbox on your own plan. Sending a tab works with Claude Code only for now: Roar needs to run the agent with every tool off, and so far only Claude Code supports that here.";
 function show(c) {
   if (streaming) stop();
+  unfollow();
   chat = c;
   history.replaceState(null, '', c.messages.length || c.oc?.attached ? '#' + c.id : location.pathname);
   if (c.model && [...$('model').options].some((o) => o.value === c.model)) $('model').value = c.model;
   chat.search ??= searchDefault;
   paintAttach();
+  follow(c);
   renderLog();
   $('text').focus();
 }
@@ -231,6 +242,8 @@ async function send() {
   const text = $('text').value.trim(), [pid, ...rest] = $('model').value.split('|'), model = rest.join('|');
   const p = providers.find((x) => x.id === pid);
   if ((!text && !page) || !p || streaming) return;
+  if (live?.chat === chat && chat.oc?.attached && chat.oc.provider === p.id) return text && !page ? liveSend(p, text) : note(pageRefusal(effective(p)) || '');
+  if (live) unfollow(), renderLog();  // Another model picked: an ordinary chat from here on.
   const no = pageRefusal(effective(p));
   if (no && (page || chat.messages.some((m) => m.page))) return note(no);
   const mode = chat.search ? searchMode(p) : '';
@@ -392,7 +405,11 @@ $('text').addEventListener('input', grow);
 $('text').addEventListener('keydown', (e) => {
   if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); send(); }
 });
-$('form').onsubmit = (e) => { e.preventDefault(); streaming ? stop() : send(); };
+$('form').onsubmit = (e) => {
+  e.preventDefault();
+  if (live?.mine) return void liveCall(live.chat, 'POST', `/api/session/${live.chat.oc.session}/interrupt`).catch((x) => note(x.message));
+  streaming ? stop() : send();
+};
 $('new').onclick = () => show(newChat());
 $('settings').onclick = () => ask({ cmd: 'open', text: 'roar://ui/settings.html#chat', newTab: true });
 $('model').onchange = () => { if (chat) chat.model = $('model').value; paintAttach(); if (chat && !chat.messages.length) renderLog(); };
@@ -438,16 +455,171 @@ async function attachHermit(sid, st) {
   if (!chats.includes(c)) chats.unshift(c);
   return c;
 }
-// A session renamed while its chat is open here: the chat takes the new name.
-setInterval(async () => {
-  if (document.hidden || !chat?.oc?.attached) return;
-  const id = chat.id, st = await ask({ cmd: 'state' }).then((x) => typeof x === 'string' ? JSON.parse(x) : x).catch(() => null);
-  const name = (st?.claude?.items || []).find((c) => c.id === id)?.project?.slice(0, 60);
-  if (!name || chat.id !== id || chat.title === name) return;
-  chat.title = name;
+// An opened Hermit session is followed live while its tab is in front: the server's event stream adds to what was said,
+// from whoever prompts it. Prompts typed here go to the session and show through the same stream.
+let live = null, showThinking = false;
+const liveCall = (c, method, path, body) => ask({ cmd: 'chat.request', provider: c.oc.provider, what: 'opencode', method, path, ...(body && { body: JSON.stringify(body) }) });
+function unfollow() {
+  if (!live) return;
+  clearTimeout(live.retry), clearTimeout(live.soon);
+  if (live.qid) window.roarQueryCancel(live.qid);
+  live = null;
+  sendButton(false);
+}
+function follow(c) {
+  unfollow();
+  $('think').hidden = !c.oc?.attached;
+  if (!c.oc?.attached) return;
+  live = { chat: c, view: chatCore.opencodeView(c.oc.session), cards: new Map(), sent: [], wait: 1000, qid: 0, down: '', mine: false };
+  // Until the first read answers: what the chat held.
+  live.view.load({ data: c.messages.map((m, i) => ({ id: 'was-' + i, type: m.role, text: m.text, time: { created: i + 1 } })) });
+  livePaint();
+  if (!document.hidden) liveConnect();
+}
+function liveConnect() {
+  const me = live, sse = sseParser();
+  if (!me || me.qid) return;
+  ask({ cmd: 'state' }).then((x) => {
+    if (me !== live) return;
+    // Its own row, or the card it works for (whose name is the card's, not the session's).
+    const rows = ((typeof x === 'string' ? JSON.parse(x) : x).claude?.items || []).filter((r) => r.url === 'roar://ui/chat.html#hermit=' + me.chat.oc.session);
+    const own = rows.find((r) => r.id === me.chat.id);
+    if (own) liveTitle(own.project);
+    if (!me.heard) me.view.busy = rows.some((r) => r.state === 'working' || r.state === 'needs_you');
+    livePaint();
+  }).catch(() => {});
+  const qid = me.qid = window.roarQuery({
+    request: JSON.stringify({ cmd: 'chat.request', provider: me.chat.oc.provider, what: 'opencode', method: 'GET', path: '/api/event' }),
+    persistent: true,
+    onSuccess: (chunk) => { if (me === live && me.qid === qid) for (const d of sse(chunk)) liveEvent(me.view.event(d)); },
+    onFailure: (code) => {
+      if (me !== live || me.qid !== qid) return;
+      me.qid = 0;
+      me.down = code === 401 || code === 403 ? 'The Hermit service refused its password. Check it in Settings > Agents > OpenCode.' : 'Not connected. Trying again…';
+      me.retry = setTimeout(liveConnect, me.wait);
+      me.wait = Math.min(30000, me.wait * 2);
+      livePaint();
+    },
+  });
+}
+function liveEvent(e) {
+  if (e.paint) live.heard = true;
+  if (e.connected) live.down = '', live.wait = 1000, liveLoad();
+  if (e.title) liveTitle(e.title);
+  if (e.permission) liveAsk(e.permission);
+  if (e.replied) live.cards.get(e.replied)?.remove(), live.cards.delete(e.replied);
+  if (e.form) note(`Hermit is asking ${e.form}. Roar can't show that here, so answer it in Hermit.`);
+  if (e.gone) live.down = 'This session was deleted.';
+  if (e.failed) note('Error: ' + e.failed);
+  if (e.done) {
+    for (const c of live.cards.values()) c.remove();
+    live.cards.clear();
+    live.mine = false, sendButton(false);
+  }
+  if (e.reload) clearTimeout(live.soon), live.soon = setTimeout(liveLoad, 150);
+  if (e.paint && !live.raf) { const me = live; live.raf = requestAnimationFrame(() => { me.raf = 0; if (me === live) livePaint(); }); }
+}
+async function liveLoad() {
+  const me = live;
+  if (!me) return;
+  const ended = me.view.ended(), sent = me.sent.filter((s) => s.went);
+  let r;
+  try { r = await liveCall(me.chat, 'GET', `/api/session/${me.chat.oc.session}/message?order=desc&limit=40`); }
+  catch (e) { if (me === live) note(`Couldn't read that session: ${e.message}`); return; }
+  if (me !== live || !me.view.load(r, ended)) return;
+  me.read = true;
+  const said = chatCore.opencodeHistory(r);
+  if (said.length) me.chat.messages = said;  // Its words only: thinking is never saved.
+  me.sent = me.sent.filter((s) => !sent.includes(s) || !said.some((m) => m.role === 'user' && m.text === s.text));
+  livePaint();
+}
+function liveTitle(name) {
+  name = String(name || '').slice(0, 60);
+  if (!name || live.chat.title === name) return;
+  live.chat.title = name;
   $('title').textContent = document.title = name;
-  saveChats();
-}, 5000);
+  if (live.read) saveChats();
+}
+// Its agent stopped to ask: nothing runs until this is answered, here or anywhere else.
+function liveAsk(q) {
+  const me = live, card = Object.assign(document.createElement('div'), { className: 'ask-ok' });
+  card.append(Object.assign(document.createElement('p'), { textContent: `Hermit asks to run ${q.text}` }));
+  for (const [label, decision] of [['Allow once', 'once'], ['Always allow', 'always'], ['Deny', 'reject']]) {
+    const b = Object.assign(document.createElement('button'), { type: 'button', textContent: label });
+    b.onclick = () => { card.remove(); me.cards.delete(q.id); liveCall(me.chat, 'POST', `/api/session/${q.session}/permission/${q.id}/reply`, { decision }).catch((e) => note(e.message)); };
+    card.append(b);
+  }
+  me.cards.set(q.id, card);
+  livePaint();
+}
+// Draws only what changed, so a selection or a scroll up survives the stream. Follows the newest words unless you scrolled up.
+function livePaint() {
+  const me = live, log = $('log');
+  if (!me) return;
+  const first = !me.els, stick = first || log.scrollHeight - log.scrollTop - log.clientHeight < 60;
+  if (first) log.innerHTML = '', me.els = new Map(), me.tail = log.appendChild(Object.assign(document.createElement('div'), { className: 'live' }));
+  const want = [];
+  for (const t of me.view.turns()) for (const p of t.parts) if (p.kind === 'text' || showThinking) want.push({ key: t.key + '/' + p.key, kind: p.kind === 'think' ? 'think' : t.role, text: p.text });
+  me.sent.forEach((s, i) => want.push({ key: 'sent-' + i, kind: 'user', text: s.text }));
+  const keep = new Map(want.map((w) => [w.key, w.kind]));
+  for (const [k, el] of me.els) if (keep.get(k) !== el.__kind) el.remove(), me.els.delete(k);
+  let at = log.firstChild;
+  for (const w of want) {
+    let el = me.els.get(w.key);
+    if (!el) me.els.set(w.key, el = Object.assign(document.createElement('div'), { className: w.kind === 'think' ? 'think' : 'msg ' + w.kind, __kind: w.kind }));
+    if (el.__text !== w.text) {
+      el.__text = w.text;
+      if (w.kind === 'think') el.textContent = w.text;
+      else el.innerHTML = w.kind === 'user' ? slashMark.html(esc(w.text)) : renderMarkdown(w.text);
+    }
+    if (at === el) at = el.nextSibling; else log.insertBefore(el, at);
+  }
+  for (const c of [...me.tail.children]) if (c.className === 'ask-ok' && ![...me.cards.values()].includes(c)) c.remove();
+  for (const c of me.cards.values()) if (c.parentElement !== me.tail) me.tail.append(c);
+  const line = me.down || (me.view.busy ? 'Working' + (me.view.step ? ' · ' + me.view.step : '') : '');
+  let status = me.tail.querySelector('.now');
+  if (!status) me.tail.prepend(status = Object.assign(document.createElement('div'), { className: 'now' }));
+  if (status.textContent !== line) status.textContent = line;
+  status.classList.toggle('on', !me.down && me.view.busy);
+  if (stick) log.scrollTop = log.scrollHeight;
+}
+async function liveSend(p, text) {
+  const me = live, sent = { text, went: false };
+  Object.assign(chat, brandOf(p), { model: $('model').value, updated: Date.now() });
+  if (!chats.includes(chat)) chats.unshift(chat);
+  me.sent.push(sent);
+  $('text').value = ''; grow();
+  note('');
+  $('log').scrollTop = $('log').scrollHeight;
+  livePaint();
+  me.mine = true, sendButton(true);
+  try {
+    await liveCall(me.chat, 'POST', `/api/session/${me.chat.oc.session}/prompt`, { text });
+    sent.went = true;
+    if (me === live) clearTimeout(me.soon), me.soon = setTimeout(liveLoad, 300);
+    saveChats();
+  } catch (e) {
+    me.sent = me.sent.filter((s) => s !== sent);
+    if (me !== live) return;
+    me.mine = false, sendButton(false);
+    if (!$('text').value) $('text').value = text, grow();
+    note(`Couldn't reach Hermit: ${e.message}`);
+    livePaint();
+  }
+}
+const sendButton = (on) => { $('send').textContent = on ? 'Stop' : 'Send'; $('send').classList.toggle('stop', on); $('send').setAttribute('aria-label', on ? 'Stop' : 'Send'); };
+$('think-on').onchange = () => {
+  showThinking = $('think-on').checked;
+  livePaint();
+  ask({ cmd: 'settings.set', settings: { agentThinking: showThinking ? '1' : '' } }).catch(() => {});
+};
+// Out of sight it lets its connection go; back in front it reads what it missed.
+document.addEventListener('visibilitychange', () => {
+  if (!live) return;
+  if (!document.hidden) return liveConnect();
+  clearTimeout(live.retry);
+  if (live.qid) window.roarQueryCancel(live.qid), live.qid = 0;
+});
 const hermitHash = () => /^#hermit=([\w-]{1,160})$/.exec(location.hash)?.[1];
 
 (async () => {
@@ -470,6 +642,8 @@ const hermitHash = () => /^#hermit=([\w-]{1,160})$/.exec(location.hash)?.[1];
     const c = chats.find((x) => x.id === location.hash.slice(1)); if (c && c !== chat) show(c);
   });
   const st = await ask({ cmd: 'state' }).then((x) => typeof x === 'string' ? JSON.parse(x) : x);
+  $('think-on').checked = showThinking = st.settings.agentThinking === '1';
+  if (live) livePaint();
   if (hermitSid) { const c = await attachHermit(hermitSid, st); if (c) show(c); }
   searchDefault = !!st.settings.chatSearch;
   if (!chat.messages.length) chat.search = searchDefault;
