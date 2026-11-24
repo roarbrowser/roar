@@ -59,16 +59,42 @@ inline const std::vector<std::string>& HermitEventTypes() {
       "session.created", "session.renamed", "session.deleted", "session.archived",
       "session.execution.started", "session.execution.succeeded", "session.execution.failed", "session.execution.interrupted",
       "session.tool.input.started",  // The current step: the tool a running turn is using.
+      "session.step.started", "session.reasoning.started", "session.text.started",  // Or thinking or writing (HermitPhase).
       "permission.asked", "permission.replied", "form.created", "form.replied", "form.cancelled"};
   return types;
 }
 
 // One `types` per event type: 2.3.2 refuses a comma list with a 400.
-inline std::string HermitEventUrl(const std::string& base) {
+// `thinking`: also the words of the running turn's thinking, asked for only while a row's Thinking box is checked.
+inline std::string HermitEventUrl(const std::string& base, bool thinking = false) {
   std::string url = base + "/oc/api/event";
   char sep = '?';
   for (const auto& t : HermitEventTypes()) url += sep + std::string("types=") + t, sep = '&';
+  if (thinking) url += "&types=session.reasoning.delta&types=session.reasoning.ended";
   return url;
+}
+
+// A session's newest messages, for the thinking it did before its box was checked:
+// {"data": [{type, content: [{type: "reasoning", text}, ...]}]}, newest first.
+inline std::string HermitThinkingUrl(const std::string& base, const std::string& id) {
+  return base + "/oc/api/session/" + id + "/message?order=desc&limit=4";
+}
+
+// What a thinking box holds: the last kHermitMaxThinking bytes, cut at a word so it never starts inside a character.
+constexpr size_t kHermitMaxThinking = 4000;
+inline std::string HermitThinkingTail(const std::string& s) {
+  if (s.size() <= kHermitMaxThinking) return s;
+  size_t at = s.size() - kHermitMaxThinking, space = s.find_first_of(" \n", at);
+  if (space != std::string::npos && space - at < 200) at = space + 1;
+  while (at < s.size() && (static_cast<unsigned char>(s[at]) & 0xC0) == 0x80) at++;
+  return "…" + s.substr(at);
+}
+
+// What a turn is doing between tools, in a step's words; "" for events that don't say.
+inline std::string HermitPhase(const std::string& type) {
+  if (type == "session.step.started" || type == "session.reasoning.started") return "thinking";
+  if (type == "session.text.started") return "writing";
+  return "";
 }
 
 inline bool HermitIdOk(const std::string& s) { return HermesIdOk(s); }
@@ -77,6 +103,12 @@ inline bool HermitIdOk(const std::string& s) { return HermesIdOk(s); }
 // signed in as hermit). "" for an id that isn't plain.
 inline std::string HermitChatUrl(const std::string& session) {
   return HermitIdOk(session) ? "roar://ui/chat.html#hermit=" + session : "";
+}
+// The session a row leads to (its url, HermitChatUrl), "" for none.
+inline std::string HermitUrlSession(const std::string& url) {
+  const std::string prefix = "roar://ui/chat.html#hermit=";
+  std::string id = url.rfind(prefix, 0) == 0 ? url.substr(prefix.size()) : "";
+  return HermitIdOk(id) ? id : "";
 }
 inline std::string HermitRowId(const std::string& id) { return HermitIdOk(id) ? "hermit-" + id : ""; }
 inline std::string HermitCardRowId(const std::string& id) { return HermitIdOk(id) ? "hermit-card-" + id : ""; }
@@ -134,7 +166,8 @@ struct HermitSession {
   bool archived = false;
   bool pending = false;   // Mid-turn (HermitPending).
   std::string ask;        // Waiting on a person, in HermitAskWord's words (its subagents' asks too); "" when not.
-  std::string step;       // The tool its running turn is using, from session.tool.input.started.
+  std::string step;       // What its running turn is doing: the tool (session.tool.input.started) or HermitPhase.
+  double heard = 0;       // Its last event while mid-turn. Only a row's age uses it, not its place, so rows don't jump.
 };
 
 // One card from /api/x/jobs, cut to what a row uses.
@@ -258,6 +291,10 @@ inline std::vector<HermitRow> HermitRows(const std::vector<HermitSession>& sessi
     bool an = a.state == "needs_you", bn = b.state == "needs_you";
     return an != bn ? an : a.updated > b.updated;
   });
+  for (auto& r : rows)
+    if (std::string id = HermitUrlSession(r.url); !id.empty())
+      for (const auto& s : sessions)
+        if (s.id == id && s.pending) r.updated = std::max(r.updated, s.heard);
   return rows;
 }
 

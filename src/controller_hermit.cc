@@ -60,6 +60,30 @@ class HermitFetch : public CefURLRequestClient {
   IMPLEMENT_REFCOUNTING(HermitFetch);
 };
 
+// One session's newest messages, for the thinking before its box was checked. Not part of a poll's chain.
+class HermitThinkFetch : public CefURLRequestClient {
+ public:
+  HermitThinkFetch(int generation, std::string session) : generation_(generation), session_(std::move(session)) {}
+  void OnRequestComplete(CefRefPtr<CefURLRequest> request) override {
+    int code = request->GetRequestStatus() == UR_SUCCESS && request->GetResponse() ? request->GetResponse()->GetStatus() : 0;
+    Controller::Get()->HermitThinkRead(generation_, session_, code, body_);
+  }
+  void OnUploadProgress(CefRefPtr<CefURLRequest>, int64_t, int64_t) override {}
+  void OnDownloadProgress(CefRefPtr<CefURLRequest>, int64_t, int64_t) override {}
+  void OnDownloadData(CefRefPtr<CefURLRequest>, const void* data, size_t size) override {
+    if (body_.size() + size <= kMaxBody) body_.append(static_cast<const char*>(data), size);
+  }
+  bool GetAuthCredentials(bool, const CefString&, int, const CefString&, const CefString&,
+                          CefRefPtr<CefAuthCallback>) override {
+    return false;
+  }
+
+ private:
+  int generation_;
+  std::string session_, body_;
+  IMPLEMENT_REFCOUNTING(HermitThinkFetch);
+};
+
 // The event stream: each complete event goes to HermitEvent as it lands; any bytes at all (heartbeats too) count as
 // the stream being alive.
 class HermitStream : public CefURLRequestClient {
@@ -204,7 +228,7 @@ void Controller::HermitStreamStart() {
   if (hermit_stream_ || hermit_base_.empty()) return;
   hermit_stream_heard_ = NowSeconds();
   auto request = CefRequest::Create();
-  request->SetURL(HermitEventUrl(hermit_base_));
+  request->SetURL(HermitEventUrl(hermit_base_, hermit_think_stream_));
   request->SetFlags(UR_FLAG_DISABLE_CACHE);
   CefRequest::HeaderMap headers;
   if (!hermit_auth_.empty()) headers.insert({"Authorization", hermit_auth_});
@@ -217,7 +241,8 @@ void Controller::HermitStreamEnd(int generation, int code) {
   if (generation != hermit_generation_) return;
   hermit_stream_ = nullptr;
   // Again in a few seconds (a refused password: half a minute), with whatever sign-in the last poll read.
-  int ms = code == 401 || code == 403 ? 30000 : 3000;
+  int ms = code == 401 || code == 403 ? 30000 : hermit_stream_now_ ? 50 : 3000;
+  hermit_stream_now_ = false;
   CefPostDelayedTask(TID_UI, base::BindOnce([](int gen) {
     Controller* c = Controller::Get();
     if (gen != c->hermit_generation_ || c->hermit_stream_ || c->hermit_base_.empty()) return;
@@ -252,6 +277,11 @@ void Controller::HermitPoll(bool restart) {
     hermit_turns_.clear();
     hermit_asks_.clear();
     hermit_steps_.clear();
+    hermit_heard_.clear();
+    hermit_think_.clear();
+    hermit_think_rows_.clear();
+    hermit_think_stream_ = hermit_stream_now_ = false;
+    HermitThinkPush();
     hermit_failures_ = 0;
     hermit_board_skip_ = 0;
     hermit_board_ = false;
@@ -306,6 +336,31 @@ void Controller::HermitEvent(int generation, const std::string& data) {
   if (type == "server.connected") return HermitSoon();
   if (!HermitIdOk(sid)) return;
   double now = NowSeconds();
+  // To 15 s: an age that moved less isn't worth a redraw.
+  if (double& heard = hermit_heard_[sid]; now - heard >= 15) heard = now;
+  if (type == "session.reasoning.delta" || type == "session.reasoning.ended") {
+    auto it = hermit_think_.find(sid);
+    if (it == hermit_think_.end()) return;
+    auto& t = it->second;
+    std::string said = Text(d, type == "session.reasoning.delta" ? "delta" : "text");
+    if (type == "session.reasoning.ended") {
+      if (!said.empty()) t.text = HermitThinkingTail(said), t.live = true;
+      t.next = true;
+    } else if (!said.empty()) {
+      if (t.next || !t.live) t.text.clear();  // Its last thinking stays up until the next one's first words.
+      t.next = false, t.live = true;
+      t.text = t.text.size() + said.size() > 2 * kHermitMaxThinking ? HermitThinkingTail(t.text + said) : t.text + said;
+    }
+    HermitThinkPush();
+    return;
+  }
+  if (std::string phase = HermitPhase(type); !phase.empty()) {
+    if (type == "session.reasoning.started")
+      if (auto it = hermit_think_.find(sid); it != hermit_think_.end()) it->second.next = true;
+    if (hermit_steps_[sid] == phase) return;
+    hermit_steps_[sid] = phase;
+    return HermitBuild(false);
+  }
   if (int turn = HermitTurnOf(type, Text(d, "reason")); turn != kHermitTurnNone) {
     hermit_turns_[sid] = {turn, now};
     if (turn == kHermitTurnStarted) {
@@ -332,7 +387,11 @@ void Controller::HermitEvent(int generation, const std::string& data) {
     hermit_active_.erase(sid);
     hermit_asks_.erase(sid);
     hermit_steps_.erase(sid);
-  } else if (type != "session.created" && type != "session.renamed") {
+  } else if (type == "session.renamed") {
+    if (std::string title = Text(d, "title"); !title.empty())
+      for (auto& s : hermit_sessions_)
+        if (s.id == sid) s.title = title;
+  } else if (type != "session.created") {
     return;
   }
   if (auto it = hermit_asks_.find(sid); it != hermit_asks_.end() && it->second.empty()) hermit_asks_.erase(it);
@@ -444,6 +503,7 @@ void Controller::HermitBuild(bool poll) {
     s.pending = HermitPending(hermit_active_.count(s.id) > 0, turn == hermit_turns_.end() ? kHermitTurnNone : turn->second.first);
     if (auto a = ask_of.find(s.id); a != ask_of.end()) s.ask = a->second;
     if (auto st = hermit_steps_.find(s.id); st != hermit_steps_.end()) s.step = st->second;
+    if (auto h = hermit_heard_.find(s.id); h != hermit_heard_.end()) s.heard = h->second;
   }
   bool board = hermit_board_ || !hermit_cards_.empty();
   auto rows = HermitRows(sessions, hermit_cards_, board, now);
@@ -459,12 +519,96 @@ void Controller::HermitBuild(bool poll) {
     working += card && r.state == "working";
     needs += r.state == "needs_you";
   }
+  HermitThinkSync();
+  if (!hermit_show_) {
+    hermit_show_ = true;  // The rows show now, not at ClaudeTick's next turn.
+    CefPostDelayedTask(TID_UI, base::BindOnce([] {
+      Controller* c = Controller::Get();
+      if (c) c->hermit_show_ = false, c->ClaudeTick(false);
+    }), 150);
+  }
   if (!poll) return;
+  std::erase_if(hermit_heard_, [&](const auto& h) { return now - h.second > 3600; });
   std::string status = "Connected. " + (live ? std::to_string(live) + (live == 1 ? " live session" : " live sessions") : std::string("No live sessions"));
   if (board) status += working || needs ? ", " + std::to_string(working) + " running on the board" + (needs ? ", " + std::to_string(needs) + " waiting on you" : "") : ", board quiet";
   else status += ". No board, so cards don't show.";
   if (status != hermit_status_) hermit_status_ = status, PushSidebar();
   HermitDone();
+}
+
+// Keeps the thinking of the rows whose box is checked (settings.agentThinking) and no one else's: in memory only, gone
+// when the box is unchecked or the row goes. The first checked row adds the thinking events to the stream, which keeps them
+// until the service changes, so a row that comes and goes doesn't restart it each time.
+void Controller::HermitThinkSync() {
+  auto v = CefParseJSON(State::Get().settings.agent_thinking, JSON_PARSER_RFC);
+  auto on = v && v->GetType() == VTYPE_DICTIONARY ? v->GetDictionary() : nullptr;
+  std::map<std::string, std::string> rows;
+  std::set<std::string> sessions;
+  for (const auto& row : hermit_rows_) {
+    std::string id = row->GetString("id"), sid = HermitUrlSession(row->GetString("url"));
+    if (on && !sid.empty() && on->HasKey(id)) rows[id] = sid, sessions.insert(sid);
+  }
+  bool changed = rows != hermit_think_rows_;
+  hermit_think_rows_ = std::move(rows);
+  std::erase_if(hermit_think_, [&](const auto& t) { return !sessions.count(t.first); });
+  for (const auto& sid : sessions) {
+    if (hermit_think_.count(sid)) continue;
+    hermit_think_[sid];
+    auto request = CefRequest::Create();
+    request->SetURL(HermitThinkingUrl(hermit_base_, sid));
+    request->SetFlags(UR_FLAG_DISABLE_CACHE);
+    CefRequest::HeaderMap headers;
+    if (!hermit_auth_.empty()) headers.insert({"Authorization", hermit_auth_});
+    headers.insert({"Accept", "application/json"});
+    request->SetHeaderMap(headers);
+    CefURLRequest::Create(request, new HermitThinkFetch(hermit_generation_, sid), CefRequestContext::GetGlobalContext());
+  }
+  if (!sessions.empty() && !hermit_think_stream_) {
+    hermit_think_stream_ = true;
+    if (hermit_stream_) hermit_stream_now_ = true, hermit_stream_->Cancel();  // Its end starts it again, at once.
+  }
+  if (changed) HermitThinkPush();
+}
+
+void Controller::HermitThinkRead(int generation, const std::string& session, int code, const std::string& body) {
+  auto it = hermit_think_.find(session);
+  if (generation != hermit_generation_ || it == hermit_think_.end() || it->second.live) return;
+  auto root = Root(code, body);  // Kept: a CEF list is only valid while the value holding it lives.
+  auto list = DataList(root);
+  for (size_t i = 0; list && i < list->GetSize(); ++i) {
+    auto m = list->GetType(i) == VTYPE_DICTIONARY ? list->GetDictionary(i) : nullptr;
+    auto parts = m && m->GetType("content") == VTYPE_LIST ? m->GetList("content") : nullptr;
+    for (size_t j = parts ? parts->GetSize() : 0; j-- > 0;) {
+      auto part = parts->GetType(j) == VTYPE_DICTIONARY ? parts->GetDictionary(j) : nullptr;
+      if (Text(part, "type") != "reasoning" || Text(part, "text").empty()) continue;
+      it->second.text = HermitThinkingTail(Text(part, "text"));
+      return HermitThinkPush();
+    }
+  }
+}
+
+std::string Controller::HermitThinkJson() const {
+  auto d = CefDictionaryValue::Create();
+  for (const auto& [row, sid] : hermit_think_rows_)
+    if (auto it = hermit_think_.find(sid); it != hermit_think_.end()) d->SetString(row, HermitThinkingTail(it->second.text));
+  auto v = CefValue::Create();
+  v->SetDictionary(d);
+  return CefWriteJSON(v, JSON_WRITER_DEFAULT).ToString();
+}
+
+// To the sidebar alone, a few times a second, never in its state: words arrive far faster than the rows change.
+void Controller::HermitThinkPush() {
+  if (hermit_think_push_) return;
+  hermit_think_push_ = true;
+  CefPostDelayedTask(TID_UI, base::BindOnce([] {
+    Controller* c = Controller::Get();
+    if (!c) return;
+    c->hermit_think_push_ = false;
+    std::string json = c->HermitThinkJson();
+    for (auto& w : c->wins_)
+      if (auto browser = w->sidebar ? w->sidebar->GetBrowser() : nullptr)
+        browser->GetMainFrame()->ExecuteJavaScript("window.roar && roar.thinking && roar.thinking(" + json + ")", "", 0);
+  }), 200);
 }
 
 // A poll asked for while one ran goes now.

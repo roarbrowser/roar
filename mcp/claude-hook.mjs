@@ -109,14 +109,21 @@ export const keyOf = (tool, sid) => (tool === 'claude' ? sid : `${tool}-${sid}`)
 // Harness-injected turns (<task-notification>, <system-reminder> ...) arrive as prompts; show only the person's words.
 const userText = (p) => String(p || '').replace(/<([a-z][\w-]*)[^>]*>[\s\S]*?<\/\1>/gi, '').trim();
 
-// Claude Code's /rename (or --name) appends {"type":"custom-title","customTitle":...} to the transcript; the last one wins.
+// Claude Code's /rename (or --name) appends {"type":"custom-title","customTitle":...} to the transcript, and the name it
+// gives a chat by itself is {"type":"ai-title","aiTitle":...}. The last of each counts; a /rename beats its own.
 function customTitle(file) {
   try {
-    const t = readFileSync(file, 'utf8'), i = t.lastIndexOf('"custom-title"');
-    if (i < 0) return '';
-    const end = t.indexOf('\n', i);
-    return String(JSON.parse(t.slice(t.lastIndexOf('\n', i) + 1, end < 0 ? t.length : end)).customTitle || '').trim();
-  } catch { return ''; }
+    const t = readFileSync(file, 'utf8');
+    for (const [type, key] of [['custom-title', 'customTitle'], ['ai-title', 'aiTitle']]) {
+      const i = t.lastIndexOf(`"type":"${type}"`);
+      if (i < 0) continue;
+      const end = t.indexOf('\n', i);
+      let name = '';
+      try { name = String(JSON.parse(t.slice(t.lastIndexOf('\n', i) + 1, end < 0 ? t.length : end))[key] || '').replace(/\s+/g, ' ').trim(); } catch {}
+      if (name) return name.slice(0, 80);
+    }
+  } catch {}
+  return '';
 }
 
 // Prose for one line: no code, markdown or links.

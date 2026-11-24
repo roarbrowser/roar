@@ -20,12 +20,18 @@ const session = (key) => { try { return JSON.parse(readFileSync(join(DATA, 'clau
 // Adapters: each CLI's sample payloads -> the expected session file.
 const TR = join(HOME, 't.jsonl');
 writeFileSync(TR, '{"type":"user"}\n{"type":"custom-title","customTitle":"old"}\n{"type":"custom-title","customTitle":"Release prep","sessionId":"n1"}\n{"type":"assistant"}\n');
+const TRA = join(HOME, 'ta.jsonl'), TRB = join(HOME, 'tb.jsonl');
+writeFileSync(TRA, '{"type":"ai-title","aiTitle":"Auto name","sessionId":"n2"}\n{"type":"user","text":"\\"type\\":\\"ai-title\\""}\n{"type":"ai-title","aiTitle":"Auto name two","sessionId":"n2"}\n');
+writeFileSync(TRB, '{"type":"custom-title","customTitle":"Mine"}\n{"type":"ai-title","aiTitle":"Auto name two"}\n');
 const SAID = join(HOME, 'said.jsonl');
 writeFileSync(SAID, JSON.stringify({ type: 'assistant', message: { content: [{ type: 'text', text: 'Built `Roar.app`. Tests pass.\n\n```sh\nls\n```\n**Ship it** as 0.31.0? Or wait.' }] } }) + '\n{"type":"system"}\n');
 const cases = [
   // /rename: the transcript's last custom-title names the session, and it sticks without a transcript.
   ['claude', [], { session_id: 'n1', cwd: '/w/alpha', hook_event_name: 'Stop', transcript_path: TR }, 'n1', { project: 'Release prep' }],
   ['claude', [], { session_id: 'n1', cwd: '/w/alpha', hook_event_name: 'Stop' }, 'n1', { project: 'Release prep' }],
+  // The name Claude Code gave a chat by itself counts too. A /rename beats it.
+  ['claude', [], { session_id: 'n2', cwd: '/w/alpha', hook_event_name: 'Stop', transcript_path: TRA }, 'n2', { project: 'Auto name two' }],
+  ['claude', [], { session_id: 'n2', cwd: '/w/alpha', hook_event_name: 'Stop', transcript_path: TRB }, 'n2', { project: 'Mine' }],
   ['claude', [], { session_id: 'c1', cwd: '/w/alpha', hook_event_name: 'UserPromptSubmit', prompt: 'fix it' }, 'c1', { tool: 'claude', state: 'working', prompt: 'fix it', project: 'alpha' }],
   ['claude', [], { session_id: 'c1', cwd: '/w/alpha', hook_event_name: 'PreToolUse', tool_name: 'Edit', tool_input: { file_path: '/w/alpha/x.c' } }, 'c1', { doing: 'Editing x.c' }],
   ['codex', [], { session_id: 'c1', cwd: '/w/beta', hook_event_name: 'SessionStart', model: 'gpt' }, 'codex-c1', { tool: 'codex', sid: 'c1', state: 'idle', project: 'beta' }],

@@ -57,6 +57,7 @@ struct Settings {
   bool clean_safelinks = true, clean_mcas = true, clean_tracking = true;  // Which cleanups CleanLink does (CleanOptions).
   std::string clean_params;  // The user's own query parameters to drop from copied links, comma-separated.
   std::string agent_hidden;  // Agent sessions hidden in the sidebar, JSON {sessionId: hiddenAtMs} (sidebar.html).
+  std::string agent_thinking;  // Hermit rows whose Thinking box is checked, JSON {rowId: checkedAtMs} (sidebar.html).
   bool agent_terminal = false;  // Agent session views open as Terminal (true) or Chat (claude.html); each session can switch.
   std::string agent_order;  // Which agent tool gets agent actions first, JSON ["codex","claude"] (cl-session.js agentOrder).
   std::string agent_names;  // Names given to agent sessions in Roar, JSON {sessionId: name}.
@@ -160,6 +161,7 @@ inline const std::vector<SettingField>& SettingFields() {
       {"askLlms", &Settings::ask_llms, true},
       {"autoNameDownloads", &Settings::auto_name_downloads, true},
       {"agentHidden", &Settings::agent_hidden, true},
+      {"agentThinking", &Settings::agent_thinking, true},
       {"agentColors", &Settings::agent_colors, true},
       {"agentOrder", &Settings::agent_order, true},
       {"agentNames", &Settings::agent_names, true},

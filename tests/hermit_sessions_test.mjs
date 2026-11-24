@@ -156,6 +156,33 @@ try {
   const html = await side(`document.querySelector('[data-clid="hermit-${xss.id}"]')?.outerHTML || ''`);
   check(html.includes('&lt;img') && !(await side(`!!document.querySelector('[data-clid="hermit-${xss.id}"] img')`)), 'a title is text, not markup');
   check(!html.includes('data-clbeside') && !html.includes('data-clfocus') && !html.includes('data-clquit') && html.includes('data-clhide'), 'no reply, terminal or side by side on the row, but it can be hidden');
+  // Thinking: a box on each row with a session, off until checked, its words live under the row and never in the rows.
+  const box = (id) => `document.querySelector('[data-clthink="${id}"]')`, thought = (id) => side(`document.querySelector('[data-clthought="${id}"]')?.textContent ?? null`);
+  const pid = 'hermit-' + parent.id, cid = 'hermit-card-t_run';
+  check(await side(`${box(pid)}?.checked === false && ${box(cid)}?.checked === false && !document.querySelector('[data-clthink="hermit-card-t_ask"]')`), 'each row with a session has a Thinking box, unchecked');
+  check((await thought(pid)) === null && !f.eventAsks.at(-1).types.includes('session.reasoning.delta'), 'unchecked: no thinking shown, none asked for');
+  f.say(parent.id, 'assistant', 'Earlier words.');
+  const tabsBefore = (await side(`ask({ cmd: 'state' }).then((s) => s.tabs.length)`));
+  await side(`${box(pid)}.click()`);
+  check(!!(await until(async () => (await thought(pid)) === 'SECRET THINKING', 5000)), 'checked: the thinking it did before shows: ' + await thought(pid));
+  check(!!(await until(() => f.eventAsks.at(-1).types.includes('session.reasoning.delta') && f.streams.length === 1, 5000)), 'and the stream now carries thinking');
+  t0 = Date.now();
+  f.think(parent.id, 'Let me ', 'look at <b>trains</b>.');
+  check(!!(await until(async () => (await thought(pid)) === 'Let me look at <b>trains</b>.', 3000)), `new thinking replaces it as it streams, in ${Date.now() - t0} ms, as text`);
+  check(!!(await until(async () => /Thinking$|question$/.test((await row(pid))?.doing || ''), 5000)), 'the row keeps its own words: ' + (await row(pid))?.doing);
+  f.emit('session.reasoning.delta', { sessionID: worker.id, delta: 'UNCHECKED WORDS' });
+  f.thought(parent.id, 'Let me look at trains. Done.');
+  check(!!(await until(async () => (await thought(pid)) === 'Let me look at trains. Done.', 3000)), 'the finished thinking stays up');
+  check(!JSON.stringify(await items()).includes('trains') && !(await side(`JSON.stringify(clThoughts)`)).includes('UNCHECKED'), 'no thinking reaches the rows, none of an unchecked row reaches the sidebar');
+  f.think(worker.id, 'x');
+  check(!!(await until(async () => /^coder · Working/.test((await row(cid))?.doing || ''), 3000)), 'a card keeps its pace line');
+  check((await side(`ask({ cmd: 'state' }).then((s) => s.tabs.length)`)) === tabsBefore, 'checking a box opens nothing');
+  f.rename(parent.id, 'Plan the long trip');
+  check(!!(await until(async () => (await row(pid))?.project === 'Plan the long trip', 5000)), 'a renamed session takes its new name');
+  await side(`${box(pid)}.click()`);
+  check(!!(await until(async () => (await thought(pid)) === null && (await side(`JSON.stringify(clThoughts)`)) === '{}', 5000)), 'unchecked again: the box and its text go');
+  if (process.env.SHOT_HOLD) { f.form(sub.id); await side(`${box(cid)}.click()`); f.think(worker.id, 'The login form posts to the old endpoint. I should read the route table first, then change the handler so the session cookie is set before the redirect.'); await sleep(+process.env.SHOT_HOLD); await side(`${box(cid)}.click()`); await sleep(500); }
+
   // A click opens the session in Ask: a card's worker session here, through a chat server at <service>/oc.
   const tabUrls = async () => (await side(`ask({ cmd: 'state' }).then((s) => JSON.stringify(s.tabs.map((t) => t.url)))`).then((j) => JSON.parse(j || '[]')));
   f.say(worker.id, 'user', 'Fix the login page please');

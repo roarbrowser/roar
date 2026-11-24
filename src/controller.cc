@@ -3678,7 +3678,31 @@ static long long ProcStartMs(int pid) {
 #endif
 }
 
-void Controller::ClaudeTick() {
+// Claude Code keeps each running session's name in <config>/sessions/<pid>.json, so a /rename typed at an idle prompt, which
+// runs no hook, shows at once. Names it made up ("temp-3f") aren't renames.
+std::string Controller::ClaudeRename(int pid, const std::string& sid) {
+  namespace fs = std::filesystem;
+  const char* dir = getenv("CLAUDE_CONFIG_DIR");
+  if (pid <= 1 || sid.empty()) return "";
+  fs::path file = (dir && *dir ? fs::path(dir) : fs::path(platform::HomeDir()) / ".claude") / "sessions" / (std::to_string(pid) + ".json");
+  std::error_code ec;
+  auto mtime = fs::last_write_time(file, ec);
+  if (ec) return claude_pids_.erase(pid), "";
+  auto& cached = claude_pids_[pid];
+  if (!cached.second || cached.first != mtime) {
+    std::ifstream in(file);
+    std::string text((std::istreambuf_iterator<char>(in)), {});
+    auto v = CefParseJSON(text, JSON_PARSER_RFC);
+    if (!v || v->GetType() != VTYPE_DICTIONARY) return claude_pids_.erase(pid), "";
+    cached = {mtime, v->GetDictionary()->Copy(false)};
+  }
+  auto& d = cached.second;
+  std::string source = d->GetType("nameSource") == VTYPE_STRING ? d->GetString("nameSource").ToString() : "";
+  if (d->GetString("sessionId") != sid || d->GetType("name") != VTYPE_STRING || source == "derived" || source == "collision") return "";
+  return HermesCut(d->GetString("name").ToString(), 80);
+}
+
+void Controller::ClaudeTick(bool again) {
   namespace fs = std::filesystem;
   auto list = CefListValue::Create();
   std::error_code ec;
@@ -3711,6 +3735,22 @@ void Controller::ClaudeTick() {
     std::string tool = d->HasKey("tool") ? d->GetString("tool").ToString() : "claude";
     bool off = !AgentConnected(tool);
     if (off || dead || idle > 6 * 3600 || (e.path().filename().string().rfind("new-", 0) == 0 && PlaceholderExpired(tool, idle))) { fs::remove(e.path(), ec); continue; }
+    if (tool == "claude") {
+      std::string id = d->GetString("id"), name = ClaudeRename(pid, d->GetString("sid"));
+      if (!name.empty()) d->SetString("name", name), d->SetString("project", name);
+      // A /rename newer than the name given in Roar takes its place (Roar's own /rename coming back doesn't count).
+      auto known = claude_renames_.find(id);
+      if (known != claude_renames_.end() && !name.empty() && known->second != name && !claude_sent_names_[id].count(name)) {
+        auto v = CefParseJSON(State::Get().settings.agent_names, JSON_PARSER_RFC);
+        if (v && v->GetType() == VTYPE_DICTIONARY && v->GetDictionary()->HasKey(id)) {
+          auto m = v->GetDictionary()->Copy(false);
+          m->Remove(id);
+          State::Get().settings.agent_names = ToJson(Wrap(m));
+          SaveSoon();
+        }
+      }
+      if (!name.empty() || known == claude_renames_.end()) claude_renames_[id] = name;
+    }
     auto row = d->Copy(false);
     // The Roar tools this session's roar-mcp has (mcp/roar-mcp.mjs writes agent-mcp/<agent pid>.json); none: an outdated or missing roar-mcp.
     if (pid > 1) {
@@ -3773,7 +3813,7 @@ void Controller::ClaudeTick() {
     claude_ = list;
     PushSidebar();
   }
-  CefPostDelayedTask(TID_UI, base::BindOnce([] { Controller::Get()->ClaudeTick(); }), 2000);
+  if (again) CefPostDelayedTask(TID_UI, base::BindOnce([] { Controller::Get()->ClaudeTick(); }), 2000);
 }
 
 void Controller::SwitchSpace(int id) {
@@ -5437,6 +5477,7 @@ void Controller::ApplySettings(CefRefPtr<CefDictionaryValue> d) {
   if (d->HasKey("dockBadge")) SyncAlertBadge();
   if (d->HasKey("hermesUrl") || d->HasKey("hermesSpace") || d->HasKey("claudeSidebar")) HermesPoll(true);
   if (d->HasKey("hermitUrl") || d->HasKey("claudeSidebar")) HermitPoll(true);
+  if (d->HasKey("agentThinking")) HermitThinkSync();
   if (d->HasKey("dictation") && !s.dictation) DictationOff();
   // Turned on: agents already on the extension go, then every worker shares. Off: each keeps the copy it has.
   if (d->HasKey("tweaksShared") && d->GetBool("tweaksShared") != tweaks_were_shared) {
@@ -6457,7 +6498,7 @@ bool Controller::HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> 
       name.empty() ? (void)m->Remove(id) : (void)m->SetString(id, name);
       st.settings.agent_names = ToJson(Wrap(m));
       // Tell the agent its new name too (claude-ctl types /rename when its prompt is idle).
-      if (!name.empty() && name != old) platform::RoarMcp({"claude-ctl", "rename", id, name}, [](const std::string&) {});
+      if (!name.empty() && name != old) claude_sent_names_[id].insert(name), platform::RoarMcp({"claude-ctl", "rename", id, name}, [](const std::string&) {});
     } else {
       return callback->Failure(0, "kind must be tab, group, space or session"), true;
     }
@@ -6718,6 +6759,9 @@ bool Controller::HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> 
     HermitPoll(true);
     PushSidebar();  // Chat models lists the service's own row only while it has a password (state's claude.hermitKey).
     callback->Success("");
+  } else if (cmd == "hermit.thinking") {
+    // {rowId: text} for the rows whose Thinking box is checked; the sidebar asks once, then roar.thinking keeps it current.
+    callback->Success(HermitThinkJson());
   } else if (cmd == "hermit.keyHas") {
     // Whether a password is saved, never the password.
     hermit_key_ = platform::SecretHas(kHermitSecret);

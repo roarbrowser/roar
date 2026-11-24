@@ -438,6 +438,16 @@ async function attachHermit(sid, st) {
   if (!chats.includes(c)) chats.unshift(c);
   return c;
 }
+// A session renamed while its chat is open here: the chat takes the new name.
+setInterval(async () => {
+  if (document.hidden || !chat?.oc?.attached) return;
+  const id = chat.id, st = await ask({ cmd: 'state' }).then((x) => typeof x === 'string' ? JSON.parse(x) : x).catch(() => null);
+  const name = (st?.claude?.items || []).find((c) => c.id === id)?.project?.slice(0, 60);
+  if (!name || chat.id !== id || chat.title === name) return;
+  chat.title = name;
+  $('title').textContent = document.title = name;
+  saveChats();
+}, 5000);
 const hermitHash = () => /^#hermit=([\w-]{1,160})$/.exec(location.hash)?.[1];
 
 (async () => {

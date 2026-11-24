@@ -11,7 +11,8 @@ import { randomBytes } from 'node:crypto';
 // never sends on a real stream, which are still valid values to ask for.
 const EVENT_TYPES = new Set(['server.connected', 'session.created', 'session.renamed', 'session.deleted', 'session.archived', 'session.unarchived',
   'session.execution.started', 'session.execution.succeeded', 'session.execution.failed', 'session.execution.interrupted',
-  'session.step.started', 'session.step.ended', 'session.tool.input.started', 'session.tool.called', 'session.text.delta', 'session.text.ended',
+  'session.step.started', 'session.step.ended', 'session.tool.input.started', 'session.tool.called', 'session.text.started', 'session.text.delta', 'session.text.ended',
+  'session.reasoning.started', 'session.reasoning.delta', 'session.reasoning.ended',
   'permission.asked', 'permission.replied', 'form.created', 'form.replied', 'form.cancelled', 'session.status', 'session.idle']);
 const newId = (p) => `${p}_${randomBytes(10).toString('hex')}`;
 const nowMs = () => Date.now();
@@ -45,6 +46,13 @@ export function fakeHermitd({ password = 'pw' } = {}) {
       f.emit('session.execution.started', { sessionID: id });
     },
     tool(id, name) { f.emit('session.tool.input.started', { sessionID: id, id: 'call_' + randomBytes(4).toString('hex'), name }); },
+    // Thinking as 2.3.2 streams it: started, deltas, ended with the whole text.
+    think(id, ...words) {
+      f.emit('session.reasoning.started', { sessionID: id });
+      for (const w of words) f.emit('session.reasoning.delta', { sessionID: id, delta: w });
+    },
+    thought(id, text) { f.emit('session.reasoning.ended', { sessionID: id, text }); },
+    rename(id, title) { f.sessions.get(id).title = title; f.emit('session.renamed', { sessionID: id, title }); },
     finish(id, how = 'succeeded') {
       f.active.delete(id);
       const s = f.sessions.get(id);
