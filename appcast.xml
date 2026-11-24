@@ -628,5 +628,14 @@
       <description><![CDATA[The Hermit service now lives under Settings > Agents > OpenCode. With its address and password saved, Chat models lists it as Hermit by itself, ready to be the default. A default model that stops answering now says who answers meanwhile.]]></description>
       <enclosure url="https://github.com/roarbrowser/roar/releases/download/v1.33.0/Roar-1.33.0.dmg" type="application/octet-stream" sparkle:edSignature="mVSiLqL4+EDChaq/kJCO4UxReT5+tFnApM9iIoXfAf/pOQB57EO6uGIlENxnPwYjT55cQTZHbZf9zLqzWtA8Dg==" length="199475163"/>
     </item>
+    <item>
+      <title>1.34.0</title>
+      <pubDate>Tue, 24 Nov 2026 03:34:39 +0000</pubDate>
+      <sparkle:version>13400</sparkle:version>
+      <sparkle:shortVersionString>1.34.0</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[Hermit rows have a Thinking box that shows what the session is thinking as it happens. Hermit rows update at once and their ages keep counting. Renamed chats take their new name: Claude Code renames and its own chat titles, Hermit renames and the Ask chats opened from them.]]></description>
+      <enclosure url="https://github.com/roarbrowser/roar/releases/download/v1.34.0/Roar-1.34.0.dmg" type="application/octet-stream" sparkle:edSignature="fyrVAj6w2mFLKnYr7C+aPe8kIqHX3u72JFHu9etuJYFGOpDCatZz7lfh05tJZHW7NtoYMkJrKtCES2PV0FyTDg==" length="199486428"/>
+    </item>
   </channel>
 </rss>
