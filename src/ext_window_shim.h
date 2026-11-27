@@ -1,11 +1,11 @@
-// What extensions are told about Roar's windows. Every Roar tab is a window of its own, and CEF makes each one
-// a Chromium "popup" window, because that is how it hides the tab strip and toolbar. Extensions therefore saw
-// no normal window at all: windows.getAll({windowTypes: ['normal']}) and tabs.query({windowType: 'normal'})
-// were empty and getLastFocused({windowTypes: ['normal']}) failed, so password managers and the like acted as
-// if they ran in a pop-up. The shim says what the person sees: a Roar tab's window is a normal browser window.
-// It runs in an extension's service worker (action_watch) and in its action popup (ExtensionPopupViewDelegate).
-// Listeners an extension adds before the shim is in (windows.onFocusChanged with a normal-only filter, added
-// as its worker starts) still get no events for Roar's windows: only a CEF patch can change those.
+// What extensions are told about Roar's windows on stock CEF (Windows). Every Roar tab is a window of its own,
+// and CEF makes each one a Chromium "popup" window, because that is how it hides the tab strip and toolbar.
+// Extensions therefore saw no normal window at all: windows.getAll({windowTypes: ['normal']}) and
+// tabs.query({windowType: 'normal'}) were empty and getLastFocused({windowTypes: ['normal']}) failed. The Mac CEF
+// fixes that at the source (scripts/cef-patches/chromium/roar_ext_window_type.patch), in every extension context
+// and for event filters. Stock CEF has no such patch, so there this shim tells the action popup
+// (ExtensionPopupViewDelegate) that a Roar tab's window is a normal browser window. The service worker, pages in
+// tabs and event filters keep Chromium's answer there.
 #pragma once
 
 namespace roar {

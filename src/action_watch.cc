@@ -20,8 +20,6 @@ using ssize_t = SSIZE_T;
 #include "include/cef_task.h"
 #include "include/wrapper/cef_closure_task.h"
 
-#include "ext_window_shim.h"
-
 namespace roar::action_watch {
 namespace {
 
@@ -159,8 +157,7 @@ void InstallHook(const std::string& target, int tries) {
   auto it = g_workers.find(target);
   if (it == g_workers.end() || tries <= 0) return;
   auto e = CefDictionaryValue::Create();
-  // The window-type shim goes in for every extension, also one without an action (kHook then stops early).
-  e->SetString("expression", std::string(kWindowTypeShim) + ";\n" + kHook);
+  e->SetString("expression", kHook);
   Send("Runtime.evaluate", e, it->second.session, [target, tries](CefRefPtr<CefDictionaryValue> res) {
     if (res && !res->HasKey("exceptionDetails")) return Refresh(target);
     CefPostDelayedTask(TID_UI, base::BindOnce(&InstallHook, target, tries - 1), 500);

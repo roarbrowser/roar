@@ -1,9 +1,11 @@
 // Every Roar tab is a window of its own, and CEF makes each one a Chromium "popup" window (that is how it hides
 // the tab strip). Extensions then saw no normal window at all: windows.getAll({windowTypes:['normal']}) and
 // tabs.query({windowType:'normal'}) came back empty and getLastFocused({windowTypes:['normal']}) failed, so
-// they acted as if they ran in a pop-up. Roar's shim reports Roar's tab windows as normal windows, in the
-// extension's service worker and in its action popup, promise and callback style. Headless scratch Roar; the
-// fixture extension reports to this script's web server.
+// they acted as if they ran in a pop-up. Roar's CEF patch (roar_ext_window_type) reports Roar's tab windows as
+// normal windows everywhere an extension asks: its service worker, its action popup, its pages open in a tab
+// (tabs.create, the options page), promise and callback style, and a normal-only windows.onCreated listener the
+// worker adds as it starts hears of new tabs' windows. Headless scratch Roar; the fixture extension reports to
+// this script's web server.
 // Usage: node tests/ext_window_type_test.mjs <Roar binary>
 import { createHash } from 'node:crypto';
 import { createServer } from 'node:http';
@@ -33,6 +35,7 @@ writeFileSync(join(ext, 'manifest.json'), JSON.stringify({
   manifest_version: 3, name: 'Window type probe', version: '1.0', permissions: ['tabs'],
   host_permissions: ['http://127.0.0.1/*'], background: { service_worker: 'sw.js' }, action: { default_popup: 'popup.html' },
   content_scripts: [{ matches: ['http://127.0.0.1/*'], js: ['cs.js'], run_at: 'document_idle' }],
+  options_ui: { page: 'options.html', open_in_tab: true },
 }));
 const report = `const report = (r) => fetch(${JSON.stringify(site + '/report')}, { method: 'POST', body: JSON.stringify(r) }).catch(() => {});`;
 // What one extension context sees of the windows; `where` names the context.
@@ -58,9 +61,21 @@ const probe = async (where) => {
   });
 };`;
 writeFileSync(join(ext, 'sw.js'), `${report}${probe}
-chrome.runtime.onMessage.addListener((m) => { if (m.probe) probe('worker').then(() => chrome.action.setBadgeText({ text: '7' })); });
+// Added as the worker starts, before anything Roar could put into the worker.
+chrome.windows.onCreated.addListener((w) => report({ kind: 'created', type: w.type }), { windowTypes: ['normal'] });
+chrome.runtime.onMessage.addListener((m) => {
+  if (m.probe) probe('worker').then(() => chrome.action.setBadgeText({ text: '7' }));
+  if (m.page) chrome.tabs.create({ url: chrome.runtime.getURL('page.html') });
+  if (m.options) chrome.runtime.openOptionsPage();
+});
 `);
-writeFileSync(join(ext, 'cs.js'), `if (location.pathname === '/probe') chrome.runtime.sendMessage({ probe: true });`);
+writeFileSync(join(ext, 'cs.js'), `const m = location.pathname.slice(1); if (['probe', 'page', 'options'].includes(m)) chrome.runtime.sendMessage({ [m]: true });`);
+// Extension pages in a tab: one opened with tabs.create, and the options page.
+for (const name of ['page', 'options']) {
+  writeFileSync(join(ext, name + '.html'), `<title>${name}</title><body>${name}<script src="${name}.js"></script>`);
+  writeFileSync(join(ext, name + '.js'), `${report}${probe}
+probe('${name}');`);
+}
 writeFileSync(join(ext, 'popup.html'), `<title>probe</title><body style="margin:0;width:300px;height:200px">probe<script src="popup.js"></script>`);
 writeFileSync(join(ext, 'popup.js'), `${report}${probe}
 probe('popup');`);
@@ -96,6 +111,17 @@ try {
   check(!!badge, 'the toolbar hook still reads the extension\'s badge');
   await sidebar(`ask({cmd:'extensions.popup',url:'chrome-extension://${extId}/popup.html',x:10,y:10})`);
   sees(await got('popup'), 'popup');
+  await open('/page');
+  sees(await got('page'), 'extension page in a tab');
+  await open('/options');
+  sees(await got('options'), 'options page');
+  const tabs = ((await sidebar(`ask({cmd:'state'})`))?.tabs || []).map((t) => t.url);
+  check(tabs.includes(`chrome-extension://${extId}/page.html`) && tabs.includes(`chrome-extension://${extId}/options.html`),
+    `both extension pages are Roar tabs (${JSON.stringify(tabs.filter((u) => u.startsWith('chrome-extension://')))})`);
+  // Every Roar tab opened since the worker started is a window it should have heard of.
+  const created = reports.filter((x) => x.kind === 'created');
+  check(created.length >= 4 && created.every((x) => x.type === 'normal'),
+    `a normal-only windows.onCreated listener added at worker start hears of the new tabs' windows (${JSON.stringify(created)})`);
 } finally {
   await r.stop();
   web.close();
