@@ -12,6 +12,7 @@
 #include "download_name.h"
 #include "ext_copy.h"
 #include "ext_paths.h"
+#include "ext_window_shim.h"
 #include "link_clean.h"
 #include "space_rules.h"
 #include "model_chat.h"
@@ -511,6 +512,8 @@ class ExtensionPopupViewDelegate : public CefBrowserViewDelegate {
       shim_ = kShim;
       shim_.replace(shim_.find("%s"), 2, ToJson(quoted));
       shim_.replace(shim_.find("%g"), 2, ghost ? "true" : "false");
+      // First, so the current-tab answers below report Roar's windows as normal ones too.
+      shim_ = std::string(kWindowTypeShim) + ";\n" + shim_;
     }
     void OnDevToolsEvent(CefRefPtr<CefBrowser> browser, const CefString& method,
                          const void* params, size_t params_size) override {
