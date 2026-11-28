@@ -80,6 +80,7 @@ p { margin: 0; color: var(--ink-2); line-height: 1.55; font-size: 14px; max-widt
       <button class="chip" data-import="arc">Arc</button><button class="chip" data-import="chrome">Chrome</button><button class="chip" data-import="safari">Safari</button>
       <button class="chip" data-import="firefox">Firefox</button><button class="chip" data-import="edge">Edge</button><button class="chip" data-import="dia">Dia</button>
     </div>
+    <label class="ring-opt"><input type="checkbox" id="ping-on" checked> <span><b>Count this install</b><small>Roar sends one anonymous event for this install and one after each update: only its version, Mac or Windows and the chip type. No id or browsing data. Nothing is sent while this page is open. The switch is in Settings › Privacy too.</small></span></label>
   </section>
 
   <section class="step" data-step="2" aria-labelledby="h2s" hidden>
@@ -202,6 +203,7 @@ let last = null;
 function apply(s) {
   if (typeof s === 'string') s = JSON.parse(s);
   last = s;
+  $('ping-on').checked = s.settings.installPing !== false;
   for (const t of document.querySelectorAll('[data-mod]')) t.setAttribute('aria-pressed', String(!!modOn(s, t.dataset.mod)));
   $('make-default').hidden = s.settings.isDefaultBrowser;
   $('default-status').textContent = s.settings.isDefaultBrowser ? 'Roar is your default browser.' : '';
@@ -231,6 +233,7 @@ $('tiles').onclick = (e) => {
   else if (t.dataset.mod === 'github') (on ? ask({ cmd: 'settings.set', settings: { githubFolder: false } }) : Promise.resolve()).then(() => set({ githubFolder: on }));
   else set({ agentFiles: { agentFilesRow: on }, gmail: { gmailFolder: on } }[t.dataset.mod]);
 };
+$('ping-on').onchange = () => set({ installPing: $('ping-on').checked });
 $('make-default').onclick = () => ask({ cmd: 'browser.makeDefault' }).then(refresh);
 // Windows: Ctrl for ⌘, Alt+digit for spaces, and only browsers Roar can import there.
 if (/Windows/.test(navigator.userAgent)) {

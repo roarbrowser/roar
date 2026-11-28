@@ -23,6 +23,8 @@ struct Settings {
   bool outlook_mail = true;  // That button lists unread inbox mail, read in a hidden Outlook page.
   bool dock_badge = true;    // The Dock icon counts what needs you.
   bool index_pages = true;
+  bool install_ping = true;  // Count this install: one anonymous event per new install and per update (install_ping.h).
+  std::string ping_version = "new";  // What install counting last reported (install_ping.h); State::Load sets "" for older files.
   int sidebar_width = 268;
   int pinned_columns = 0;  // Pinned tiles per row; 0 fits as many as the width allows.
   bool pinned_centered = false;  // Centers a short last row.
@@ -124,6 +126,8 @@ inline const std::vector<SettingField>& SettingFields() {
       {"outlookMail", &Settings::outlook_mail, true},
       {"dockBadge", &Settings::dock_badge, true},
       {"indexPages", &Settings::index_pages, true},
+      {"installPing", &Settings::install_ping, true},
+      {"pingVersion", &Settings::ping_version, false},
       {"sidebarWidth", &Settings::sidebar_width, false},
       {"pinnedColumns", &Settings::pinned_columns, true},
       {"pinnedCentered", &Settings::pinned_centered, true},

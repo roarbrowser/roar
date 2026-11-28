@@ -42,6 +42,8 @@ namespace roar {
 
 class Client;
 
+std::string Version();  // controller_backup.cc: "1.36.0".
+
 struct Tab {
   int id = 0;
   CefRefPtr<CefBrowserView> view;
@@ -393,6 +395,11 @@ class Controller {
   void ClaudeTick(bool again = true);  // again: once more in 2 s.
   void HermesTick();
   void HermitTick();
+  // Install counting (install_ping.h): at launch and when onboarding finishes. Public so its request can report back.
+ public:
+  void InstallPing();
+  void InstallPingDone(int status, const std::string& version);
+ private:
   void AgentStatsTick(CefRefPtr<CefListValue> sessions);  // controller_share.cc
   void AgentStatsVisit(Tab& tab);
   void AgentStatsFlush();  // controller_share.cc: unsaved badge counts to disk now.  // controller_share.cc: a page the person opened counts today for the badge.
@@ -438,6 +445,8 @@ class Controller {
   Win none_;  // win_ before the first window and after the last one closes: a null shell.
   Win* win_ = &none_;
   bool started_ = false;  // Start has made the first window; OpenLink queues in pending_links_ until then.
+  bool ping_wait_ = false;  // First launch: install counting waits until the welcome page is done (its switch).
+  bool ping_busy_ = false;  // An install count is on its way; at most one per launch.
   std::vector<std::string> pending_links_;
   int next_win_ = 1;
   int focused_win_ = 0;  // The window the person last activated.

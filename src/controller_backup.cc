@@ -43,6 +43,9 @@ void PickPath(CefRefPtr<CefBrowser> browser, bool save, const std::string& path,
                                     new DialogDone(std::move(done)));
 }
 
+}  // namespace
+
+// Also what install counting reports (Controller::InstallPing).
 std::string Version() {
 #ifdef ROAR_VERSION  // Windows: from Info.plist.in at configure time.
   return CefString(ROAR_VERSION).ToString();
@@ -51,6 +54,8 @@ std::string Version() {
   return std::to_string(b / 10000) + "." + std::to_string(b / 100 % 100) + "." + std::to_string(b % 100);
 #endif
 }
+
+namespace {
 
 // Chromium derives an unpacked extension's id from its folder with symlinks resolved (/var -> /private/var).
 std::string UbolId(const std::string& dir) {

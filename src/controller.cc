@@ -15,6 +15,7 @@
 #ifdef _WIN32
 #include "ext_window_shim.h"
 #endif
+#include "install_ping.h"
 #include "link_clean.h"
 #include "space_rules.h"
 #include "model_chat.h"
@@ -1542,6 +1543,14 @@ void Controller::Start() {
   ClaudeTick();
   HermesTick();
   HermitTick();
+  // A profile's first launch shows the welcome page, whose first step has the install count switch;
+  // the count waits until that page is done, or for the next launch if it's closed instead.
+  if (state.settings.ping_version == kPingNew) {
+    state.settings.ping_version = kPingFresh;
+    ping_wait_ = !state.settings.onboarded;
+    state.Save();
+  }
+  InstallPing();
   ReportExtensionCopies();
   // MCP entries left pointing at a moved or older Roar are repointed here; none are added.
   if (!platform::Headless() && !InCheckout()) agents::RepairStale(platform::HomeDir(), platform::ResourcePath("roar-mcp"));
@@ -3499,6 +3508,82 @@ void Controller::OnOutlookMail(CefRefPtr<CefBrowser> browser, const std::string&
   }
   PushSidebar();
   RunMailPage(*page);
+}
+
+// Install counting (install_ping.h, README "Network & privacy"): the one request it makes, without
+// cookies or credentials. Its answer settles the event or leaves it for the next launch.
+class InstallPingRequest : public CefURLRequestClient {
+ public:
+  explicit InstallPingRequest(std::string version) : version_(std::move(version)) {}
+  void OnRequestComplete(CefRefPtr<CefURLRequest> request) override {
+    int code = request->GetRequestStatus() == UR_SUCCESS && request->GetResponse() ? request->GetResponse()->GetStatus() : 0;
+    Controller::Get()->InstallPingDone(code, version_);
+  }
+  void OnUploadProgress(CefRefPtr<CefURLRequest>, int64_t, int64_t) override {}
+  void OnDownloadProgress(CefRefPtr<CefURLRequest>, int64_t, int64_t) override {}
+  void OnDownloadData(CefRefPtr<CefURLRequest>, const void*, size_t) override {}
+  bool GetAuthCredentials(bool, const CefString&, int, const CefString&, const CefString&,
+                          CefRefPtr<CefAuthCallback>) override { return false; }
+
+ private:
+  std::string version_;
+  IMPLEMENT_REFCOUNTING(InstallPingRequest);
+};
+
+// A dev build: InCheckout on a Mac; Windows has no such check there, so its exe path is compared here.
+static bool PingFromCheckout() {
+#ifdef _WIN32
+  wchar_t w[MAX_PATH] = L"";
+  GetModuleFileNameW(nullptr, w, MAX_PATH);
+  std::string exe = CefString(w).ToString(), src = ROAR_SOURCE_DIR;
+  auto norm = [](std::string p) {
+    for (auto& c : p) c = c == '\\' ? '/' : static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+    return p;
+  };
+  return !src.empty() && norm(exe).rfind(norm(src) + "/", 0) == 0;
+#else
+  return InCheckout();
+#endif
+}
+
+// Sends what this launch owes (first_seen or update), at most once per launch. Only installed builds
+// on the person's own profile count: never a build run from the checkout, a headless or extra instance,
+// or a scratch ROAR_DATA_DIR (tests). ROAR_INSTALL_PING_URL points it at a test server and lifts those.
+void Controller::InstallPing() {
+  auto& s = State::Get().settings;
+  if (ping_busy_ || (ping_wait_ && !s.onboarded)) return;
+  const std::string version = Version();
+  PingDue due = InstallPingDue(s.ping_version, version);
+  if (due.name.empty()) return;
+  const char* test = std::getenv("ROAR_INSTALL_PING_URL");
+  bool testing = test && *test;
+  auto env = [](const char* k) { const char* v = std::getenv(k); return v && *v; };
+  if (!testing && (PingFromCheckout() || platform::Headless() || env("ROAR_INSTANCE") || env("ROAR_DATA_DIR"))) return;
+  if (!s.install_ping) {  // Off: this one is never sent, even if counting is turned on again later.
+    s.ping_version = version;
+    State::Get().Save();
+    return;
+  }
+  ping_busy_ = true;
+  std::string body = InstallPingBody(due, version, InstallPingOs(), InstallPingArch());
+  auto http = CefRequest::Create();
+  http->SetURL(testing ? test : kInstallPingUrl);
+  // No UR_FLAG_ALLOW_STORED_CREDENTIALS: no cookies go with it and none are kept.
+  http->SetFlags(UR_FLAG_DISABLE_CACHE | UR_FLAG_NO_RETRY_ON_5XX);
+  http->SetHeaderMap({{"Content-Type", "application/json"}});
+  auto post = CefPostData::Create();
+  auto el = CefPostDataElement::Create();
+  el->SetToBytes(body.size(), body.data());
+  post->AddElement(el);
+  http->SetPostData(post);
+  CefURLRequest::Create(http, new InstallPingRequest(version), CefRequestContext::GetGlobalContext());
+}
+
+void Controller::InstallPingDone(int status, const std::string& version) {
+  ping_busy_ = false;
+  if (!InstallPingSettled(status)) return void(LOG(WARNING) << "Install count not sent: " << status << "; next launch tries again");
+  State::Get().settings.ping_version = version;
+  State::Get().Save();
 }
 
 // Polls the sidebar's live folders: pull requests and unread mail.
@@ -6121,6 +6206,7 @@ bool Controller::HandleQuery(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> 
     ApplySettings(changed);
     // Finishing onboarding (or skipping its agent step) decides whether the hooks warning shows.
     if (changed && (changed->HasKey("onboarded") || changed->HasKey("agentHooksIgnore"))) CheckAgentHooks(), PushSidebar();
+    if (changed && changed->HasKey("onboarded") && State::Get().settings.onboarded) ping_wait_ = false, InstallPing();
     callback->Success(StateJson());
   } else if (cmd == "space.switch") {
     SwitchSpace(int_arg("id"));

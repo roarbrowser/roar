@@ -264,6 +264,7 @@ void State::Load() {
     settings.agent_page_15 = false;  // A file without it predates the 15 s agent page card.
     settings.agent_needs_45 = false;  // A file without it predates the 45 s agent needs-you card.
     settings.chat_defaults_seen = "openai,anthropic";  // A file without it predates Perplexity.
+    settings.ping_version.clear();  // A file without it predates install counting: its next report is an update.
     for (const auto& f : SettingFields())
       std::visit([&](auto m) {
         auto& v = settings.*m;
