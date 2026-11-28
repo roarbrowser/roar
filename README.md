@@ -241,9 +241,24 @@ port 9444) started on demand.
 
 ## Network & privacy
 
-Roar has no account or server of its own and its code sends no analytics. Update checks and downloads
-go to GitHub, which sees your IP address under GitHub's privacy statement; the project sees only
-aggregate download counts. These are the connections Roar's own code makes that we know of (Chromium's are below):
+Roar has no account or server of its own. Apart from the one anonymous install count below, its code
+sends no analytics. Update checks and downloads go to GitHub, which sees your IP address under GitHub's
+privacy statement; the project sees only aggregate download counts. These are the connections Roar's own
+code makes that we know of (Chromium's are below):
+
+- **Install count (on by default; turn it off in Settings > Privacy or on the welcome page):** so the
+  project can tell new installs from updates (Roar's own updates download the same release files), Roar
+  sends one event to the project's self-hosted Umami (`analytics.rosslanemgmt.com`, the same analytics
+  as roarbrowser.app) when a new profile is set up and one after each update. Each event holds only its
+  name (`first_seen` or `update`), Roar's version (for an update also the version before), the system
+  (`mac` or `windows`) and the chip type (`arm64` or `x64`). There is no install id or any other
+  identifier, no account and nothing about your pages or browsing; a local note of the last version
+  counted keeps it to once per version. The first one waits until you finish or close the welcome page,
+  so you can turn it off before anything is sent; while it's off nothing is sent and versions you
+  reach then are never sent later. Like any web server, Umami sees your IP address and browser
+  user agent when the event arrives: it keeps an approximate location and the system type and does not
+  store the address. Builds run from a source checkout, headless instances and scratch data folders
+  never send it. Starting over with a new data folder counts as a new install.
 
 - **Updates:** Sparkle checks `raw.githubusercontent.com/roarbrowser/roar/main/appcast.xml`
   (the Intel and Windows builds use their own appcasts) and downloads new releases from GitHub.
