@@ -12,6 +12,9 @@
 #include "download_name.h"
 #include "ext_copy.h"
 #include "ext_paths.h"
+#ifdef _WIN32
+#include "ext_window_shim.h"
+#endif
 #include "link_clean.h"
 #include "space_rules.h"
 #include "model_chat.h"
@@ -511,6 +514,11 @@ class ExtensionPopupViewDelegate : public CefBrowserViewDelegate {
       shim_ = kShim;
       shim_.replace(shim_.find("%s"), 2, ToJson(quoted));
       shim_.replace(shim_.find("%g"), 2, ghost ? "true" : "false");
+#ifdef _WIN32
+      // Stock CEF (Windows) lacks roar_ext_window_type.patch, so the popup at least is told Roar's windows are
+      // normal ones. First, so the current-tab answers below say so too.
+      shim_ = std::string(kWindowTypeShim) + ";\n" + shim_;
+#endif
     }
     void OnDevToolsEvent(CefRefPtr<CefBrowser> browser, const CefString& method,
                          const void* params, size_t params_size) override {

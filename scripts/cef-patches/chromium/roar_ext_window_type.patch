@@ -1,0 +1,33 @@
+diff --git chrome/browser/extensions/browser_extension_window_controller.cc chrome/browser/extensions/browser_extension_window_controller.cc
+--- chrome/browser/extensions/browser_extension_window_controller.cc
++++ chrome/browser/extensions/browser_extension_window_controller.cc
+@@ -32,6 +32,11 @@
+ #include "ui/base/page_transition_types.h"
+ #include "ui/base/window_open_disposition.h"
+ 
++#include "cef/libcef/features/features.h"
++#if BUILDFLAG(ENABLE_CEF)
++#include "cef/libcef/browser/chrome/browser_delegate.h"
++#endif
++
+ // TODO(http://crbug.com/453008083): Stop including
+ // "android/chrome_feature_list.h".
+ #if BUILDFLAG(IS_ANDROID)
+@@ -83,7 +88,17 @@
+     // chrome.windows.create({type: 'popup'}) uses
+     // BrowserWindowCreateParams::CreateForAppPopup().
+     case BrowserWindowInterface::TYPE_APP_POPUP:
++      return api::tabs::WindowType::kPopup;
+     case BrowserWindowInterface::TYPE_POPUP:
++#if BUILDFLAG(ENABLE_CEF)
++      // Roar: CEF makes a browser it hosts in a Views window TYPE_POPUP only to
++      // hide the tab strip and toolbar (ChromeBrowserHostImpl::CreateBrowser).
++      // Each Roar tab is such a window, and to extensions it is a normal one;
++      // as "popup" they found no normal window at all.
++      if (browser->cef_delegate() && browser->cef_delegate()->IsViewsHosted()) {
++        return api::tabs::WindowType::kNormal;
++      }
++#endif
+       return api::tabs::WindowType::kPopup;
+ #if BUILDFLAG(IS_ANDROID)
+     case BrowserWindowInterface::TYPE_CUSTOM_TAB:
