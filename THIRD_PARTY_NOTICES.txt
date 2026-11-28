@@ -66,19 +66,19 @@ Chromium Embedded Framework (CEF). Chromium's own credits: CREDITS.html beside t
 Chromium/CEF source
 ================================================================================
 
-CEF 158.0.3+g8c29be2+chromium-158.0.8127.18, Chromium 158.0.8127.18, built with GN args:
+CEF 158.0.6+g23f1736+chromium-158.0.8127.89, Chromium 158.0.8127.89, built with GN args:
   alternate_cdm_storage_id_key="968b476909da4373b08903c28e859454" chrome_pgo_phase=0 clang_use_chrome_plugins=false disable_fieldtrial_testing_config=true enable_background_mode=false enable_cdm_host_verification=true enable_cdm_storage_id=true enable_downgrade_processing=false enable_ffmpeg_video_decoders=false enable_hevc_parser_and_hw_decoder=false enable_precompiled_headers=false enable_resource_allowlist_generation=false enable_rlz=true enable_widevine=true ffmpeg_branding="Chromium" forbid_non_component_debug_builds=false is_component_build=false is_debug=false is_official_build=true media_use_openh264=false optimize_webui=true proprietary_codecs=true target_cpu="arm64"
 Roar patches CEF/Chromium with scripts/cef-patches at the matching release tag of
 https://github.com/roarbrowser/roar. The corresponding source is available from this
 version's GitHub release at https://github.com/roarbrowser/roar/releases, whose assets contain:
   ffmpeg-42a2a7a2b2ceb0b1554af1e99a8cdaae189404bb.tar.gz: the LGPL FFmpeg source (chromium/third_party/ffmpeg at
-    commit 42a2a7a2b2ceb0b1554af1e99a8cdaae189404bb, as pinned by Chromium 158.0.8127.18's DEPS)
+    commit 42a2a7a2b2ceb0b1554af1e99a8cdaae189404bb, as pinned by Chromium 158.0.8127.89's DEPS)
   roar-cef-patches.tar.gz: Roar's CEF/Chromium patches and gn-args.txt (the args above)
   uBOLite_2026.1006.1931.chromium.zip and uBOL-home-2026.1006.1931.tar.gz: uBO Lite build and source
 The rest of Chromium and CEF (including the MPL-licensed files) is the upstream source at the
 exact versions below, plus Roar's patches:
-  CEF: https://github.com/chromiumembedded/cef (version 158.0.3+g8c29be2+chromium-158.0.8127.18)
-  Chromium: https://chromium.googlesource.com/chromium/src/+/refs/tags/158.0.8127.18
+  CEF: https://github.com/chromiumembedded/cef (version 158.0.6+g23f1736+chromium-158.0.8127.89)
+  Chromium: https://chromium.googlesource.com/chromium/src/+/refs/tags/158.0.8127.89
   FFmpeg: https://chromium.googlesource.com/chromium/third_party/ffmpeg/+/42a2a7a2b2ceb0b1554af1e99a8cdaae189404bb
 The written offer below also covers this complete CEF/Chromium source.
 
@@ -89,7 +89,7 @@ Written offer for source code (LGPL and GPL components)
 For at least three years after the last distribution of this version of Roar, and for as
 long as spare parts or customer support for it are offered, the Roar project will give anyone
 who asks a copy of the complete corresponding source code of: the LGPL-2.1 FFmpeg library; the
-complete CEF and Chromium source (CEF 158.0.3+g8c29be2+chromium-158.0.8127.18, Chromium 158.0.8127.18) with Roar's
+complete CEF and Chromium source (CEF 158.0.6+g23f1736+chromium-158.0.8127.89, Chromium 158.0.8127.89) with Roar's
 patches and build settings; the LGPL JavaScriptCore/WebKit source (oven-sh/WebKit commit
 2e2aa2290fac856d6f451ceacb58f7f5b44dd057), the LGPL-2.1 TinyCC source (oven-sh/tinycc commit 05f0fafaa3be31e31d7b4b5c17dc60f62c991171) and Bun
 1.4.2 source (tag bun-v1.4.2) that roar-mcp is built from; the complete corresponding source of roar-mcp (the mcp/ directory at
